@@ -254,6 +254,10 @@ jobs:
         shell: bash
         run: python3 tools/ci/verify_simple_stream_routing.py
 
+      - name: Verify World API OpenAPI and ChatGPT MD consistency
+        shell: bash
+        run: python3 tools/ci/verify_worldapi_chatgpt_openapi.py
+
       - name: Verify Chapter 11 NexGroups and NexExperiences
         shell: bash
         run: python3 tools/ci/verify_nexgroups_experiences.py
@@ -962,6 +966,40 @@ jobs:
           assert doc["paths"]["/api/v1/nodes"]["get"]["x-nexverse-audience"] == ["admin", "service"]
           assert doc["paths"]["/api/v1/economy/balance"]["get"]["x-nexverse-audience"] == ["citizen", "admin", "service"]
           assert doc["paths"]["/api/v1/inventory/tree"]["get"]["x-nexverse-audience"] == ["citizen", "admin", "service"]
+          # Real simulator Experience routes must appear in OpenAPI with
+          # their method, service-only security and typed responses.
+          for experience_path, methods in {
+              "/api/v1/experiences/script/info": ("get",),
+              "/api/v1/experiences/script/search": ("get",),
+              "/api/v1/experiences/script/resolve": ("get",),
+              "/api/v1/experiences/script/details": ("get",),
+              "/api/v1/experiences/script/permission": ("get",),
+              "/api/v1/experiences/script/location": ("get",),
+              "/api/v1/experiences/script/kv": ("post",),
+              "/api/v1/experiences/viewer/permissions": ("get", "put"),
+              "/api/v1/experiences/viewer/group": ("get",),
+          }.items():
+              for method in methods:
+                  assert method in doc["paths"][experience_path], (experience_path, method)
+          viewer = doc["paths"]["/api/v1/experiences/viewer/permissions"]
+          assert viewer["put"]["x-nexverse-scope"] == "experiences:viewer:permissions"
+          assert viewer["put"]["x-nexverse-audience"] == ["service"]
+          assert viewer["put"]["security"] == [{"apiKeyAuth": []}]
+          assert viewer["put"]["requestBody"]["content"]["application/json"]["schema"]["$ref"] == (
+              "#/components/schemas/ExperienceViewerDecisionRequest")
+          assert viewer["get"]["responses"]["200"]["content"]["application/json"]["schema"]["$ref"] == (
+              "#/components/schemas/ExperienceViewerPermissionReadResponse")
+          assert {p["name"] for p in viewer["get"]["parameters"]} == {
+              "resident_id", "experience_id"}
+          assert "oneOf" in schemas["ExperienceViewerPermissionReadResponse"]
+          assert doc["paths"]["/api/v1/experiences/script/kv"]["post"]["requestBody"][
+              "content"]["application/json"]["schema"]["$ref"] == (
+              "#/components/schemas/ExperienceKvRequest")
+          assert doc["paths"]["/api/v1/experiences/script/info"]["get"]["responses"]["200"][
+              "content"]["application/json"]["schema"]["$ref"] == (
+              "#/components/schemas/ExperiencePublicInfoResponse")
+          assert "check_original" in schemas["ExperienceKvRequest"]["properties"]
+          assert doc["x_nexverse_version_history"][0]["status"] == "development"
           assert "/api/v1/chatgpt-instructions.md" in doc["paths"]
           assert "/api/v1/chatgpt-buergerportal.md" in doc["paths"]
           assert "/api/v1/chatgpt-admin.md" in doc["paths"]
@@ -1030,14 +1068,18 @@ jobs:
           grep -F 'Buergerportal / Einwohner-Selbstbedienung' /tmp/nexverse-chatgpt.md
           grep -F '## Adminbereich' /tmp/nexverse-chatgpt.md
           grep -F '/api/v1/openapi.json' /tmp/nexverse-chatgpt.md
+          grep -F 'experiences:viewer:permissions' /tmp/nexverse-chatgpt.md
+          grep -F 'Script-/Service-Integrationen' /tmp/nexverse-chatgpt.md
 
           curl --silent --fail --max-time 2 http://127.0.0.1:19090/api/v1/chatgpt-buergerportal.md > /tmp/nexverse-chatgpt-citizen.md
           grep -F 'ChatGPT Anweisung Buergerportal' /tmp/nexverse-chatgpt-citizen.md
           grep -F 'admin:* gehoeren nicht in das Buergerportal' /tmp/nexverse-chatgpt-citizen.md
+          grep -F 'Viewer-CAPS' /tmp/nexverse-chatgpt-citizen.md
 
           curl --silent --fail --max-time 2 http://127.0.0.1:19090/api/v1/chatgpt-admin.md > /tmp/nexverse-chatgpt-admin.md
           grep -F 'ChatGPT Anweisung Adminbereich' /tmp/nexverse-chatgpt-admin.md
           grep -F 'Administrative Mutationen nur mit ausdruecklicher Benutzerabsicht' /tmp/nexverse-chatgpt-admin.md
+          grep -F 'experiences:viewer:permissions' /tmp/nexverse-chatgpt-admin.md
 
 
   ledger-db-matrix:
