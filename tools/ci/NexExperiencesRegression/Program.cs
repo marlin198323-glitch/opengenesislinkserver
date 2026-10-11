@@ -14,8 +14,53 @@ internal static class Program
             throw new InvalidOperationException(message);
     }
 
+
+    private static void VerifyViewerInfoCapabilityIds()
+    {
+        string cap = "/CAPS/" + Guid.NewGuid().ToString("D");
+        Guid first = Guid.NewGuid();
+        Guid second = Guid.NewGuid();
+        string id = first.ToString("D");
+        string other = second.ToString("D");
+
+        void Accept(string path, string[] query, params Guid[] expected)
+        {
+            Require(NexExperienceInfoRequestIds.TryParse(path, cap, query, out Guid[] actual) &&
+                    actual.SequenceEqual(expected),
+                "GetExperienceInfo rejected a valid Firestorm URL: " + path);
+        }
+
+        void Deny(string path, string[] query)
+        {
+            Require(!NexExperienceInfoRequestIds.TryParse(path, cap, query, out Guid[] ids) &&
+                    ids.Length == 0,
+                "GetExperienceInfo accepted a forged/ambiguous URL: " + path);
+        }
+
+        // Real Firestorm CAPS routing plus a compatible query-based client.
+        Accept(cap + "/id/" + id, null, first);
+        Accept(cap + "/id/" + id + "/", null, first);
+        Accept(cap + "/" + id, null, first);
+        Accept(cap, new[] { id }, first);
+        Accept(cap + "/", new[] { id, other }, first, second);
+
+        // A CAP may never become a generic Experience query endpoint.
+        Deny(cap, null);
+        Deny(cap + "/id/", null);
+        Deny(cap + "/id/not-an-id", null);
+        Deny(cap + "/id/" + Guid.Empty.ToString("D"), null);
+        Deny(cap + "/id/" + id + "/garbage", null);
+        Deny(cap + "/id/" + id, new[] { other });
+        Deny(cap + "-foreign/id/" + id, null);
+        Deny("/CAPS/foreign/id/" + id, null);
+        Deny(cap, new[] { id, "bad-value" });
+        Deny(cap, new[] { Guid.Empty.ToString("D") });
+        Deny(cap, new string[65]);
+    }
+
     private static void Main()
     {
+        VerifyViewerInfoCapabilityIds();
         string root =
             Path.Combine(
                 Path.GetTempPath(),
