@@ -456,6 +456,7 @@ input,textarea,select{width:100%;background:#08131e;color:var(--text);border:1px
 <label class="change"><input type="checkbox" id="secretEconomy" style="width:auto" /> <strong>Economy / NV$</strong><p><code>economy:read</code> und <code>economy:transfer</code>. Nur auswählen, wenn noch kein gültiger Economy-Key existiert.</p></label>
 <label class="change"><input type="checkbox" id="secretExperiences" checked style="width:auto" /> <strong>Experiences / Script</strong><p><code>experiences:script</code>. Eigener Schlüssel für die Simulator-LSL-Funktionen.</p></label>
 <label class="change"><input type="checkbox" id="secretExperiencePermissions" style="width:auto" /> <strong>Experiences / Firestorm-Rechte</strong><p><code>experiences:viewer:permissions</code>. Separater Service-Schlüssel für Firestorm Allow/Block/Forget; nur für kontrolliert aktivierte Permission-CAPS.</p></label>
+<label class="change"><input type="checkbox" id="secretExperienceManage" style="width:auto" /> <strong>Experiences / Firestorm-Erwerb und Editor</strong><p><code>experiences:viewer:manage</code>. Eigenständiger privilegierter Simulator-Service-Schlüssel für „Erlebnis erwerben“ und die Bearbeitung eigener Experiences; nicht mit anderen Scopes kombinieren.</p></label>
 <label class="change"><input type="checkbox" id="secretNexBus" checked style="width:auto" /> <strong>NexBus / NodeAgent</strong><p>Gemeinsamer zufälliger HMAC-Signaturschlüssel für Robust und alle Simulator-Nodes.</p></label>
 </div>
 <p class="authnote">Der NexBus-SharedKey ist kein World-API-Key. Er wird lokal im Browser per kryptografisch sicherem Zufall erzeugt und muss auf allen beteiligten Nodes identisch sein.</p>
@@ -1421,6 +1422,7 @@ function secretValidateEndpoint(text) {
 function secretBuildLines(values) {
   const names=['NEXVERSE_ECONOMY_API_KEY','NEXVERSE_EXPERIENCES_API_KEY',
     'NEXVERSE_EXPERIENCES_VIEWER_PERMISSIONS_API_KEY',
+    'NEXVERSE_EXPERIENCES_VIEWER_MANAGE_API_KEY',
     'NEXVERSE_NEXBUS_SHARED_KEY','NEXVERSE_NEXBUS_PEER_URL','NEXVERSE_NEXBUS_PEERS'];
   $('secretOutput').value=names.filter(name=>Object.hasOwn(values,name)).map(name=>name+'='+values[name]).join('\n')+'\n';
   $('secretCopy').disabled=!Object.keys(values).length;
@@ -1521,8 +1523,9 @@ async function secretGenerate() {
   const wantEconomy=$('secretEconomy').checked;
   const wantExperiences=$('secretExperiences').checked;
   const wantPermissions=$('secretExperiencePermissions').checked;
+  const wantManage=$('secretExperienceManage').checked;
   const wantBus=$('secretNexBus').checked;
-  if(!wantEconomy&&!wantExperiences&&!wantPermissions&&!wantBus){
+  if(!wantEconomy&&!wantExperiences&&!wantPermissions&&!wantManage&&!wantBus){
     secretStatus('Bitte mindestens einen Schlüssel auswählen.',false);return;
   }
   const values={};
@@ -1543,7 +1546,10 @@ async function secretGenerate() {
        scopes:['experiences:script'],env:'NEXVERSE_EXPERIENCES_API_KEY'},
       {wanted:wantPermissions,name:'NexVerse Simulator Experience Permissions',
        scopes:['experiences:viewer:permissions'],
-       env:'NEXVERSE_EXPERIENCES_VIEWER_PERMISSIONS_API_KEY'}
+       env:'NEXVERSE_EXPERIENCES_VIEWER_PERMISSIONS_API_KEY'},
+      {wanted:wantManage,name:'NexVerse Simulator Experience Management',
+       scopes:['experiences:viewer:manage'],
+       env:'NEXVERSE_EXPERIENCES_VIEWER_MANAGE_API_KEY'}
     ].filter(item=>item.wanted);
     if(plan.length){
       const inventory=await secretJson('/api/v1/auth/api-keys',{

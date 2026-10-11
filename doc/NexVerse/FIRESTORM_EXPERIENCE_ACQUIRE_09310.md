@@ -77,6 +77,51 @@ mit minimalen Scopes anlegen oder bestehende gültige Schlüssel verwenden:
   nur `experiences:viewer:manage`; privilegierte Ausgabe nur durch
   berechtigten Administrator.
 
+### Neuen Verwaltungsschlüssel im Adminbereich erzeugen
+
+Der bisherige World-API-Schlüsselstore kannte den Scope
+`experiences:viewer:manage` noch nicht als erlaubten **Maschinen**-Scope.
+Damit scheiterte jede Ausstellung trotz korrekt implementierter
+Firestorm-Experience-CAPS. Dieser Fehler wurde im API-Key-Store behoben.
+Außerdem ist der neue Scope jetzt in der Adminseite als eigene,
+standardmäßig nicht ausgewählte Option verfügbar.
+
+1. Auf **Robust** und dem Entwickler-Simulator mindestens den Git-Stand
+   mit dieser Korrektur ausrollen und die **tatsächlich verwendeten**
+   Dienste mit dem neu gebauten Code kontrolliert starten. Ohne neuen
+   Robust-Code lehnt der Endpunkt weiter den Scope mit HTTP 400 ab.
+2. Den über HTTPS geschützten World-API-Adminbereich
+   `/api/v1/docs` öffnen; mit einem echten Administrator-Konto
+   anmelden (UserLevel 200 und `admin:*`).
+3. **Schlüssel & Einrichtung** auswählen. Bei der
+   Schlüsselgenerierung **ausschließlich** die Option
+   **„Experiences / Firestorm-Erwerb und Editor“** ankreuzen.
+   Economy, Script, Permissions und NexBus für diesen Vorgang
+   nicht erneut anlegen.
+4. „Ausgewählte Schlüssel erstellen“ bestätigen. Die World API stellt
+   einen eigenen Schlüssel mit dem einzigen Scope
+   `experiences:viewer:manage` aus und zeigt die Konfigurationszeile
+   **genau einmal** an.
+5. `NEXVERSE_EXPERIENCES_VIEWER_MANAGE_API_KEY=<ausgegebener Wert>`
+   sicher in der **effektiv vom Entwickler-Simulator geladenen**
+   Secret-Umgebung hinterlegen, zum Beispiel in
+   `/etc/nexverse/nexverse.env` wenn diese Datei wirklich vom
+   Dienst geladen wird. Keine Schlüsselwerte in `OpenSim.ini`,
+   Shell-History, Screenshots, Chat, Git oder öffentlich erreichbare
+   Logdateien schreiben.
+6. `ViewerManageApiKey` in der Simulator-Ini darf unverändert auf
+   `${Environment|NEXVERSE_EXPERIENCES_VIEWER_MANAGE_API_KEY}`
+   zeigen. Nach dem gezielten Neustart von `/opt/developer` mit
+   **neuem Firestorm-Login** die `AgentExperiences`-CAP testen.
+
+Für reine API-Nutzung durch autorisierte Administratoren ist alternativ
+`POST /api/v1/auth/api-keys` mit
+`{"name":"NexVerse Simulator Experience Management",
+"scopes":["experiences:viewer:manage"]}` möglich. Der Endpunkt
+verlangt einen gültigen **Admin-Bearer**, keinen API-Key.
+Die Antwort enthält `api_key` nur bei Erstellung. Niemals die
+Antwort in geteilte Shell-Logs oder den Chat kopieren.
+
 Es müssen wirklich **drei verschiedene Werte** sein.
 Im Simulator als getrennte Environment-Secrets hinterlegen.
 Die Variablen sind in `bin/nexverse.env.example` und

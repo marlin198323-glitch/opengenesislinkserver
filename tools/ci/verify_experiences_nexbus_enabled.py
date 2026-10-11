@@ -60,6 +60,8 @@ assert "return new InMemoryNexEventBus();" in connector
 store=contents("NexVerse/Core/Security/NexApiKeyStore.cs")
 assert "NexScopes.ExperiencesScript" in store
 assert "NexScopes.ExperiencesViewerPermissions" in store
+assert "NexScopes.ExperiencesViewerManage" in store
+assert "Firestorm Experience management credentials must have only experiences:viewer:manage." in store
 assert "normalizedScopes.Length != 1" in store
 assert "existing.Enabled" in store and "SameScopes(existing.Scopes, normalizedScopes)" in store
 assert "record == null || record.Enabled" in store, "cannot delete enabled keys"
@@ -85,6 +87,10 @@ for marker in ('data-page="adminlogin"','id="page-adminlogin"','id="adminLoginPa
                "'secrets','nodes','grid'", 'id="page-secrets"',
                "'/api/v1/auth/api-keys'","window.crypto.getRandomValues(bytes)"):
     assert marker in ui,marker
+assert 'id="secretExperienceManage"' in ui
+assert "'NEXVERSE_EXPERIENCES_VIEWER_MANAGE_API_KEY'" in ui
+assert "scopes:['experiences:viewer:manage']" in ui
+assert "const wantManage=$('secretExperienceManage').checked;" in ui
 assert "localStorage.setItem(" not in ui
 assert "sessionStorage.setItem(" not in ui
 assert 'id="secretAdminPassword"' not in ui, "secrets must use shared admin session"

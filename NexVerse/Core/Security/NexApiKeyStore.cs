@@ -103,7 +103,10 @@ namespace NexVerse.Core.Security
                     NexScopes.ExperiencesScript,
                     // Separate trusted simulator CAP transport. This is
                     // deliberately NOT experiences:manage or admin:*.
-                    NexScopes.ExperiencesViewerPermissions
+                    NexScopes.ExperiencesViewerPermissions,
+                    // Firestorm Experience acquisition / owner-only edits
+                    // require a separate privileged simulator credential.
+                    NexScopes.ExperiencesViewerManage
                 },
                 StringComparer.OrdinalIgnoreCase);
 
@@ -123,6 +126,14 @@ namespace NexVerse.Core.Security
                 normalizedScopes.Length != 1)
                 throw new ArgumentException(
                     "Experiences viewer permission credentials must have only experiences:viewer:permissions.",
+                    nameof(scopes));
+
+            if (normalizedScopes.Contains(
+                    NexScopes.ExperiencesViewerManage,
+                    StringComparer.OrdinalIgnoreCase) &&
+                normalizedScopes.Length != 1)
+                throw new ArgumentException(
+                    "Firestorm Experience management credentials must have only experiences:viewer:manage.",
                     nameof(scopes));
 
             string normalizedName = string.IsNullOrWhiteSpace(name)
