@@ -327,6 +327,8 @@ namespace NexVerse.Server.Api
                                     .Select(x => x.ToString("D")).ToArray(),
                                 admin_ids = lists.Admin.Select(x => x.ToString("D")).ToArray(),
                                 contributor_ids = lists.Contributor.Select(x => x.ToString("D")).ToArray(),
+                                creator_ids = m_Store.GetViewerCreatorExperienceIds(resident)
+                                    .Select(x => x.ToString("D")).ToArray(),
                                 correlation_id = Correlation(response)
                             });
                         }
