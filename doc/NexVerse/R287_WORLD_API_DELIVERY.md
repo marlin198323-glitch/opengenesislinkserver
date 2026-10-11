@@ -54,8 +54,15 @@ Keine API-Keys in Bild-URLs und keine fremden Texture-UUIDs ausprobieren.
   Eigentumsgrenzen betreffen; nicht ohne Autorisierung via Assetdienst öffnen.
 - Einzelregion `GET /regions/{regionId}` und persönliche Bank-Account-
   Owner-Auflösung: sichere Provider und Berechtigungsmodelle prüfen.
-- Banking/Commerce/Land-Commerce: weitere generische Schemas aus R287
-  müssen anhand des tatsächlich ausgegebenen API-JSONs typisiert werden.
+- Banking/Commerce/Land-Commerce: die zwölf bisher komplett leeren
+  Banking-/Payment-/Commerce-/Land-Response-Schemas sind anhand der
+  C#-Payloads jetzt konkret mit Ledger-Postings, Kontoauszügen, Salden,
+  Payment-Requests, Orders, Listings und Leases typisiert. Zehn
+  wiederverwendbare Record-Schemas wurden ergänzt. Bei Sammel-Operationen
+  bleiben weitere Pagination-/Owner-Erweiterungen gesondert zu prüfen.
+- Die vier Legacy-Sammel-Schemas für Discovery und Chapter11 deklarieren
+  nun ihre gemeinsamen möglichen Felder; wegen polymorpher Antworttypen
+  sind sie ausdrücklich keine vollständigen per-Route-DTOs.
 - Optionales RSVP und Payment-/Credits-POST: **keine API ohne ausdrückliche
   Produkt-/Zahlungs- und Ledger-Idempotenzentscheidung**.
 - Die Live-Abnahme, JPEG2000-Runtime-Konvertierung und echte private
