@@ -140,6 +140,7 @@ assert 'WorldApiBaseUrl = "https://world.stadt-nexverse.de"' in viewer_config
 assert "ConnectionString" not in viewer_config
 assert "CurrencyPurchasePortalUrl" in viewer_config
 assert "BalanceRefreshSeconds = 5" in viewer_config
+assert "AllowHypergridGuests = false" in viewer_config
 
 print("NV$ World API and Viewer adapter contract: OK")
 
@@ -158,3 +159,34 @@ assert selection_pos >= 0 and enabled_pos >= 0 and selection_pos < enabled_pos
 register_pos = viewer.find("scene.RegisterModuleInterface<IMoneyModule>")
 balance_hook_pos = viewer.find("client.OnMoneyBalanceRequest +=")
 assert register_pos >= 0 and balance_hook_pos >= 0
+
+# HG wallet onboarding is opt-in and derived only from the trusted
+# scene agent circuit. It must never rely on a viewer-supplied home URL.
+hg_identity = Path("NexVerse/Core/Economy/NexHypergridWalletIdentity.cs").read_text()
+hg_service = Path("NexVerse/Core/Economy/NexEconomyService.cs").read_text()
+hg_tests = Path("tools/ci/NexEconomyPolicyRegression/Program.cs").read_text()
+for marker in ("CanonicalHome(", "Reference(", "AccountId(",
+               "opengenesislink:nvd:hypergrid:wallet:v1",
+               "SHA256.HashData"):
+    assert marker in hg_identity, "Missing namespaced HG identity: " + marker
+for marker in ("EnsureHypergridResidentAccount(",
+               'existing.Reference, reference', "NexLedgerSide.Credit"):
+    assert marker in hg_service, "Missing HG wallet policy: " + marker
+for marker in ("/api/v1/economy/hypergrid/wallets/ensure",
+               "hypergrid_service_required",
+               "HandleEnsureHypergridWallet(", "account != null"):
+    assert marker in api, "Unprotected HG wallet API: " + marker
+for marker in ("GetAgentCircuitData(avatarId)",
+               "circuit.SessionID != sp.ControllingClient.SessionId",
+               'TryGetValue("HomeURI", out object rawHome)',
+               "NexHypergridWalletIdentity.AccountId(",
+               "m_AllowHypergridGuests", "TryResolveWallet(fromUser, true",
+               "TryResolveWallet(toUser, false",
+               "TryResolveWallet(buyer, true", "TryResolveWallet(seller, false",
+               "HG NV$ debits require a live verified session"):
+    assert marker in viewer, "HG user wallet not safely mapped: " + marker
+assert "AllowHypergridGuests = false" in Path("bin/OpenSim.ini").read_text()
+for marker in ("HG origin isolation/canonicalization failed",
+               "HG transfer ledger balance mismatch",
+               "HG account allowed overdraft"):
+    assert marker in hg_tests, "Missing HG wallet regression: " + marker

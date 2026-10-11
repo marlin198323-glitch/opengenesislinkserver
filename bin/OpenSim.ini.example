@@ -1076,6 +1076,12 @@
     ; Set to 0 to disable periodic refresh.
     BalanceRefreshSeconds = 5
 
+    ; Hypergrid guests can hold independent NV$ accounts, derived from the
+    ; trusted simulator circuit HomeURI + original avatar UUID. Disabled
+    ; until operators validate HG sessions and local payout policies.
+    ; No foreign-grid currency exchange and no ATM withdrawals are enabled.
+    AllowHypergridGuests = false
+
     ; Optional secure web portal opened/recommended by the legacy Firestorm
     ; buy-currency helper. No currency is minted by unauthenticated XML-RPC.
     CurrencyPurchasePortalUrl = ""

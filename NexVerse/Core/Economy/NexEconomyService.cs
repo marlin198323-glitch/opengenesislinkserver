@@ -84,6 +84,57 @@ namespace NexVerse.Core.Economy
             return existing;
         }
 
+        /// <summary>
+        /// HG guest wallets live in the SAME durable NV$ ledger, but are never
+        /// keyed by an unqualified avatar UUID. No credit is issued on creation.
+        /// Only the trusted simulator may supply the verified circuit identity.
+        /// </summary>
+        public NexLedgerAccount EnsureHypergridResidentAccount(
+            string verifiedHomeUri, Guid originalAvatarId, string displayName)
+        {
+            Guid walletId = NexHypergridWalletIdentity.AccountId(
+                verifiedHomeUri, originalAvatarId);
+            string reference = NexHypergridWalletIdentity.Reference(
+                verifiedHomeUri, originalAvatarId);
+
+            NexLedgerAccount existing = m_Ledger.GetAccount(walletId);
+            if (existing != null)
+            {
+                if (existing.AccountClass != NexLedgerAccountClass.Resident ||
+                    existing.NormalSide != NexLedgerSide.Credit ||
+                    !string.Equals(existing.CurrencyCode, NexLedgerCurrency.Code,
+                        StringComparison.Ordinal) ||
+                    !string.Equals(existing.Reference, reference,
+                        StringComparison.Ordinal))
+                    throw new NexLedgerConflictException(
+                        "HG wallet ID collision or incompatible existing wallet.");
+                return existing;
+            }
+
+            string label = string.IsNullOrWhiteSpace(displayName)
+                ? "Hypergrid " + originalAvatarId.ToString("D")
+                : displayName.Trim();
+            if (label.Length > NexLedgerAccount.DisplayNameLengthLimit)
+                throw new ArgumentOutOfRangeException(nameof(displayName));
+
+            NexLedgerAccount wallet = new NexLedgerAccount(walletId,
+                NexLedgerAccountClass.Resident, NexLedgerSide.Credit,
+                reference, label);
+            if (m_Ledger.TryCreateAccount(wallet))
+                return wallet;
+
+            existing = m_Ledger.GetAccount(walletId);
+            if (existing == null ||
+                existing.AccountClass != NexLedgerAccountClass.Resident ||
+                existing.NormalSide != NexLedgerSide.Credit ||
+                !string.Equals(existing.CurrencyCode, NexLedgerCurrency.Code,
+                    StringComparison.Ordinal) ||
+                !string.Equals(existing.Reference, reference, StringComparison.Ordinal))
+                throw new NexLedgerConflictException(
+                    "HG wallet identity conflict after concurrent creation.");
+            return existing;
+        }
+
         public NexLedgerAccount EnsureSystemAccount(
             Guid accountId,
             string displayName)

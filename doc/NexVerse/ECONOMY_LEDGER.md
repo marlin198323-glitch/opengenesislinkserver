@@ -118,3 +118,62 @@ Ledger-Schema v4 ergaenzt ausschliesslich Workflow-Zustaende neben dem unveraend
 NexCommerce vereinheitlicht Vendor-Zahlungen, Objektverkaeufe, Marketplace, Landkauf, Eventtickets, Mieten und Merchant-Refunds ueber persistente Orders, die auf ihre Ledger-Transaktionen zeigen. Der Viewer und Simulator behalten keine eigene Geld-Datenbank.
 
 Der Landhandel trennt Katalog und Weltzustand: Listings/Leases sind OpenGenesisLINK-Workflowdaten; die eigentlichen Parcel-Rechte bleiben im nativen LandManagementModule. Beim Viewer-Landkauf wird der Eigentumswechsel erst nach erfolgreichem NV$-Settlement ausgefuehrt.
+
+## Hypergrid-Bewohner als NV$-Teilnehmer (11.10.2026, opt-in)
+
+**Ziel:** Besucher aus anderen OpenSimulator-Hypergrids duerfen im
+NexVerse-Grid dieselbe **virtuelle** NV$-Wirtschaft verwenden, ohne
+dass Guthaben oder Rechte eines lokalen Avatars vermischt werden.
+
+- **Identitaet:** Die Region liest `HomeURI`, urspruengliche Avatar-UUID
+  und Session-ID ausschliesslich aus der serverseitig authentifizierten
+  Hypergrid-AgentCircuitData. Die Herkunft wird bei jeder lebenden
+  Gast-Session prueft. Ein Name, Objekttext oder Viewer-POST gilt
+  **niemals** als Identitaetsnachweis.
+- **Wallet:** `NexHypergridWalletIdentity` erzeugt eine stabile,
+  gehaertete Account-UUID aus kanonischem Home-Grid-Origin und
+  Original-Avatar-UUID. Anderes Grid, gleiche Avatar-UUID → **anderes NV$-Konto**.
+  Der Ledger speichert das Konto als Resident-Wallet mit eindeutigem
+  `hg:`-Referenzschluessel und dem ueblichen Double-Entry-Journal.
+- **Robust:** `POST /api/v1/economy/hypergrid/wallets/ensure`
+  ist ausschliesslich mit einem vertrauenswuerdigen Maschinen-Key
+  (`economy:transfer`, kein Avatar-Bearer) aufrufbar. Die Ableitung
+  erfolgt dort *erneut*. Wallet-Neuanlage ist idempotent und vergibt
+  **0 NV$**; NVBAN kann anschliessend als Alias vergeben werden.
+  Der Simulator speichert keine Ledgerdatenbank.
+- **Viewer & Zahlungen:** Der `NexVerseMoneyModule`-Adapter bildet den
+  Live-Agent auf das HG-Wallet ab. Anzeige des NV$-Saldos, normale
+  Transfers und Inworld-Kaeufe laufen ueber die existierende zentrale
+  Economy-/Commerce-Policy; fehlende oder widerspruechliche Identitaet
+  verweigert die Zahlung. Beim Verlassen der Region sind Ausgaben
+  von diesem Gast ohne erneut gepruefte Live-Session gesperrt.
+- **Aktivierung:** Unter `[NexEconomyViewer]` in der tatsaechlich
+  geladenen Simulator-INI `AllowHypergridGuests = true` setzen,
+  **erst nach Test** mit mindestens zwei verschiedenen Home-Grids.
+  Standard: `false`. Der vorhandene `NEXVERSE_ECONOMY_API_KEY`
+  benoetigt weiterhin die bisherigen minimalen `economy:read` und
+  `economy:transfer`-Scopes. Kein HG-Economy-Key im Viewer.
+
+**Explizit NICHT enthalten:** Transfer von Fremdgrid-Waehrungen,
+Hypergrid-weite Echtgeld-Zahlungen, grenzueberschreitender Wallet-Zugriff
+ohne lokale authentifizierte Session, NV$-Wechselkurse und Geldautomaten.
+Ein HG-Gast hat **nur ein NexVerse-NV$-Guthaben**, kein
+geldliches Guthaben auf seinem Heimatgrid.
+
+### Spaeterer NexVerse-Geldautomat
+
+Einzahlung/Auszahlung soll als **rein virtuelle NV$-Umbuchung**
+zwischen bestaetigtem Gast-Wallet und einem getrennten,
+autorisierten Bank-/Reservekonto erfolgen. Beide Wege benoetigen:
+aktive inworld-Sitzung, HG-Identitaetsbeweis, Rate-Limits,
+Betragsgrenzen, Idempotency-Key, genug Deckung, unveraenderliches
+Double-Entry-Journal und expliziten Kontoauszug. Eine NVBAN ist
+lediglich ein Alias und **kein zweiter Saldo**. Reale Geldzahlungen
+oder die Uebertragung auf fremde Hypergrid-Economy-Systeme erfordern
+spaeter eine gesonderte, autorisierte Integration; sie duerfen nicht
+durch einen normalen LSL-`llGiveMoney`-Trick simuliert werden.
+
+**Release-Status:** Opt-in Entwicklungsumfang, keine Live-Garantie.
+Ein Test mit mindestens zwei fremden Home-Grids, identischen
+Original-UUIDs auf unterschiedlichen Home-Grids und getrennten
+Sim-Prozessen ist fuer produktive Aktivierung Pflicht.
