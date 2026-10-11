@@ -460,6 +460,48 @@ namespace NexVerse.RegionModules.Experiences
             }
         }
 
+        private void HandleViewerIsExperienceAdmin(IOSHttpRequest req,
+            IOSHttpResponse resp, Scene scene, UUID avatar,
+            NexExperienceCapLeaseRegistry.Lease lease)
+        {
+            resp.ContentType = "application/llsd+xml";
+            resp.KeepAlive = false;
+            resp.AddHeader("Cache-Control", "no-store");
+            if (!IsCurrentViewer(scene, avatar, lease))
+            {
+                resp.StatusCode = (int)HttpStatusCode.Gone;
+                return;
+            }
+            if (req.HttpMethod != "GET" ||
+                !UUID.TryParse(req.QueryString?["experience_id"], out UUID id) ||
+                id.IsZero())
+            {
+                resp.StatusCode = (int)HttpStatusCode.BadRequest;
+                return;
+            }
+            try
+            {
+                OSDMap lists = FetchViewerPermissionLists(avatar);
+                bool isOwner = false;
+                foreach (OSD candidate in (OSDArray)lists["experience_ids"])
+                    if (candidate.AsUUID() == id)
+                        isOwner = true;
+                resp.RawBuffer = Encoding.UTF8.GetBytes(
+                    OSDParser.SerializeLLSDXmlString(new OSDMap
+                    {
+                        ["status"] = OSD.FromBoolean(isOwner)
+                    }));
+                resp.StatusCode = (int)HttpStatusCode.OK;
+            }
+            catch (Exception e) when (e is HttpRequestException ||
+                e is JsonException || e is TaskCanceledException ||
+                e is InvalidOperationException || e is IOException)
+            {
+                m_Log.Warn("[NEX-EXPERIENCES]: Viewer profile access check failed.", e);
+                resp.StatusCode = (int)HttpStatusCode.BadGateway;
+            }
+        }
+
         private void HandleViewerUpdate(IOSHttpRequest req, IOSHttpResponse resp,
             Scene scene, UUID avatar, NexExperienceCapLeaseRegistry.Lease lease)
         {
