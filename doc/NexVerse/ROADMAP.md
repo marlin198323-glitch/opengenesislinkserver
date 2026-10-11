@@ -2,12 +2,23 @@
 
 > Status: 0.9.3.8 Stable released 8 October 2026  
 > Current stable release: **OpenGenesisLINK v0.9.3.8**  
-> Active development train: **OpenGenesisLINK v0.9.3.10 Dev** (Runtime + full NexExperiences viewer integration; OGLVoice deferred to an undated later train; no separate 0.9.3.9 Stable)  
+> Active development train: **OpenGenesisLINK v0.9.3.10 Dev – stabilization and RC1 readiness** (NexExperiences/Firestorm paused and RC-profile disabled; Pathfinding 2.0 and My Outfits 2.0 deferred to own Viewer; OGLVoice deferred; no separate 0.9.3.9 Stable)  
 > Completed release train: **0.9.3.2 → 0.9.3.3 → 0.9.3.4 → 0.9.3.8**  
 > Latest release candidate: **OpenGenesisLINK v0.9.3.8 RC1** (successfully validated)  
 > Completed milestone: **0.9.3.8 — Search, Places, Land and Destination Guide**  
 > Completed milestone codename: **NEXJAST**  
 > Historical source baseline: OpenSimulator 0.9.3.0 ("Nessie")
+
+**Scope change 12 October 2026:** The binding 0.9.3.10 release gate is now
+[09310_RC1_RELEASE_READINESS.md](09310_RC1_RELEASE_READINESS.md)
+with 22 RC1/23 Stable live operator cases (evidence v2). Historical
+Experience/LSL/DB/APP release checkboxes elsewhere in this roadmap
+are design/development history, **not** RC1 obligations. Existing
+Experience code and regression checks remain, but Firestorm Experience
+integration is paused and must be disabled on the RC deployment.
+OGL Pathfinding 2.0, OGL My Outfits 2.0 and a possible OGL
+Experiences 2.0 will be separately specified for the own viewer.
+No implied RC tag or Stable approval.
 
 ## 1. Vision
 

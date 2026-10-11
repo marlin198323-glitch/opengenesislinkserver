@@ -1,3 +1,12 @@
+> **ARCHIV – nicht die aktuelle RC1-Checkliste (12.10.2026).**
+> Die unten dokumentierten Experience-/NAV-/Firestorm-Tests und
+> 11/38-Haken stammen von einem historischen Entwicklerbuild.
+> Ab sofort gelten ausschliesslich die **22 RC1-/23 Stable-Pflichtfälle**
+> aus [09310_RC1_RELEASE_READINESS.md](09310_RC1_RELEASE_READINESS.md).
+> NexExperiences, OGL Pathfinding 2.0 und OGL My Outfits 2.0 sind vertagt.
+> Die untenstehenden Aktivierungsbeispiele sind **nicht** fuer
+> den 0.9.3.10-RC-Betrieb gedacht.
+
 # 0.9.3.10 – Abnahme-Blocker nach Firestorm-7.2.4-Pruefprotokoll
 
 > **Historische Momentaufnahme:** Nach der Scope-Entscheidung vom 11.10.2026 entfallen OGL Pathfinding und NAV01–NAV08 vollstaendig aus dem aktuellen Server-Release. Alte NAV-Tests, INI-Auszüge und deren Blockerbeschreibung gelten nicht mehr. Die aktuelle Pflichtmatrix umfasst 40 statt 48 Faelle. Verbindlich: `09310_RC1_RELEASE_READINESS.md`.

@@ -19,5 +19,6 @@ assert "public LSL_List llGetClosestNavPoint(" in api
 assert "return new LSL_List();" in api
 release = (root / "tools/ci/verify_09310_release_readiness.py").read_text()
 assert '"NAV":' not in release and '"NAV08"' not in release
-assert "assert len(REQUIRED_CASES) == 40" in release
+assert "assert len(REQUIRED_CASES) == 23" in release
+assert "SEC_XP_OFF" in release and "ECON_MASTERBANK" in release
 print("0.9.3.10 server: OGL Pathfinding fully excluded; LSL gracefully unsupported.")

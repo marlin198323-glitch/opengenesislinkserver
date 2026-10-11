@@ -46,29 +46,48 @@ def make_fixture():
 
 
 class ReleaseGateTests(unittest.TestCase):
-    def test_current_scope_excludes_deferred_navigation(self):
-        self.assertEqual(len(gate.REQUIRED_CASES), 40)
-        self.assertEqual(sum(gate.HISTORIC.values()), 31)
-        self.assertFalse(any(x.startswith('NAV') for x in gate.REQUIRED_CASES))
-        for code in ("EXP_CREATE", "PORTAL_IMAGE", "RECOVERY_RESTORE"):
+    def test_current_scope_excludes_all_deferred_viewer_features(self):
+        self.assertEqual(len(gate.REQUIRED_CASES), 23)
+        for prefix in ("NAV", "EXP", "APP", "LSL0", "DB0", "REL0"):
+            self.assertFalse(any(x.startswith(prefix) for x in gate.REQUIRED_CASES))
+        for code in ("ECON_MASTERBANK", "INV_CORE", "API_IMAGE",
+                     "SEC_XP_OFF", "RECOVERY_RESTORE", "PERF_STRESS"):
             self.assertIn(code, gate.REQUIRED_CASES)
+        self.assertEqual(len(set(gate.REQUIRED_CASES)), 23)
 
     def test_rc1_does_not_require_approval_that_depends_on_rc1(self):
-        self.assertEqual(len(gate.required_cases_for("rc1")), 39)
-        self.assertEqual(len(gate.required_cases_for("stable")), 40)
-        self.assertNotIn("REL07", gate.required_cases_for("rc1"))
-        self.assertIn("REL07", gate.required_cases_for("stable"))
+        self.assertEqual(len(gate.required_cases_for("rc1")), 22)
+        self.assertEqual(len(gate.required_cases_for("stable")), 23)
+        self.assertNotIn("STABLE_APPROVAL", gate.required_cases_for("rc1"))
+        self.assertIn("STABLE_APPROVAL", gate.required_cases_for("stable"))
         d = make_fixture()
-        d["cases"]["REL07"]["status"] = "NOT_RUN"
+        d["cases"]["STABLE_APPROVAL"]["status"] = "NOT_RUN"
         self.assertEqual(gate.validate(d, "rc1", SHA, "RC1"), [])
-        self.assertTrue(any("REL07" in issue for issue in
+        self.assertTrue(any("STABLE_APPROVAL" in issue for issue in
                             gate.validate(d, "stable", SHA, "Release", SHA)))
 
     def test_template_is_not_a_release(self):
         d = gate.initial_manifest(SHA)
         issues = gate.validate(d, "rc1", SHA, "Dev")
-        self.assertGreaterEqual(len(issues), 40)
+        self.assertGreaterEqual(len(issues), 22)
         self.assertTrue(any("NOT RUN" in error for error in issues))
+
+    def test_old_evidence_and_changed_scope_are_rejected(self):
+        d = make_fixture()
+        d["format"] = "ogl-release-evidence-v1"
+        self.assertTrue(gate.validate(d, "rc1", SHA, "RC1"))
+        d = make_fixture()
+        d["scope"] = "old-experiences-release"
+        self.assertTrue(gate.validate(d, "rc1", SHA, "RC1"))
+        d = make_fixture()
+        d["deferred_features"]["nexperiences"] = "ACTIVE"
+        self.assertTrue(gate.validate(d, "rc1", SHA, "RC1"))
+        d = make_fixture()
+        d["cases"]["EXP_CREATE"] = d["cases"]["CORE_BOOT"].copy()
+        self.assertTrue(gate.validate(d, "rc1", SHA, "RC1"))
+        d = make_fixture()
+        del d["cases"]["ECON_MASTERBANK"]
+        self.assertTrue(gate.validate(d, "rc1", SHA, "RC1"))
 
     def test_rc1_requires_explicit_version_flavour_and_evidence(self):
         d = make_fixture()
@@ -85,13 +104,13 @@ class ReleaseGateTests(unittest.TestCase):
 
     def test_unperformed_real_world_cases_remain_blocked(self):
         d = make_fixture()
-        d["cases"]["EXP_CREATE"]["status"] = "NOT_RUN"
-        d["cases"]["EXP02"]["status"] = "FAIL"
-        d["cases"]["PORTAL_IMAGE"]["evidence_ref"] = "TODO"
+        d["cases"]["ECON_MASTERBANK"]["status"] = "NOT_RUN"
+        d["cases"]["SEC_XP_OFF"]["status"] = "FAIL"
+        d["cases"]["API_IMAGE"]["evidence_ref"] = "TODO"
         issues = gate.validate(d, "rc1", SHA, "RC1")
-        self.assertTrue(any("EXP_CREATE" in e for e in issues))
-        self.assertTrue(any("EXP02" in e for e in issues))
-        self.assertTrue(any("PORTAL_IMAGE" in e for e in issues))
+        self.assertTrue(any("ECON_MASTERBANK" in e for e in issues))
+        self.assertTrue(any("SEC_XP_OFF" in e for e in issues))
+        self.assertTrue(any("API_IMAGE" in e for e in issues))
 
     def test_never_forges_stable_on_rc1_or_no_tag(self):
         d = make_fixture()
@@ -110,7 +129,7 @@ class ReleaseGateTests(unittest.TestCase):
     def test_no_release_when_known_limitations_or_logs_missing(self):
         d = make_fixture()
         d["known_limitations_reviewed"] = False
-        d["cases"]["EXP03"]["notes"] = ""
+        d["cases"]["ECON_LEDGER"]["notes"] = ""
         self.assertTrue(gate.validate(d, "rc1", SHA, "RC1"))
 
 

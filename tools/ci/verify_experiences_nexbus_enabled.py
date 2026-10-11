@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Regression guard for production NexBus, Experiences and admin-only World API login."""
+"""Regression guard: active NexBus, paused Experiences, admin-only API login."""
 from pathlib import Path
 import re
 import shutil
@@ -21,8 +21,10 @@ def ini(rel, name):
 for rel in ("bin/OpenSim.ini", "bin/OpenSim.ini.example"):
     agent=ini(rel,"NexVerseNodeAgent")
     exp=ini(rel,"NexExperiencesViewer")
-    for name,entry in (("NodeAgent",agent),("ExperiencesViewer",exp)):
-        assert re.search(r"(?m)^\s*Enabled\s*=\s*true\s*$",entry),(rel,name)
+    # 0.9.3.10 is a stabilization release: NexBus stays enabled,
+    # but unaccepted Firestorm Experiences must be disabled by default.
+    assert re.search(r"(?m)^\s*Enabled\s*=\s*true\s*$",agent),(rel,"NodeAgent")
+    assert re.search(r"(?m)^\s*Enabled\s*=\s*false\s*$",exp),(rel,"ExperiencesViewer")
     assert 'SharedKey = "'+ENV+'NEXVERSE_NEXBUS_SHARED_KEY}"' in agent
     assert 'PeerUrl = "'+ENV+'NEXVERSE_NEXBUS_PEER_URL}"' in agent
     assert 'ApiKey = "'+ENV+'NEXVERSE_EXPERIENCES_API_KEY}"' in exp
@@ -113,4 +115,4 @@ if node:
 else:
     print("Hinweis: Node.js nicht vorhanden; JS-Syntaxpruefung uebersprungen")
 
-print("OpenGenesisLINK NexBus + Experiences + admin-only login contract: OK")
+print("OpenGenesisLINK NexBus active + Experiences paused + admin-only login: OK")

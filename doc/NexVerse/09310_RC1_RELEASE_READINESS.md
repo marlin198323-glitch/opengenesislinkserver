@@ -1,94 +1,122 @@
-# OpenGenesisLINK 0.9.3.10 – RC1-/Stable-Freigabevorbereitung
+# OpenGenesisLINK 0.9.3.10 – RC1-/Stable-Freigabevorbereitung (Stabilisierung)
 
-**Status: FREIGABE OFFEN.** Der letzte erfolgreich getestete Entwicklungsstand
-war `b473158` aus PR #159. Diese Vorbereitung selbst erzeugt weder ein
-Release noch einen RC1- oder Stable-Tag. Die letzte veröffentlichte Stable
-bleibt das unveränderte `v0.9.3.8`.
+**Stand: 12.10.2026 · FREIGABE OFFEN.** Letzte veröffentlichte Stable-Version:
+`v0.9.3.8`. Aktiver Branch: `main`, Version `0.9.3.10 Dev`.
+**Kein RC1-/Stable-Tag, keine Betreiberfreigabe.**
+Der zuletzt geprüfte Entwicklungsstand vor dieser Scope-Änderung ist
+`1b2db582` (PR #177, grüne CI). Das ist **kein** Inworld-/Release-Nachweis.
+Den aktuellen RC-Commit immer neu feststellen und vollständig testen.
 
-## 1. Verbindliche Release-Entscheidung
+## 1. Verbindlicher Scope
 
-0.9.3.10 buendelt .NET-8-/ThreadPool-Verbesserungen, NexExperiences
-mit Script-, K/V-, Consent- und Firestorm-CAPS sowie die R287 World API.
-Alle genannten Funktionen muessen weiter live abgenommen werden.
+0.9.3.10 ist ab jetzt ein **Stabilisierungsrelease**: .NET 8,
+Simulator-/Robust-Start, lokaler und Hypergrid-Login, Regionen/HTTP-Ports,
+bestehende LSL-Kompatibilität, NV$-Ledger und Viewer-Economy,
+**GRID-SERVICES-Masterbank in kontrollierter Testumgebung**,
+robuste Inventar- und Thumbnail-Daten, World API R287 mit
+Berechtigungsgrenzen, Performance-Messungen und Recovery.
 
-**OGL Pathfinding ist aus der aktuellen Server-Codebasis vollstaendig
-entfernt** und in einen spaeteren eigenen Viewer-Train verschoben.
-Kein NavMesh/NPC-Wegpunktmotor, keine OGL-Navigation-CAPS und keine
-NAV-Testfaelle in 0.9.3.10. Ebenfalls ausgeschlossen: OGLVoice,
-eigener Viewer/Renderer und die nicht implementierten SL-Character-
-LSL-Funktionen. Keine gefaelschten NavMesh-CAPS.
+**Nicht Teil der RC1-Abnahme:**
 
-## 2. Jetzt bereits technisch nachgewiesen
+- **NexExperiences/Firestorm:** Entwicklung pausiert. Der vorhandene
+  opt-in Code bleibt erhalten und durch CI-/Security-Regressionen geschützt,
+  wird aber nicht als funktionierend veröffentlicht. `[NexExperiencesViewer]
+  Enabled=false` in der tatsächlich geladenen Simulator-Konfiguration.
+  Kein nativer Experience-Prompt, keine Experience-CAPS und keine
+  automatischen Berechtigungsfreigaben im RC-Deployment.
+  OGL Experiences 2.0 ist nur eine mögliche spätere Viewer-Neuentwicklung.
+- **OGL Pathfinding 2.0:** nur späterer eigener Viewer plus erforderliche
+  autoritative Serverkomponenten. Kein OGL NavMesh/NPC-Pathfinding in 0.9.3.10.
+- **OGL My Outfits 2.0:** erst im eigenen Viewer. Die vorhandene
+  Inventardatenhaltung, Systemordner, Assets und Thumbnails bleiben
+  kompatibel und durch Tests abgesichert; die vollständige
+  Firestorm-Outfit-Galerie/COF-Anzeige ist **kein** RC1-Gate.
+- **OGLVoice und eigener Renderer:** getrennte spätere Releases.
 
-- PRs #156 (Diagnose/Opt-in), #157 (World API OpenAPI/ChatGPT), #158
-  (Firestorm Experience-Erwerb/Editor) und #159 (R287-Portal-Abdeckung)
-  sind in `main` integriert.
-- CI für `b4731582cfbaaaa1a1e5ab07fa41c0759c84399a` vollständig
-  grün: <https://github.com/opengenesislink/opengenesislinkserver/actions/runs/38147751531>.
-- Version im Quellcode: `0.9.3.10 Dev`; die Schutz-CI hält die alte
-  `v0.9.3.8`-Veröffentlichung unverändert.
-- In `OpenSim/Framework/VersionInfo.cs` steht noch
-  `VERSION_FLAVOUR = Flavour.Dev`. **Nicht ohne Freigabe auf RC1 oder
-  Release umstellen.**
+Das ist eine **Scope-Entscheidung, keine bestandene technische Prüfung**.
+Ein ausgesetztes Feature darf im Release nicht als produktionsreif
+beworben oder unkontrolliert aktiv sein. Opt-in-Module behalten vorhandene
+Auth-/Consent-/Sicherheits-Regressionstests in der GitHub-CI.
 
-Das ist **CI-Nachweis**, kein erfolgreicher Firestorm-Livetest.
+## 2. Neue verbindliche Operator-Matrix (v2)
 
-## 3. Operator-Abnahme auf exakt demselben Commit
+Die historische Matrix enthielt Experience-abhängige `EXP*`,
+`LSL01–06`, `DB01–06`, `REL01–07` und das Outfit-`APP01`.
+Diese IDs werden nicht mit einer neuen Bedeutung wiederverwendet.
+Sie bleiben in alten Berichten historisch, **ihre Ergebnisse gelten
+nicht als Nachweise für v2**. Der vorherige Checker hatte zudem
+widersprüchliche Angaben zu 40/48 Fällen.
 
-Voraussetzung sind ein funktionierender, gesicherter Robust und mindestens
-zwei getrennte Simulatorregionen, darunter `OGL Developer Gen1`, sowie
-zwei reale Firestorm-Avatare (Owner A und nichtadministrativer B).
-Die Region muss das neue Build laufen lassen; Git-Checkout allein ist
-kein Deployment. Für bestehende `bin/OpenSim.ini`-Anpassungen vorher
-eine externe Sicherheitskopie anlegen, temporär staschen und nach Update
-**manuell mergen**; niemals `git reset --hard`.
+**Jetzt: 22 Pflichtfälle für RC1, 23 für Stable.** Der zusätzliche
+`STABLE_APPROVAL`-Fall setzt einen vorhandenen RC1-Tag voraus.
+Im initialen JSON beginnen alle **23 Fälle als `NOT_RUN`**.
+Ein grüner CI-Lauf vergibt keinen einzigen Operator-`PASS`.
 
-**Testmatrix:** Für RC1 sind **39 von 40** Fällen vorab nachzuweisen.
-`REL07` enthält die separate Bestätigung der *bereits erfolgten* RC1-
-und Stable-Freigabe und wird deshalb erst für **Stable** verpflichtend.
-Sie kann logisch nicht vor der RC1-Veröffentlichung PASS sein.
-Für Stable sind alle **40/40** Fälle und die gesonderte Betreiberabnahme
-erforderlich; eine fehlende Liveprüfung wird niemals pauschal erlassen.
+| ID | Verbindlicher Live-Nachweis |
+| --- | --- |
+| `CORE_BOOT` | Robust und zwei Simulatorinstanzen auf demselben Build starten; keine kritischen Fehler |
+| `CORE_LOGIN` | Zwei echte Avatare, Login/Logout/Reconnect, Avatar-/Inventargrundzustand |
+| `CORE_HG` | HomeAgent/Gatekeeper, Hypergrid-Besuch und Rückkehr; Rechte/Identitäten erhalten |
+| `CORE_REGION` | Regionsstart/-neustart, unterschiedliche HTTP-Ports, Regionwechsel/Teleport |
+| `CORE_LSL` | Reguläre LSL-Skripte inkl. Timer/Events, XML-RPC-RemoteData und Skriptneustart; **kein** Experience-Zwang |
+| `ECON_LEDGER` | Reales SQL-Double-Entry-Ledger: Buchung, Kontostatus, Idempotenz, Reversal, keine Überziehung |
+| `ECON_VIEWER` | NV$-Balance/Transfers im Viewer; positive und negative Rechte-/Guthabenfälle, Reconnect |
+| `ECON_MASTERBANK` | Auf isoliertem Testsimulator autorisierter 1-NV$-Payout aus GRID SERVICES, `transaction_result`, Fremdskript/Debit-/Limit-/Deckungs-Verweigerung; kein Avatar-Wallet-Fallback |
+| `INV_CORE` | Inventar, Assets, Links, Systemordner, Berechtigungen, Persistenz nach Neustart und Restore |
+| `INV_THUMB` | Item-/Ordner-Thumbnails dauerhaft speichern/lesen und nach Cache-Neuaufbau darstellen; bekannte Viewer-Cache-Grenze ausdrücklich vermerken |
+| `API_AUTH` | World API/OIDC, Token-Scopes, abgelaufene/entzogene Tokens, keine fremde Avatar-Impersonation |
+| `API_IMAGE` | Echtes J2K-Bild und Asset-/Profil-Privatsphäre prüfen |
+| `API_DISCOVERY` | Veröffentlichte Events/Classifieds sichtbar, Drafts verborgen, Owner-Rechte auf Mutationen |
+| `API_GROUPS` | `/groups/mine` nur für den authentifizierten Bewohner |
+| `API_REGIONS` | `/regions/{id}` nur mit `regions:read`; keine ungeprüften Fremddaten |
+| `PERF_BASELINE` | Gleiche Konfiguration/Last wie v0.9.3.8; CPU, RAM/Heap, GC, Threads, Tick-/Queue-Latenz vergleichen |
+| `PERF_STRESS` | Dokumentierte Login-/HG-/NV$-/Inventar-Bursttests, Watchdog und Stabilität unter Last |
+| `RECOVERY_RESTORE` | Backup von SQL/Inventar/Assets/Regionen in **isolierter Kopie** tatsächlich wiederherstellen; Schema-/Rollback-Risiken bewerten |
+| `SEC_XP_OFF` | Live-Konfiguration `Enabled=false`, keine Experience-CAPS/Prompts, kein Auto-Allow; XP-Sicherheitsregression bleibt CI-Pflicht |
+| `SEC_SECRETS` | Verschiedene minimale Service-Scopes, keine Keys in Viewer, Skript, Git oder Logs; sichere Portal-/Bankrechte |
+| `RELEASE_DEPLOY` | Robust/Simulator tatsächlicher identischer Git-/Build-Stand, Env-Includes, Health/Ports, Restart-Nachweis |
+| `RELEASE_OPERATOR` | Reproduzierbare Logs/Belege zu allen Fällen, Known Limitations und explizite RC1-Unterschrift |
+| `STABLE_APPROVAL` | **Nur Stable:** erfolgreich getaggtes RC1, gesonderte Betreiberfreigabe, Restore und ≥24 h beobachteter Betrieb |
 
-**Pflichtfaelle (40):** 31 nicht-navigationbezogene Altfaelle
-(`SYS01–04`, `EXP01–08`, `LSL01–06`, `DB01–06`,
-`REL01–07`) plus `EXP_CREATE`, `APP01`,
-`PORTAL_IMAGE`, `PORTAL_DISCOVERY`, `PORTAL_GROUPS`,
-`PORTAL_REGION`, `PORTAL_AUTH`, `RUNTIME_STRESS` und
-`RECOVERY_RESTORE`. NAV01–NAV08 sind ausschliesslich historische
-Faelle und **keine** 0.9.3.10-Gates. **NOT RUN ist nicht PASS.**
+`ECON_MASTERBANK` ist bewusst ein echtes Funktionsgate:
+**MasterBankEnabled bleibt im normalen Profil false.**
+Erst im isolierten Test mit korrektem Operator, gebundenem
+Root-Objekt-/Skriptinventar-Paar, explizitem `PERMISSION_DEBIT`,
+finanziertem Wallet und dokumentierten Ablehnungsfällen aktivieren.
+Wer das Gate nicht real abnehmen kann, darf die Masterbank nicht als
+Release-Funktion ausweisen und erhält noch **keine RC1-Freigabe**.
+Eine spätere erneute explizite Scope-Entscheidung wäre nötig.
 
-- `EXP_CREATE`: mit Firestorm 7.2.4.80712 tatsächlichen
-  `AgentExperiences`-Erwerb, Profiländerung, zehn Einträge als Grenze,
-  Logout/Login, neue UUID und fremden Editor-Zugriff prüfen.
-  Getrennte `experiences:script`, `experiences:viewer:permissions` und
-  `experiences:viewer:manage`-Schlüssel sind erforderlich.
-- `EXP01–08`, `LSL01–06`, `DB01–06`: echter Prompt und
-  Allow/Block/Forget, Script-ID-/Avatar-Leases, LSL-Rückmeldungen, KV-CAS,
-  exklusiver Store-Writer, Restart/Backup und mehrere Simulatoren.
-  Kein Auto-Allow, keine aktiven JSON-Writers auf zwei Hosts.
-- `APP01`: Firestorm `My Outfits`/COF mit Bestandsavatar.
-  Die dokumentierte Thumbnail-Cache-Einschränkung bleibt bekannt.
-- `PORTAL_IMAGE`: echte OpenSim-J2K-Textur wird als Bild gerendert;
-  privates Fremdprofil verweigert, falscher Creator/Asset nicht auslesbar.
-- `PORTAL_DISCOVERY`: veröffentlichte Events/Classifieds lesbar,
-  Entwürfe unsichtbar, owner-only PATCH/DELETE, POST ohne Fremd-Owner-
-  oder State-Eskalation.
-- `PORTAL_GROUPS`: `/groups/mine` nur für den eigenen Resident.
-- `PORTAL_REGION`: `/regions/{id}` nur mit gültigem `regions:read`.
-- `PORTAL_AUTH`: alte Tokens, fremde Principal-ID, defekte UUIDs,
-  API-Key-Trennung und fehlende/ungültige Scopes werden abgewiesen.
-- `RUNTIME_STRESS`: CPU/RAM/GC, Region-Ticks, Watchdog,
-  Login-/Hypergrid-/NV$-Last gegen `v0.9.3.8` dokumentieren.
-- `RECOVERY_RESTORE`: PostgreSQL/MariaDB/SQLite (je nach Produktion),
-  Inventar, Regionen und Experiences in einer **Kopie** restaurieren;
-  Datenmigrationsrisiken vor echtem Downgrade auf v0.9.3.8 prüfen.
+## 3. Stabilisierungsplan in fünf Phasen
 
-## 4. Lokalen Serverstand schreibgeschützt prüfen
+1. **Scope einfrieren:** keine neuen 0.9.3.10-Funktionen; Experiences
+   deaktivieren, Voice und Viewer-2.0-Themen vertagen; aktuelle
+   Operator-Konfigurationsdateien sicher außerhalb des Git-Worktrees sichern.
+2. **Build-/Sicherheitsbasis:** aktuelle CI am identischen SHA,
+   Auth/Scope-/NexBus-/LSL-/Inventarregressionen, zwei Simulatoren und
+   Robust zusammen starten, Logs auf Startabbrüche prüfen.
+3. **Economy/Inventar/API:** Double-Entry-/Viewer-Transfers,
+   GRID-SERVICES-Masterbank unter kontrollierten Bedingungen, Inventar
+   und J2K/API-Rechte mit positiven wie negativen Szenarien prüfen.
+4. **Last-/Recovery-Abnahme:** reproduzierbare Vergleichsmessung gegen
+   v0.9.3.8, Stress, tatsächlicher Restore in einer Kopie,
+   Downgrade-/Migrationsrisiken dokumentieren.
+5. **RC1-Kandidat:** für **alle 22** Fälle reale PASS-Belege,
+   abgeschlossene Operatorprüfung, eigener Release-PR mit
+   `Flavour.RC1`, neue grüne CI auf diesem Commit und **erst danach**
+   RC1-Tag. Keine automatische Release-Publikation.
 
-Der vorherige Betreiberfehler beim `git pull` wurde durch lokal
-veränderte `bin/OpenSim.ini` ausgelöst. Bei beiden Deployments
-niemals `git reset --hard` einsetzen. Vor dem Build zuerst:
+**Stable** benötigt alle **23/23** Fälle, den verifizierten RC1-Tag
+im Commit-Vorfahrenpfad, `Flavour.Release`, mindestens 24 Stunden
+dokumentierten Testbetrieb, ausgeführten Restore-/Rollback-Test und
+eine gesonderte Freigabe. `v0.9.3.8` bleibt unangetastet.
+
+## 4. Host-Preflight ohne Datenverlust
+
+Der vorherige `git pull`-Konflikt betraf eine lokal angepasste
+`bin/OpenSim.ini`. **Kein `git reset --hard`.**
+Robust und Simulator müssen tatsächlich auf demselben aktualisierten
+Build laufen. Die Shell-Kommandos sind nur Diagnose:
 
 ```bash
 cd /opt/developer
@@ -98,71 +126,46 @@ python3 tools/diagnostics/ogl_09310_operator_preflight.py \
   --json /root/ogl-release-evidence/09310-host-preflight.json
 ```
 
-Das Tool ist **read-only**, außer beim optionalen Anlegen des JSON-
-Diagnoseberichts. Der Bericht enthält nur Git-SHAs, Branch-Namen,
-Konfigurations-**Schaltzustände** und Hinweise auf lokale Änderungen;
-weder API-Keys noch Nini-Secretwerte werden ausgegeben. Fehlende
-Konfiguration, Git-Divergenz und fehlende Schlüsseltrennung sind
-Hinweise auf Handlungsbedarf. Ein identischer Git-Commit beweist aber
-**nicht**, dass der .NET-Prozess neu gestartet wurde oder mit diesem
-Build läuft. Nini Includes/Environment-Expansion, World-API-Scopes
-und echte Firestorm-CAPS müssen getrennt verifiziert werden.
+Vor dem Update Betreiber-INI/Secrets sicher sichern, ggf. Änderungen
+gezielt stashen und nach `git pull --ff-only` **manuell** zusammenführen.
+Prüfen, welche Nini-Includes/Umgebungsvariablen tatsächlich geladen
+werden. Der Git-SHA einer Datei beweist noch keinen Prozessneustart.
 
-Falls `OpenSim.ini` verändert ist: außerhalb des Repositories sichern,
-gezielt `git stash push -- bin/OpenSim.ini`, Git-Update nur mit
-`--ff-only`, anschließend `git stash apply` und eventuelle Konflikte
-sorgfältig auflösen. Vorhandene Betreiber-Konfiguration nie durch eine
-Vorlage überschreiben.
-
-## 5. Nachweise lokal erfassen – automatische Sperre
-
-Es existiert jetzt ein konservativer Offline-Checker für
-Freigabe-Evidenz. **Er kann keine echten Viewer-Ereignisse erzeugen,
-keine Dokumente verifizieren und keine Freigabe unterschreiben.**
-Betreiber und Maintainer kontrollieren die verlinkten Logs unabhängig.
+## 5. Fail-closed Evidenzprüfung
 
 ```bash
 cd /opt/developer
 python3 tools/ci/verify_09310_release_readiness.py \
-  --init /root/ogl-release-evidence/0.9.3.10-rc1.json
-```
+  --init /root/ogl-release-evidence/0.9.3.10-rc1-v2.json
 
-Die Datei beginnt mit `NOT_RUN` für alle 48 Fälle. Der RC1-Checker
-fordert davon 47 echte Nachweise; `REL07` bleibt bis zur späteren
-Stable-Genehmigung als `NOT_RUN` stehen. Bei jeder
-Testausführung `status`, `observed_at`, `evidence_ref` und
-`notes` nach echten Beobachtungen ausfüllen. CI-URL und `ci_commit`
-müssen **denselben Git-SHA** dokumentieren wie das finale
-RC1-Checkout. Keine Secrets, Auth-CAP-URLs oder personenbezogenen
-Testlogins im Beleg speichern.
-
-```bash
 python3 tools/ci/verify_09310_release_readiness.py \
-  --evidence /root/ogl-release-evidence/0.9.3.10-rc1.json \
+  --evidence /root/ogl-release-evidence/0.9.3.10-rc1-v2.json \
   --stage rc1
 ```
 
-Solange die Laufzeitversion noch `Flavour.Dev` trägt, meldet der
-Checker **absichtlich nicht freigabefähig**. Wenn die echten
-Betreibertests abgeschlossen sind, folgt eine gesonderte kleine
-Release-PR mit `Flavour.RC1`, neuer grüner CI am Release-Commit und
-erneuter finaler Signatur der Evidenz.
+Die neue Vorlage hat `format=ogl-release-evidence-v2` und 23
+`NOT_RUN`-Einträge. Frühere `v1`-/Experience-Nachweise werden
+absichtlich abgewiesen. Für **jeden** RC1-Pflichtfall müssen
+`status=PASS`, tatsächliches `observed_at`, konkretes
+`evidence_ref` und prüfbare `notes` vorliegen.
+`ci_commit` muss dem Release-Checkout entsprechen; die verlinkte
+GitHub-CI muss extern geprüft werden. Logs anonymisieren, keine
+Secrets/CAPS-URLs veröffentlichen. Der Checker prüft die **Struktur**,
+nicht die Echtheit eines Betreiberbelegs.
 
-Für eine spätere Stable-Freigabe sind zusätzlich ein verifizierter
-RC1-Tag `v0.9.3.10-rc1` im Commit-Vorfahrenpfad, `Flavour.Release`,
-mindestens 24 Stunden dokumentierter Testbetrieb, tatsächlich
-durchgeführte Wiederherstellung und eine **gesonderte**
-Stable-Freigabe erforderlich. Deshalb werden RC1 und Stable niemals
-automatisch aus einem grünen `main`-CI-Lauf getaggt.
+Solange `VersionInfo.VERSION_FLAVOUR=Flavour.Dev` ist, kann der
+Checker absichtlich keine RC1-Freigabe erteilen.
 
-## 6. Blocker und bekannte Grenzen
+## 6. Historische Protokolle und Grenzen
 
-Siehe [09310_ACCEPTANCE_BLOCKERS.md](09310_ACCEPTANCE_BLOCKERS.md),
-[RC1_OPERATOR_ACCEPTANCE_09310.md](RC1_OPERATOR_ACCEPTANCE_09310.md),
-[FIRESTORM_EXPERIENCE_ACQUIRE_09310.md](FIRESTORM_EXPERIENCE_ACQUIRE_09310.md)
-und [R287_WORLD_API_DELIVERY.md](R287_WORLD_API_DELIVERY.md).
+[09310_ACCEPTANCE_BLOCKERS.md](09310_ACCEPTANCE_BLOCKERS.md),
+[RC1_OPERATOR_ACCEPTANCE_09310.md](RC1_OPERATOR_ACCEPTANCE_09310.md)
+und die archivierten Experience-Testanleitungen dürfen als
+historischer Debug-/Implementierungsstand verwendet werden.
+Die früheren **11/38** und **40/48** sind **keine**
+Freigabezahlen des neuen Stabilisierungstrains.
 
-Die zuletzt manuell berichteten **11/38** beziehen sich auf den alten
-Build `a6778c9`. Das ist weder eine Aussage über den jetzt gemergten
-Build noch eine echte vollständige Abnahme. Ohne frische Messungen
-bleiben die 48 release-relevanten Nachweise **nicht attestiert**.
+Die separate Operator-Anleitung
+[RC1_OPERATOR_ACCEPTANCE_09310.md](RC1_OPERATOR_ACCEPTANCE_09310.md)
+definiert die praktischen Prüfschritte. Der Stabilisierungs-Scope
+ändert keine bestehende produktive Konfiguration automatisch.
