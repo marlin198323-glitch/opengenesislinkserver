@@ -321,7 +321,8 @@ namespace NexVerse.Server.Api
                             {
                                 experiences = lists.Allowed.Select(x => x.ToString("D")).ToArray(),
                                 blocked = lists.Blocked.Select(x => x.ToString("D")).ToArray(),
-                                experience_ids = lists.Owned.Select(x => x.ToString("D")).ToArray(),
+                                experience_ids = m_Store.GetViewerOwnedExperienceIds(resident)
+                                    .Select(x => x.ToString("D")).ToArray(),
                                 admin_ids = lists.Admin.Select(x => x.ToString("D")).ToArray(),
                                 contributor_ids = lists.Contributor.Select(x => x.ToString("D")).ToArray(),
                                 correlation_id = Correlation(response)
