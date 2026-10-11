@@ -84,5 +84,74 @@ MediaGatewayUrl = "https://media.example.org/internal/webrtc/v1/exchange"
         self.assertIn("STANDALONE_SIGNATURE_KEY_UNVERIFIED", codes)
 
 
+    def test_09310_unconfigured_experience_and_npc_gate(self):
+        # Match the abbreviated flags shipped by bin/OpenSim.ini.
+        sim = module.parse_opensim_ini("""
+[NexExperiencesViewer]
+Enabled = true
+WorldApiBaseUrl = "https://world.stadt-nexverse.de"
+ApiKey = "${Environment|NEXVERSE_EXPERIENCES_API_KEY}"
+[OGLPathfinding]
+Enabled = false
+""")
+        findings = {x["code"]: x for x in module.assess(sim)}
+        for code in (
+            "EXPERIENCE_READ_CAPS_DISABLED",
+            "EXPERIENCE_PERMISSION_CAPS_DISABLED",
+            "EXPERIENCE_CONSENT_DISABLED",
+            "EXPERIENCE_NATIVE_PROMPT_DISABLED",
+            "EXPERIENCE_VIEWER_KEY_ABSENT",
+            "NPC_FOLLOWER_DISABLED",
+            "NAV_3D_LAYERS_DISABLED",
+            "NATIVE_TERRAIN_DISABLED",
+            "EXPERIENCE_VIEWER_CREATE_UNSUPPORTED",
+        ):
+            self.assertIn(code, findings, code)
+        self.assertEqual(findings["EXPERIENCE_VIEWER_CREATE_UNSUPPORTED"]["severity"],
+                         "known-limitation")
+
+    def test_09310_opted_in_still_does_not_claim_live_success(self):
+        sim = module.parse_opensim_ini("""
+[NexExperiencesViewer]
+Enabled = true
+FirestormReadCaps = true
+FirestormPermissionCaps = true
+ScriptPendingConsent = true
+NativeExperiencePrompt = true
+ApiKey = "${Environment|NEXVERSE_EXPERIENCES_API_KEY}"
+ViewerPermissionsApiKey = "${Environment|NEXVERSE_EXPERIENCES_VIEWER_PERMISSIONS_API_KEY}"
+[OGLPathfinding]
+Enabled = true
+UseVerifiedLayeredSurfaces = true
+PhysicsRaycastLayeredSurfaces = true
+[OGLNpcNavigation]
+Enabled = true
+""")
+        findings = module.assess(sim)
+        codes = {x["code"] for x in findings}
+        for disabled in ("EXPERIENCE_CONSENT_DISABLED",
+                         "EXPERIENCE_PERMISSION_CAPS_DISABLED",
+                         "NPC_FOLLOWER_DISABLED", "NATIVE_TERRAIN_DISABLED"):
+            self.assertNotIn(disabled, codes, disabled)
+        for configured in ("EXPERIENCE_KEYS_CONFIGURED_ONLY",
+                           "NPC_FOLLOWER_CONFIGURED", "NAV_3D_PHYSICS_CONFIGURED",
+                           "EXPERIENCE_VIEWER_CREATE_UNSUPPORTED"):
+            self.assertIn(configured, codes, configured)
+        self.assertTrue(all(x["severity"] != "success" for x in findings))
+
+    def test_09310_duplicate_experience_keys_are_flagged_without_leak(self):
+        sim = module.parse_opensim_ini("""
+[NexExperiencesViewer]
+Enabled = true
+ApiKey = "example-DO-NOT-PRINT-key"
+ViewerPermissionsApiKey = "example-DO-NOT-PRINT-key"
+""")
+        findings = module.assess(sim)
+        self.assertIn("EXPERIENCE_KEYS_NOT_SEPARATE",
+                      {x["code"] for x in findings})
+        self.assertNotIn("example-DO-NOT-PRINT-key", str(findings))
+
+
+
 if __name__ == "__main__":
     unittest.main()
