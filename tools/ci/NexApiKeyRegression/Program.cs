@@ -163,6 +163,42 @@ internal static class Program
             Require(rejectedMixedPermissions,
                 "Viewer permission credentials must not be mixed with script rights");
 
+            // Firestorm Experience creation / owner editor must receive a
+            // dedicated key with ONLY experiences:viewer:manage, never
+            // script, resident permission, admin or economy rights.
+            NexApiKeyRegistration viewerManage =
+                experiencesReloaded.Create(
+                    "NexVerse Simulator Experience Management",
+                    new[] { NexScopes.ExperiencesViewerManage });
+            Require(experiencesReloaded.TryValidate(
+                    viewerManage.ApiKey, out NexApiKeyRecord scopedManage) &&
+                scopedManage.Scopes.Length == 1 &&
+                scopedManage.Scopes[0] == NexScopes.ExperiencesViewerManage,
+                "Dedicated Firestorm acquisition/editor machine key failed");
+
+            PersistentNexApiKeyStore viewerReloaded =
+                new PersistentNexApiKeyStore(path);
+            Require(viewerReloaded.TryValidate(viewerManage.ApiKey, out _),
+                "Viewer management key did not survive store reload");
+
+            foreach (string forbidden in new[] {
+                NexScopes.ExperiencesScript,
+                NexScopes.ExperiencesViewerPermissions,
+                NexScopes.EconomyTransfer,
+                NexScopes.AdminAll
+            })
+            {
+                bool rejected = false;
+                try
+                {
+                    viewerReloaded.Create("unsafe viewer management " + forbidden,
+                        new[] { NexScopes.ExperiencesViewerManage, forbidden });
+                }
+                catch (ArgumentException) { rejected = true; }
+                Require(rejected,
+                    "Viewer management key must not combine with " + forbidden);
+            }
+
             // Duplicate detection is scoped to the exact service identity,
             // case-insensitive name and normalized set of scopes. It must
             // never reveal or silently replace the existing plaintext secret.
@@ -175,7 +211,7 @@ internal static class Program
             }
             catch (InvalidOperationException) { rejectedDuplicate = true; }
             Require(rejectedDuplicate, "Duplicate enabled service key accepted");
-            Require(experiencesReloaded.List().Count == 3,
+            Require(experiencesReloaded.List().Count == 4,
                 "Duplicate rejection modified the persistent key inventory");
 
             // Deletion is an irreversible second step after explicit disable.
@@ -205,7 +241,7 @@ internal static class Program
                 "Last-used metadata lost when cloning records");
             PersistentNexApiKeyStore afterCleanup =
                 new PersistentNexApiKeyStore(path);
-            Require(afterCleanup.List().Count == 3 &&
+            Require(afterCleanup.List().Count == 4 &&
                     afterCleanup.TryValidate(replacement.ApiKey, out _),
                 "Key cleanup or replacement did not survive restart");
 
