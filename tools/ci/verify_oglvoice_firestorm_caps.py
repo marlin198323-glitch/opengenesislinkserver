@@ -40,7 +40,9 @@ for conf in ("bin/Robust.HG.ini.example","bin/Robust.ini.example"):
     section=(root/conf).read_text().split("[OGLVoice]",1)[1].split("\n[",1)[0]
     assert "EnableFirestormGateway = false" in section
     assert 'MediaGatewayUrl = ""' in section
-assert "EnableFirestormGateway = true" in (root/"bin/OpenSim.ini.example").read_text()
+# The compact default INI does not ship an enabled OGLVoice example.
+assert "[OGLVoice]" not in (root/"bin/OpenSim.ini.example").read_text()
+assert 'local.GetBoolean("EnableFirestormGateway", false)' in node
 assert "OGLVOICE_LIVEKIT_API_SECRET" not in region
 assert "OGLVOICE_LIVEKIT_API_KEY" not in region
 assert "ChatSessionRequest" not in region  # no false group voice support
