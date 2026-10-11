@@ -185,7 +185,8 @@ namespace NexVerse.Server.Api
                             owner_id = e.OwnerId.ToString("D"),
                             group_id = e.GroupId.ToString("D"),
                             maturity = (int)e.Maturity,
-                            enabled = e.Enabled
+                            enabled = e.Enabled,
+                            is_private = e.IsPrivate
                         });
                     }
                     WriteJson(response, new
@@ -251,14 +252,15 @@ namespace NexVerse.Server.Api
                         string description = BodyString(viewerBody, "description");
                         string rawMaturity = BodyString(viewerBody, "maturity");
                         bool enabled = BodyBool(viewerBody, "enabled", true);
-                        if (viewerBody.EnumerateObject().Count() != 6)
+                        bool isPrivate = BodyBool(viewerBody, "is_private", false);
+                        if (viewerBody.EnumerateObject().Count() != 7)
                             throw new ArgumentException(
                                 "Viewer update accepts exactly owner_id, experience_id, " +
-                                "name, description, maturity and enabled.");
+                                "name, description, maturity, enabled and is_private.");
                         experience = m_Store.UpdateViewerExperience(
                             owner, id, name, description,
                             ParseMaturity(rawMaturity), enabled,
-                            principal.Subject);
+                            principal.Subject, isPrivate);
                         Audit(principal, "experience.viewer.updated",
                             experience.ExperienceId, response);
                     }
@@ -1043,6 +1045,7 @@ namespace NexVerse.Server.Api
                 group_id = e.GroupId == Guid.Empty ? null : e.GroupId.ToString("D"),
                 maturity = e.Maturity.ToString().ToLowerInvariant(),
                 enabled = e.Enabled,
+                is_private = e.IsPrivate,
                 admins = e.Admins.Select(x => x.ToString("D")).ToArray(),
                 contributors = e.Contributors.Select(x => x.ToString("D")).ToArray(),
                 allowed_residents = e.AllowedResidents.Select(x => x.ToString("D")).ToArray(),
