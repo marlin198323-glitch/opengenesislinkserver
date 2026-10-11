@@ -202,6 +202,82 @@ namespace NexVerse.Server.Api
                 return;
             }
 
+            // Trusted simulator-to-Robust viewer creation/profile bridge.
+            // Only a separately delegated experiences:viewer:manage key may
+            // use this route. The simulator binds owner_id to its live root
+            // avatar's revocable CAPS lease; the viewer sees neither key.
+            if (path == "/api/v1/experiences/viewer/manage")
+            {
+                if (!Authenticate(request, response,
+                    NexScopes.ExperiencesViewerManage,
+                    out NexPrincipal principal, out UserAccount account))
+                    return;
+                if (account != null)
+                {
+                    WriteError(response, HttpStatusCode.Forbidden,
+                        "service_key_required",
+                        "Viewer Experience management requires a delegated simulator key.");
+                    return;
+                }
+                if (!method.Equals("POST", StringComparison.OrdinalIgnoreCase) &&
+                    !method.Equals("PUT", StringComparison.OrdinalIgnoreCase))
+                {
+                    MethodNotAllowed(response, "POST or PUT");
+                    return;
+                }
+                if (!TryBody(request, response, out JsonElement viewerBody))
+                    return;
+                try
+                {
+                    Guid owner = BodyGuid(viewerBody, "owner_id");
+                    NexExperience experience;
+                    if (method.Equals("POST", StringComparison.OrdinalIgnoreCase))
+                    {
+                        // A Firestorm Acquire Experience POST is empty. The
+                        // region proxy sends exactly the authenticated owner
+                        // and no chosen Experience ID, title or group.
+                        if (viewerBody.EnumerateObject().Count() != 1)
+                            throw new ArgumentException(
+                                "Viewer acquisition accepts only owner_id.");
+                        experience = m_Store.CreateViewerExperience(
+                            owner, principal.Subject);
+                        Audit(principal, "experience.viewer.acquired",
+                            experience.ExperienceId, response);
+                    }
+                    else
+                    {
+                        Guid id = BodyGuid(viewerBody, "experience_id");
+                        string name = BodyString(viewerBody, "name");
+                        string description = BodyString(viewerBody, "description");
+                        string rawMaturity = BodyString(viewerBody, "maturity");
+                        bool enabled = BodyBool(viewerBody, "enabled", true);
+                        if (viewerBody.EnumerateObject().Count() != 6)
+                            throw new ArgumentException(
+                                "Viewer update accepts exactly owner_id, experience_id, " +
+                                "name, description, maturity and enabled.");
+                        experience = m_Store.UpdateViewerExperience(
+                            owner, id, name, description,
+                            ParseMaturity(rawMaturity), enabled,
+                            principal.Subject);
+                        Audit(principal, "experience.viewer.updated",
+                            experience.ExperienceId, response);
+                    }
+                    WriteJson(response, new
+                    {
+                        experience_id = experience.ExperienceId.ToString("D"),
+                        owner_id = owner.ToString("D"),
+                        name = experience.Name,
+                        correlation_id = Correlation(response)
+                    }, method.Equals("POST", StringComparison.OrdinalIgnoreCase)
+                        ? HttpStatusCode.Created : HttpStatusCode.OK);
+                }
+                catch (Exception e)
+                {
+                    WriteFailure(response, e);
+                }
+                return;
+            }
+
             // High-trust simulator-only route for Firestorm Experience
             // preferences.  A separate API key with ONLY
             // experiences:viewer:permissions is required.  It must never be
@@ -245,7 +321,8 @@ namespace NexVerse.Server.Api
                             {
                                 experiences = lists.Allowed.Select(x => x.ToString("D")).ToArray(),
                                 blocked = lists.Blocked.Select(x => x.ToString("D")).ToArray(),
-                                experience_ids = lists.Owned.Select(x => x.ToString("D")).ToArray(),
+                                experience_ids = m_Store.GetViewerOwnedExperienceIds(resident)
+                                    .Select(x => x.ToString("D")).ToArray(),
                                 admin_ids = lists.Admin.Select(x => x.ToString("D")).ToArray(),
                                 contributor_ids = lists.Contributor.Select(x => x.ToString("D")).ToArray(),
                                 correlation_id = Correlation(response)

@@ -227,6 +227,7 @@ namespace NexVerse.Core.Experiences
         public const int MaxKeysPerExperience = 65536;
         public const long MaxStoreBytes = 128L * 1024L * 1024L;
         public const int MaxLogs = 10000;
+        public const int MaxViewerExperiencesPerResident = 10;
 
         private readonly object m_Sync = new object();
         private readonly string m_Path;
@@ -339,6 +340,61 @@ namespace NexVerse.Core.Experiences
                 AddLog(experience.ExperienceId, actor, "experience.create", normalizedName);
                 Save();
                 return Clone(experience);
+            }
+        }
+
+        /// <summary>
+        /// Atomic, bounded free acquisition for authenticated Firestorm
+        /// residents. No client-specified name, group or Experience UUID.
+        /// </summary>
+        public Guid[] GetViewerOwnedExperienceIds(Guid ownerId)
+        {
+            if (ownerId == Guid.Empty)
+                throw new ArgumentException("Owner is required.", nameof(ownerId));
+            lock (m_Sync)
+            {
+                EnsureActive();
+                // Owned profiles must remain editable after their owner
+                // disables them. This does not make disabled scripts runnable
+                // or expose another avatar's private grants.
+                return m_State.Experiences
+                    .Where(x => x.OwnerId == ownerId)
+                    .Select(x => x.ExperienceId).ToArray();
+            }
+        }
+
+        public NexExperience CreateViewerExperience(Guid ownerId, string actor)
+        {
+            if (ownerId == Guid.Empty)
+                throw new ArgumentException("Owner is required.", nameof(ownerId));
+            lock (m_Sync)
+            {
+                EnsureActive();
+                if (m_State.Experiences.Count(x => x.OwnerId == ownerId) >=
+                    MaxViewerExperiencesPerResident)
+                    throw new InvalidOperationException(
+                        "Maximum of 10 owned Experiences reached.");
+                return Create(ownerId, Guid.Empty,
+                    "New Experience " + Guid.NewGuid().ToString("N").Substring(0, 8),
+                    string.Empty, NexExperienceMaturity.General, actor);
+            }
+        }
+
+        /// <summary>Owner-only profile editing; no group/ACL elevation.</summary>
+        public NexExperience UpdateViewerExperience(Guid ownerId, Guid id,
+            string name, string description, NexExperienceMaturity maturity,
+            bool enabled, string actor)
+        {
+            lock (m_Sync)
+            {
+                EnsureActive();
+                NexExperience existing = Find(id) ??
+                    throw new KeyNotFoundException("Experience was not found.");
+                if (ownerId == Guid.Empty || existing.OwnerId != ownerId)
+                    throw new UnauthorizedAccessException(
+                        "Only the owning avatar can edit this Experience.");
+                return UpdateProfile(id, ownerId, name, description,
+                    existing.GroupId, maturity, enabled, actor);
             }
         }
 

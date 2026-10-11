@@ -108,7 +108,7 @@ Enabled = false
         ):
             self.assertIn(code, findings, code)
         self.assertEqual(findings["EXPERIENCE_VIEWER_CREATE_UNSUPPORTED"]["severity"],
-                         "known-limitation")
+                         "action")
 
     def test_09310_opted_in_still_does_not_claim_live_success(self):
         sim = module.parse_opensim_ini("""
@@ -151,6 +151,40 @@ ViewerPermissionsApiKey = "example-DO-NOT-PRINT-key"
                       {x["code"] for x in findings})
         self.assertNotIn("example-DO-NOT-PRINT-key", str(findings))
 
+
+    def test_09310_viewer_acquire_opt_in_and_private_service_key(self):
+        sim = module.parse_opensim_ini("""
+[NexExperiencesViewer]
+Enabled = true
+FirestormReadCaps = true
+FirestormPermissionCaps = true
+FirestormManageCaps = true
+ScriptPendingConsent = true
+NativeExperiencePrompt = true
+ApiKey = "${Environment|NEXVERSE_EXPERIENCES_API_KEY}"
+ViewerPermissionsApiKey = "${Environment|NEXVERSE_EXPERIENCES_VIEWER_PERMISSIONS_API_KEY}"
+ViewerManageApiKey = "${Environment|NEXVERSE_EXPERIENCES_VIEWER_MANAGE_API_KEY}"
+""")
+        codes = {entry["code"] for entry in module.assess(sim)}
+        self.assertIn("EXPERIENCE_VIEWER_MANAGE_CONFIGURED", codes)
+        self.assertNotIn("EXPERIENCE_VIEWER_CREATE_UNSUPPORTED", codes)
+        self.assertNotIn("EXPERIENCE_VIEWER_MANAGE_KEY_REUSED", codes)
+        self.assertNotIn("EXPERIENCE_VIEWER_MANAGE_KEY_MISSING", codes)
+        duplicate = module.parse_opensim_ini("""
+[NexExperiencesViewer]
+Enabled = true
+FirestormReadCaps = true
+FirestormPermissionCaps = true
+FirestormManageCaps = true
+ApiKey = "never-print-this"
+ViewerPermissionsApiKey = "other-secret-value"
+ViewerManageApiKey = "other-secret-value"
+""")
+        bad = module.assess(duplicate)
+        self.assertIn("EXPERIENCE_VIEWER_MANAGE_KEY_REUSED",
+                      {entry["code"] for entry in bad})
+        self.assertNotIn("never-print-this", str(bad))
+        self.assertNotIn("other-secret-value", str(bad))
 
 
 if __name__ == "__main__":

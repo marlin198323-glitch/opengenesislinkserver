@@ -1045,6 +1045,12 @@
     ; Off until controlled live test with owner and second resident.
     NativeExperiencePrompt = false
     ViewerPermissionsApiKey = "${Environment|NEXVERSE_EXPERIENCES_VIEWER_PERMISSIONS_API_KEY}"
+    ; Free Firestorm "Acquire Experience" + owner-only basic profile edits.
+    ; Requires FirestormReadCaps=true and FirestormPermissionCaps=true.
+    ; Separate key MUST have ONLY privileged experiences:viewer:manage scope.
+    ; Free acquisition: at most 10 Experiences per avatar. Test first.
+    FirestormManageCaps = false
+    ViewerManageApiKey = "${Environment|NEXVERSE_EXPERIENCES_VIEWER_MANAGE_API_KEY}"
 
 [NexEconomyViewer]
     ; Central OpenGenesisLINK NV$ Viewer/IMoneyModule adapter.

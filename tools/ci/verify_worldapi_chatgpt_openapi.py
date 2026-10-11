@@ -29,6 +29,7 @@ for path in (
     "/api/v1/experiences/script/kv",
     "/api/v1/experiences/viewer/permissions",
     "/api/v1/experiences/viewer/group",
+    "/api/v1/experiences/viewer/manage",
 ):
     assert path in specified, path
 
@@ -44,6 +45,9 @@ contracts = {
     "ExperienceViewerListsResponse", "ExperienceViewerDecisionRequest",
     "ExperienceViewerDecisionResponse", "ExperienceViewerPermissionReadResponse",
     "ExperienceViewerGroupResponse",
+    "ExperienceViewerAcquireRequest",
+    "ExperienceViewerProfileRequest",
+    "ExperienceViewerManageResponse",
 }
 for name in contracts:
     assert f'["{name}"] = new' in spec, "Missing OpenAPI schema: " + name
@@ -53,7 +57,8 @@ for marker in ("SimulatorBridgeOperations(", "apiKeyAuth",
                'operation["x-nexverse-audience"] = new[] { "service" }',
                "experiences:viewer:permissions", "AddOperationParameters(paths",
                "max. 4000 Zeichen", "ExperienceKvRequest",
-               "ExperienceViewerPermissionReadResponse"):
+               "ExperienceViewerPermissionReadResponse",
+               "ExperienceViewerManageResponse", "experiences:viewer:manage"):
     assert marker in spec, "Missing API machine contract/security: " + marker
 
 for marker in ("/script/info", "/script/search", "/script/kv",

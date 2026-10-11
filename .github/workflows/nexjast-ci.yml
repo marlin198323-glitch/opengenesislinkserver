@@ -262,6 +262,10 @@ jobs:
         shell: bash
         run: python3 tools/ci/verify_nexgroups_experiences.py
 
+      - name: Verify Firestorm Experience acquire and editor security
+        shell: bash
+        run: python3 tools/ci/verify_experience_viewer_purchase.py
+
       - name: Regression-test NexExperiences persistence and K/V
         shell: bash
         run: dotnet run --configuration Release --project tools/ci/NexExperiencesRegression/NexExperiencesRegression.csproj
@@ -974,11 +978,27 @@ jobs:
               "/api/v1/experiences/script/kv": ("post",),
               "/api/v1/experiences/viewer/permissions": ("get", "put"),
               "/api/v1/experiences/viewer/group": ("get",),
+              "/api/v1/experiences/viewer/manage": ("post", "put"),
           }.items():
               for method in methods:
                   assert method in doc["paths"][experience_path], (experience_path, method)
           viewer = doc["paths"]["/api/v1/experiences/viewer/permissions"]
           assert viewer["put"]["x-nexverse-scope"] == "experiences:viewer:permissions"
+          manager = doc["paths"]["/api/v1/experiences/viewer/manage"]
+          for method, schema, result_code in (
+              ("post", "ExperienceViewerAcquireRequest", "201"),
+              ("put", "ExperienceViewerProfileRequest", "200"),
+          ):
+              operation = manager[method]
+              assert operation["x-nexverse-audience"] == ["service"]
+              assert operation["x-nexverse-scope"] == "experiences:viewer:manage"
+              assert operation["security"] == [{"apiKeyAuth": []}]
+              assert operation["requestBody"]["content"]["application/json"]["schema"]["$ref"] == (
+                  "#/components/schemas/" + schema)
+              assert operation["responses"][result_code]["content"]["application/json"]["schema"]["$ref"] == (
+                  "#/components/schemas/ExperienceViewerManageResponse")
+          assert schemas["ExperienceViewerAcquireRequest"]["required"] == ["owner_id"]
+          assert "experience_id" in schemas["ExperienceViewerProfileRequest"]["required"]
           assert viewer["put"]["x-nexverse-audience"] == ["service"]
           assert viewer["put"]["security"] == [{"apiKeyAuth": []}]
           assert viewer["put"]["requestBody"]["content"]["application/json"]["schema"]["$ref"] == (
@@ -1065,6 +1085,7 @@ jobs:
           grep -F '## Adminbereich' /tmp/nexverse-chatgpt.md
           grep -F '/api/v1/openapi.json' /tmp/nexverse-chatgpt.md
           grep -F 'experiences:viewer:permissions' /tmp/nexverse-chatgpt.md
+          grep -F 'experiences:viewer:manage' /tmp/nexverse-chatgpt.md
           grep -F 'Script-/Service-Integrationen' /tmp/nexverse-chatgpt.md
 
           curl --silent --fail --max-time 2 http://127.0.0.1:19090/api/v1/chatgpt-buergerportal.md > /tmp/nexverse-chatgpt-citizen.md
@@ -1076,6 +1097,7 @@ jobs:
           grep -F 'ChatGPT Anweisung Adminbereich' /tmp/nexverse-chatgpt-admin.md
           grep -F 'Administrative Mutationen nur mit ausdruecklicher Benutzerabsicht' /tmp/nexverse-chatgpt-admin.md
           grep -F 'experiences:viewer:permissions' /tmp/nexverse-chatgpt-admin.md
+          grep -F 'experiences:viewer:manage' /tmp/nexverse-chatgpt-admin.md
 
 
   ledger-db-matrix:

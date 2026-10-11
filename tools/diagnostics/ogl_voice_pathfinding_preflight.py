@@ -121,12 +121,31 @@ def assess(sim_cfg, robust_cfg=None, viewer_log=""):
             add("experiences", "EXPERIENCE_VIEWER_LISTS_UNAVAILABLE", "action",
                 "Firestorm Experience read/list/preferences CAPS cannot be tested until "
                 "FirestormReadCaps and FirestormPermissionCaps are enabled.")
-        # The current implementation intentionally does not accept POST
-        # AgentExperiences, which the standard viewer uses to purchase/create.
-        add("experiences", "EXPERIENCE_VIEWER_CREATE_UNSUPPORTED", "known-limitation",
-            "AgentExperiences is GET-only in this server build. Creating an Experience "
-            "inside Firestorm cannot pass EXP01 until authenticated viewer creation "
-            "is implemented; the World API creation route is separate.")
+        # Acquire/Edit is an independent opt-in, with its OWN privileged
+        # simulator credential. No amount of permission read CAPS can replace
+        # a valid purchase POST or an authenticated UpdateExperience request.
+        if not enabled(sim_cfg, "NexExperiencesViewer", "FirestormManageCaps"):
+            add("experiences", "EXPERIENCE_VIEWER_CREATE_UNSUPPORTED", "action",
+                "AgentExperiences purchase POST and UpdateExperience are disabled. "
+                "Provision a separate experiences:viewer:manage scoped key and "
+                "enable FirestormManageCaps only on the developer simulator.")
+        else:
+            add("experiences", "EXPERIENCE_VIEWER_MANAGE_CONFIGURED", "configuration-only",
+                "Free Acquire Experience and limited basic profile editing requested. "
+                "No live Firestorm GET/POST, ownership, key or quota verification yet.")
+            manage_key = setting(sim_cfg, "NexExperiencesViewer", "ViewerManageApiKey")
+            if not manage_key.strip():
+                add("experiences", "EXPERIENCE_VIEWER_MANAGE_KEY_MISSING", "action",
+                    "Set ViewerManageApiKey to a separate admin-issued "
+                    "experiences:viewer:manage service key reference.")
+            elif manage_key == script_key or manage_key == viewer_key:
+                add("experiences", "EXPERIENCE_VIEWER_MANAGE_KEY_REUSED", "action",
+                    "The privileged viewer manage key must not share the "
+                    "script or permission key reference.")
+            if not enabled(sim_cfg, "NexExperiencesViewer", "FirestormReadCaps") or \
+                    not enabled(sim_cfg, "NexExperiencesViewer", "FirestormPermissionCaps"):
+                add("experiences", "EXPERIENCE_VIEWER_MANAGE_DEPENDENCY", "action",
+                    "FirestormManageCaps needs read and permission CAPS enabled.")
 
     if not enabled(sim_cfg, "OGLNpcNavigation"):
         add("pathfinding", "NPC_FOLLOWER_DISABLED", "action",

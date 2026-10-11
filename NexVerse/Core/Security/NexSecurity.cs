@@ -38,6 +38,9 @@ namespace NexVerse.Core.Security
         public const string ExperiencesScript = "experiences:script";
         // Dedicated trusted simulator key; NEVER grant to resident/OAuth clients.
         public const string ExperiencesViewerPermissions = "experiences:viewer:permissions";
+        // Separate privileged simulator-only scope for creating/updating the
+        // logged-in avatar's own Experience through Firestorm CAPS.
+        public const string ExperiencesViewerManage = "experiences:viewer:manage";
         public const string DiscoveryRead = "discovery:read";
         public const string DiscoverySubmit = "discovery:submit";
         public const string DiscoveryManage = "discovery:manage";
@@ -92,6 +95,7 @@ namespace NexVerse.Core.Security
                     NexScopes.ExperiencesManage,
                     NexScopes.ExperiencesScript,
                     NexScopes.ExperiencesViewerPermissions,
+                    NexScopes.ExperiencesViewerManage,
                     NexScopes.DiscoveryRead,
                     NexScopes.DiscoverySubmit,
                     NexScopes.DiscoveryManage,
@@ -197,6 +201,10 @@ namespace NexVerse.Core.Security
                      string.Equals(
                          scope,
                          NexScopes.ExperiencesViewerPermissions,
+                         StringComparison.OrdinalIgnoreCase) ||
+                     string.Equals(
+                         scope,
+                         NexScopes.ExperiencesViewerManage,
                          StringComparison.OrdinalIgnoreCase)))
                 {
                     error = "privileged_scope_requires_admin";
