@@ -258,6 +258,10 @@ jobs:
         shell: bash
         run: python3 tools/ci/verify_nexgroups_experiences.py
 
+      - name: Verify Firestorm Experience acquire and editor security
+        shell: bash
+        run: python3 tools/ci/verify_experience_viewer_purchase.py
+
       - name: Regression-test NexExperiences persistence and K/V
         shell: bash
         run: dotnet run --configuration Release --project tools/ci/NexExperiencesRegression/NexExperiencesRegression.csproj
