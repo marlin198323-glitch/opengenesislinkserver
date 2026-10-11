@@ -322,6 +322,18 @@ namespace NexVerse.Server.Api
                     ("put", "Estate-/Parcel-Policy ändern", "experiences:manage", "200")),
                 ["/api/v1/experiences/{experienceId}/scripts/{scriptId}/bind"] = AuthenticatedOperations(
                     ("post", "Script an Experience binden", "experiences:manage", "200")),
+                // Trusted simulator proxy routes are real World API endpoints.
+                // The viewer receives *only* expiring per-avatar simulator CAPS,
+                // never these authenticated Robust API paths or service keys.
+                ["/api/v1/experiences/script/search"] = AuthenticatedOperations(
+                    ("get", "Öffentliche Experience-Metadaten für Simulator-Such-CAPS", "experiences:script", "200")),
+                ["/api/v1/experiences/script/info"] = AuthenticatedOperations(
+                    ("get", "Experience-Kurzprofile für Viewer-CAPS (max. 64 UUIDs)", "experiences:script", "200")),
+                ["/api/v1/experiences/viewer/permissions"] = SimulatorBridgeOperations(
+                    ("get", "Eigene Experience-Listen oder Berechtigungsstatus über authentifizierten Simulator lesen", "experiences:viewer:permissions", "200"),
+                    ("put", "Explizites Firestorm Allow/Block/Forget für den aktuell angemeldeten Avatar speichern", "experiences:viewer:permissions", "200")),
+                ["/api/v1/experiences/viewer/group"] = SimulatorBridgeOperations(
+                    ("get", "Experience-IDs einer Gruppe für die Viewer-CAP ermitteln", "experiences:viewer:permissions", "200")),
                 ["/api/v1/experiences/script/resolve"] = AuthenticatedOperations(
                     ("get", "Script-Experience-Bindung auflösen", "experiences:script", "200")),
                 ["/api/v1/experiences/script/details"] = AuthenticatedOperations(
@@ -614,16 +626,50 @@ namespace NexVerse.Server.Api
             ApplyJsonContract(paths, "/api/v1/groups/{groupId}/bans/{agentId}", "post", "Chapter11MutationRequest", "Chapter11ObjectResponse", "200");
             ApplyJsonContract(paths, "/api/v1/groups/{groupId}/accounting", "get", null, "Chapter11ObjectResponse", "200");
             ApplyJsonContract(paths, "/api/v1/groups/{groupId}/capabilities", "get", null, "Chapter11ObjectResponse", "200");
-            ApplyJsonContract(paths, "/api/v1/experiences", "get", null, "Chapter11ObjectResponse", "200");
-            ApplyJsonContract(paths, "/api/v1/experiences", "post", "NexExperienceCreateRequest", "Chapter11ObjectResponse", "201");
-            ApplyJsonContract(paths, "/api/v1/experiences/{experienceId}", "get", null, "Chapter11ObjectResponse", "200");
-            ApplyJsonContract(paths, "/api/v1/experiences/{experienceId}", "put", "Chapter11MutationRequest", "Chapter11ObjectResponse", "200");
+            ApplyJsonContract(paths, "/api/v1/experiences", "get", null, "ExperienceSearchResponse", "200");
+            ApplyJsonContract(paths, "/api/v1/experiences", "post", "NexExperienceCreateRequest", "ExperienceDetailsResponse", "201");
+            ApplyJsonContract(paths, "/api/v1/experiences/{experienceId}", "get", null, "ExperienceDetailsResponse", "200");
+            ApplyJsonContract(paths, "/api/v1/experiences/{experienceId}", "put", "ExperienceProfileUpdateRequest", "ExperienceDetailsResponse", "200");
             ApplyJsonContract(paths, "/api/v1/experiences/{experienceId}/logs", "get", null, "Chapter11ObjectResponse", "200");
             ApplyJsonContract(paths, "/api/v1/experiences/script/resolve", "get", null, "Chapter11ObjectResponse", "200");
             ApplyJsonContract(paths, "/api/v1/experiences/script/details", "get", null, "Chapter11ObjectResponse", "200");
             ApplyJsonContract(paths, "/api/v1/experiences/script/permission", "get", null, "Chapter11ObjectResponse", "200");
             ApplyJsonContract(paths, "/api/v1/experiences/script/location", "get", null, "Chapter11ObjectResponse", "200");
-            ApplyJsonContract(paths, "/api/v1/experiences/script/kv", "post", "Chapter11MutationRequest", "Chapter11ObjectResponse", "200");
+            ApplyJsonContract(paths, "/api/v1/experiences/script/kv", "post", "ExperienceKvRequest", "ExperienceKvResponse", "200");
+            ApplyJsonContract(paths, "/api/v1/experiences/script/search", "get", null, "ExperiencePublicSearchResponse", "200");
+            ApplyJsonContract(paths, "/api/v1/experiences/script/info", "get", null, "ExperiencePublicInfoResponse", "200");
+            ApplyJsonContract(paths, "/api/v1/experiences/script/resolve", "get", null, "ExperienceScriptResolveResponse", "200");
+            ApplyJsonContract(paths, "/api/v1/experiences/script/details", "get", null, "ExperienceDetailsResponse", "200");
+            ApplyJsonContract(paths, "/api/v1/experiences/script/permission", "get", null, "ExperienceScriptPermissionResponse", "200");
+            ApplyJsonContract(paths, "/api/v1/experiences/script/location", "get", null, "ExperienceScriptLocationResponse", "200");
+            ApplyJsonContract(paths, "/api/v1/experiences/viewer/permissions", "get", null, "ExperienceViewerPermissionReadResponse", "200");
+            ApplyJsonContract(paths, "/api/v1/experiences/viewer/permissions", "put", "ExperienceViewerDecisionRequest", "ExperienceViewerDecisionResponse", "200");
+            ApplyJsonContract(paths, "/api/v1/experiences/viewer/group", "get", null, "ExperienceViewerGroupResponse", "200");
+            // Simulator Experience bridges: exactly the query names and bounds
+            // consumed by NexExperienceModule/NexExperiencesApi.
+            AddOperationParameters(paths, "/api/v1/experiences/script/search", "get",
+                QueryParameter("q", false, "Namens-Teiltext, begrenzt durch Simulator-CAP."),
+                PaginationParameter("offset", 0, 0, 1000000),
+                PaginationParameter("limit", 20, 1, 50));
+            AddOperationParameters(paths, "/api/v1/experiences/script/info", "get",
+                QueryParameter("ids", true, "Kommagetrennte 1 bis 64 Experience-UUIDs, max. 4000 Zeichen."));
+            AddOperationParameters(paths, "/api/v1/experiences/script/resolve", "get",
+                QueryParameter("script_id", true, "UUID der Script-Inventory-Instanz."));
+            AddOperationParameters(paths, "/api/v1/experiences/script/details", "get",
+                QueryParameter("experience_id", false, "Experience-UUID; alternativ script_id."),
+                QueryParameter("script_id", false, "Script-UUID wenn experience_id fehlt."));
+            AddOperationParameters(paths, "/api/v1/experiences/script/permission", "get",
+                QueryParameter("script_id", true, "Gebundene Script-UUID."),
+                QueryParameter("resident_id", true, "Avatar-UUID; nur intern vertrauter Script-Dienst."));
+            AddOperationParameters(paths, "/api/v1/experiences/script/location", "get",
+                QueryParameter("script_id", true, "Gebundene Script-UUID."),
+                QueryParameter("estate_id", false, "Optionale Estate UUID."),
+                QueryParameter("parcel_id", false, "Optionale Parcel UUID."));
+            AddOperationParameters(paths, "/api/v1/experiences/viewer/permissions", "get",
+                QueryParameter("resident_id", true, "Vom authentifizierten Avatar-CAP serverseitig gebundene UUID."),
+                QueryParameter("experience_id", false, "Optional: Einzeleinstellung statt aller Listen."));
+            AddOperationParameters(paths, "/api/v1/experiences/viewer/group", "get",
+                QueryParameter("group_id", true, "UUID der angefragten Gruppe."));
             ApplyJsonContract(paths, "/api/v1/banking/transactions", "get", null, "BankingTransactionsResponse", "200");
             ApplyJsonContract(paths, "/api/v1/banking/statements", "get", null, "BankingStatementResponse", "200");
             ApplyJsonContract(paths, "/api/v1/banking/reconciliation", "get", null, "BankingReconciliationResponse", "200");
@@ -2193,6 +2239,40 @@ namespace NexVerse.Server.Api
                 result[operationSpec.method] = operation;
             }
 
+            return result;
+        }
+
+        private static object SimulatorBridgeOperations(
+            params (string method, string summary, string scope, string successCode)[] operations)
+        {
+            // These endpoints require a dedicated trusted simulator credential.
+            // In particular a resident OAuth/Bearer principal must not be
+            // mistaken for the live avatar whose CAPS delegated the request.
+            Dictionary<string, object> result =
+                (Dictionary<string, object>)AuthenticatedOperations(operations);
+            foreach (KeyValuePair<string, object> entry in result)
+            {
+                Dictionary<string, object> operation = (Dictionary<string, object>)entry.Value;
+                operation["security"] = new object[]
+                {
+                    new Dictionary<string, string[]>
+                    {
+                        ["apiKeyAuth"] = Array.Empty<string>()
+                    }
+                };
+                operation["x-nexverse-audience"] = new[] { "service" };
+                operation["x-nexverse-ai-instruction"] =
+                    "Nur ein verifizierter Simulator darf diese interne World-API-Bridge verwenden. " +
+                    "Das resident_id-Feld ist durch die aktuelle, widerrufbare Viewer-CAP-Sitzung zu binden; " +
+                    "niemals aus einer ChatGPT-Eingabe oder URL eines Dritten übernehmen.";
+                operation["x-nexverse-security-constraints"] = new[]
+                {
+                    "Nur separat administrativ vergebene API-Schlüssel mit experiences:viewer:permissions.",
+                    "Kein Einwohner-Bearer-Token, keine Endnutzer- oder LSL-Verwendung.",
+                    "Live Root-Agent, CAPS-Lease und Regionsbindung muss der Simulator vor dem Aufruf prüfen.",
+                    "Allow, Block und Forget nur nach expliziter Viewerentscheidung; Audit erforderlich."
+                };
+            }
             return result;
         }
 
