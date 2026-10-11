@@ -230,6 +230,19 @@ for marker in ("unauthorized Master Bank payout delegation accepted",
 for p in ("bin/OpenSim.ini", "bin/OpenSim.ini.example"):
     config = Path(p).read_text()
     assert "MasterBankEnabled = false" in config
-    assert 'MasterBankAccountId = ""' in config
+    expected_bank_id = ('6571e388-6218-4574-87db-f9379718315e'
+                        if p == "bin/OpenSim.ini" else '')
+    assert f'MasterBankAccountId = "{expected_bank_id}"' in config
     assert 'MasterBankAuthorizedScripts = ""' in config
 assert "NEXVERSE_ECONOMY_API_KEY" not in Path("tools/diagnostics/ogl_master_bank_payout_test.lsl").read_text()
+
+# NexVerse GRID SERVICES is the explicit default bank identity, not an
+# implicit operator or unrestricted script payout authorization.
+master_bank_id = "6571e388-6218-4574-87db-f9379718315e"
+constants = Path("OpenSim/Framework/Constants.cs").read_text()
+assert f'servicesAgentIDString = "{master_bank_id}"' in constants
+profile = Path("bin/OpenSim.ini").read_text()
+assert f'MasterBankAccountId = "{master_bank_id}"' in profile
+assert "MasterBankEnabled = false" in profile
+assert 'MasterBankOperatorId = ""' in profile
+assert 'MasterBankAuthorizedScripts = ""' in profile

@@ -36,7 +36,9 @@ for token in ("FirestormManageCaps", "ViewerManageApiKey",
               "NexExperienceStore.MaxViewerExperiencesPerResident",
               'if (!IsCurrentViewer(scene, avatar, lease))',
               'owner_id = avatar.ToString()', '"experience_keys"',
-              "properties & ~(1 << 6)",
+              "properties & ~editableFlags",
+              "const int editableFlags = (1 << 5) | (1 << 6)",
+              'is_private = (properties & (1 << 5)) != 0',
               '"UpdateExperience"'):
     assert token in viewer, "missing Firestorm CAP safety: " + token
 
@@ -70,3 +72,13 @@ for token in ("TryParse(string requestPath, string capPath,",
     assert token in info_parser, "ExperienceInfo CAP URL guard missing: " + token
 assert "NexExperienceInfoRequestIds.TryParse(" in viewer
 assert "request.Url?.AbsolutePath, infoCapPath" in viewer
+
+# Privacy must round-trip through the authorized World API and the durable store.
+assert 'bool isPrivate = BodyBool(viewerBody, "is_private", false);' in api
+assert 'viewerBody.EnumerateObject().Count() != 7' in api
+assert 'is_private = e.IsPrivate' in api
+assert '(isPrivate ? 1 << 5 : 0)' in viewer
+storage = (root/"NexVerse/Core/Experiences/NexExperienceStore.cs").read_text()
+assert "public bool IsPrivate { get; set; }" in storage
+assert "x.Enabled && !x.IsPrivate" in storage
+assert "IsPrivate = source.IsPrivate" in storage

@@ -214,17 +214,30 @@ freigeben. Der Simulator prueft vor *jedem* Vorgang:
 ```ini
 [NexEconomyViewer]
     MasterBankEnabled = false
-    MasterBankAccountId = ""
+    MasterBankAccountId = "6571e388-6218-4574-87db-f9379718315e"
     MasterBankOperatorId = ""
     MasterBankAuthorizedScripts = ""
     MasterBankMaxPayout = 100
 ```
 
 Die Bank darf erst nach kontrollierter Einrichtung aktiviert werden.
-`MasterBankAccountId` ist eine fest gewaehlte **neue, unbenutzte UUID**
-und darf nicht der UUID eines vorhandenen Avatars, Gruppenwallets oder
-Systemkontos entsprechen. Der Server legt das Konto beim ersten
-autorisierten Einsatz als Business-Wallet mit **0 NV$** an.
+Im NexVerse-Grid ist der fest definierte **GRID SERVICES**-Systembenutzer
+(`OpenSim.Framework.Constants.servicesGodAgentID` mit der UUID
+`6571e388-6218-4574-87db-f9379718315e`) die gewuenschte Bankkontoidentitaet.
+Diese UUID bezeichnet bereits eine OpenSimulator-Service-UserAccount-
+Identitaet; sie ersetzt **keine** Operator-Autorisierung und ist
+keine automatische Geldschoepfung. Die NV$-Ledgerbuchungen liegen separat
+vom OpenSimulator-Benutzerkonto. Sofern die UUID im NV$-Ledger noch
+unbenutzt ist, wird beim ersten autorisierten Einsatz ein
+**Business-Wallet mit 0 NV$** angelegt. Existiert dort bereits ein
+anders klassifiziertes Ledgerkonto, muss der Betreiber dessen Klasse
+und bestehende Buchungen pruefen; der Server darf es nicht automatisch
+umklassifizieren. Die Konto-UUID allein ermoeglicht keine Auszahlung.
+`MasterBankOperatorId` muss eine **andere**, echte Avatar-UUID sein,
+die die autorisierten Skriptobjekte besitzt und bewusst
+`PERMISSION_DEBIT` erteilt. Erst nach Konfiguration der exakten
+Root-Objekt-/Task-Skript-Inventaritem-Bindungen kann
+`MasterBankEnabled=true` gesetzt werden.
 
 **Beispiel fuer mehrere Skripte:**
 `MasterBankAuthorizedScripts = "OBJEKT-UUID-1/SKRIPT-INVENTAR-UUID-1;OBJEKT-UUID-2/SKRIPT-INVENTAR-UUID-2"`

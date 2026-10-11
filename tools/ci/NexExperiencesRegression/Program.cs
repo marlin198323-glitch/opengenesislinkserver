@@ -135,6 +135,40 @@ internal static class Program
                 renamedViewer.Maturity == NexExperienceMaturity.Moderate &&
                 renamedViewer.OwnerId == viewerOwner,
             "owner profile editor did not persist name, description and maturity");
+        // A private Firestorm Experience must persist PRIVATE/disabled flags,
+        // remain owner-editable, and never appear in public/group search.
+        NexExperience privateViewer = store.UpdateViewerExperience(viewerOwner,
+            firstViewer.ExperienceId, "NexVerse Private Demo", "private",
+            NexExperienceMaturity.Moderate, true, "simulator:viewer", true);
+        Require(privateViewer.IsPrivate &&
+                !store.Search("NexVerse Private Demo", 0, 10)
+                    .Any(x => x.ExperienceId == firstViewer.ExperienceId) &&
+                store.GetViewerOwnedExperienceIds(viewerOwner)
+                    .Contains(firstViewer.ExperienceId),
+            "Firestorm PROPERTY_PRIVATE was not persisted or leaked via search");
+        NexExperienceSnapshot privateSnapshot =
+            JsonSerializer.Deserialize<NexExperienceSnapshot>(File.ReadAllText(path));
+        Require(privateSnapshot.Experiences.Single(x =>
+                    x.ExperienceId == firstViewer.ExperienceId).IsPrivate,
+            "private Experience lost flag in durable snapshot");
+        // Editing other profile fields must not reset the PRIVATE bit.
+        NexExperience retained = store.UpdateProfile(
+            firstViewer.ExperienceId, viewerOwner, "NexVerse Private Demo",
+            "owner edit", Guid.Empty, NexExperienceMaturity.Moderate,
+            true, "api-admin");
+        Require(retained.IsPrivate, "unrelated update cleared PRIVATE");
+        NexExperience publicViewer = store.UpdateViewerExperience(viewerOwner,
+            firstViewer.ExperienceId, "NexVerse Public Demo", "public",
+            NexExperienceMaturity.Moderate, false, "simulator:viewer", false);
+        Require(!publicViewer.IsPrivate && !publicViewer.Enabled &&
+                store.Search("NexVerse Public Demo", 0, 10).Count == 0,
+            "Firestorm DISABLED should remain unavailable in public search");
+        store.UpdateViewerExperience(viewerOwner,
+            firstViewer.ExperienceId, "NexVerse Public Demo", "public",
+            NexExperienceMaturity.Moderate, true, "simulator:viewer", false);
+        Require(store.Search("NexVerse Public Demo", 0, 10)
+                .Any(x => x.ExperienceId == firstViewer.ExperienceId),
+            "Re-enabling an unprivileged public Experience failed");
         for (int i = 1; i < NexExperienceStore.MaxViewerExperiencesPerResident; i++)
             store.CreateViewerExperience(viewerOwner, "simulator:viewer");
         bool quotaRejected = false;
