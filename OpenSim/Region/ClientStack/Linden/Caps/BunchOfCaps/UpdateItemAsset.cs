@@ -12,6 +12,7 @@ using OpenMetaverse.StructuredData;
 using OpenSim.Framework;
 using OpenSim.Framework.Capabilities;
 using OpenSim.Region.Framework.Scenes;
+using OpenSim.Region.Framework.Interfaces;
 using OpenSim.Framework.Servers.HttpServer;
 using OSDMap = OpenMetaverse.StructuredData.OSDMap;
 
@@ -193,6 +194,8 @@ namespace OpenSim.Region.ClientStack.Linden
                 UUID itemID = UUID.Zero;
                 UUID objectID = UUID.Zero;
                 bool is_script_running = false;
+                bool hasExperience = false;
+                UUID experienceId = UUID.Zero;
                 OSD tmp;
                 try
                 {
@@ -202,6 +205,15 @@ namespace OpenSim.Region.ClientStack.Linden
                         objectID = tmp;
                     if (map.TryGetValue("is_script_running", out tmp))
                         is_script_running = tmp;
+                    if (map.TryGetValue("experience", out tmp))
+                    {
+                        hasExperience = true;
+                        if (!UUID.TryParse(tmp.AsString(), out experienceId))
+                        {
+                            httpResponse.StatusCode = (int)HttpStatusCode.BadRequest;
+                            return;
+                        }
+                    }
                 }
                 catch { }
 
@@ -252,6 +264,31 @@ namespace OpenSim.Region.ClientStack.Linden
                 TaskInventoryScriptUpdater uploader = new TaskInventoryScriptUpdater(itemID, objectID, is_script_running,
                         uploaderPath, m_HostCapsObj.HttpListener, httpRequest.RemoteIPEndPoint.Address, m_dumpAssetsToFile);
                 uploader.OnUpLoad += TaskScriptUpdated;
+                if (hasExperience)
+                {
+                    // Firestorm's "experience" is untrusted task-script
+                    // metadata. Authorize the exact live editor/item again
+                    // and commit only when the script compiled successfully.
+                    uploader.OnCompiled = () =>
+                    {
+                        SceneObjectPart current = m_Scene.GetSceneObjectPart(objectID);
+                        if (current?.ParentGroup == null ||
+                            current.ParentGroup.IsDeleted ||
+                            current.Inventory.GetInventoryItem(itemID) == null ||
+                            !m_Scene.Permissions.CanEditObjectInventory(objectID, m_AgentID) ||
+                            !m_Scene.Permissions.CanEditScript(itemID, objectID, m_AgentID))
+                            return "Experience assignment: task-script rights expired.";
+                        IExperienceModule experiences =
+                            m_Scene.RequestModuleInterface<IExperienceModule>();
+                        if (experiences == null)
+                            return experienceId.IsZero()
+                                ? null
+                                : "Experience assignment: central service unavailable.";
+                        return experiences.TrySetViewerScriptExperience(
+                            objectID, itemID, m_AgentID, experienceId,
+                            out string failure) ? null : failure;
+                    };
+                }
 
                 var uploaderHandler = new SimpleBinaryHandler("POST", uploaderPath, uploader.process);
 
@@ -384,6 +421,9 @@ namespace OpenSim.Region.ClientStack.Linden
         public class TaskInventoryScriptUpdater : ExpiringCapBase
         {
             public event UpdateTaskScript OnUpLoad;
+            // Commit the requested Experience only after the script compiles;
+            // never persist a viewer-claimed UUID during uploader negotiation.
+            public Func<string> OnCompiled;
             private UUID m_inventoryItemID;
             private UUID m_primID;
             private bool m_isScriptRunning;
@@ -440,6 +480,12 @@ namespace OpenSim.Region.ClientStack.Linden
 
                     ArrayList errors = new ArrayList();
                     OnUpLoad?.Invoke(m_inventoryItemID, m_primID, m_isScriptRunning, data, ref errors);
+                    if (errors.Count == 0 && OnCompiled != null)
+                    {
+                        string bindingFailure = OnCompiled();
+                        if (!string.IsNullOrWhiteSpace(bindingFailure))
+                            errors.Add(bindingFailure);
+                    }
 
                     uploadComplete.new_asset = m_inventoryItemID;
                     uploadComplete.compiled = errors.Count > 0 ? false : true;
