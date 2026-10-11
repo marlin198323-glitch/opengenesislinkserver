@@ -1026,30 +1026,30 @@
     WorldApiBaseUrl = "https://world.stadt-nexverse.de"
     ApiKey = "${Environment|NEXVERSE_EXPERIENCES_API_KEY}"
     RequestTimeoutMilliseconds = 3000
-    ; Opt-in Firestorm GetExperienceInfo + FindExperienceByName (read-only).
-    ; Requires real experiences:script service credentials and viewer E2E tests.
-    ; Does NOT enable viewer permission write/consent capabilities.
-    FirestormReadCaps = false
-    ; Opt-in Firestorm GetExperiences / ExperiencePreferences (Allow/Block/Forget)
+    ; Enabled by default for OpenGenesisLINK Firestorm 7.2.4 compatibility.
+    ; The underlying simulator refuses unavailable privileged operations
+    ; until the corresponding independent service keys are configured.
+    FirestormReadCaps = true
+    ; Firestorm GetExperiences / ExperiencePreferences (Allow/Block/Forget)
     ; Set ONLY with a separate admin-issued API key scoped exclusively to
     ; experiences:viewer:permissions; never reuse experiences:script key.
-    ; Never enable on production before real two-avatar consent tests.
-    FirestormPermissionCaps = false
+    ; Keep explicit consent: no automatic Allow, even with this flag enabled.
+    FirestormPermissionCaps = true
     ; Optional: pending LSL llRequestExperiencePermissions requests wait
     ; for an EXPLICIT Allow/Block in Firestorm ExperiencePreferences.
     ; Informational notice only; NOT the native ScriptQuestionExperience UI.
     ; 60-second timeout, per-resident and total pending request quotas.
-    ScriptPendingConsent = false
+    ScriptPendingConsent = true
     ; Real Firestorm ScriptQuestionExperience prompt via UDP Experience
     ; extension block. Requires CAPS above + ScriptPendingConsent.
-    ; Off until controlled live test with owner and second resident.
-    NativeExperiencePrompt = false
+    ; Requires a real viewer test with owner and second resident before Stable.
+    NativeExperiencePrompt = true
     ViewerPermissionsApiKey = "${Environment|NEXVERSE_EXPERIENCES_VIEWER_PERMISSIONS_API_KEY}"
     ; Free Firestorm "Acquire Experience" + owner-only basic profile edits.
     ; Requires FirestormReadCaps=true and FirestormPermissionCaps=true.
     ; Separate key MUST have ONLY privileged experiences:viewer:manage scope.
-    ; Free acquisition: at most 10 Experiences per avatar. Test first.
-    FirestormManageCaps = false
+    ; Free acquisition: at most 10 Experiences per avatar. Test before Stable.
+    FirestormManageCaps = true
     ViewerManageApiKey = "${Environment|NEXVERSE_EXPERIENCES_VIEWER_MANAGE_API_KEY}"
 
 [NexEconomyViewer]
