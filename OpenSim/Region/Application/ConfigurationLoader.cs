@@ -28,6 +28,8 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Net;
+using System.Net.Sockets;
 using System.Reflection;
 using System.Threading;
 using System.Xml;
@@ -342,7 +344,130 @@ namespace OpenSim
                     = startupConfig.GetString("clientstack_plugin", "OpenSim.Region.ClientStack.LindenUDP.dll");
             }
 
+            NexVerseHttpPortAllocator.Apply(m_config.Source);
             m_networkServersInfo.loadFromConfiguration(m_config.Source);
+        }
+    }
+
+    /// <summary>
+    /// Cooperative per-host simulator HTTP port allocation; never touches region UDP ports.
+    /// </summary>
+    internal static class NexVerseHttpPortAllocator
+    {
+        private static readonly ILog m_log = LogManager.GetLogger(typeof(NexVerseHttpPortAllocator));
+        private static readonly object m_sync = new object();
+        private static FileStream m_lease;
+        private static int m_selectedPort;
+
+        public static void Apply(IConfigSource source)
+        {
+            IConfig network = source.Configs["Network"];
+            if (network == null)
+                return;
+            int configuredPort = network.GetInt("http_listener_port", 9000);
+            if (configuredPort < 0 || configuredPort > 65535)
+                throw new InvalidOperationException("[PORTS]: Invalid http_listener_port.");
+            if (configuredPort != 0)
+                return; // An explicit fixed HTTP port always wins.
+
+            IConfig options = source.Configs["NexVerseAutoPorts"];
+            if (options == null || !options.GetBoolean("Enabled", false))
+                throw new InvalidOperationException(
+                    "[PORTS]: http_listener_port=0 requires NexVerseAutoPorts.Enabled=true.");
+            if (network.GetBoolean("http_listener_ssl", false))
+                throw new InvalidOperationException(
+                    "[PORTS]: Automatic HTTP allocation does not support http_listener_ssl=true.");
+
+            int min = options.GetInt("HttpPortMin", 9000);
+            int max = options.GetInt("HttpPortMax", 9099);
+            if (min < 1024 || max > 65535 || max < min || max - min > 1000)
+                throw new InvalidOperationException("[PORTS]: Invalid HTTP port range.");
+
+            lock (m_sync)
+            {
+                if (m_lease != null)
+                {
+                    network.Set("http_listener_port", m_selectedPort);
+                    return;
+                }
+
+                string stateDirectory = Path.Combine(Util.configDir(), "data", "NexVersePorts");
+                string lockDirectory = Path.Combine(Path.GetTempPath(), "opengenesislink-http-port-locks");
+                Directory.CreateDirectory(stateDirectory);
+                Directory.CreateDirectory(lockDirectory);
+                string preferredFile = Path.Combine(stateDirectory, "http.port");
+                int preferred = -1;
+                if (File.Exists(preferredFile))
+                    int.TryParse(File.ReadAllText(preferredFile).Trim(), out preferred);
+
+                int httpsPort = network.GetBoolean("https_listener", false)
+                    ? network.GetInt("https_port", 0) : 0;
+                for (int pass = 0; pass < 2; pass++)
+                {
+                    int first = pass == 0 ? preferred : min;
+                    int last = pass == 0 ? preferred : max;
+                    if (pass == 0 && (preferred < min || preferred > max))
+                        continue;
+
+                    for (int port = first; port <= last; port++)
+                    {
+                        if (port == httpsPort)
+                            continue;
+                        string lockPath = Path.Combine(lockDirectory, port.ToString(
+                            System.Globalization.CultureInfo.InvariantCulture) + ".lock");
+                        FileStream lease = null;
+                        try
+                        {
+                            lease = new FileStream(lockPath, FileMode.OpenOrCreate,
+                                FileAccess.ReadWrite, FileShare.ReadWrite);
+                            lease.Lock(0, 1);
+                        }
+                        catch (IOException)
+                        {
+                            lease?.Dispose();
+                            continue;
+                        }
+
+                        bool retained = false;
+                        try
+                        {
+                            // Other software may take a port after this probe.
+                            TcpListener probe = new TcpListener(IPAddress.Any, port);
+                            try
+                            {
+                                probe.Start();
+                            }
+                            catch (SocketException)
+                            {
+                                continue;
+                            }
+                            finally
+                            {
+                                probe.Stop();
+                            }
+
+                            File.WriteAllText(preferredFile, port.ToString(
+                                System.Globalization.CultureInfo.InvariantCulture));
+                            network.Set("http_listener_port", port);
+                            m_selectedPort = port;
+                            m_lease = lease;
+                            retained = true;
+                            m_log.InfoFormat("[PORTS]: Simulator HTTP TCP port {0} auto-selected.", port);
+                            return;
+                        }
+                        finally
+                        {
+                            if (!retained)
+                            {
+                                try { lease.Unlock(0, 1); }
+                                finally { lease.Dispose(); }
+                            }
+                        }
+                    }
+                }
+            }
+            throw new InvalidOperationException(
+                "[PORTS]: No free HTTP TCP port in the configured range.");
         }
     }
 }
