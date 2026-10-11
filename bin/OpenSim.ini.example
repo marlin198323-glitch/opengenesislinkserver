@@ -1082,6 +1082,18 @@
     ; No foreign-grid currency exchange and no ATM withdrawals are enabled.
     AllowHypergridGuests = false
 
+    ; Optional central NV$ master bank (currently disabled).
+    ; This is a distinct, prefunded Business wallet, NOT the operator avatar.
+    ; A UUID alone never grants access to the Master Bank.
+    ; Binding syntax: objectUUID/scriptInventoryItemUUID;...
+    ; The script owner must be MasterBankOperatorId and have granted
+    ; PERMISSION_DEBIT; payments use central BankingTransfer policy/limits.
+    MasterBankEnabled = false
+    MasterBankAccountId = ""
+    MasterBankOperatorId = ""
+    MasterBankAuthorizedScripts = ""
+    MasterBankMaxPayout = 100
+
     ; Optional secure web portal opened/recommended by the legacy Firestorm
     ; buy-currency helper. No currency is minted by unauthenticated XML-RPC.
     CurrencyPurchasePortalUrl = ""

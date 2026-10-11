@@ -426,6 +426,9 @@
     <Compile Include="Interfaces\IPrimCountModule.cs">
       <SubType>Code</SubType>
     </Compile>
+    <Compile Include="Interfaces\INexMasterBankPayoutModule.cs">
+      <SubType>Code</SubType>
+    </Compile>
     <Compile Include="Interfaces\IRegionModuleBase.cs">
       <SubType>Code</SubType>
     </Compile>
