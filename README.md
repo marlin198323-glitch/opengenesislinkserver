@@ -1,6 +1,6 @@
 # OpenGenesisLINK
 
-**OpenGenesisLINK v0.9.3.10 Dev** is the active runtime-modernization and NexExperiences development train. **OGL Pathfinding has been removed from the server and deferred to the future own-viewer project. OGLVoice remains deferred to a separate later development train**; its existing code stays in the repository but is not a 0.9.3.10 release requirement. The last stable release is **v0.9.3.8**. OpenGenesisLINK is an independent virtual-world server platform developed by the OpenGenesisLINK project.
+**OpenGenesisLINK v0.9.3.10 Dev** is the active **stabilization and RC1-readiness** train: .NET 8, login/Hypergrid, economy and authorized GRID SERVICES Masterbank, inventory/asset foundations, World API and operational recovery. **NexExperiences / Firestorm development is paused** and disabled in the RC deployment profile while existing security tests remain. **OGL Pathfinding 2.0, OGL My Outfits 2.0 and any OGL Experiences 2.0 are deferred to the own-viewer project**. OGLVoice remains deferred to its own train. The last stable release is **v0.9.3.8**.
 
 This repository starts from the published **OpenSimulator 0.9.3.0 ("Nessie") Release** source package. It is intentionally maintained as its own repository rather than as a GitHub fork. The long-term objective is an independent OpenGenesisLINK development line whose architecture, services, protocols, modules, tooling and branding may diverge substantially from OpenSimulator.
 
@@ -21,9 +21,9 @@ Imported OpenSimulator files do **not** lose or replace their existing BSD/third
 
 ## Versioning
 
-The current stable release is **OpenGenesisLINK v0.9.3.8**. It was promoted after successful RC1 acceptance on 8 October 2026. Development now targets **0.9.3.10 Dev** for .NET runtime modernization and complete NexExperiences/Firestorm integration. **Experience viewer-CAPS, consent/revoke, LSL/KV and multi-node persistence acceptance remain open**; 0.9.3.10 is not ready for Stable. OGL Pathfinding, NavMesh, NPC navigation and all NAV release gates were removed from this server train and are deferred to a separate own-viewer development effort; OGLVoice also remains deferred. No separate 0.9.3.9 Stable release is planned.
+The current stable release is **OpenGenesisLINK v0.9.3.8**. It was promoted after successful RC1 acceptance on 8 October 2026. Development now targets **0.9.3.10 Dev** for runtime stabilization, NV$ ledger/Viewer/Masterbank, inventory foundations and World API. Experience viewer-CAPS, consent/revoke and K/V remain unaccepted and **out of release scope**, with the Experience viewer adapter disabled; historical code/tests remain. My Outfits 2.0, OGL Pathfinding 2.0, any Experiences 2.0 and their viewer-specific acceptance gates are deferred; OGLVoice is also deferred. RC1 requires **22 operator PASS results** under evidence format v2, Stable **23**. No separate 0.9.3.9 Stable release is planned.
 
-**Deferred Viewer navigation:** [`doc/NexVerse/FUTURE_VIEWER_NAVIGATION.md`](doc/NexVerse/FUTURE_VIEWER_NAVIGATION.md). The current server provides no OGL Pathfinding engine or NavMesh CAPS. Experiences/LSL/KV are separate active work.
+**Deferred Viewer navigation:** [`doc/NexVerse/FUTURE_VIEWER_NAVIGATION.md`](doc/NexVerse/FUTURE_VIEWER_NAVIGATION.md). The current server provides no OGL Pathfinding engine or NavMesh CAPS. The old Experiences/LSL/KV implementation is retained but paused and is not an active 0.9.3.10 release feature.
 
 **Inventory thumbnail compatibility (0.9.3.10 Dev):** The server-side `InventoryThumbnailUpload` capability, persistent item/folder previews, and inventory fetch metadata are implemented. **Known limitation:** Firestorm 7.2.4.80712 on the tested NexVerse/OpenSim configuration does not reliably refresh a replaced outfit-folder thumbnail from its existing inventory cache after relog; rebuilding the inventory cache restores the persisted preview. INV01 is closed as an accepted compatibility limitation, **not** as a fixed viewer refresh bug. See [`doc/NexVerse/FIRESTORM_INVENTORY_THUMBNAIL_09310.md`](doc/NexVerse/FIRESTORM_INVENTORY_THUMBNAIL_09310.md). This does not change the remaining stable release gates.
 
@@ -43,7 +43,7 @@ The active development roadmap is maintained in:
 
 The roadmap covers the NEXJAST legacy-cleanup milestone and the World API, identity/social platform, simulator/region/estate control plane, inventory/OAR/IAR, NV$ economy and banking, Groups, Experiences, Search/Places/Land/Destination services, OGLVoice (centralized LiveKit/WebRTC voice), Pathfinding, LSL parity, modern assets/rendering, marketplace, advertising, monitoring, developer platform and the OpenGenesisLINK v0.9.4.0 consolidation target.
 
-See **[`doc/NexVerse/RELEASE_TRAIN_0.9.3.10.md`](doc/NexVerse/RELEASE_TRAIN_0.9.3.10.md)** for the revised runtime/Experiences release gates and **[`doc/NexVerse/OGLVOICE_ARCHITECTURE.md`](doc/NexVerse/OGLVOICE_ARCHITECTURE.md)** for the central voice design.
+See **[`doc/NexVerse/RELEASE_TRAIN_0.9.3.10.md`](doc/NexVerse/RELEASE_TRAIN_0.9.3.10.md)** for the revised 0.9.3.10 runtime/stabilization release gates and **[`doc/NexVerse/OGLVOICE_ARCHITECTURE.md`](doc/NexVerse/OGLVOICE_ARCHITECTURE.md)** for the central voice design.
 
 ## Previous development milestone: OpenGenesisLINK v0.9.3.5 Dev — Inventory, OAR/IAR, Job Engine und NexBus
 
