@@ -3412,30 +3412,74 @@ namespace OpenSim.Region.ScriptEngine.Shared.Api
                 return 0;
             }
 
-            // The Master Bank requires an exact server-side object+script
-            // delegation AND explicit PERMISSION_DEBIT from its operator.
-            // A copied script or a bare bank UUID cannot access bank funds.
-            INexMasterBankPayoutModule bank =
-                World.RequestModuleInterface<INexMasterBankPayoutModule>();
-            UUID rootObject = m_host.ParentGroup.RootPart.UUID;
-            UUID rootOwner = m_host.ParentGroup.RootPart.OwnerID;
-            bool master = bank != null &&
-                bank.IsAuthorizedBankScript(rootObject, m_item.ItemID, rootOwner);
-            if (master && m_item.PermsGranter != rootOwner)
-                return 0;
-
             void act(string _)
             {
-                if (master)
-                    bank.TryBankPayout(rootObject, m_item.ItemID, rootOwner,
-                        toID, amount, UUID.Random(), out _);
-                else
-                    money.ObjectGiveMoney(rootObject, rootOwner,
-                        toID, amount, UUID.Zero, out _);
+                money.ObjectGiveMoney(m_host.ParentGroup.RootPart.UUID, m_host.ParentGroup.RootPart.OwnerID,
+                                        toID, amount, UUID.Zero, out _);
             }
 
             m_AsyncCommands.DataserverPlugin.RegisterRequest(m_host.LocalId, m_item.ItemID, act);
             return 0;
+        }
+
+        // Dedicated OGL payment primitive: never falls back to the owner
+        // wallet, unlike standard llGiveMoney / llTransferLindenDollars.
+        public LSL_Key llNexBankPayout(LSL_Key target, LSL_Integer amount)
+        {
+            UUID txn = UUID.Random();
+            UUID objectId = m_host.ParentGroup.RootPart.UUID;
+            UUID ownerId = m_host.ParentGroup.RootPart.OwnerID;
+            UUID scriptId = m_item.ItemID;
+            INexMasterBankPayoutModule bank =
+                World.RequestModuleInterface<INexMasterBankPayoutModule>();
+            string error = null;
+            UUID receiver = UUID.Zero;
+            if (amount <= 0)
+                error = "INVALID_AMOUNT";
+            else if (!UUID.TryParse(target, out receiver) || receiver.IsZero())
+                error = "INVALID_AGENT";
+            else if (bank == null ||
+                     !bank.IsAuthorizedBankScript(objectId, scriptId, ownerId))
+                error = "MASTER_BANK_SCRIPT_NOT_AUTHORIZED";
+            else if (m_item.PermsGranter != ownerId ||
+                     (m_item.PermsMask & ScriptBaseClass.PERMISSION_DEBIT) == 0)
+                error = "MISSING_MASTER_BANK_OPERATOR_PERMISSION";
+
+            if (error != null)
+            {
+                m_ScriptEngine.PostScriptEvent(scriptId, new EventParams(
+                    "transaction_result", new object[] {
+                        new LSL_String(txn.ToString()),
+                        new LSL_Integer(0),
+                        new LSL_String(error)
+                    }, Array.Empty<DetectParams>()));
+                return txn.ToString();
+            }
+
+            void act(string unused)
+            {
+                bool success = false;
+                string reason = "BANK_PAYOUT_FAILED";
+                try
+                {
+                    success = bank.TryBankPayout(objectId, scriptId, ownerId,
+                        receiver, amount, txn, out reason);
+                }
+                catch (Exception)
+                {
+                    reason = "BANK_PAYOUT_UNAVAILABLE";
+                }
+                m_ScriptEngine.PostScriptEvent(scriptId, new EventParams(
+                    "transaction_result", new object[] {
+                        new LSL_String(txn.ToString()),
+                        new LSL_Integer(success ? 1 : 0),
+                        new LSL_String(success
+                            ? target + "," + amount.ToString() : reason)
+                    }, Array.Empty<DetectParams>()));
+            }
+            m_AsyncCommands.DataserverPlugin.RegisterRequest(
+                m_host.LocalId, scriptId, act);
+            return txn.ToString();
         }
 
         public void llMakeExplosion(int particles, double scale, double vel, double lifetime, double arc, string texture, LSL_Vector offset)
@@ -17301,51 +17345,21 @@ namespace OpenSim.Region.ScriptEngine.Shared.Api
                 return txn.ToString();
             }
 
-            INexMasterBankPayoutModule bank =
-                World.RequestModuleInterface<INexMasterBankPayoutModule>();
-            UUID rootObject = m_host.ParentGroup.RootPart.UUID;
-            UUID rootOwner = m_host.ParentGroup.RootPart.OwnerID;
-            bool master = bank != null &&
-                bank.IsAuthorizedBankScript(rootObject, m_item.ItemID, rootOwner);
-
-            // The approved bank operator must be the debit granter.
-            if (master && m_item.PermsGranter != rootOwner)
-            {
-                m_ScriptEngine.PostScriptEvent(m_item.ItemID, new EventParams(
-                    "transaction_result", new object[] {
-                        new LSL_String(txn.ToString()),
-                        new LSL_Integer(0),
-                        new LSL_String("MISSING_MASTER_BANK_OPERATOR_PERMISSION")
-                    }, Array.Empty<DetectParams>()));
-                return txn.ToString();
-            }
-
-            // Fire and forget, with a correlated transaction_result event.
+            //fire and forget...
             void act(string eventID)
             {
                 int replycode = 0;
                 try
                 {
-                    // Generic LSL transfers still require local UserAccount.
-                    // Authorized bank scripts may also pay verified *present*
-                    // HG visitors, resolved by the economy region module.
-                    if (!master)
+                    UserAccount account = m_userAccountService.GetUserAccount(RegionScopeID, toID);
+                    if (account is null)
                     {
-                        UserAccount account =
-                            m_userAccountService.GetUserAccount(RegionScopeID, toID);
-                        if (account is null)
-                        {
-                            replydata = "LINDENDOLLAR_ENTITYDOESNOTEXIST";
-                            return;
-                        }
+                        replydata = "LINDENDOLLAR_ENTITYDOESNOTEXIST";
+                        return;
                     }
 
-                    string reason;
-                    bool result = master
-                        ? bank.TryBankPayout(rootObject, m_item.ItemID, rootOwner,
-                            toID, amount, txn, out reason)
-                        : money.ObjectGiveMoney(rootObject, rootOwner,
-                            toID, amount, txn, out reason);
+                    bool result = money.ObjectGiveMoney(m_host.ParentGroup.RootPart.UUID, m_host.ParentGroup.RootPart.OwnerID,
+                                toID, amount, txn, out string reason);
                     if (result)
                     {
                         replycode = 1;
