@@ -154,9 +154,9 @@ namespace NexVerse.Server.Api
                 }
                 try
                 {
-                    string requester = resident.ToString("D");
+                    string selfGroupRequester = resident.ToString("D");
                     List<GroupMembershipData> memberships =
-                        m_Groups.GetAgentGroupMemberships(requester, requester) ??
+                        m_Groups.GetAgentGroupMemberships(selfGroupRequester, selfGroupRequester) ??
                         new List<GroupMembershipData>();
                     int offset = int.TryParse(request?.QueryString?["offset"], out int off)
                         ? Math.Clamp(off, 0, 1000000) : 0;
