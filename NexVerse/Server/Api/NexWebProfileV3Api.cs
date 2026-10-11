@@ -222,6 +222,17 @@ namespace NexVerse.Server.Api
                         new { error = "profile_image_not_found" });
                     return;
                 }
+                // Profile ownership is not itself proof that a random asset
+                // UUID is public. Without a separate verified inventory
+                // license/ACL, only the profile owner's own uploads may be
+                // exposed. This intentionally rejects third-party pictures.
+                if (!UUID.TryParse(asset.CreatorID, out UUID creator) ||
+                    creator != account.PrincipalID)
+                {
+                    WriteJson(response, HttpStatusCode.NotFound,
+                        new { error = "profile_image_not_found" });
+                    return;
+                }
                 byte[] raw = asset.Data;
                 byte[] result;
                 string mime;
