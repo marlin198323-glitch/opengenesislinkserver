@@ -1378,11 +1378,11 @@ namespace NexVerse.Server.Api
                         codename = NexVersePlatform.MilestoneCodename,
                         status = "development",
                         published = "2026-10-09",
-                        compatibility = "OpenGenesisLINK v0.9.3.10 Dev — OGLVoice und Pathfinding gemeinsamer Release-Train",
+                        compatibility = "OpenGenesisLINK v0.9.3.10 Dev — native Navigation und NexExperiences in Abnahme; Firestorm-NavMesh und OGLVoice zurueckgestellt",
                         highlights = new[]
                         {
-                            "0.9.3.9 OGLVoice und Runtime-Modernisierung sowie 0.9.3.10 Pathfinding werden gemeinsam entwickelt",
-                            "Native Pathfinding-A*-Kernkomponente und .NET-ThreadPool-Bereinigung im Entwicklungsstand; keine Voice- oder NavMesh-Produktivfreigabe",
+                            "0.9.3.9/0.9.3.10 bilden einen gemeinsamen Entwicklungsstand ohne separate Stable-0.9.3.9-Freigabe",
+                            "Nativer OGL-3D-Pathfinding-A*-Kern, NPC-Wegpunkte und NexExperiences-Simulator-CAPS als Opt-in; keine abgeschlossene reale Viewer-/LSL-/Mehrregionen-Abnahme",
                             "0.9.3.8 bleibt die letzte offiziell freigegebene Stable-Version"
                         }
                     },
