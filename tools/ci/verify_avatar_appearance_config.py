@@ -19,8 +19,11 @@ for path in ("bin/OpenSim.ini", "bin/OpenSim.ini.example"):
         marker = f"{key} = {value}"
         assert marker in section, f"{path}: missing {marker}"
 
-    xbakes_index = content.index("\n[XBakes]\n")
-    appearance_index = content.index("\n[Appearance]\n")
-    assert appearance_index < xbakes_index, f"{path}: [Appearance] should be declared before [XBakes]"
+    # XBakes is an optional service. Compact INIs may omit its entirely
+    # inactive, URL-less section; if configured, it follows [Appearance].
+    if "\n[XBakes]\n" in content:
+        xbakes_index = content.index("\n[XBakes]\n")
+        appearance_index = content.index("\n[Appearance]\n")
+        assert appearance_index < xbakes_index, f"{path}: [Appearance] should be declared before [XBakes]"
 
 print("OpenGenesisLINK avatar appearance cache configuration: OK")
