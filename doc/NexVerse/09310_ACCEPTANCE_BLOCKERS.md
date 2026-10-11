@@ -1,5 +1,8 @@
 # 0.9.3.10 – Abnahme-Blocker nach Firestorm-7.2.4-Pruefprotokoll
 
+> **Historische Momentaufnahme:** Nach der Scope-Entscheidung vom 11.10.2026 entfallen OGL Pathfinding und NAV01–NAV08 vollstaendig aus dem aktuellen Server-Release. Alte NAV-Tests, INI-Auszüge und deren Blockerbeschreibung gelten nicht mehr. Die aktuelle Pflichtmatrix umfasst 40 statt 48 Faelle. Verbindlich: `09310_RC1_RELEASE_READINESS.md`.
+
+
 **Hinweis 11.10.2026 nach PR #158/#159:** Diese Datei ist eine **historische
 Momentaufnahme fuer Build a6778c9**, kein aktueller Blocker-Beweis
 fuer HEAD. Der ehemals GET-only Viewer-CAP kann im aktuellen

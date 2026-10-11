@@ -10,10 +10,7 @@ die realen Operator-Nachweise nach
 - Runtime-Bereinigung und .NET-8-ThreadPool-Anpassungen. Keine
   pauschale Aussage ueber Performanceverbesserungen ohne
   Vergleichsmessungen gegen `v0.9.3.8`.
-- Native OGL-Navigation mit begrenztem A*-Kern, optionalen
-  physikverifizierten 3D-Flaechen und NPC-Wegpunkten sowie der
-  tatsaechlich implementierten statischen LSL-Wegsuche.
-  Standardmaessig deaktiviert; keine Havok-Kompatibilitaetszusage.
+- OGL Pathfinding inklusive A*, NPC-Follower und NavMesh-CAPS ist aus dem aktuellen Server entfernt und fuer den spaeteren eigenen Viewer vertagt.
 - NexExperiences: eigene sichere Firestorm-CAPS fuer Listen,
   kostenlosen Erwerb (maximal zehn je Avatar), grundlegenden
   Besitzer-Profil-Editor und ausdrueckliche Allow/Block/Forget-Rechte;
@@ -34,8 +31,7 @@ die realen Operator-Nachweise nach
 - Kein `RetrieveNavMeshSrc` fuer das graue Standard-Firestorm-
   Pathfinding-Menue; ein spaeterer eigener Viewer ist dafuer geplant.
 - OGLVoice/WebRTC bewusst auf einen anderen Release-Train verschoben.
-- Keine vollstaendige SL-Character-LSL-API und kein
-  automatisches Navigieren auf ungeprueften Physikoberflaechen.
+- Keine serverseitige OGL-Navigation und keine Character-Pathfinding-Funktionen.
 - Firestorm 7.2.4: ein geaendertes Outfit-Snapshot-Thumbnail
   benoetigt unter Umstaenden einen Inventar-Cache-Neuaufbau.
 - Experience-`SingleWriterJson` ist **kein**

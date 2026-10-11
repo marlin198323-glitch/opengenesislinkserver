@@ -7,20 +7,16 @@ bleibt das unveränderte `v0.9.3.8`.
 
 ## 1. Verbindliche Release-Entscheidung
 
-0.9.3.10 bündelt .NET-8-/ThreadPool-Verbesserungen, OpenGenesisLINKs
-optionale native Navigation inklusive der **tatsächlich implementierten**
-NPC-/statischen-LSL-Teilfunktionen sowie NexExperiences mit Script-, K/V-,
-Consent- und Firestorm-CAPS. R287 erweitert die World API um Profilbild,
-Event-/Classified-Detailverwaltung, eigene Gruppen und Regionen-Details.
-Der Code dafür ist integriert, aber das Betreibergrid wurde mit den neuen
-Endpunkten noch nicht durchgehend geprüft.
+0.9.3.10 buendelt .NET-8-/ThreadPool-Verbesserungen, NexExperiences
+mit Script-, K/V-, Consent- und Firestorm-CAPS sowie die R287 World API.
+Alle genannten Funktionen muessen weiter live abgenommen werden.
 
-**Nicht Teil dieser Stable-Freigabe:** OGLVoice/WebRTC, ein Havok-kompatibles
-`RetrieveNavMeshSrc`, der eigene Viewer/Renderer, dynamische
-SL-Character-Funktionen, neue Echtgeld-Zahlungswebhooks und die sieben
-noch offenen R287-Anforderungen. Sie werden nicht kosmetisch aktiviert.
-Bei nicht zertifizierter Physik bleibt die native 3D-Navigation
-abgeschaltet und es werden keine falschen Wege ausgegeben.
+**OGL Pathfinding ist aus der aktuellen Server-Codebasis vollstaendig
+entfernt** und in einen spaeteren eigenen Viewer-Train verschoben.
+Kein NavMesh/NPC-Wegpunktmotor, keine OGL-Navigation-CAPS und keine
+NAV-Testfaelle in 0.9.3.10. Ebenfalls ausgeschlossen: OGLVoice,
+eigener Viewer/Renderer und die nicht implementierten SL-Character-
+LSL-Funktionen. Keine gefaelschten NavMesh-CAPS.
 
 ## 2. Jetzt bereits technisch nachgewiesen
 
@@ -47,19 +43,20 @@ kein Deployment. Für bestehende `bin/OpenSim.ini`-Anpassungen vorher
 eine externe Sicherheitskopie anlegen, temporär staschen und nach Update
 **manuell mergen**; niemals `git reset --hard`.
 
-**Testmatrix:** Für RC1 sind **47 von 48** Fällen vorab nachzuweisen.
+**Testmatrix:** Für RC1 sind **39 von 40** Fällen vorab nachzuweisen.
 `REL07` enthält die separate Bestätigung der *bereits erfolgten* RC1-
 und Stable-Freigabe und wird deshalb erst für **Stable** verpflichtend.
 Sie kann logisch nicht vor der RC1-Veröffentlichung PASS sein.
-Für Stable sind alle **48/48** Fälle und die gesonderte Betreiberabnahme
+Für Stable sind alle **40/40** Fälle und die gesonderte Betreiberabnahme
 erforderlich; eine fehlende Liveprüfung wird niemals pauschal erlassen.
 
-**Pflichtfälle (48):** Alle 38 aus dem Betreiberprotokoll
-(`SYS01–04`, `EXP01–08`, `LSL01–06`, `DB01–06`, `NAV01–07`,
-`REL01–07`) plus `EXP_CREATE`, `NAV08`, `APP01`,
+**Pflichtfaelle (40):** 31 nicht-navigationbezogene Altfaelle
+(`SYS01–04`, `EXP01–08`, `LSL01–06`, `DB01–06`,
+`REL01–07`) plus `EXP_CREATE`, `APP01`,
 `PORTAL_IMAGE`, `PORTAL_DISCOVERY`, `PORTAL_GROUPS`,
 `PORTAL_REGION`, `PORTAL_AUTH`, `RUNTIME_STRESS` und
-`RECOVERY_RESTORE`. **NOT RUN ist nicht PASS.**
+`RECOVERY_RESTORE`. NAV01–NAV08 sind ausschliesslich historische
+Faelle und **keine** 0.9.3.10-Gates. **NOT RUN ist nicht PASS.**
 
 - `EXP_CREATE`: mit Firestorm 7.2.4.80712 tatsächlichen
   `AgentExperiences`-Erwerb, Profiländerung, zehn Einträge als Grenze,
@@ -70,10 +67,6 @@ erforderlich; eine fehlende Liveprüfung wird niemals pauschal erlassen.
   Allow/Block/Forget, Script-ID-/Avatar-Leases, LSL-Rückmeldungen, KV-CAS,
   exklusiver Store-Writer, Restart/Backup und mehrere Simulatoren.
   Kein Auto-Allow, keine aktiven JSON-Writers auf zwei Hosts.
-- `NAV01–08`: echte Bewegung auf Terrain, Brücke über Boden,
-  validierte Treppen-/Rampen-Kanten, Hindernisse, Rechte, Terraforming
-  und 4er-VAR-Last. Ohne verifizierte Physik gilt der betreffende
-  Test als NOT RUN, nicht als PASS.
 - `APP01`: Firestorm `My Outfits`/COF mit Bestandsavatar.
   Die dokumentierte Thumbnail-Cache-Einschränkung bleibt bekannt.
 - `PORTAL_IMAGE`: echte OpenSim-J2K-Textur wird als Bild gerendert;

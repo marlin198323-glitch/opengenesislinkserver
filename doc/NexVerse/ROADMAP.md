@@ -2,7 +2,7 @@
 
 > Status: 0.9.3.8 Stable released 8 October 2026  
 > Current stable release: **OpenGenesisLINK v0.9.3.8**  
-> Active development train: **OpenGenesisLINK v0.9.3.10 Dev** (Runtime + Pathfinding + full NexExperiences viewer integration; OGLVoice deferred to an undated later train; no separate 0.9.3.9 Stable)  
+> Active development train: **OpenGenesisLINK v0.9.3.10 Dev** (Runtime + full NexExperiences viewer integration; OGLVoice deferred to an undated later train; no separate 0.9.3.9 Stable)  
 > Completed release train: **0.9.3.2 → 0.9.3.3 → 0.9.3.4 → 0.9.3.8**  
 > Latest release candidate: **OpenGenesisLINK v0.9.3.8 RC1** (successfully validated)  
 > Completed milestone: **0.9.3.8 — Search, Places, Land and Destination Guide**  
@@ -1262,51 +1262,28 @@ Architektur- und Abnahmedokument: [OGLVOICE_ARCHITECTURE.md](OGLVOICE_ARCHITECTU
 - Secrets nur serverseitig; Viewer-CAPS erhalten kurzlebige, raumgebundene Token, keine OGLVoice-Admin-Schlüssel.
 - Der eigene OGL-Viewer kann zukünftig eine native LiveKit-Integration bekommen.
 
-# Milestone 0.9.3.10
+# Milestone 0.9.3.10 — Runtime, NexExperiences und Stabilisierung
 
-> **Status: active development; updated scope 11 October 2026.** `0.9.3.10 Dev` targets .NET-8 runtime modernisation, the explicitly supported native OGL collision-verified 3D navigation / bounded A* / NPC follower / static LSL subset, and **full NexExperiences Firestorm/LSL integration** (authenticated viewer CAPS, consent/revoke, multi-node persistence and real viewer acceptance). Proprietary Firestorm/Havok NavMesh compatibility, the future OGL Viewer and missing dynamic SL Character/LSL parity are **deferred to a separate later release**; the Firestorm Pathfinding UI is expected to stay disabled. OGLVoice is likewise deferred. Real physics/NPC/LSL and Experiences runtime tests are **not yet accepted**, even when CI passes. See [PATHFINDING_EXPERIENCES_FULL_PARITY_09310.md](PATHFINDING_EXPERIENCES_FULL_PARITY_09310.md) for the long-term plan and [RELEASE_TRAIN_0.9.3.10.md](RELEASE_TRAIN_0.9.3.10.md) for the current gates.
+> **Scope-Beschluss 11.10.2026:** OGL Pathfinding, NavMesh, NPC-Wegpunktmotor, OGL-Navigations-CAPS und die zugehoerigen Servermodule sind aus 0.9.3.10 komplett entfernt. Die NAV-Testfaelle sind gestrichen. Ein spaeteres, eigenstaendiges Navigationskonzept wird erst gemeinsam mit dem eigenen OpenGenesisLINK-Viewer geplant. Firestorm/OpenSim wird nicht durch erfundene NavMesh-CAPS erweitert.
 
-## 14. Pathfinding
+## 14.1 .NET-8-Runtime
+- Geerbte Mono-/ThreadPool-Begrenzungen entfernen, Start-/Runtime-Telemetrie sichern.
+- Identische CPU-, Heap-, GC-, Netzwerk- und Tick-Messungen gegen v0.9.3.8 durchfuehren.
+- Login, Region, Teleport, Hypergrid, NV$, NexBus und Inventory regressionsfest pruefen.
 
-Implement a complete pathfinding subsystem rather than a partial NPC workaround.
+## 14.2 NexExperiences fuer Firestorm und LSL
+- Viewer-Erwerb, Owner-Editor, Berechtigungen und Experience-CAPS live testen.
+- Explizite Allow/Block/Forget-Zustimmung, Script-Binding, Fehler/Timeout und K/V sicherstellen.
+- Mit zwei Avataren und mehreren Simulatoren samt Neustart, Persistenz und Restore abnehmen.
 
-Scope:
+## 14.3 Verbleibende Release-Umfaenge
+- World API R287 und reale Rechte-/Datenpruefung; Inventory/Outfits einschliesslich COF.
+- Release-Build, Security, Performance, Wiederherstellung und Rollback.
+- Erst nach den Pflichtnachweisen RC1/Stable freigeben.
 
-- navigation mesh;
-- NavMesh build/rebuild;
-- dirty state;
-- static obstacles;
-- walkable surfaces;
-- terrain;
-- path costs;
-- linksets;
-- pathfinding characters;
-- movement controller;
-- viewer capabilities;
-- visualization/debug data.
-
-### 14.1 Pathfinding LSL
-
-Target compatibility for pathfinding functions and events including the family around:
-
-- character creation/deletion;
-- navigate;
-- pursue;
-- evade;
-- flee;
-- wander;
-- patrol;
-- static path queries;
-- closest nav point;
-- character updates;
-- `path_update` event.
-
-### 14.2 Cross-region behavior
-
-Investigate and implement safe cross-region navigation where the protocol and world topology permit it.
+**Ausgeschlossen:** OGL Pathfinding, Firestorm-Havok-NavMesh, eigener Viewer/Renderer, OGLVoice und nicht implementierte dynamische SL-Character-LSL-APIs.
 
 ---
-
 # Milestone 0.9.3.11
 
 ## 15. LSL Parity I — Core Conformance
