@@ -27,10 +27,6 @@ WorldApiBaseUrl = "https://world.stadt-nexverse.de"
 ApiKey = "FAKE_SECRET_SCRIPT_DO_NOT_EXPOSE"
 ViewerPermissionsApiKey = "FAKE_SECRET_PERMISSION_DO_NOT_EXPOSE"
 ViewerManageApiKey = "FAKE_SECRET_MANAGE_DO_NOT_EXPOSE"
-[OGLPathfinding]
-Enabled = false
-[OGLNpcNavigation]
-Enabled = false
 """, encoding="utf-8")
             flags = tool.simulator_settings(tool.ini_read(cfg))
             result = json.dumps(flags)

@@ -46,15 +46,16 @@ def make_fixture():
 
 
 class ReleaseGateTests(unittest.TestCase):
-    def test_historic_38_and_new_evidence_requirements(self):
-        self.assertEqual(len(gate.REQUIRED_CASES), 48)
-        self.assertEqual(sum(gate.HISTORIC.values()), 38)
-        for code in ("EXP_CREATE", "PORTAL_IMAGE", "NAV08", "RECOVERY_RESTORE"):
+    def test_current_scope_excludes_deferred_navigation(self):
+        self.assertEqual(len(gate.REQUIRED_CASES), 40)
+        self.assertEqual(sum(gate.HISTORIC.values()), 31)
+        self.assertFalse(any(x.startswith('NAV') for x in gate.REQUIRED_CASES))
+        for code in ("EXP_CREATE", "PORTAL_IMAGE", "RECOVERY_RESTORE"):
             self.assertIn(code, gate.REQUIRED_CASES)
 
     def test_rc1_does_not_require_approval_that_depends_on_rc1(self):
-        self.assertEqual(len(gate.required_cases_for("rc1")), 47)
-        self.assertEqual(len(gate.required_cases_for("stable")), 48)
+        self.assertEqual(len(gate.required_cases_for("rc1")), 39)
+        self.assertEqual(len(gate.required_cases_for("stable")), 40)
         self.assertNotIn("REL07", gate.required_cases_for("rc1"))
         self.assertIn("REL07", gate.required_cases_for("stable"))
         d = make_fixture()
@@ -66,7 +67,7 @@ class ReleaseGateTests(unittest.TestCase):
     def test_template_is_not_a_release(self):
         d = gate.initial_manifest(SHA)
         issues = gate.validate(d, "rc1", SHA, "Dev")
-        self.assertGreaterEqual(len(issues), 48)
+        self.assertGreaterEqual(len(issues), 40)
         self.assertTrue(any("NOT RUN" in error for error in issues))
 
     def test_rc1_requires_explicit_version_flavour_and_evidence(self):
@@ -85,11 +86,11 @@ class ReleaseGateTests(unittest.TestCase):
     def test_unperformed_real_world_cases_remain_blocked(self):
         d = make_fixture()
         d["cases"]["EXP_CREATE"]["status"] = "NOT_RUN"
-        d["cases"]["NAV02"]["status"] = "FAIL"
+        d["cases"]["EXP02"]["status"] = "FAIL"
         d["cases"]["PORTAL_IMAGE"]["evidence_ref"] = "TODO"
         issues = gate.validate(d, "rc1", SHA, "RC1")
         self.assertTrue(any("EXP_CREATE" in e for e in issues))
-        self.assertTrue(any("NAV02" in e for e in issues))
+        self.assertTrue(any("EXP02" in e for e in issues))
         self.assertTrue(any("PORTAL_IMAGE" in e for e in issues))
 
     def test_never_forges_stable_on_rc1_or_no_tag(self):

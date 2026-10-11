@@ -7,17 +7,9 @@ Aktualisiert: 11.10.2026. Freigabe-Gates: [RELEASE_TRAIN_0.9.3.10.md](RELEASE_TR
 
 ## Verbindlicher Scope
 
-- **0.9.3.10:** .NET-8-Runtime, native OGL-3D-A*-Graph-Navigation, sichere
-  opt-in NPC-Physikwegpunkte, wirklich implementierte statische
-  Pathfinding-LSL-Teilmenge und vollstaendige Firestorm-/LSL-NexExperiences
-  inklusive persistenter Allow/Block/Forget-Rechte.
-- **Spaeter:** Havok-kompatibles Firestorm `RetrieveNavMeshSrc` mit kompletten
-  UI-Menues, eigener OGL-Viewer/Renderer und fehlende dynamische SL-Character-
-  Pathfinding-LSL-Funktionen; auch OGLVoice gehoert nicht in diese Freigabe.
-- **Sicherheit:** Keine gefaelschten NavMesh-CAPS, keine automatisch genehmigten
-  Experiences, keine echten Secrets in Testprotokollen. Bis Abschluss der
-  Live-Abnahme bleiben neue Features ausserhalb einer isolierten
-  Entwicklungsregion ausgeschaltet.
+- **0.9.3.10:** .NET-8-Runtime, NexExperiences fuer Firestorm/LSL mit K/V, Consent und Persistenz; World API R287 und Inventory.
+- **Spaeter:** OGL Pathfinding wird erst mit dem eigenen Viewer neu geplant. OGL-Navigation und NAV01–NAV08 sind aus dem Server-Release entfernt.
+- **Sicherheit:** Keine gefaelschten NavMesh-CAPS und keine automatischen Experience-Zustimmungen.
 
 ## 1. Vorbereitung und beweissicheres Protokoll
 
@@ -32,45 +24,14 @@ Aktualisiert: 11.10.2026. Freigabe-Gates: [RELEASE_TRAIN_0.9.3.10.md](RELEASE_TR
 
    ```bash
    python3 tools/ci/verify_stable_release_gate.py
-   python3 tools/ci/verify_ogl_npc_navigation.py
-   python3 tools/ci/verify_ogl_terrain_navigation.py
+   python3 tools/ci/verify_no_ogl_pathfinding.py
    python3 tools/ci/verify_nexgroups_experiences.py
-   dotnet run --configuration Release --project tools/ci/OglNpcNavigationRegression/OglNpcNavigationRegression.csproj
-   dotnet run --configuration Release --project tools/ci/OglTerrainNavigationRegression/OglTerrainNavigationRegression.csproj
    ```
 
    Die vollstaendige GitHub Actions `NexVerse CI` muss am gleichen Commit
    gruen sein. **CI ist notwendig, aber nie hinreichend fuer Stable.**
 
-## 2. Native Navigation (nicht Havok-/Firestorm-NavMesh)
-
-`[OGLPathfinding] Enabled=true` und `[OGLNpcNavigation] Enabled=true`
-nur in der isolierten Developer-Region. Fuer Physics-gepruefte Ebenen die
-separaten dokumentierten `UseVerifiedLayeredSurfaces` /
-`PhysicsRaycastLayeredSurfaces` Schalter nur einsetzen, wenn die installierte
-Physiksoftware gefilterte Raycasts korrekt unterstuetzt. Ohne Provider
-muss der Pfad **fail-closed** bleiben; niemals auf einen erfundenen Floor
-zurueckfallen.
-
-| ID | Nachweis / Versuch | Erwartetes Ergebnis |
-| --- | --- | --- |
-| NAV01 | NPC-Besitzer startet eine gueltige Route auf begehbarem Terrain | Motor `MoveToTarget`, begrenzte Wegpunkte, Ankunft und Stop ohne Teleport |
-| NAV02 | Eine Bruecke liegt exakt ueber begehbarem Boden | Boden-NPC darf keine Bruecken-Wegpunkte allein wegen gleicher XY-Koordinaten konsumieren |
-| NAV03 | Verifizierte, begehbare Treppe/Rampe zu erhoehter Ebene | Nur physikalisch gepruefte Kanten/Portale werden durchlaufen |
-| NAV04 | Unverbundene Ebenen / Wand / Luecke / gesperrte Kante | Keine erfundene Route; Anfrage scheitert sicher |
-| NAV05 | Terraforming, Prim-Rez, Loeschung/Verschiebung waehrend Route | Epoch/Dirty wird erneuert; alte Route laeuft nicht unbemerkt weiter |
-| NAV06 | Unberechtigter NPC-Aufrufer, NPC geloescht, Quota erreicht | Keine Bewegung, keine Erhoehung von Berechtigungen oder ungebundene Job-Zahl |
-| NAV07 | `llGetStaticPath` und `llGetClosestNavPoint` auf Terrain/verifizierter Ebene | Unterstuetzte Signaturen/Fehlercodes und endliche Wegpunkte; kein stummer SL-Character-Stub |
-| NAV08 | 4er-VAR-Region, Burst-Routen und mehrminuetiger Betrieb | Dokumentierte CPU-/Heap-/GC-/Tick-Budgets ohne neue relevante Regression |
-
-**Wichtig:** Die vorhandene NPC-Route ist ein experimenteller interner Service,
-kein im Viewer verfuegbares Character- oder dynamisches LSL-SDK.
-Ein reproduzierbarer autorisierter Aufruf von `IOglNpcRouteService.TryNavigate`
-aus dem Developer-Testharness und echte Beobachtung in Firestorm sind fuer
-NAV01–NAV06 erforderlich. Ohne solchen Live-Nachweis: **FAILED / NOT RUN**.
-Das Firestorm-Pathfinding-Menue bleibt erwartungsgemaess grau.
-
-## 3. Experiences im realen Firestorm
+## 2. Experiences im realen Firestorm
 
 Administrativ drei **verschiedene, minimal berechtigte** API-Keys bereitstellen:
 `experiences:script`, `experiences:viewer:permissions` und
@@ -117,7 +78,7 @@ Persistenz nach Re-Login, Berechtigungskontrolle sowie saubere Logs
 zusammen dokumentiert sind. Die CI-Tests zu Lease-Revoke, Role-CAPS und
 Timeouts ersetzen diese Ende-zu-Ende-Pruefung nicht.
 
-## 4. Weiterhin offene allgemeine Stable-Gates
+## 3. Weiterhin offene allgemeine Stable-Gates
 
 - **APP01:** Firestorm Appearance `Kein Outfit`/Current Outfit/Links
   mit Bestandsnutzer pruefen, ohne Outfits automatisch zu zerstoeren.
@@ -132,10 +93,10 @@ Timeouts ersetzen diese Ende-zu-Ende-Pruefung nicht.
   und Rollback bei nicht rueckwaertskompatibler Schemaaenderung.
 - **PORTAL:** R287-Bildbytes mit echtem J2K, private Profile, Event-/Classified-Owner-Rechte, eigene Gruppen und Regionendetails ueber Live-API testen. Offen gebliebene R287-Funktionen nicht als fertig kennzeichnen.
 - **RELEASE:** Gruener identischer Build-Commit, Maintainer-Review,
-  ausgefuellte NAV-/EXP-/RUNTIME-Resultate, dokumentierte Known Limitations,
+  ausgefuellte EXP-/RUNTIME-Resultate, dokumentierte Known Limitations,
   danach erst RC1-Tag. Stable erfordert gesonderte Betreiber-Abnahme.
 
-## 5. Ergebniserfassung
+## 4. Ergebniserfassung
 
 Fuer **jede** Fall-ID: Datum, Region-ID, Server-/Viewer-Build, Testverantwortliche,
 `PASS` / `FAIL` / `NOT RUN`, anonymisierter Logausschnitt, beobachtetes

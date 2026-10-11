@@ -2652,119 +2652,19 @@ namespace OpenSim.Region.ScriptEngine.Shared.Api
             }
         }
 
-        /// <summary>
-        /// Experimental terrain-only implementation of the SL nav-point
-        /// query. The opt-in region module fails closed on dirty snapshots.
-        /// This does NOT claim multi-layer Havok NavMesh compatibility.
-        /// </summary>
-        /// <summary>
-        /// Static route on the opt-in native terrain heightfield, matching
-        /// the SL result convention: waypoint vectors followed by a numeric
-        /// path status. Unsupported multi-layer/character modes fail closed;
-        /// no Havok/Firestorm NavMesh interoperability is claimed.
-        /// </summary>
+        // The optional OGL navigation engine has been removed from the server.
+        // Keep public LSL signatures for script compatibility but return the
+        // documented unsupported result. Never claim to have a NavMesh.
         public LSL_List llGetStaticPath(LSL_Vector start, LSL_Vector end,
             LSL_Float radius, LSL_List options)
         {
-            IOglNativeTerrainQuery navigation =
-                World.RequestModuleInterface<IOglNativeTerrainQuery>();
-            if (navigation == null)
-                return new LSL_List(new LSL_Integer(
-                    ScriptBaseClass.PU_FAILURE_NO_NAVMESH));
-
-            if (options != null)
-            {
-                if ((options.Length & 1) != 0 || options.Length > 12)
-                    return new LSL_List(new LSL_Integer(
-                        ScriptBaseClass.PU_FAILURE_OTHER));
-                try
-                {
-                    for (int i = 0; i < options.Length; i += 2)
-                    {
-                        if (options.GetIntegerItem(i) !=
-                                ScriptBaseClass.CHARACTER_TYPE ||
-                            options.GetIntegerItem(i + 1) !=
-                                ScriptBaseClass.CHARACTER_TYPE_NONE)
-                            return new LSL_List(new LSL_Integer(
-                                ScriptBaseClass.PU_FAILURE_OTHER));
-                    }
-                }
-                catch (Exception e) when (e is InvalidCastException ||
-                                          e is ArgumentException ||
-                                          e is FormatException ||
-                                          e is IndexOutOfRangeException)
-                {
-                    return new LSL_List(new LSL_Integer(
-                        ScriptBaseClass.PU_FAILURE_OTHER));
-                }
-            }
-
-            bool found = navigation.TryGetStaticTerrainPath(
-                new Vector3((float)start.x, (float)start.y, (float)start.z),
-                new Vector3((float)end.x, (float)end.y, (float)end.z),
-                (float)radius.value, out Vector3[] positions, out int resultCode);
-            if (!found)
-                return new LSL_List(new LSL_Integer(resultCode));
-            object[] elements = new object[positions.Length + 1];
-            for (int i = 0; i < positions.Length; i++)
-                elements[i] = new LSL_Vector(
-                    positions[i].X, positions[i].Y, positions[i].Z);
-            elements[^1] = new LSL_Integer(ScriptBaseClass.PU_SLOWDOWN_DISTANCE_REACHED);
-            return new LSL_List(elements);
+            return new LSL_List(new LSL_Integer(
+                ScriptBaseClass.PU_FAILURE_NO_NAVMESH));
         }
 
         public LSL_List llGetClosestNavPoint(LSL_Vector point, LSL_List options)
         {
-            IOglNativeTerrainQuery query =
-                World.RequestModuleInterface<IOglNativeTerrainQuery>();
-            if (query == null)
-                return new LSL_List();
-
-            float radius = 20f;
-            if (options != null)
-            {
-                if ((options.Length & 1) != 0 || options.Length > 12)
-                    return new LSL_List();
-                try
-                {
-                    for (int i = 0; i < options.Length; i += 2)
-                    {
-                        int code = options.GetIntegerItem(i);
-                        switch (code)
-                        {
-                            case ScriptBaseClass.GCNP_RADIUS:
-                                radius = options.GetFloatItem(i + 1);
-                                break;
-                            case ScriptBaseClass.GCNP_STATIC:
-                                // The current terrain snapshot is static. Its
-                                // dynamic-mesh equivalent is not yet available.
-                                if (options.GetIntegerItem(i + 1) != 1)
-                                    return new LSL_List();
-                                break;
-                            case ScriptBaseClass.CHARACTER_TYPE:
-                                if (options.GetIntegerItem(i + 1) !=
-                                    ScriptBaseClass.CHARACTER_TYPE_NONE)
-                                    return new LSL_List();
-                                break;
-                            default:
-                                return new LSL_List();
-                        }
-                    }
-                }
-                catch (Exception e) when (e is InvalidCastException ||
-                                          e is ArgumentException ||
-                                          e is FormatException ||
-                                          e is IndexOutOfRangeException)
-                {
-                    return new LSL_List();
-                }
-            }
-            if (!query.TryGetClosestNavPoint(
-                    (float)point.x, (float)point.y, (float)point.z,
-                    radius, out Vector3 nearest))
-                return new LSL_List();
-            return new LSL_List(
-                new LSL_Vector(nearest.X, nearest.Y, nearest.Z));
+            return new LSL_List();
         }
 
         public LSL_Vector llGetPos()
