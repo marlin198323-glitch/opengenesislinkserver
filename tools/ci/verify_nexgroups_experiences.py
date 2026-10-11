@@ -304,7 +304,7 @@ for marker in (
     assert marker in experience_store, f"missing bounded pending consent contract: {marker}"
 for marker in (
     "QueueExperiencePermissionRequest(",
-    "ScriptPendingConsent requires FirestormPermissionCaps",
+    "Script consent disabled: Firestorm permission CAPS unavailable.",
     "FindLiveConsentContext",
     "ResolveViewerPendingConsent",
     "XP_ERROR_REQUEST_PERM_TIMEOUT",
