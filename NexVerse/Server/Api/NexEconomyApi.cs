@@ -185,6 +185,33 @@ namespace NexVerse.Server.Api
                 return;
             }
 
+
+            // Dedicated service-only endpoint: the receiving simulator
+            // extracts home_uri and avatar_id from an authenticated circuit.
+            // Resident bearer tokens MUST NOT be able to mint HG identities.
+            if (string.Equals(path,
+                    "/api/v1/economy/hypergrid/wallets/ensure",
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                if (!method.Equals("POST", StringComparison.OrdinalIgnoreCase))
+                {
+                    MethodNotAllowed(response, "POST");
+                    return;
+                }
+                if (!Authenticate(request, response, NexScopes.EconomyTransfer,
+                        out NexPrincipal principal, out UserAccount account))
+                    return;
+                if (account != null)
+                {
+                    WriteError(response, HttpStatusCode.Forbidden,
+                        "hypergrid_service_required",
+                        "HG wallet provisioning requires a trusted simulator service.");
+                    return;
+                }
+                HandleEnsureHypergridWallet(request, response, principal);
+                return;
+            }
+
             const string transactionPrefix =
                 "/api/v1/economy/transactions/";
 
@@ -655,6 +682,59 @@ namespace NexVerse.Server.Api
                 WriteEconomyFailure(
                     response,
                     e);
+            }
+        }
+
+        private void HandleEnsureHypergridWallet(IOSHttpRequest request,
+            IOSHttpResponse response, NexPrincipal principal)
+        {
+            NexEconomyService economy = RequireEconomy(response);
+            if (economy == null || !TryBody(request, response, out JsonElement body))
+                return;
+
+            if (!TryGuid(body, "avatar_id", out Guid avatarId) ||
+                avatarId == Guid.Empty)
+            {
+                WriteError(response, HttpStatusCode.BadRequest,
+                    "hypergrid_avatar_required", "A valid HG avatar_id is required.");
+                return;
+            }
+
+            string home = GetOptionalString(body, "home_uri");
+            string name = GetOptionalString(body, "display_name");
+            if (home.Length > 512 || name.Length > 255)
+            {
+                WriteError(response, HttpStatusCode.BadRequest,
+                    "hypergrid_identity_too_long", "HG wallet identity is too long.");
+                return;
+            }
+
+            try
+            {
+                NexLedgerAccount wallet = economy.EnsureHypergridResidentAccount(
+                    home, avatarId, name);
+                m_Audit.Record(new NexAuditEvent(principal.Subject,
+                    "economy.hypergrid.wallet.ensure",
+                    "ledger-account:" + wallet.AccountId.ToString("D"),
+                    Correlation(response),
+                    new Dictionary<string, string> {
+                        ["account_class"] = "hypergrid_resident"
+                    }));
+                WriteJson(response, new {
+                    account = AccountPayload(wallet,
+                        economy.GetBalance(wallet.AccountId),
+                        economy.GetAccountState(wallet.AccountId)),
+                    correlation_id = Correlation(response)
+                }, HttpStatusCode.OK);
+            }
+            catch (ArgumentException)
+            {
+                WriteError(response, HttpStatusCode.BadRequest,
+                    "hypergrid_identity_invalid", "Invalid verified HG home or avatar identity.");
+            }
+            catch (Exception e)
+            {
+                WriteEconomyFailure(response, e);
             }
         }
 
