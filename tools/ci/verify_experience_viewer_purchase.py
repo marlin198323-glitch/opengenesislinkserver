@@ -91,3 +91,10 @@ flagContract = (root/"NexVerse/Core/Experiences/NexExperienceInfoRequestIds.cs")
 assert "public const int EditableMask = Private | Disabled;" in flagContract
 assert "rejectedFlags = flags & ~EditableMask;" in flagContract
 assert "return rejectedFlags == 0;" in flagContract
+
+# Firestorm uses GetCreatorExperiences to enable its script-editor checkbox.
+# An owner is automatically an admin, but NOT automatically a contributor.
+assert 'lease, "creator_ids"' in viewer
+assert '"admin_ids", "contributor_ids", "creator_ids"' in viewer
+assert 'creator_ids = m_Store.GetViewerCreatorExperienceIds(resident)' in api
+assert "GetViewerCreatorExperienceIds(Guid residentId)" in store
