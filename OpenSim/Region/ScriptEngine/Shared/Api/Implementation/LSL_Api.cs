@@ -3412,10 +3412,26 @@ namespace OpenSim.Region.ScriptEngine.Shared.Api
                 return 0;
             }
 
+            // The Master Bank requires an exact server-side object+script
+            // delegation AND explicit PERMISSION_DEBIT from its operator.
+            // A copied script or a bare bank UUID cannot access bank funds.
+            INexMasterBankPayoutModule bank =
+                World.RequestModuleInterface<INexMasterBankPayoutModule>();
+            UUID rootObject = m_host.ParentGroup.RootPart.UUID;
+            UUID rootOwner = m_host.ParentGroup.RootPart.OwnerID;
+            bool master = bank != null &&
+                bank.IsAuthorizedBankScript(rootObject, m_item.ItemID, rootOwner);
+            if (master && m_item.PermsGranter != rootOwner)
+                return 0;
+
             void act(string _)
             {
-                money.ObjectGiveMoney(m_host.ParentGroup.RootPart.UUID, m_host.ParentGroup.RootPart.OwnerID,
-                                        toID, amount, UUID.Zero, out _);
+                if (master)
+                    bank.TryBankPayout(rootObject, m_item.ItemID, rootOwner,
+                        toID, amount, UUID.Random(), out _);
+                else
+                    money.ObjectGiveMoney(rootObject, rootOwner,
+                        toID, amount, UUID.Zero, out _);
             }
 
             m_AsyncCommands.DataserverPlugin.RegisterRequest(m_host.LocalId, m_item.ItemID, act);
@@ -17285,21 +17301,51 @@ namespace OpenSim.Region.ScriptEngine.Shared.Api
                 return txn.ToString();
             }
 
-            //fire and forget...
+            INexMasterBankPayoutModule bank =
+                World.RequestModuleInterface<INexMasterBankPayoutModule>();
+            UUID rootObject = m_host.ParentGroup.RootPart.UUID;
+            UUID rootOwner = m_host.ParentGroup.RootPart.OwnerID;
+            bool master = bank != null &&
+                bank.IsAuthorizedBankScript(rootObject, m_item.ItemID, rootOwner);
+
+            // The approved bank operator must be the debit granter.
+            if (master && m_item.PermsGranter != rootOwner)
+            {
+                m_ScriptEngine.PostScriptEvent(m_item.ItemID, new EventParams(
+                    "transaction_result", new object[] {
+                        new LSL_String(txn.ToString()),
+                        new LSL_Integer(0),
+                        new LSL_String("MISSING_MASTER_BANK_OPERATOR_PERMISSION")
+                    }, Array.Empty<DetectParams>()));
+                return txn.ToString();
+            }
+
+            // Fire and forget, with a correlated transaction_result event.
             void act(string eventID)
             {
                 int replycode = 0;
                 try
                 {
-                    UserAccount account = m_userAccountService.GetUserAccount(RegionScopeID, toID);
-                    if (account is null)
+                    // Generic LSL transfers still require local UserAccount.
+                    // Authorized bank scripts may also pay verified *present*
+                    // HG visitors, resolved by the economy region module.
+                    if (!master)
                     {
-                        replydata = "LINDENDOLLAR_ENTITYDOESNOTEXIST";
-                        return;
+                        UserAccount account =
+                            m_userAccountService.GetUserAccount(RegionScopeID, toID);
+                        if (account is null)
+                        {
+                            replydata = "LINDENDOLLAR_ENTITYDOESNOTEXIST";
+                            return;
+                        }
                     }
 
-                    bool result = money.ObjectGiveMoney(m_host.ParentGroup.RootPart.UUID, m_host.ParentGroup.RootPart.OwnerID,
-                                toID, amount, txn, out string reason);
+                    string reason;
+                    bool result = master
+                        ? bank.TryBankPayout(rootObject, m_item.ItemID, rootOwner,
+                            toID, amount, txn, out reason)
+                        : money.ObjectGiveMoney(rootObject, rootOwner,
+                            toID, amount, txn, out reason);
                     if (result)
                     {
                         replycode = 1;
