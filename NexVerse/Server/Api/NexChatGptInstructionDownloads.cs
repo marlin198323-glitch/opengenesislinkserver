@@ -300,6 +300,7 @@ namespace NexVerse.Server.Api
             md.AppendLine("- x-nexverse-audience: citizen, admin und/oder service; Service bedeutet nicht automatisch Browser/OAuth-Einwohnerzugriff.");
             md.AppendLine("- R287: /events/{eventId} und /classifieds/{classifiedId} bieten oeffentliche GETs ausschliesslich fuer freigegebene Inhalte. PATCH und DELETE erfordern discovery:manage plus nachgewiesenes Eigentum oder admin:*.");
             md.AppendLine("- R287-PATCH akzeptiert nur benannte Anzeige-/Zeit-/Tag-Felder; Creator/Owner, UUID, Moderation und Publikationszustand duerfen damit nicht geaendert werden.");
+            md.AppendLine("- R287-POST Upsert: Einwohner duerfen ausschliesslich eigene Eintraege als Entwurf anlegen und fremde Inhalte nicht ersetzen. Publikationsstatus, Owner und Place koennen nicht mit normalen discovery:manage-Scopes eskaliert werden.");
             md.AppendLine("- Unveraendert offen: allgemeiner Assetbrowser, Citizen Notifications, Konto-Inhaber-Nachweise, Event RSVP und externe Payment-Credits sind keine zugesicherten Live-Endpunkte.");
             md.AppendLine("- security.apiKeyAuth (Header X-NexVerse-Api-Key) ist bei internen Viewer-Bridges explizit; normalen Bewohner-Bearer dort NICHT verwenden.");
             md.AppendLine("- x-nexverse-scope: benoetigter Berechtigungsumfang.");
