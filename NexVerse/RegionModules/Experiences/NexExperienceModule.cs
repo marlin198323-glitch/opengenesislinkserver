@@ -567,9 +567,11 @@ namespace NexVerse.RegionModules.Experiences
                     _ => throw new ArgumentException("Unsupported viewer maturity.")
                 };
                 int properties = rawProperties.AsInteger();
-                // Privacy/privilege/grid-scope and unsupported fields must not
-                // be silently accepted as successful edits.
-                if ((properties & ~(1 << 6)) != 0)
+                // Firestorm can edit PRIVATE (bit 5) and DISABLED (bit 6).
+                // PRIVILEGED, GRID, SUSPENDED, INVALID and unknown flags
+                // must remain rejected: an owner cannot elevate grid scope.
+                const int editableFlags = (1 << 5) | (1 << 6);
+                if ((properties & ~editableFlags) != 0)
                     throw new ArgumentException("Unsupported Experience property flags.");
                 if (values.TryGetValue("group_id", out OSD group) &&
                     !group.AsUUID().IsZero())
@@ -586,7 +588,8 @@ namespace NexVerse.RegionModules.Experiences
                     name,
                     description,
                     maturity,
-                    enabled = (properties & (1 << 6)) == 0
+                    enabled = (properties & (1 << 6)) == 0,
+                    is_private = (properties & (1 << 5)) != 0
                 });
                 using HttpRequestMessage request =
                     CreateViewerManageRequest(HttpMethod.Put, payload);
@@ -904,6 +907,8 @@ namespace NexVerse.RegionModules.Experiences
             string owner = e.GetProperty("owner_id").GetString();
             string group = e.GetProperty("group_id").GetString();
             bool enabled = e.GetProperty("enabled").GetBoolean();
+            bool isPrivate = e.TryGetProperty("is_private", out JsonElement privateFlag) &&
+                privateFlag.ValueKind == JsonValueKind.True;
             UUID.TryParse(id, out UUID publicId);
             UUID.TryParse(owner, out UUID ownerId);
             UUID.TryParse(group, out UUID groupId);
@@ -922,7 +927,8 @@ namespace NexVerse.RegionModules.Experiences
                         2 => 42,
                         _ => 13
                     }),
-                ["properties"] = OSD.FromInteger(enabled ? 0 : 1 << 6),
+                ["properties"] = OSD.FromInteger((enabled ? 0 : 1 << 6) |
+                    (isPrivate ? 1 << 5 : 0)),
                 ["expiration"] = OSD.FromReal(600.0),
                 ["quota"] = OSD.FromInteger(128)
             };
