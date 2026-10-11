@@ -152,6 +152,9 @@ internal static class Program
         Guid viewerOwner = Guid.NewGuid();
         NexExperience firstViewer = store.CreateViewerExperience(
             viewerOwner, "simulator:viewer");
+        Require(store.GetViewerCreatorExperienceIds(viewerOwner)
+                    .Contains(firstViewer.ExperienceId),
+            "Owner must be able to select a newly acquired Experience in LSL");
         Require(firstViewer.OwnerId == viewerOwner &&
                 firstViewer.Admins.Contains(viewerOwner) &&
                 firstViewer.GroupId == Guid.Empty &&
@@ -200,6 +203,9 @@ internal static class Program
         NexExperience publicViewer = store.UpdateViewerExperience(viewerOwner,
             firstViewer.ExperienceId, "NexVerse Public Demo", "public",
             NexExperienceMaturity.Moderate, false, "simulator:viewer", false);
+        Require(!store.GetViewerCreatorExperienceIds(viewerOwner)
+                    .Contains(firstViewer.ExperienceId),
+            "Disabled Experience must not appear in the script picker");
         Require(!publicViewer.IsPrivate && !publicViewer.Enabled &&
                 store.Search("NexVerse Public Demo", 0, 10).Count == 0,
             "Firestorm DISABLED should remain unavailable in public search");
@@ -239,6 +245,11 @@ internal static class Program
             true,
             "ci");
 
+        Require(store.GetViewerCreatorExperienceIds(owner).Contains(created.ExperienceId) &&
+                store.GetViewerCreatorExperienceIds(admin).Contains(created.ExperienceId) &&
+                store.GetViewerCreatorExperienceIds(contributor).Contains(created.ExperienceId) &&
+                store.GetViewerCreatorExperienceIds(Guid.NewGuid()).Length == 0,
+            "GetCreatorExperiences must include only owner's/admin's/contributor's Experiences");
         Require(
             store.Get(created.ExperienceId).Contributors.Contains(contributor),
             "role persistence failed");

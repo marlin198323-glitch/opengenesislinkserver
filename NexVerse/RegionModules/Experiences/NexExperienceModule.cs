@@ -361,7 +361,7 @@ namespace NexVerse.RegionModules.Experiences
                         (req, resp) => HandleViewerRoleList(req, resp, issuingScene, avatar, lease, "admin_ids")));
                 caps.RegisterSimpleHandler("GetCreatorExperiences",
                     new SimpleStreamHandler("/" + UUID.Random(),
-                        (req, resp) => HandleViewerRoleList(req, resp, issuingScene, avatar, lease, "contributor_ids")));
+                        (req, resp) => HandleViewerRoleList(req, resp, issuingScene, avatar, lease, "creator_ids")));
                 caps.RegisterSimpleHandler("GroupExperiences",
                     new SimpleStreamHandler("/" + UUID.Random(),
                         (req, resp) => HandleViewerRoleList(req, resp, issuingScene, avatar, lease, "group")));
@@ -648,7 +648,7 @@ namespace NexVerse.RegionModules.Experiences
                 response.Content.ReadAsStringAsync().GetAwaiter().GetResult());
             OSDMap result = new();
             foreach (string list in new[] { "experiences", "blocked", "experience_ids",
-                "admin_ids", "contributor_ids" })
+                "admin_ids", "contributor_ids", "creator_ids" })
             {
                 OSDArray ids = new();
                 if (doc.RootElement.TryGetProperty(list, out JsonElement src) &&

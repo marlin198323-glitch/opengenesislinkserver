@@ -366,6 +366,27 @@ namespace NexVerse.Core.Experiences
             }
         }
 
+        /// <summary>
+        /// Firestorm's script picker expects Experience owners and admins as
+        /// well as explicitly delegated contributors. Do not expose disabled
+        /// Experiences or other avatars' roles.
+        /// </summary>
+        public Guid[] GetViewerCreatorExperienceIds(Guid residentId)
+        {
+            if (residentId == Guid.Empty)
+                throw new ArgumentException("Resident ID is required.", nameof(residentId));
+            lock (m_Sync)
+            {
+                EnsureActive();
+                return m_State.Experiences
+                    .Where(x => x.Enabled &&
+                        (x.OwnerId == residentId ||
+                         x.Admins.Contains(residentId) ||
+                         x.Contributors.Contains(residentId)))
+                    .Select(x => x.ExperienceId).ToArray();
+            }
+        }
+
         public NexExperience CreateViewerExperience(Guid ownerId, string actor)
         {
             if (ownerId == Guid.Empty)
