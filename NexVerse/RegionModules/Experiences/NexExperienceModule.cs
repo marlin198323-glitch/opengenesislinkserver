@@ -370,6 +370,12 @@ namespace NexVerse.RegionModules.Experiences
                     caps.RegisterSimpleHandler("UpdateExperience",
                         new SimpleStreamHandler("/" + UUID.Random(),
                             (req, resp) => HandleViewerUpdate(req, resp, issuingScene, avatar, lease)));
+                    // Script editor reads its persisted Experience from here.
+                    // Do not expose a generic unauthenticated metadata route.
+                    caps.RegisterSimpleHandler("GetMetadata",
+                        new SimpleStreamHandler("/" + UUID.Random(),
+                            (req, resp) => HandleViewerScriptMetadata(
+                                req, resp, issuingScene, avatar, lease)));
                     caps.RegisterSimpleHandler("IsExperienceAdmin",
                         new SimpleStreamHandler("/" + UUID.Random(),
                             (req, resp) => HandleViewerIsExperienceAdmin(req, resp,
@@ -392,10 +398,10 @@ namespace NexVerse.RegionModules.Experiences
         }
 
         private HttpRequestMessage CreateViewerManageRequest(HttpMethod method,
-            string json)
+            string json, string path = "/api/v1/experiences/viewer/manage")
         {
             HttpRequestMessage outbound = new(method,
-                m_WorldApiBaseUrl + "/api/v1/experiences/viewer/manage");
+                m_WorldApiBaseUrl + path);
             outbound.Headers.TryAddWithoutValidation("X-NexVerse-Api-Key",
                 m_ViewerManageApiKey);
             outbound.Headers.Accept.Add(
@@ -633,6 +639,65 @@ namespace NexVerse.RegionModules.Experiences
                 e is TaskCanceledException || e is IOException)
             {
                 m_Log.WarnFormat("[NEX-EXPERIENCES]: Viewer update failed: {0}", e.Message);
+                resp.StatusCode = (int)HttpStatusCode.BadGateway;
+            }
+        }
+
+        private void HandleViewerScriptMetadata(IOSHttpRequest req,
+            IOSHttpResponse resp, Scene scene, UUID avatar,
+            NexExperienceCapLeaseRegistry.Lease lease)
+        {
+            resp.ContentType = "application/llsd+xml";
+            resp.KeepAlive = false;
+            resp.AddHeader("Cache-Control", "no-store");
+            if (!IsCurrentViewer(scene, avatar, lease))
+            {
+                resp.StatusCode = (int)HttpStatusCode.Gone;
+                return;
+            }
+            if (req.HttpMethod != "POST")
+            {
+                resp.StatusCode = (int)HttpStatusCode.MethodNotAllowed;
+                return;
+            }
+            try
+            {
+                OSDMap data = ParseViewerUpdate(req);
+                if (!data.TryGetValue("object-id", out OSD obj) ||
+                    !data.TryGetValue("item-id", out OSD item) ||
+                    !UUID.TryParse(obj.AsString(), out UUID partId) ||
+                    !UUID.TryParse(item.AsString(), out UUID scriptId) ||
+                    partId.IsZero() || scriptId.IsZero())
+                    throw new ArgumentException("Invalid script metadata request.");
+                SceneObjectPart part = scene.GetSceneObjectPart(partId);
+                if (part?.ParentGroup == null || part.ParentGroup.IsDeleted ||
+                    part.Inventory.GetInventoryItem(scriptId) == null ||
+                    !scene.Permissions.CanEditScript(scriptId, partId, avatar))
+                {
+                    resp.StatusCode = (int)HttpStatusCode.Forbidden;
+                    return;
+                }
+                UUID experience = ResolveExperience(scriptId);
+                resp.RawBuffer = Encoding.UTF8.GetBytes(
+                    OSDParser.SerializeLLSDXmlString(new OSDMap
+                    {
+                        ["experience"] = OSD.FromUUID(experience)
+                    }));
+                resp.StatusCode = (int)HttpStatusCode.OK;
+            }
+            catch (ArgumentException e)
+            {
+                m_Log.WarnFormat(
+                    "[NEX-EXPERIENCES]: Script metadata rejected: {0}", e.Message);
+                resp.StatusCode = (int)HttpStatusCode.BadRequest;
+            }
+            catch (Exception e) when (e is HttpRequestException ||
+                e is JsonException || e is TaskCanceledException ||
+                e is InvalidOperationException || e is IOException)
+            {
+                m_Log.WarnFormat(
+                    "[NEX-EXPERIENCES]: Script metadata unavailable: {0}",
+                    e.Message);
                 resp.StatusCode = (int)HttpStatusCode.BadGateway;
             }
         }
@@ -1033,6 +1098,72 @@ namespace NexVerse.RegionModules.Experiences
             {
                 m_Log.WarnFormat("[NEX-EXPERIENCES]: Firestorm readonly CAP failed: {0}", e.Message);
                 response.StatusCode = (int)HttpStatusCode.BadGateway;
+            }
+        }
+
+        public bool TrySetViewerScriptExperience(UUID primId,
+            UUID scriptItemId, UUID avatarId, UUID experienceId, out string reason)
+        {
+            reason = "Experience script editing is unavailable.";
+            if (!m_Enabled || !m_FirestormManageCaps || m_Http == null ||
+                primId.IsZero() || scriptItemId.IsZero() || avatarId.IsZero())
+                return false;
+
+            // Recheck live avatar, object and script inventory here as well
+            // as at both stages of the one-time upload capability. Prevent a
+            // stale, copied or transferred script from inheriting authority.
+            bool authorized = false;
+            lock (m_Sync)
+                foreach (Scene scene in m_Scenes)
+                {
+                    SceneObjectPart part = scene.GetSceneObjectPart(primId);
+                    if (part?.ParentGroup == null || part.ParentGroup.IsDeleted ||
+                        part.Inventory.GetInventoryItem(scriptItemId) == null ||
+                        !scene.Permissions.CanEditScript(scriptItemId, primId, avatarId))
+                        continue;
+                    if (scene.TryGetScenePresence(avatarId, out ScenePresence sp) &&
+                        sp != null && !sp.IsDeleted && !sp.IsChildAgent &&
+                        !sp.IsNPC && sp.ControllingClient != null)
+                    {
+                        authorized = true;
+                        break;
+                    }
+                }
+            if (!authorized)
+            {
+                reason = "Experience binding requires a live authorized script editor.";
+                return false;
+            }
+
+            try
+            {
+                string json = JsonSerializer.Serialize(new
+                {
+                    owner_id = avatarId.ToString(),
+                    script_id = scriptItemId.ToString(),
+                    experience_id = experienceId.ToString()
+                });
+                using HttpRequestMessage request = CreateViewerManageRequest(
+                    HttpMethod.Post, json,
+                    "/api/v1/experiences/viewer/script-binding");
+                using HttpResponseMessage response = m_Http.Send(request);
+                if (!response.IsSuccessStatusCode)
+                {
+                    reason = "Experience binding rejected (HTTP " +
+                        (int)response.StatusCode + ").";
+                    return false;
+                }
+                reason = string.Empty;
+                return true;
+            }
+            catch (Exception e) when (e is HttpRequestException ||
+                e is InvalidOperationException || e is TaskCanceledException ||
+                e is IOException)
+            {
+                m_Log.WarnFormat(
+                    "[NEX-EXPERIENCES]: Script binding unavailable: {0}", e.Message);
+                reason = "Experience authority is unavailable.";
+                return false;
             }
         }
 
