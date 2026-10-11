@@ -367,6 +367,49 @@ internal static class Program
                 parcel),
             "estate allow-list was not enforced");
 
+        // Firestorm's UpdateScriptTask carries the selected Experience in
+        // its first upload phase; the central authority must only persist it
+        // after both editor/task authorization and creator-role validation.
+        Guid viewerScript = Guid.NewGuid();
+        store.SetViewerScriptExperience(owner, viewerScript,
+            created.ExperienceId, "simulator:viewer");
+        Require(store.ResolveScript(viewerScript) == created.ExperienceId,
+            "owner cannot bind script to their own Experience");
+        store.SetViewerScriptExperience(contributor, viewerScript,
+            created.ExperienceId, "simulator:viewer");
+        bool foreignViewerBindDenied = false;
+        try
+        {
+            store.SetViewerScriptExperience(Guid.NewGuid(), viewerScript,
+                firstViewer.ExperienceId, "unauthorized");
+        }
+        catch (UnauthorizedAccessException) { foreignViewerBindDenied = true; }
+        Require(foreignViewerBindDenied &&
+                store.ResolveScript(viewerScript) == created.ExperienceId,
+            "foreign viewer replaced a script binding");
+        store.SetViewerScriptExperience(contributor, viewerScript,
+            Guid.Empty, "simulator:viewer");
+        Require(store.ResolveScript(viewerScript) == Guid.Empty,
+            "authorized script unlink did not persist");
+        store.SetViewerScriptExperience(owner, viewerScript,
+            created.ExperienceId, "simulator:viewer");
+        // A disabled Experience may exist in a resident's owner list but
+        // cannot be selected as an active script association.
+        Guid disabledXp = store.Create(owner, Guid.Empty,
+            "CI disabled script Experience", "", NexExperienceMaturity.General,
+            "ci").ExperienceId;
+        store.UpdateProfile(disabledXp, owner, "CI disabled script Experience",
+            "", Guid.Empty, NexExperienceMaturity.General, false, "ci");
+        bool disabledBindDenied = false;
+        try
+        {
+            store.SetViewerScriptExperience(owner, Guid.NewGuid(),
+                disabledXp, "simulator:viewer");
+        }
+        catch (UnauthorizedAccessException) { disabledBindDenied = true; }
+        Require(disabledBindDenied,
+            "disabled Experience accepted as a script association");
+
         store.BindScript(
             created.ExperienceId,
             owner,
