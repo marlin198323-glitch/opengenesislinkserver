@@ -26,7 +26,10 @@ for rel, arch, enabled, http, xmlrpc in (
     assert cfg.get("Economy", "economymodule") == "NexVerseMoneyModule"
     for key in ("MasterBankEnabled", "AllowHypergridGuests"):
         assert not cfg.getboolean("NexEconomyViewer", key)
-    for key in ("Enabled", "FirestormReadCaps", "FirestormPermissionCaps",
+    # Experiences are paused for 0.9.3.10. Keep inactive opt-in
+    # flag definitions for a later train; never activate them by default.
+    assert not cfg.getboolean("NexExperiencesViewer", "Enabled")
+    for key in ("FirestormReadCaps", "FirestormPermissionCaps",
                 "FirestormManageCaps", "ScriptPendingConsent", "NativeExperiencePrompt"):
         assert cfg.getboolean("NexExperiencesViewer", key)
     for key, var in (("ApiKey","NEXVERSE_EXPERIENCES_API_KEY"),
