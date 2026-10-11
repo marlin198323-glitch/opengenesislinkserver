@@ -3015,6 +3015,128 @@ namespace NexVerse.Server.Api
                         ["correlation_id"] = new { type = "string" }
                     }
                 },
+                // R287: real NexDiscoveryStore entities, including the
+                // exact snake_case JSON fields used by NexDiscoveryApi.
+                ["DiscoveryEventRecord"] = new
+                {
+                    type = "object",
+                    required = new[] { "name", "place_id", "organizer_id", "starts_at", "ends_at" },
+                    properties = new Dictionary<string, object>
+                    {
+                        ["event_id"] = new { type = "string", format = "uuid" },
+                        ["place_id"] = new { type = "string", format = "uuid" },
+                        ["organizer_id"] = new { type = "string", format = "uuid" },
+                        ["name"] = new { type = "string", minLength = 1 },
+                        ["description"] = new { type = "string", maxLength = 8192 },
+                        ["image"] = new { type = "string" },
+                        ["maturity"] = new { type = "string", @enum = new[] { "general", "moderate", "adult" } },
+                        ["starts_at"] = new { type = "string", format = "date-time" },
+                        ["ends_at"] = new { type = "string", format = "date-time" },
+                        ["admission_price_minor"] = new { type = "integer", format = "int64", minimum = 0 },
+                        ["tags"] = new { type = "array", items = new { type = "string" } },
+                        ["state"] = new { type = "string", @enum = new[] { "draft", "submitted", "approved", "rejected" } },
+                        ["created_at"] = new { type = "string", format = "date-time" },
+                        ["updated_at"] = new { type = "string", format = "date-time" }
+                    }
+                },
+                ["DiscoveryEventPatch"] = new
+                {
+                    type = "object",
+                    additionalProperties = false,
+                    properties = new Dictionary<string, object>
+                    {
+                        ["name"] = new { type = "string", minLength = 1 },
+                        ["description"] = new { type = "string", maxLength = 8192 },
+                        ["image"] = new { type = "string" },
+                        ["starts_at"] = new { type = "string", format = "date-time" },
+                        ["ends_at"] = new { type = "string", format = "date-time" },
+                        ["admission_price_minor"] = new { type = "integer", format = "int64", minimum = 0 },
+                        ["tags"] = new { type = "array", items = new { type = "string" } }
+                    }
+                },
+                ["DiscoveryEventResponse"] = new
+                {
+                    type = "object",
+                    required = new[] { "event", "correlation_id" },
+                    properties = new Dictionary<string, object>
+                    {
+                        ["event"] = SchemaRef("DiscoveryEventRecord"),
+                        ["correlation_id"] = new { type = "string" }
+                    }
+                },
+                ["DiscoveryEventListResponse"] = new
+                {
+                    type = "object",
+                    required = new[] { "events", "correlation_id" },
+                    properties = new Dictionary<string, object>
+                    {
+                        ["events"] = new { type = "array", items = SchemaRef("DiscoveryEventRecord") },
+                        ["correlation_id"] = new { type = "string" }
+                    }
+                },
+                ["DiscoveryClassifiedRecord"] = new
+                {
+                    type = "object",
+                    required = new[] { "name", "owner_id" },
+                    properties = new Dictionary<string, object>
+                    {
+                        ["classified_id"] = new { type = "string", format = "uuid" },
+                        ["owner_id"] = new { type = "string", format = "uuid" },
+                        ["place_id"] = new { type = "string", format = "uuid" },
+                        ["name"] = new { type = "string" },
+                        ["description"] = new { type = "string", maxLength = 8192 },
+                        ["category"] = new { type = "string", maxLength = 128 },
+                        ["image"] = new { type = "string" },
+                        ["maturity"] = new { type = "string", @enum = new[] { "general", "moderate", "adult" } },
+                        ["tags"] = new { type = "array", items = new { type = "string" } },
+                        ["state"] = new { type = "string", @enum = new[] { "draft", "submitted", "approved", "rejected" } },
+                        ["created_at"] = new { type = "string", format = "date-time" },
+                        ["updated_at"] = new { type = "string", format = "date-time" }
+                    }
+                },
+                ["DiscoveryClassifiedPatch"] = new
+                {
+                    type = "object",
+                    additionalProperties = false,
+                    properties = new Dictionary<string, object>
+                    {
+                        ["name"] = new { type = "string", minLength = 1 },
+                        ["description"] = new { type = "string", maxLength = 8192 },
+                        ["category"] = new { type = "string", maxLength = 128 },
+                        ["image"] = new { type = "string" },
+                        ["tags"] = new { type = "array", items = new { type = "string" } }
+                    }
+                },
+                ["DiscoveryClassifiedResponse"] = new
+                {
+                    type = "object",
+                    required = new[] { "classified", "correlation_id" },
+                    properties = new Dictionary<string, object>
+                    {
+                        ["classified"] = SchemaRef("DiscoveryClassifiedRecord"),
+                        ["correlation_id"] = new { type = "string" }
+                    }
+                },
+                ["DiscoveryClassifiedListResponse"] = new
+                {
+                    type = "object",
+                    required = new[] { "classifieds", "correlation_id" },
+                    properties = new Dictionary<string, object>
+                    {
+                        ["classifieds"] = new { type = "array", items = SchemaRef("DiscoveryClassifiedRecord") },
+                        ["correlation_id"] = new { type = "string" }
+                    }
+                },
+                ["DiscoveryDeletedResponse"] = new
+                {
+                    type = "object",
+                    required = new[] { "deleted", "correlation_id" },
+                    properties = new Dictionary<string, object>
+                    {
+                        ["deleted"] = new { type = "boolean" },
+                        ["correlation_id"] = new { type = "string" }
+                    }
+                },
                 ["DiscoveryObjectResponse"] = new
                 {
                     type = "object"
