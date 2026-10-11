@@ -341,6 +341,10 @@ namespace NexVerse.RegionModules.Experiences
                     caps.RegisterSimpleHandler("UpdateExperience",
                         new SimpleStreamHandler("/" + UUID.Random(),
                             (req, resp) => HandleViewerUpdate(req, resp, issuingScene, avatar, lease)));
+                    caps.RegisterSimpleHandler("IsExperienceAdmin",
+                        new SimpleStreamHandler("/" + UUID.Random(),
+                            (req, resp) => HandleViewerIsExperienceAdmin(req, resp,
+                                issuingScene, avatar, lease)));
             }
         }
 
