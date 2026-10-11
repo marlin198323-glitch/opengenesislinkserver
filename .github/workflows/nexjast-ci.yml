@@ -254,6 +254,10 @@ jobs:
         shell: bash
         run: python3 tools/ci/verify_simple_stream_routing.py
 
+      - name: Verify R287 World API profile, discovery and groups security
+        shell: bash
+        run: python3 tools/ci/verify_r287_portal_api.py
+
       - name: Verify World API OpenAPI and ChatGPT MD consistency
         shell: bash
         run: python3 tools/ci/verify_worldapi_chatgpt_openapi.py
@@ -1016,6 +1020,25 @@ jobs:
               "#/components/schemas/ExperiencePublicInfoResponse")
           assert "check_original" in schemas["ExperienceKvRequest"]["properties"]
           assert doc["x_nexverse_version_history"][0]["status"] == "development"
+          for path, required_methods in {
+              "/api/v1/profiles/{principalId}/image": ("get",),
+              "/api/v1/events/{eventId}": ("get", "patch", "delete"),
+              "/api/v1/classifieds/{classifiedId}": ("get", "patch", "delete"),
+              "/api/v1/groups/mine": ("get",),
+          }.items():
+              for method in required_methods:
+                  assert method in doc["paths"][path], (path, method)
+          profile_image = doc["paths"]["/api/v1/profiles/{principalId}/image"]["get"]
+          assert "image/png" in profile_image["responses"]["200"]["content"]
+          assert profile_image["responses"]["200"]["content"]["image/png"]["schema"]["format"] == "binary"
+          assert doc["paths"]["/api/v1/events/{eventId}"]["patch"]["x-nexverse-scope"] == "discovery:manage"
+          assert doc["paths"]["/api/v1/groups/mine"]["get"]["x-nexverse-scope"] == "groups:read"
+          assert doc["paths"]["/api/v1/events/{eventId}"]["patch"]["requestBody"][
+              "content"]["application/json"]["schema"]["$ref"] == (
+              "#/components/schemas/DiscoveryEventPatch")
+          assert doc["paths"]["/api/v1/classifieds/{classifiedId}"]["patch"]["requestBody"][
+              "content"]["application/json"]["schema"]["$ref"] == (
+              "#/components/schemas/DiscoveryClassifiedPatch")
           assert "/api/v1/chatgpt-instructions.md" in doc["paths"]
           assert "/api/v1/chatgpt-buergerportal.md" in doc["paths"]
           assert "/api/v1/chatgpt-admin.md" in doc["paths"]
