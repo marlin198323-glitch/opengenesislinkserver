@@ -1,0 +1,80 @@
+name: Publish OpenGenesisLINK 0.9.3.10 Stable
+
+# Only publish from a successful *push-to-main* workflow run, using its
+# immutable tested SHA. The .8 publisher remains untouched.
+on:
+  workflow_run:
+    workflows: ["NexVerse CI"]
+    types: [completed]
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    name: Publish immutable 0.9.3.10 stable release
+    if: >-
+      ${{ github.event.workflow_run.conclusion == 'success' &&
+          github.event.workflow_run.event == 'push' &&
+          github.event.workflow_run.head_branch == 'main' &&
+          github.event.workflow_run.head_repository.full_name == github.repository }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout successful CI commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          persist-credentials: false
+
+      - name: Verify stable release eligibility
+        id: stable_check
+        env:
+          STABLE_SHA: ${{ github.event.workflow_run.head_sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$STABLE_SHA"
+          if grep -Fq 'public const string ProductName = "OpenGenesisLINK";' OpenSim/Framework/VersionInfo.cs &&
+             grep -Fq 'public const string VersionNumber = "0.9.3.10";' OpenSim/Framework/VersionInfo.cs &&
+             grep -Fq 'public const string AssemblyVersionNumber = "0.9.3.10";' OpenSim/Framework/VersionInfo.cs &&
+             grep -Fq 'public const Flavour VERSION_FLAVOUR = Flavour.Release;' OpenSim/Framework/VersionInfo.cs &&
+             test -s doc/NexVerse/RELEASE_0.9.3.10.md &&
+             test -s doc/NexVerse/09310_OPERATOR_RELEASE_DECISION.md &&
+             grep -Fq 'nicht separat' doc/NexVerse/09310_OPERATOR_RELEASE_DECISION.md &&
+             grep -Fq 'Enabled = false' bin/OpenSim.ini &&
+             grep -Fq 'Enabled = false' bin/OpenSim.ini.example; then
+            echo "eligible=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "eligible=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Not an eligible OpenGenesisLINK 0.9.3.10 stable SHA. Skipping."
+          fi
+
+      - name: Publish stable release without mutating existing tags
+        if: steps.stable_check.outputs.eligible == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          STABLE_SHA: ${{ github.event.workflow_run.head_sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag="v0.9.3.10"
+          main_sha="$(gh api "repos/$GITHUB_REPOSITORY/commits/main" --jq '.sha')"
+          if [ "$main_sha" != "$STABLE_SHA" ]; then
+            echo "::notice::main advanced; release skipped rather than tagging untested source."
+            exit 0
+          fi
+          if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "Stable release already exists. No replacement or rewrite."
+            exit 0
+          fi
+          if gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$tag" >/dev/null 2>&1; then
+            echo "::error::Tag exists without corresponding GitHub Release; refusing to overwrite."
+            exit 1
+          fi
+          gh release create "$tag" \
+            --repo "$GITHUB_REPOSITORY" \
+            --target "$STABLE_SHA" \
+            --title "OpenGenesisLINK 0.9.3.10" \
+            --notes-file doc/NexVerse/RELEASE_0.9.3.10.md \
+            --latest
