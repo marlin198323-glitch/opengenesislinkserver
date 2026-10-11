@@ -47,6 +47,13 @@ kein Deployment. Für bestehende `bin/OpenSim.ini`-Anpassungen vorher
 eine externe Sicherheitskopie anlegen, temporär staschen und nach Update
 **manuell mergen**; niemals `git reset --hard`.
 
+**Testmatrix:** Für RC1 sind **47 von 48** Fällen vorab nachzuweisen.
+`REL07` enthält die separate Bestätigung der *bereits erfolgten* RC1-
+und Stable-Freigabe und wird deshalb erst für **Stable** verpflichtend.
+Sie kann logisch nicht vor der RC1-Veröffentlichung PASS sein.
+Für Stable sind alle **48/48** Fälle und die gesonderte Betreiberabnahme
+erforderlich; eine fehlende Liveprüfung wird niemals pauschal erlassen.
+
 **Pflichtfälle (48):** Alle 38 aus dem Betreiberprotokoll
 (`SYS01–04`, `EXP01–08`, `LSL01–06`, `DB01–06`, `NAV01–07`,
 `REL01–07`) plus `EXP_CREATE`, `NAV08`, `APP01`,
@@ -84,7 +91,37 @@ eine externe Sicherheitskopie anlegen, temporär staschen und nach Update
   Inventar, Regionen und Experiences in einer **Kopie** restaurieren;
   Datenmigrationsrisiken vor echtem Downgrade auf v0.9.3.8 prüfen.
 
-## 4. Nachweise lokal erfassen – automatische Sperre
+## 4. Lokalen Serverstand schreibgeschützt prüfen
+
+Der vorherige Betreiberfehler beim `git pull` wurde durch lokal
+veränderte `bin/OpenSim.ini` ausgelöst. Bei beiden Deployments
+niemals `git reset --hard` einsetzen. Vor dem Build zuerst:
+
+```bash
+cd /opt/developer
+python3 tools/diagnostics/ogl_09310_operator_preflight.py \
+  --robust-dir /opt/robust \
+  --sim-dir /opt/developer \
+  --json /root/ogl-release-evidence/09310-host-preflight.json
+```
+
+Das Tool ist **read-only**, außer beim optionalen Anlegen des JSON-
+Diagnoseberichts. Der Bericht enthält nur Git-SHAs, Branch-Namen,
+Konfigurations-**Schaltzustände** und Hinweise auf lokale Änderungen;
+weder API-Keys noch Nini-Secretwerte werden ausgegeben. Fehlende
+Konfiguration, Git-Divergenz und fehlende Schlüsseltrennung sind
+Hinweise auf Handlungsbedarf. Ein identischer Git-Commit beweist aber
+**nicht**, dass der .NET-Prozess neu gestartet wurde oder mit diesem
+Build läuft. Nini Includes/Environment-Expansion, World-API-Scopes
+und echte Firestorm-CAPS müssen getrennt verifiziert werden.
+
+Falls `OpenSim.ini` verändert ist: außerhalb des Repositories sichern,
+gezielt `git stash push -- bin/OpenSim.ini`, Git-Update nur mit
+`--ff-only`, anschließend `git stash apply` und eventuelle Konflikte
+sorgfältig auflösen. Vorhandene Betreiber-Konfiguration nie durch eine
+Vorlage überschreiben.
+
+## 5. Nachweise lokal erfassen – automatische Sperre
 
 Es existiert jetzt ein konservativer Offline-Checker für
 Freigabe-Evidenz. **Er kann keine echten Viewer-Ereignisse erzeugen,
@@ -97,7 +134,9 @@ python3 tools/ci/verify_09310_release_readiness.py \
   --init /root/ogl-release-evidence/0.9.3.10-rc1.json
 ```
 
-Die Datei beginnt mit `NOT_RUN` für alle 48 Fälle. Bei jeder
+Die Datei beginnt mit `NOT_RUN` für alle 48 Fälle. Der RC1-Checker
+fordert davon 47 echte Nachweise; `REL07` bleibt bis zur späteren
+Stable-Genehmigung als `NOT_RUN` stehen. Bei jeder
 Testausführung `status`, `observed_at`, `evidence_ref` und
 `notes` nach echten Beobachtungen ausfüllen. CI-URL und `ci_commit`
 müssen **denselben Git-SHA** dokumentieren wie das finale
@@ -123,7 +162,7 @@ durchgeführte Wiederherstellung und eine **gesonderte**
 Stable-Freigabe erforderlich. Deshalb werden RC1 und Stable niemals
 automatisch aus einem grünen `main`-CI-Lauf getaggt.
 
-## 5. Blocker und bekannte Grenzen
+## 6. Blocker und bekannte Grenzen
 
 Siehe [09310_ACCEPTANCE_BLOCKERS.md](09310_ACCEPTANCE_BLOCKERS.md),
 [RC1_OPERATOR_ACCEPTANCE_09310.md](RC1_OPERATOR_ACCEPTANCE_09310.md),

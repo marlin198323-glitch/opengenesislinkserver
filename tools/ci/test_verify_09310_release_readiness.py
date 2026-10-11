@@ -52,6 +52,17 @@ class ReleaseGateTests(unittest.TestCase):
         for code in ("EXP_CREATE", "PORTAL_IMAGE", "NAV08", "RECOVERY_RESTORE"):
             self.assertIn(code, gate.REQUIRED_CASES)
 
+    def test_rc1_does_not_require_approval_that_depends_on_rc1(self):
+        self.assertEqual(len(gate.required_cases_for("rc1")), 47)
+        self.assertEqual(len(gate.required_cases_for("stable")), 48)
+        self.assertNotIn("REL07", gate.required_cases_for("rc1"))
+        self.assertIn("REL07", gate.required_cases_for("stable"))
+        d = make_fixture()
+        d["cases"]["REL07"]["status"] = "NOT_RUN"
+        self.assertEqual(gate.validate(d, "rc1", SHA, "RC1"), [])
+        self.assertTrue(any("REL07" in issue for issue in
+                            gate.validate(d, "stable", SHA, "Release", SHA)))
+
     def test_template_is_not_a_release(self):
         d = gate.initial_manifest(SHA)
         issues = gate.validate(d, "rc1", SHA, "Dev")
