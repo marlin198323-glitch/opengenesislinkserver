@@ -308,18 +308,18 @@ namespace NexVerse.Server.Api
                     Guid owner = BodyGuid(body, "owner_id");
                     Guid script = BodyGuid(body, "script_id");
                     string rawExperience = BodyRawString(body, "experience_id");
-                    if (!Guid.TryParse(rawExperience, out Guid experienceId))
+                    if (!Guid.TryParse(rawExperience, out Guid selectedExperienceId))
                         throw new ArgumentException("Invalid Experience UUID.");
 
                     m_Store.SetViewerScriptExperience(owner, script,
-                        experienceId, principal.Subject);
+                        selectedExperienceId, principal.Subject);
                     Audit(principal, "experience.viewer.script_binding",
-                        experienceId, response);
+                        selectedExperienceId, response);
                     WriteJson(response, new
                     {
-                        bound = experienceId != Guid.Empty,
+                        bound = selectedExperienceId != Guid.Empty,
                         script_id = script.ToString("D"),
-                        experience_id = experienceId.ToString("D"),
+                        experience_id = selectedExperienceId.ToString("D"),
                         correlation_id = Correlation(response)
                     });
                 }
