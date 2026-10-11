@@ -37,5 +37,13 @@ for mark in ("22 Pflichtfälle für RC1, 23 für Stable",
              "SEC_XP_OFF", "ECON_MASTERBANK", "PERF_BASELINE",
              "RECOVERY_RESTORE", "ogl-release-evidence-v2"):
     assert mark in readiness, f"stabilization scope missing: {mark}"
+# A paused, unaccepted viewer adapter cannot be enabled in shipped
+# simulator templates. The existing code/security regressions still run.
+for ini in ("bin/OpenSim.ini", "bin/OpenSim.ini.example"):
+    body = Path(ini).read_text()
+    section = body.split("[NexExperiencesViewer]", 1)[1].split(
+        "\n[", 1)[0]
+    assert "Enabled = false" in section, (
+        "0.9.3.10 must not ship active Experience viewer CAPS: " + ini)
 assert Path("doc/NexVerse/FUTURE_VIEWER_NAVIGATION.md").is_file()
 print("0.9.3.8 immutable; 0.9.3.10 stabilization gates, XP disabled, Viewer 2.0 deferred.")
