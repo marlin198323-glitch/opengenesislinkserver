@@ -1,4 +1,4 @@
-# OpenGenesisLINK 0.9.3.10 – Runtime-, Experiences- und Stabilisierungs-Release-Train
+# OpenGenesisLINK 0.9.3.10 – Runtime- und Stabilisierungs-Release-Train
 
 **Aktive Entwicklung:** `OpenGenesisLINK 0.9.3.10 Dev`  
 **Letzte veröffentlichte Stable-Version:** `OpenGenesisLINK 0.9.3.8` (Tag `v0.9.3.8`)  
@@ -7,7 +7,7 @@
 
 **Aktuelle Scope-Entscheidung (11.10.2026):** OGL Pathfinding ist aus dieser Version **und dem aktuellen Server-Code** komplett entfernt: keine A*-Kerne, keine Terrain-/Layered-Navigation, keine NPC-Follower, keine OGLNavGraph- oder Firestorm-NavMesh-CAPS. Der eigene OpenGenesisLINK-Viewer kann spaeter ein unabhaengiges Navigationsvorhaben erhalten. Dessen Protokolle und serverseitige Sicherheitsgrenzen werden erst dann neu geplant.
 
-**0.9.3.10:** .NET-8-Runtime, NexExperiences (Firestorm/LSL/Consent/K-V), Inventory/Outfits, R287 World API sowie Performance-, Security-, Recovery- und Live-Release-Gates. OGLVoice und Pathfinding sind beide ausserhalb dieser Version.
+**Scope-Entscheidung 12.10.2026:** 0.9.3.10 ist ein **Stabilisierungsrelease** fuer .NET 8, Simulator-/Hypergrid-Betrieb, die bestehende LSL- und Inventar-/Asset-Grundlage, NV$ Ledger/Viewer/GRID-SERVICES-Masterbank, R287 World API sowie Security, CPU/RAM/GC-Messungen und Recovery. **NexExperiences/Firestorm ist pausiert** und muss im RC-Profil deaktiviert sein; der bestehende Code und die Sicherheitsregressionen bleiben bestehen, sind aber keine Funktionsfreigabe. OGL Pathfinding 2.0, OGL My Outfits 2.0 und eine moegliche OGL Experiences 2.0 werden erst im eigenen Viewer-/Server-Nachfolgeprojekt geplant. OGLVoice und eigener Renderer bleiben separat vertagt. Verbindliche **22 RC1-/23 Stable-Pflichtfaelle** und das neue Evidenzformat v2 stehen in [09310_RC1_RELEASE_READINESS.md](09310_RC1_RELEASE_READINESS.md). Alte EXP-/APP-/NAV-Matrizen sind historisch und nicht als PASS verwendbar.
 
 ## A. Ausgangslage und erledigte Vorarbeiten
 
@@ -24,7 +24,7 @@
 - [x] **Dauerhafte Inventar-/Outfit-Thumbnail-Verknuepfungen im Code:** Neues `ThumbnailID` in `InventoryItemBase` und `InventoryFolderBase`, XInventory-Konverter und Robust-Simulator-HTTP-Connectoren (auch bei getrennt gehostetem Inventardienst), Besitzer-gebundene Speicherung nach erfolgreichem Bild-Upload, additive MySQL/MariaDB-, PostgreSQL- und SQLite-Migration sowie Firestorm-konforme `thumbnail.asset_id`-LLSD-Serialisierung in Item- und Folder-Fetch. **MariaDB-Persistenz und Abruf nach Cache-Neuaufbau live nachgewiesen; vollstaendige Datenbank-Rollout-/Backup-Pruefung fuer Stable separat offen.**
 - [x] **Idempotenz-Fix Inventar-Systemordner:** Das bisherige `GetSystemFolders`-Filter `type > 0` schloss den gueltigen `Texture`-Typ 0 aus und erstellte bei erneutem `CreateUserInventory` einen zusaetzlichen `Textures`-Ordner. Filter korrigiert und durch den SQLite-Laufzeittest abgesichert. Bereits vorhandene Duplikate werden **nicht** automatisch geloescht.
 - [x] **Firestorm Outfit-Gallery Server-Fix (Dev):** `My Outfits` wird fuer neue Residenten (inkl. HG-Suitcase-Inventar) idempotent als eigener Systemordner provisioniert. Fuer bestehende Residenten: `GET /api/v1/inventory/outfits/health` (`inventory:read`) mit COF-/Saved-Outfit-/defekten Link-Checks ohne Datenveraenderung, `POST /api/v1/inventory/outfits/ensure-folders` (`inventory:write`) legt ausschliesslich den fehlenden `My Outfits`-Systemordner an. Systemordner vor Portal-Loeschen/Verschieben geschuetzt; Thumbnail-UUIDs im Portal-Inventar sichtbar. SQLite-Laufzeitregression unter CI. **Gespeicherter Outfit-Eintrag in der Firestorm-Galerie nach Inventar-Cache-Neuaufbau live sichtbar; COF/`Kein Outfit` bleibt separater offener Abnahmepunkt.**
-- [ ] **Firestorm Appearance "Kein Outfit" live abnehmen:** Current-Outfit-/My-Outfits-Ordner, gespeicherte Outfits, vorhandene Links und Avatar-Appearance vor Ort pruefen. Kein automatischer, potentiell zerstoererischer Reset existierender Nutzeroutfits.
+- [x] **Scope-Entscheidung – My Outfits 2.0 vertagt:** Firestorm Appearance/COF/`Kein Outfit` sind **keine** 0.9.3.10-RC1-Gates mehr. Die Inventargrundfunktionen (Systemordner, Links, Berechtigungen, Persistenz) bleiben als `INV_CORE` und `INV_THUMB` verbindlich. Keine automatische Loeschung oder Reparatur bestehender Outfits; OGL My Outfits 2.0 erst im eigenen Viewer.
 - [x] **Viewer-Thumbnail-E2E mit dokumentierter Einschraenkung abgeschlossen:** Neuer Snapshot, MariaDB-Persistenz, Versionsanstieg, Anzeige nach Cache-Neuaufbau und fehlerhafte Aktualisierung nach normalem Relog reproduziert. **Kein** bestandener automatischer Cache-Refresh-Test; Fehler als Firestorm-7.2.4-OpenSim-Kompatibilitaetslimit akzeptiert. `Kein Outfit`/COF ist davon **nicht** abgenommen.
 
 ## A.2 Firestorm-Log: historische Voice-/NavMesh-Hinweise (10.10.2026)
@@ -83,7 +83,17 @@ Details: [OGLVOICE_ARCHITECTURE.md](OGLVOICE_ARCHITECTURE.md).
 
 Die bisherigen experimentellen Module, Konfigurationen, Testprojekte und NAV-Release-Gates wurden entfernt. Die Neuentwicklung ist spaeter dem eigenen Viewer vorbehalten. Historische Konzepte koennen ueber Git eingesehen werden.
 
-## D.1 NexExperiences – Firestorm-/LSL-/Resident-Funktion
+## D.1 NexExperiences – PAUSIERT, nur historischer Dev-Stand
+
+**Entscheidung 12.10.2026:** Die folgenden abgehakten und offenen Dev-Punkte
+dokumentieren ausschliesslich die bisherige Implementierung. Die volle
+Firestorm-/LSL-/Consent-/K-V-Featureabnahme ist **nicht mehr** Teil von
+0.9.3.10. `[NexExperiencesViewer] Enabled=false` ist ein neues
+Release-Gate (`SEC_XP_OFF`). Existierender Code, gespeicherte Daten
+und die CI-Sicherheitsregressionen bleiben erhalten; kein Auto-Allow,
+keine behauptete Produktionsreife. Eine moegliche OGL Experiences 2.0
+ist erst spaeter fuer den eigenen Viewer zu planen.
+
 
 - [x] **Bestehende Grundlage aus 0.9.3.7:** Verwaltungs-/Berechtigungs-/Script-Binding-/K/V-Autoritaet, authentifizierte World API, Region-Adapter und wesentliche LSL-Funktionen inklusive YEngine-Events. Diese Checkliste betrifft die **zusaetzliche vollstaendige Viewer-/Live-Paritaet**, nicht eine pauschale Ruecknahme bereits implementierten Codes.
 - [x] **Sicherheits-Hardening (Dev):** Deaktivierte Experiences verweigern auch bereits gebundenen Scripts jede K/V-Operation; Service-API-Schluessel mit nur `experiences:manage` duerfen keine frei waehlbaren Resident-Owner/-Akteure imitieren. Runtime-Regression und CI-Guards vorgesehen.
@@ -104,19 +114,19 @@ Die bisherigen experimentellen Module, Konfigurationen, Testprojekte und NAV-Rel
 
 ## E. Freigabe-Gates – ohne OGL Pathfinding
 
-- [ ] **Gate 1 – Funktional:** Echtes Firestorm-Experience-Erwerben, Owner-Editor, Allow/Block/Forget, LSL, K/V, Persistenz und Rechte live nachweisen.
-- [ ] **Gate 2 – CI:** Release-Build, Login/HG, NexBus, NV$, Inventory, Experience und Sicherheits-Regressionen gruen; CI verhindert Wiedereinfuehrung der gestrichenen Navigation.
-- [ ] **Gate 3 – Security:** Scopes, Avatar-Leases, Consent, Scriptbindung, Land/HG-Rechte, Limits und Secrets pruefen.
+- [ ] **Gate 1 – Funktional:** Zwei Simulatoren, lokale/HG-Logins, Region-/HTTP-Portwechsel, reguläre LSL-Kompatibilitaet, NV$-Ledger/Viewer/isolierte Masterbank und Inventar-/Assetgrundfunktionen real nachweisen.
+- [ ] **Gate 2 – CI:** Aktueller identischer Release-Build, Login/HG, NexBus, NV$, Inventory, World API sowie vorhandene Experience-**Sicherheits**-Regressionen gruen; CI verhindert Wiedereinfuehrung gestrichener Navigation.
+- [ ] **Gate 3 – Security:** Auth-/API-Scopes, Bank-/Script-Payout-Autorisierung, Asset-/HG-Rechte, Limits/Secrets sowie tatsaechlich deaktivierte Experience-CAPS (`SEC_XP_OFF`) pruefen.
 - [ ] **Gate 4 – Performance:** CPU/RAM/Heap/GC, Netzwerk, Ticks, Teleport und Watchdog gegen v0.9.3.8 messen.
-- [ ] **Gate 5 – Operator:** Neue 40-Fall-Abnahmematrix, zwei Firestorm-Avatare, World API, Outfits, Restore und Rollback.
+- [ ] **Gate 5 – Operator:** Neue **23-Fall-v2-Matrix** (22 RC1/23 Stable), zwei reale Avatare, World API, Economy, Inventargrundfunktionen, Lastmessung, Restore und Rollback. Keine EXP/APP-UI-Abnahme.
 - [ ] **Gate 6 – Release:** Nach Freigaben RC1 und anschliessend Stable; keine vorgezogene Stable-Kennzeichnung.
 
-**Keine NAV- oder Voice-Release-Gates.** Fehlende Experience- und Betriebsnachweise bleiben Blocker.
+**Keine Experience-Feature-, My-Outfits-2.0-, NAV- oder Voice-Release-Gates.** Stattdessen sind die 22/23 stabilitaets- und sicherheitsbezogenen v2-Nachweise verbindlich. Fehlende Live-Betriebsnachweise bleiben Blocker.
 
 ## F. Kompatibilität und Releasepolitik
 
 - Die stabile Referenz `v0.9.3.8` bleibt verfügbar; kein Verschieben eines Tags.
-- Die aktive Produktversion bleibt `OpenGenesisLINK 0.9.3.10 Dev` fuer Runtime und Experiences; keine oeffentliche Stable-Verwechslung.
+- Die aktive Produktversion bleibt `OpenGenesisLINK 0.9.3.10 Dev` fuer Runtime und Stabilisierung; keine oeffentliche Stable-Verwechslung. NexExperiences sind nur archivierter opt-in Dev-Code, keine freigegebene Funktionszusage.
 - Keine separate Veröffentlichung `0.9.3.9 Stable`.
 - OGLVoice bleibt standardmaessig inaktiv und ist ausdruecklich auf einen spaeteren Entwicklungsabschnitt vertagt. Vorhandenen Code, Tests und Sicherheitsgrenzen beibehalten; keine produktive Gateway-Aktivierung zur Erfuellung dieses Release-Trains.
 - Kein OGL Pathfinding oder NavMesh-CAPS in der 0.9.3.10-Version behaupten; eigener Viewer erst in einem spaeteren Projekt.
