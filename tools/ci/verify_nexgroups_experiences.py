@@ -92,6 +92,8 @@ for marker in (
     "UpdateKeyValue(",
     "checkOriginal",
     "retryMismatch",
+    "!exists ||",
+    "A checked update is a compare-and-swap, not an upsert.",
     'throw new InvalidOperationException("Experience is disabled.");',
 ):
     assert marker in experience_store, f"missing Experience core marker: {marker}"
