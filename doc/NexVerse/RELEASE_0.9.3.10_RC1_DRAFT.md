@@ -1,67 +1,79 @@
 # OpenGenesisLINK 0.9.3.10 RC1 – Release Notes (ENTWURF)
 
-**Status: DRAFT / NICHT VEROEFFENTLICHT.** Diese Datei ist eine
-Vorbereitung, kein RC1- oder Stable-Tag. Eine Veroeffentlichung erfordert
-die realen Operator-Nachweise nach
-[09310_RC1_RELEASE_READINESS.md](09310_RC1_RELEASE_READINESS.md).
+**Status: DRAFT / NICHT VERÖFFENTLICHT · Scope 12.10.2026.**
+Kein RC1-/Stable-Tag. Erst nach den
+[22 RC1-Nachweisen](09310_RC1_RELEASE_READINESS.md)
+mit `ogl-release-evidence-v2`, aktualisiertem identischen CI-Commit,
+`Flavour.RC1` und getrennter Betreiberfreigabe veröffentlichen.
+`v0.9.3.8` bleibt die unveränderte Stable-/Rollback-Basis.
 
-## Inhalt der geplanten Vorabversion
+## Geplanter Stabilisierungsumfang
 
-- Runtime-Bereinigung und .NET-8-ThreadPool-Anpassungen. Keine
-  pauschale Aussage ueber Performanceverbesserungen ohne
-  Vergleichsmessungen gegen `v0.9.3.8`.
-- OGL Pathfinding inklusive A*, NPC-Follower und NavMesh-CAPS ist aus dem aktuellen Server entfernt und fuer den spaeteren eigenen Viewer vertagt.
-- NexExperiences: eigene sichere Firestorm-CAPS fuer Listen,
-  kostenlosen Erwerb (maximal zehn je Avatar), grundlegenden
-  Besitzer-Profil-Editor und ausdrueckliche Allow/Block/Forget-Rechte;
-  LSL Script-/K/V-Funktionen und ein zentraler
-  `SingleWriterJson`-Store. Alle produktiven Experience-Funktionen
-  muessen Ende-zu-Ende mit zwei Avataren abgenommen werden.
-- Verbesserungen am Firestorm-Inventar, `My Outfits`,
-  Systemordnern, Thumbnails und deren Persistenz.
-- Erweiterte World API/OpenAPI-3.1-Vertraege und dynamische
-  ChatGPT-MD-Dokumentation. R287: profilgebundenes Bild als PNG/JPEG,
-  eigene Gruppen, Regionendetails sowie geschuetzte
-  Event-/Classified-Detailoperationen.
-- Regressionstests fuer Login, Hypergrid, NexBus, NV$,
-  Nutzer-/Rollenrechte, Inventory und World API.
+- **.NET 8 / Simulatorbetrieb:** veraltete ThreadPool-Grenzen
+  entfernt, mehrere Regionsinstanzen und automatische HTTP-Ports;
+  Performancegewinn nur nach CPU/RAM/GC-/Tick-A/B-Messung
+  gegen `v0.9.3.8` behaupten.
+- **Lokale und HG-Kompatibilität:** Login, Regionübertritt,
+  XML-RPC-/LSL-Basis und NexBus über Robust und mehrere Simulatoren.
+- **NV$ Economy:** Double-Entry-Ledger, Viewer-Zugriff,
+  Kontostatus-/Idempotenz-/Policy-Regeln und gesicherte
+  **GRID SERVICES**-Masterbank-Auszahlung an registrierte Skripte,
+  **vor Veröffentlichung mit positiven und negativen Live-Tests
+  zu verifizieren**. Produktivprofile halten die Masterbank aus.
+- **Inventar / Assets:** Besitzer- und Linkrechte, dauerhaft
+  gespeicherte Inventar-/Ordner-Thumbnaildaten und API-Inventarbasis.
+- **World API R287:** OAuth2/OIDC, OpenAPI/ChatGPT-Verträge,
+  geschützte J2K-Profilbilder, Events/Classifieds, eigene Gruppen
+  und Regionendetails mit Owner-/Scope-Prüfungen.
+- **Security und Recovery:** getrennte Credentials,
+  tatsächlich deaktiviertes Experience-Modul, reale Restores
+  und Rollbackplan sowie Last- und Restart-Abnahme.
 
-## Bekannte und akzeptierte Grenzen
+## Nicht enthalten – eigene Viewer-Generation
 
-- Kein `RetrieveNavMeshSrc` fuer das graue Standard-Firestorm-
-  Pathfinding-Menue; ein spaeterer eigener Viewer ist dafuer geplant.
-- OGLVoice/WebRTC bewusst auf einen anderen Release-Train verschoben.
-- Keine serverseitige OGL-Navigation und keine Character-Pathfinding-Funktionen.
-- Firestorm 7.2.4: ein geaendertes Outfit-Snapshot-Thumbnail
-  benoetigt unter Umstaenden einen Inventar-Cache-Neuaufbau.
-- Experience-`SingleWriterJson` ist **kein**
-  Multi-Host-Active-Active-Store.
-- R287: Kein offener, beliebiger Asset-Browser, keine zentrale
-  Notification-Inbox, keine Bank-Owner-Personenauflösung,
-  kein RSVP-System und keine externen Payment-Credits.
-- Die profilgebundene Asset-Creator-Pruefung ist konservativ;
-  Bilder anderer Ersteller koennen mangels Assetlizenzbeweis
-  abgelehnt werden.
+- **NexExperiences / Firestorm:** ausdrücklich PAUSIERT und
+  `[NexExperiencesViewer] Enabled=false` im RC-Deployment.
+  Experimenteller Code/Daten/CI-Regressionen bleiben erhalten,
+  aber keine Experience-UI-/Consent-/K-V-Funktionsfreigabe.
+  Eine OGL Experiences 2.0 ist ein mögliches späteres Viewer-Projekt.
+- **OGL Pathfinding 2.0:** neue Navigation erst für den eigenen
+  Viewer mit serverseitigen Kollisions-/Autorisierungsgrenzen.
+- **OGL My Outfits 2.0:** vollständiger Outfitmanager/COF-
+  Viewer-Workflow vertagt; bestehende Inventardaten bleiben.
+- **OGLVoice/WebRTC und eigener Renderer:** getrennte Zukunftstrains.
 
-## Betreiberhinweise vor dem Rollout
+Die bekannte Firestorm-7.2.4-Thumbnail-Cache-Einschränkung
+bleibt eine dokumentierte Einschränkung, kein bestandener Fix.
+Es gibt keine nachgewiesene produktive Experience-Integration,
+keinen freigegebenen Multi-Host-Active-Active-Experience-Store
+und keine OGL-NavMesh-CAPS.
 
-1. `v0.9.3.8`-Stand und alle Datenbank-, Inventar- und
-   Regionsbackups unveraendert verfuegbar halten.
-2. `/opt/robust` und `/opt/developer` getrennt aktualisieren,
-   ihre lokalen `OpenSim.ini`-Anpassungen sichern und sorgfaeltig
-   mergen; neue Config-Optionen nicht ungeprueft global aktivieren.
-3. Nur isolierte Developer-Sim testen, drei separate
-   Experience-Service-Schluessel verwenden.
-4. Build-SHA, CI-URL, Release-Candidate-Testprotokoll, Firestorm-
-   Logeinsicht, Restore und Maintainer-Freigabe dokumentieren.
-5. Erst nach allen zwingenden Gates `Flavour.RC1` auf
-   einem gesonderten, CI-geprueften Release-Commit setzen.
-   **Keine automatische Stable-Veroeffentlichung.**
+## Betreiberhinweise vor RC1
 
-## Freigabe
+1. `v0.9.3.8` und bestehende DB-/Asset-/Regionsbackups erhalten;
+   Wiederherstellung in einer Kopie durchführen.
+2. Robust und Simulatoren anhand des aktuellen Release-SHA
+   synchron bauen und neu starten. Lokale `OpenSim.ini`-
+   Änderungen und Geheimnisse sichern, **kein `git reset --hard`**.
+3. `NexExperiencesViewer Enabled=false` an der **tatsächlich
+   geladenen** Konfiguration kontrollieren. Masterbank nur im
+   isolierten Developer-Simulator mit Operator/Skript-Allowlist,
+   Debit-Freigabe und finanziertem Wallet testen.
+4. Die **22/22 RC1-Pflichtfälle** samt Logs, CPU/RAM-Messungen,
+   bekannten Grenzen und Operator-/Maintainer-Signatur
+   aus `09310_RC1_RELEASE_READINESS.md` abnehmen.
+5. In einem getrennten Release-PR `Flavour.RC1` setzen und CI
+   am **exakten RC1-Commit** erneut vollständig ausführen.
+   Erst danach Release-Kandidat taggen; keine automatische Stable.
 
-RC1-Commit: **noch nicht vergeben**
+**Stable später:** 23/23 Pflichtfälle, getaggtes RC1 in der
+Git-Historie, ≥24 h Soak, dokumentierter Restore/Rollback,
+`Flavour.Release` und getrennte Freigabe.
 
-Operatorabnahme: **OFFEN**
+## Freigabestatus
+
+RC1-Commit: **NOCH NICHT VERGEBEN**
+
+Operator-Abnahme: **OFFEN**
 
 Stable-Freigabe: **NICHT ERTEILT**
