@@ -30,6 +30,7 @@ namespace NexVerse.RegionModules.Economy
         Id = "NexVerseMoneyModule")]
     public sealed class NexVerseMoneyModule :
         IMoneyModule,
+        INexMasterBankPayoutModule,
         ISharedRegionModule
     {
         private static readonly ILog m_Log =
@@ -49,6 +50,7 @@ namespace NexVerse.RegionModules.Economy
         private bool m_Enabled;
         private bool m_LegacyHelperRegistered;
         private bool m_AllowHypergridGuests;
+        private NexMasterBankPayoutPolicy m_MasterBank;
         private string m_LocalEconomyUrl = string.Empty;
         private string m_CurrencyPurchasePortalUrl = string.Empty;
         private Dictionary<string, XmlRpcMethod> m_LegacyRpcHandlers;
@@ -201,6 +203,28 @@ namespace NexVerse.RegionModules.Economy
             m_AllowHypergridGuests =
                 economy.GetBoolean("AllowHypergridGuests", false);
 
+            // Explicitly delegated payouts from one prefunded, separate
+            // Business wallet. No script sees the simulator API key.
+            if (economy.GetBoolean("MasterBankEnabled", false))
+            {
+                string rawBank = economy.GetString("MasterBankAccountId", "");
+                string rawOperator = economy.GetString("MasterBankOperatorId", "");
+                if (!Guid.TryParse(rawBank, out Guid bankId) ||
+                    bankId == Guid.Empty ||
+                    !Guid.TryParse(rawOperator, out Guid operatorId) ||
+                    operatorId == Guid.Empty)
+                    throw new InvalidOperationException(
+                        "Master Bank requires nonzero account/operator UUIDs.");
+
+                m_MasterBank = new NexMasterBankPayoutPolicy(
+                    bankId, operatorId,
+                    economy.GetInt("MasterBankMaxPayout", 100),
+                    economy.GetString("MasterBankAuthorizedScripts", ""));
+                if (!m_MasterBank.Enabled)
+                    throw new InvalidOperationException(
+                        "Master Bank requires at least one exact object/script binding.");
+            }
+
             string feeWallet =
                 economy.GetString(
                         "FeeWalletId",
@@ -295,6 +319,8 @@ namespace NexVerse.RegionModules.Economy
 
             scene.RegisterModuleInterface<IMoneyModule>(
                 this);
+            if (m_MasterBank?.Enabled == true)
+                scene.RegisterModuleInterface<INexMasterBankPayoutModule>(this);
 
             scene.EventManager.OnNewClient +=
                 OnNewClient;
@@ -320,6 +346,8 @@ namespace NexVerse.RegionModules.Economy
                 MoneyTransferAction;
             scene.EventManager.OnClientClosed -=
                 ClientClosed;
+            if (m_MasterBank?.Enabled == true)
+                scene.UnregisterModuleInterface<INexMasterBankPayoutModule>(this);
 
             lock (m_Sync)
                 m_Scenes.Remove(
@@ -567,6 +595,141 @@ namespace NexVerse.RegionModules.Economy
                 "viewer-" +
                 Guid.NewGuid().ToString("N"),
                 out _);
+        }
+
+
+        public bool IsAuthorizedBankScript(UUID objectId, UUID scriptItemId,
+            UUID ownerId)
+        {
+            if (!m_Enabled || m_MasterBank?.Enabled != true ||
+                !m_MasterBank.IsAuthorized(objectId.Guid,
+                    scriptItemId.Guid, ownerId.Guid))
+                return false;
+
+            // A registered object MUST still exist as a live scene object,
+            // owned by the registered operator. Its inventory MUST contain
+            // the exact approved script instance.
+            lock (m_Sync)
+                foreach (Scene scene in m_Scenes.Values)
+                {
+                    SceneObjectPart root = scene?.GetSceneObjectPart(objectId);
+                    if (root?.ParentGroup == null ||
+                        root.ParentGroup.IsDeleted ||
+                        root.ParentGroup.RootPart.UUID != objectId ||
+                        root.ParentGroup.RootPart.OwnerID != ownerId)
+                        continue;
+                    if (root.ParentGroup.RootPart.TaskInventory.ContainsKey(scriptItemId))
+                        return true;
+                }
+
+            return false;
+        }
+
+        public bool TryBankPayout(UUID objectId, UUID scriptItemId,
+            UUID ownerId, UUID residentId, int amount, UUID transactionId,
+            out string reason)
+        {
+            reason = "Master Bank payout is not authorized.";
+            if (m_MasterBank?.CanPayout(objectId.Guid, scriptItemId.Guid,
+                    ownerId.Guid, residentId.Guid, amount) != true ||
+                !IsAuthorizedBankScript(objectId, scriptItemId, ownerId))
+                return false;
+
+            // Only send money to a resident currently present in this
+            // simulator. For HG visitors this also ensures their wallet is
+            // resolved from the authenticated home grid circuit.
+            IClientAPI recipient = LocateClient(residentId);
+            if (recipient == null || !recipient.IsActive ||
+                !TryResolveWallet(residentId, false,
+                    out UUID destinationWallet, out reason))
+            {
+                if (string.IsNullOrWhiteSpace(reason))
+                    reason = "Recipient must be present in NexVerse.";
+                return false;
+            }
+
+            if (destinationWallet == new UUID(m_MasterBank.AccountId))
+            {
+                reason = "Master Bank cannot pay itself.";
+                return false;
+            }
+
+            if (!EnsureMasterBankAccount(out reason))
+                return false;
+
+            try
+            {
+                UUID paymentId = transactionId.IsZero() ?
+                    UUID.Random() : transactionId;
+                byte[] payload = JsonSerializer.SerializeToUtf8Bytes(new
+                {
+                    from_account_id = m_MasterBank.AccountId.ToString("D"),
+                    to_account_id = destinationWallet.ToString(),
+                    amount,
+                    reference = "Authorized Master Bank payout (" +
+                        objectId.ToString() + "/" + scriptItemId.ToString() + ")"
+                });
+                using HttpRequestMessage request = CreateRequest(
+                    HttpMethod.Post, "/api/v1/banking/transfers");
+                request.Headers.TryAddWithoutValidation("Idempotency-Key",
+                    "master-bank-" + paymentId.ToString());
+                request.Content = new ByteArrayContent(payload);
+                request.Content.Headers.ContentType =
+                    new MediaTypeHeaderValue("application/json");
+                using HttpResponseMessage response = m_Http.Send(request);
+                if (!response.IsSuccessStatusCode)
+                {
+                    reason = ReadErrorMessage(response);
+                    return false;
+                }
+
+                reason = string.Empty;
+                SendBalanceRefresh(residentId);
+                m_Log.InfoFormat(
+                    "[NEX-MASTER-BANK]: Verified script {0}/{1} paid {2} NV$ to {3}; txn {4}.",
+                    objectId, scriptItemId, amount, destinationWallet, paymentId);
+                return true;
+            }
+            catch (Exception e)
+            {
+                reason = "Central Master Bank payout unavailable.";
+                m_Log.WarnFormat("[NEX-MASTER-BANK]: Payout failed: {0}",
+                    e.Message);
+                return false;
+            }
+        }
+
+        private bool EnsureMasterBankAccount(out string reason)
+        {
+            reason = string.Empty;
+            try
+            {
+                byte[] payload = JsonSerializer.SerializeToUtf8Bytes(new
+                {
+                    account_id = m_MasterBank.AccountId.ToString("D"),
+                    account_class = "business",
+                    display_name = "NexVerse Master Bank"
+                });
+                using HttpRequestMessage request = CreateRequest(
+                    HttpMethod.Post, "/api/v1/economy/accounts/ensure");
+                request.Content = new ByteArrayContent(payload);
+                request.Content.Headers.ContentType =
+                    new MediaTypeHeaderValue("application/json");
+                using HttpResponseMessage response = m_Http.Send(request);
+                if (!response.IsSuccessStatusCode)
+                {
+                    reason = ReadErrorMessage(response);
+                    return false;
+                }
+                return true;
+            }
+            catch (Exception e)
+            {
+                reason = "Central bank wallet unavailable.";
+                m_Log.WarnFormat("[NEX-MASTER-BANK]: Ensure failed: {0}",
+                    e.Message);
+                return false;
+            }
         }
 
         public bool ObjectGiveMoney(
