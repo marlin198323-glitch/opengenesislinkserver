@@ -3,6 +3,7 @@
 using System;
 using System.IO;
 using System.Linq;
+using System.Text.Json;
 using NexVerse.Core.Experiences;
 
 internal static class Program
@@ -38,6 +39,14 @@ internal static class Program
 
         NexExperienceStore store =
             new NexExperienceStore(path);
+
+        // A second Robust process must never acquire the writer lease,
+        // even when it is running on the same machine.
+        bool secondWriterRejected = false;
+        try { using var secondWriter = new NexExperienceStore(path); }
+        catch (InvalidOperationException) { secondWriterRejected = true; }
+        Require(secondWriterRejected,
+            "multiple active Robust writers could corrupt the JSON authority");
 
         NexExperience created =
             store.Create(
@@ -132,10 +141,13 @@ internal static class Program
             "Firestorm ExperiencePreferences block/allow isolation");
         Require(!store.GetResidentLists(resident).Blocked.Contains(created.ExperienceId),
             "one resident's block leaked to another");
-        NexExperienceStore reloadedViewer = new NexExperienceStore(path);
-        Require(reloadedViewer.GetResidentPermission(created.ExperienceId, viewerResident) ==
-            NexExperiencePermissionStatus.Blocked,
-            "Firestorm permission did not survive store reload");
+        // Read the persisted bytes without opening another writer instance:
+        // an independent second writer must always be rejected.
+        NexExperienceSnapshot persistedViewer = JsonSerializer.Deserialize<NexExperienceSnapshot>(
+            File.ReadAllText(path));
+        Require(persistedViewer.Experiences.Single(x => x.ExperienceId == created.ExperienceId)
+                .BlockedResidents.Contains(viewerResident),
+            "Firestorm permission did not reach the durable snapshot");
         store.SetOwnResidentPermission(created.ExperienceId, viewerResident,
             NexExperiencePermissionStatus.None, "viewer");
         Require(store.GetResidentPermission(created.ExperienceId, viewerResident) ==
@@ -251,13 +263,10 @@ internal static class Program
                 "missing-checked",
                 out _),
             "failed checked update must not create a key");
-        NexExperienceStore reloadedAfterCas = new NexExperienceStore(path);
-        Require(
-            !reloadedAfterCas.TryReadKeyValue(
-                created.ExperienceId,
-                script,
-                "missing-checked",
-                out _),
+        NexExperienceSnapshot persistedAfterCas = JsonSerializer.Deserialize<NexExperienceSnapshot>(
+            File.ReadAllText(path));
+        Require(!persistedAfterCas.Experiences.Single(
+                x => x.ExperienceId == created.ExperienceId).KeyValues.ContainsKey("missing-checked"),
             "failed checked update must not persist a phantom key");
         Require(
             store.UpdateKeyValue(
@@ -309,6 +318,15 @@ internal static class Program
                 100).Count >= 6,
             "Experience audit log history missing");
 
+        store.Dispose();
+        bool disposedWriterRejected = false;
+        try { store.Get(created.ExperienceId); }
+        catch (ObjectDisposedException) { disposedWriterRejected = true; }
+        Require(disposedWriterRejected,
+            "released authority must reject stale reads and writes");
+
+        // Explicit stop/restart is required before another Robust writer
+        // is allowed to load the persisted committed data.
         NexExperienceStore reopened =
             new NexExperienceStore(path);
 
@@ -546,6 +564,42 @@ internal static class Program
         try { leases.Issue(Guid.Empty, capResident); }
         catch (ArgumentException) { invalidLeaseRejected = true; }
         Require(invalidLeaseRejected, "empty region must not issue a capability");
+
+        reopened.Dispose();
+
+        // Invalid JSON and an interrupted *initial* write must fail closed.
+        // Never silently initialize an empty permission database.
+        string nullSnapshot = Path.Combine(root, "null-experiences.json");
+        File.WriteAllText(nullSnapshot, "null");
+        bool nullRejected = false;
+        try { using var invalid = new NexExperienceStore(nullSnapshot); }
+        catch (InvalidOperationException) { nullRejected = true; }
+        Require(nullRejected, "null snapshot silently reset Experience authority");
+
+        string truncatedSnapshot = Path.Combine(root, "truncated-experiences.json");
+        File.WriteAllText(truncatedSnapshot, "{bad");
+        bool invalidJsonRejected = false;
+        try { using var invalid = new NexExperienceStore(truncatedSnapshot); }
+        catch (JsonException) { invalidJsonRejected = true; }
+        Require(invalidJsonRejected, "corrupt JSON did not prevent Robust startup");
+
+        string unfinished = Path.Combine(root, "interrupted-first-write.json");
+        File.WriteAllText(unfinished + ".tmp", "{incomplete");
+        bool incompleteRejected = false;
+        try { using var invalid = new NexExperienceStore(unfinished); }
+        catch (InvalidOperationException) { incompleteRejected = true; }
+        Require(incompleteRejected, "incomplete initial commit discarded consent database");
+
+        // The existing primary snapshot always takes precedence over a
+        // stray stale .tmp file after a later interrupted replacement.
+        string staleTemp = Path.Combine(root, "stale-temp.json");
+        using (var committed = new NexExperienceStore(staleTemp))
+            committed.Create(Guid.NewGuid(), Guid.Empty, "Durable", "", 
+                NexExperienceMaturity.General, "ci");
+        File.WriteAllText(staleTemp + ".tmp", "{incomplete");
+        using (var recovered = new NexExperienceStore(staleTemp))
+            Require(recovered.Search("Durable", 0, 10).Count == 1,
+                "stale temp incorrectly overrode last committed snapshot");
 
         Directory.Delete(root, true);
 
