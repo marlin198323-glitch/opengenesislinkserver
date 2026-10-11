@@ -351,6 +351,8 @@ namespace NexVerse.Server.Api
                 ["/api/v1/experiences/viewer/manage"] = SimulatorBridgeOperations(
                     ("post", "Firestorm Experience kostenfrei für aktiven Avatar erwerben (maximal zehn)", "experiences:viewer:manage", "201"),
                     ("put", "Eigene Firestorm Experience-Basisdaten aktualisieren", "experiences:viewer:manage", "200")),
+                ["/api/v1/experiences/viewer/script-binding"] = SimulatorBridgeOperations(
+                    ("post", "Authentifizierte Task-Skript-Experience-Bindung nach erfolgreichem Simulator-Compile setzen oder aufheben", "experiences:viewer:manage", "200")),
                 ["/api/v1/experiences/script/resolve"] = AuthenticatedOperations(
                     ("get", "Script-Experience-Bindung auflösen", "experiences:script", "200")),
                 ["/api/v1/experiences/script/details"] = AuthenticatedOperations(
@@ -719,6 +721,7 @@ namespace NexVerse.Server.Api
             ApplyJsonContract(paths, "/api/v1/experiences/viewer/group", "get", null, "ExperienceViewerGroupResponse", "200");
             ApplyJsonContract(paths, "/api/v1/experiences/viewer/manage", "post", "ExperienceViewerAcquireRequest", "ExperienceViewerManageResponse", "201");
             ApplyJsonContract(paths, "/api/v1/experiences/viewer/manage", "put", "ExperienceViewerProfileRequest", "ExperienceViewerManageResponse", "200");
+            ApplyJsonContract(paths, "/api/v1/experiences/viewer/script-binding", "post", "ExperienceViewerScriptBindingRequest", "ExperienceViewerScriptBindingResponse", "200");
             // Simulator Experience bridges: exactly the query names and bounds
             // consumed by NexExperienceModule/NexExperiencesApi.
             AddOperationParameters(paths, "/api/v1/experiences/script/search", "get",
@@ -3563,6 +3566,31 @@ namespace NexVerse.Server.Api
                         ["description"] = new { type = "string" },
                         ["maturity"] = new { type = "string", @enum = new[] { "general", "moderate", "adult" } },
                         ["enabled"] = new { type = "boolean" }
+                    }
+                },
+                ["ExperienceViewerScriptBindingRequest"] = new
+                {
+                    type = "object",
+                    required = new[] { "owner_id", "script_id", "experience_id" },
+                    additionalProperties = false,
+                    properties = new Dictionary<string, object>
+                    {
+                        ["owner_id"] = new { type = "string", format = "uuid" },
+                        ["script_id"] = new { type = "string", format = "uuid" },
+                        ["experience_id"] = new { type = "string", format = "uuid",
+                            description = "Null-UUID entfernt eine bereits autorisierte Script-Bindung." }
+                    }
+                },
+                ["ExperienceViewerScriptBindingResponse"] = new
+                {
+                    type = "object",
+                    required = new[] { "bound", "script_id", "experience_id", "correlation_id" },
+                    properties = new Dictionary<string, object>
+                    {
+                        ["bound"] = new { type = "boolean" },
+                        ["script_id"] = new { type = "string", format = "uuid" },
+                        ["experience_id"] = new { type = "string", format = "uuid" },
+                        ["correlation_id"] = new { type = "string" }
                     }
                 },
                 ["ExperienceViewerManageResponse"] = new
