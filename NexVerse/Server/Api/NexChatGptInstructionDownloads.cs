@@ -191,8 +191,11 @@ namespace NexVerse.Server.Api
             md.AppendLine("- DELETE /messages/history loescht die eigene Portal-IM-Historie, opt-out ebenfalls.");
             md.AppendLine("- Fuer Antworten aus Firestorm muss [NexPortalIM] in Robust und Simulator mit demselben HMAC-Secret aktiviert sein.");
             md.AppendLine("- GET/PATCH /profiles/{principalId} liest/bearbeitet das OpenSim-Avatarprofil einschliesslich profile_image als existierende Asset-UUID. Ein Webupload ist noch kein Bestandteil.");
+            md.AppendLine("- GET /profiles/{principalId}/image liefert autorisiert tatsaechliche PNG/JPEG-Bilddaten der *aktuell* hinterlegten Profiltextur. Oeffentlich nur bei PublishProfile, sonst ProfileRead + eigener Avatar/Admin; kein Asset-Browser oder beliebige Texture-UUID.");
+            md.AppendLine("- profile_image_url ist ein relativer Pfad und kann null sein. Keine Schluessel/Tokens in Querystrings ablegen; Browser-Fetch fuer private Profile braucht den authentifizierten Kontext.");
             md.AppendLine("- Display Name via PATCH /users/{principalId} mit display_name, sieben Tage Cooldown fuer Self-Service.");
             md.AppendLine("- Gruppenmitteilungen: GET/POST /groups/{groupId}/notices; Rechte des Gruppenmitglieds gelten auch mit Gruppen-Scopes.");
+            md.AppendLine("- GET /groups/mine liefert die Gruppenmitgliedschaften und aktiven Rollen des angemeldeten Einwohners paginiert (limit max. 100), ohne frei waehbare Fremd-Avatar-ID.");
             md.AppendLine();
             md.AppendLine("### Inventar");
             md.AppendLine("- Lesen ueber /inventory/tree, /inventory/search, /inventory/folders/{folderId}, /inventory/items/{itemId} und /inventory/lost-and-found.");
@@ -295,6 +298,9 @@ namespace NexVerse.Server.Api
             md.AppendLine("## OpenAPI-Metadaten fuer die automatische Zuordnung");
             md.AppendLine();
             md.AppendLine("- x-nexverse-audience: citizen, admin und/oder service; Service bedeutet nicht automatisch Browser/OAuth-Einwohnerzugriff.");
+            md.AppendLine("- R287: /events/{eventId} und /classifieds/{classifiedId} bieten oeffentliche GETs ausschliesslich fuer freigegebene Inhalte. PATCH und DELETE erfordern discovery:manage plus nachgewiesenes Eigentum oder admin:*.");
+            md.AppendLine("- R287-PATCH akzeptiert nur benannte Anzeige-/Zeit-/Tag-Felder; Creator/Owner, UUID, Moderation und Publikationszustand duerfen damit nicht geaendert werden.");
+            md.AppendLine("- Unveraendert offen: allgemeiner Assetbrowser, Citizen Notifications, Konto-Inhaber-Nachweise, Event RSVP und externe Payment-Credits sind keine zugesicherten Live-Endpunkte.");
             md.AppendLine("- security.apiKeyAuth (Header X-NexVerse-Api-Key) ist bei internen Viewer-Bridges explizit; normalen Bewohner-Bearer dort NICHT verwenden.");
             md.AppendLine("- x-nexverse-scope: benoetigter Berechtigungsumfang.");
             md.AppendLine("- x-nexverse-purpose: Zweck der Operation.");
