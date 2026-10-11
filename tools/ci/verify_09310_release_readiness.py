@@ -15,26 +15,38 @@ from pathlib import Path
 
 REPOSITORY = "opengenesislink/opengenesislinkserver"
 VERSION = "0.9.3.10"
-HISTORIC = {
-    "SYS": 4, "EXP": 8, "LSL": 6, "DB": 6, "REL": 7
+# Explicit new release scope. Historical EXP/LSL/DB/REL/APP case numbers had
+# Experience and Firestorm My Outfits dependencies. Do NOT silently reinterpret
+# their results as evidence for unrelated features. The original 40-case matrix
+# remains historical; all v2 items start NOT_RUN.
+CASES_BY_AREA = {
+    "core": (
+        "CORE_BOOT", "CORE_LOGIN", "CORE_HG", "CORE_REGION", "CORE_LSL",
+    ),
+    "economy": ("ECON_LEDGER", "ECON_VIEWER", "ECON_MASTERBANK"),
+    "inventory": ("INV_CORE", "INV_THUMB"),
+    "api": (
+        "API_AUTH", "API_IMAGE", "API_DISCOVERY", "API_GROUPS",
+        "API_REGIONS",
+    ),
+    "performance": ("PERF_BASELINE", "PERF_STRESS"),
+    "recovery": ("RECOVERY_RESTORE",),
+    "security": ("SEC_XP_OFF", "SEC_SECRETS"),
+    "release": ("RELEASE_DEPLOY", "RELEASE_OPERATOR", "STABLE_APPROVAL"),
 }
-# Additional gates from original 38-case operator report, excluding 7 deferred NAV cases.
-EXTRA = (
-    "EXP_CREATE", "APP01", "PORTAL_IMAGE",
-    "PORTAL_DISCOVERY", "PORTAL_GROUPS", "PORTAL_REGION",
-    "PORTAL_AUTH", "RUNTIME_STRESS", "RECOVERY_RESTORE",
-)
 REQUIRED_CASES = tuple(
-    f"{prefix}{number:02d}"
-    for prefix, count in HISTORIC.items()
-    for number in range(1, count + 1)
-) + EXTRA
-assert len(REQUIRED_CASES) == 40
+    case for tests in CASES_BY_AREA.values() for case in tests
+)
+assert len(REQUIRED_CASES) == 23
+assert len(set(REQUIRED_CASES)) == len(REQUIRED_CASES)
 
-# REL07 in the historic owner's 38-item form says *both* "RC1 accepted"
-# and "Stable separately approved". Requiring it before RC1 exists makes
-# RC1 publication logically impossible. Stable still requires REL07.
-RC1_POST_RELEASE_CASES = frozenset({"REL07"})
+# Approval of a tagged RC1 is logically impossible before that tag exists.
+RC1_POST_RELEASE_CASES = frozenset({"STABLE_APPROVAL"})
+DEFERRED_SCOPE = {
+    "nexperiences": "DISABLED",
+    "ogl_pathfinding_2": "DEFERRED",
+    "ogl_my_outfits_2": "DEFERRED",
+}
 
 
 def required_cases_for(stage):
@@ -60,7 +72,9 @@ def current_flavour(root):
 
 def initial_manifest(sha):
     return {
-        "format": "ogl-release-evidence-v1",
+        "format": "ogl-release-evidence-v2",
+        "scope": "09310-stabilization-no-experiences-myoutfits2-pathfinding2",
+        "deferred_features": dict(DEFERRED_SCOPE),
         "version": VERSION,
         "commit": sha,
         "ci_commit": sha,
@@ -107,8 +121,13 @@ def validate(manifest, stage, expected_sha, flavour, rc_commit=None):
         if not condition:
             errors.append(message)
 
-    need(manifest.get("format") == "ogl-release-evidence-v1",
-         "Evidence format is invalid.")
+    need(manifest.get("format") == "ogl-release-evidence-v2",
+         "Evidence format v2 is required; historical Experience results cannot be reused.")
+    need(manifest.get("scope") ==
+         "09310-stabilization-no-experiences-myoutfits2-pathfinding2",
+         "Release scope is incorrect.")
+    need(manifest.get("deferred_features") == DEFERRED_SCOPE,
+         "Deferred features must stay out of the release scope.")
     need(manifest.get("version") == VERSION,
          "Version must be exactly 0.9.3.10.")
     need(manifest.get("commit") == expected_sha,
@@ -132,6 +151,8 @@ def validate(manifest, stage, expected_sha, flavour, rc_commit=None):
     cases = manifest.get("cases")
     if not isinstance(cases, dict):
         return errors + ["Required test cases are missing."]
+    need(set(cases) == set(REQUIRED_CASES),
+         "Evidence case IDs must match the current v2 matrix exactly.")
     for key in required_cases_for(stage):
         item = cases.get(key)
         if not isinstance(item, dict):
@@ -153,7 +174,7 @@ def validate(manifest, stage, expected_sha, flavour, rc_commit=None):
              f"{key}: missing observed result / notes")
     if stage == "rc1":
         # Once RC1 has been tagged, its approval is reviewed for Stable
-        # only. The additional evidence item REL07 stays NOT_RUN in RC1.
+        # only. STABLE_APPROVAL stays NOT_RUN in the RC1 manifest.
         need(flavour == "RC1",
              "RC1 requires VersionInfo.VERSION_FLAVOUR = Flavour.RC1.")
     else:
