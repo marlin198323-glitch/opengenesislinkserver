@@ -62,6 +62,49 @@ internal static class Program
             created.Admins.Contains(owner),
             "owner/admin foundation failed");
 
+        // Firestorm "Acquire Experience" is free but strictly bounded and
+        // owner-bound on the central authoritative Robust store.
+        Guid viewerOwner = Guid.NewGuid();
+        NexExperience firstViewer = store.CreateViewerExperience(
+            viewerOwner, "simulator:viewer");
+        Require(firstViewer.OwnerId == viewerOwner &&
+                firstViewer.Admins.Contains(viewerOwner) &&
+                firstViewer.GroupId == Guid.Empty &&
+                firstViewer.Name.StartsWith("New Experience ", StringComparison.Ordinal),
+            "viewer purchase must create a valid own Experience without payment");
+        bool foreignEditDenied = false;
+        try
+        {
+            store.UpdateViewerExperience(Guid.NewGuid(),
+                firstViewer.ExperienceId, "Hijacked Experience", "",
+                NexExperienceMaturity.General, true, "another-avatar");
+        }
+        catch (UnauthorizedAccessException) { foreignEditDenied = true; }
+        Require(foreignEditDenied,
+            "viewer:manage cannot update someone else's Experience");
+        NexExperience renamedViewer = store.UpdateViewerExperience(viewerOwner,
+            firstViewer.ExperienceId, "NexVerse Viewer Demo", "editable",
+            NexExperienceMaturity.Moderate, true, "simulator:viewer");
+        Require(renamedViewer.Name == "NexVerse Viewer Demo" &&
+                renamedViewer.Description == "editable" &&
+                renamedViewer.Maturity == NexExperienceMaturity.Moderate &&
+                renamedViewer.OwnerId == viewerOwner,
+            "owner profile editor did not persist name, description and maturity");
+        for (int i = 1; i < NexExperienceStore.MaxViewerExperiencesPerResident; i++)
+            store.CreateViewerExperience(viewerOwner, "simulator:viewer");
+        bool quotaRejected = false;
+        try { store.CreateViewerExperience(viewerOwner, "simulator:viewer"); }
+        catch (InvalidOperationException) { quotaRejected = true; }
+        Require(quotaRejected, "viewer purchase can exceed the per-avatar quota");
+        Require(store.GetResidentLists(viewerOwner).Owned.Length ==
+                NexExperienceStore.MaxViewerExperiencesPerResident,
+            "viewer owner list is inconsistent with purchased Experiences");
+        NexExperienceSnapshot acquiredSnapshot =
+            JsonSerializer.Deserialize<NexExperienceSnapshot>(File.ReadAllText(path));
+        Require(acquiredSnapshot.Experiences.Count(x => x.OwnerId == viewerOwner) ==
+                NexExperienceStore.MaxViewerExperiencesPerResident,
+            "purchases/edits did not reach persistent snapshot");
+
         store.SetRole(
             created.ExperienceId,
             owner,
