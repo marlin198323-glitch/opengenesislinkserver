@@ -334,6 +334,9 @@ namespace NexVerse.Server.Api
                     ("put", "Explizites Firestorm Allow/Block/Forget für den aktuell angemeldeten Avatar speichern", "experiences:viewer:permissions", "200")),
                 ["/api/v1/experiences/viewer/group"] = SimulatorBridgeOperations(
                     ("get", "Experience-IDs einer Gruppe für die Viewer-CAP ermitteln", "experiences:viewer:permissions", "200")),
+                ["/api/v1/experiences/viewer/manage"] = SimulatorBridgeOperations(
+                    ("post", "Firestorm Experience kostenfrei für aktiven Avatar erwerben (maximal zehn)", "experiences:viewer:manage", "201"),
+                    ("put", "Eigene Firestorm Experience-Basisdaten aktualisieren", "experiences:viewer:manage", "200")),
                 ["/api/v1/experiences/script/resolve"] = AuthenticatedOperations(
                     ("get", "Script-Experience-Bindung auflösen", "experiences:script", "200")),
                 ["/api/v1/experiences/script/details"] = AuthenticatedOperations(
@@ -645,6 +648,8 @@ namespace NexVerse.Server.Api
             ApplyJsonContract(paths, "/api/v1/experiences/viewer/permissions", "get", null, "ExperienceViewerPermissionReadResponse", "200");
             ApplyJsonContract(paths, "/api/v1/experiences/viewer/permissions", "put", "ExperienceViewerDecisionRequest", "ExperienceViewerDecisionResponse", "200");
             ApplyJsonContract(paths, "/api/v1/experiences/viewer/group", "get", null, "ExperienceViewerGroupResponse", "200");
+            ApplyJsonContract(paths, "/api/v1/experiences/viewer/manage", "post", "ExperienceViewerAcquireRequest", "ExperienceViewerManageResponse", "201");
+            ApplyJsonContract(paths, "/api/v1/experiences/viewer/manage", "put", "ExperienceViewerProfileRequest", "ExperienceViewerManageResponse", "200");
             // Simulator Experience bridges: exactly the query names and bounds
             // consumed by NexExperienceModule/NexExperiencesApi.
             AddOperationParameters(paths, "/api/v1/experiences/script/search", "get",
@@ -2267,7 +2272,8 @@ namespace NexVerse.Server.Api
                     "niemals aus einer ChatGPT-Eingabe oder URL eines Dritten übernehmen.";
                 operation["x-nexverse-security-constraints"] = new[]
                 {
-                    "Nur separat administrativ vergebene API-Schlüssel mit experiences:viewer:permissions.",
+                    "Nur separate administrativ vergebene API-Schlüssel mit dem exakten Scope " +
+                        operation["x-nexverse-scope"] + ".",
                     "Kein Einwohner-Bearer-Token, keine Endnutzer- oder LSL-Verwendung.",
                     "Live Root-Agent, CAPS-Lease und Regionsbindung muss der Simulator vor dem Aufruf prüfen.",
                     "Allow, Block und Forget nur nach expliziter Viewerentscheidung; Audit erforderlich."
@@ -3253,6 +3259,43 @@ namespace NexVerse.Server.Api
                     properties = new Dictionary<string, object>
                     {
                         ["experience_ids"] = UuidArraySchema(),
+                        ["correlation_id"] = new { type = "string" }
+                    }
+                },
+                ["ExperienceViewerAcquireRequest"] = new
+                {
+                    type = "object",
+                    required = new[] { "owner_id" },
+                    additionalProperties = false,
+                    properties = new Dictionary<string, object>
+                    {
+                        ["owner_id"] = new { type = "string", format = "uuid" }
+                    }
+                },
+                ["ExperienceViewerProfileRequest"] = new
+                {
+                    type = "object",
+                    required = new[] { "owner_id", "experience_id", "name", "description", "maturity", "enabled" },
+                    additionalProperties = false,
+                    properties = new Dictionary<string, object>
+                    {
+                        ["owner_id"] = new { type = "string", format = "uuid" },
+                        ["experience_id"] = new { type = "string", format = "uuid" },
+                        ["name"] = new { type = "string", minLength = 3, maxLength = 64 },
+                        ["description"] = new { type = "string" },
+                        ["maturity"] = new { type = "string", @enum = new[] { "general", "moderate", "adult" } },
+                        ["enabled"] = new { type = "boolean" }
+                    }
+                },
+                ["ExperienceViewerManageResponse"] = new
+                {
+                    type = "object",
+                    required = new[] { "experience_id", "owner_id", "name", "correlation_id" },
+                    properties = new Dictionary<string, object>
+                    {
+                        ["experience_id"] = new { type = "string", format = "uuid" },
+                        ["owner_id"] = new { type = "string", format = "uuid" },
+                        ["name"] = new { type = "string" },
                         ["correlation_id"] = new { type = "string" }
                     }
                 },
