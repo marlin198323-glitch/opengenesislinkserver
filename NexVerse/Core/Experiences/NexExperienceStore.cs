@@ -187,6 +187,9 @@ namespace NexVerse.Core.Experiences
         public Guid GroupId { get; set; }
         public NexExperienceMaturity Maturity { get; set; } = NexExperienceMaturity.General;
         public bool Enabled { get; set; } = true;
+        // Firestorm PROPERTY_PRIVATE: hides this profile from public search;
+        // existing owner and script-bound permissions remain unchanged.
+        public bool IsPrivate { get; set; }
         public HashSet<Guid> Admins { get; set; } = new HashSet<Guid>();
         public HashSet<Guid> Contributors { get; set; } = new HashSet<Guid>();
         public HashSet<Guid> AllowedResidents { get; set; } = new HashSet<Guid>();
@@ -383,7 +386,7 @@ namespace NexVerse.Core.Experiences
         /// <summary>Owner-only profile editing; no group/ACL elevation.</summary>
         public NexExperience UpdateViewerExperience(Guid ownerId, Guid id,
             string name, string description, NexExperienceMaturity maturity,
-            bool enabled, string actor)
+            bool enabled, string actor, bool isPrivate = false)
         {
             lock (m_Sync)
             {
@@ -394,7 +397,7 @@ namespace NexVerse.Core.Experiences
                     throw new UnauthorizedAccessException(
                         "Only the owning avatar can edit this Experience.");
                 return UpdateProfile(id, ownerId, name, description,
-                    existing.GroupId, maturity, enabled, actor);
+                    existing.GroupId, maturity, enabled, actor, isPrivate);
             }
         }
 
@@ -420,7 +423,7 @@ namespace NexVerse.Core.Experiences
             {
                 EnsureActive();
                 IEnumerable<NexExperience> result =
-                    m_State.Experiences.Where(x => x.Enabled);
+                    m_State.Experiences.Where(x => x.Enabled && !x.IsPrivate);
 
                 if (normalized.Length > 0)
                 {
@@ -446,7 +449,7 @@ namespace NexVerse.Core.Experiences
             Guid groupId,
             NexExperienceMaturity maturity,
             bool enabled,
-            string actor)
+            string actor, bool? isPrivate = null)
         {
             lock (m_Sync)
             {
@@ -466,6 +469,8 @@ namespace NexVerse.Core.Experiences
                 experience.GroupId = groupId;
                 experience.Maturity = maturity;
                 experience.Enabled = enabled;
+                if (isPrivate.HasValue)
+                    experience.IsPrivate = isPrivate.Value;
                 experience.UpdatedAt = DateTimeOffset.UtcNow;
                 AddLog(experienceId, actor, "experience.update", normalizedName);
                 Save();
@@ -672,7 +677,7 @@ namespace NexVerse.Core.Experiences
             {
                 EnsureActive();
                 return m_State.Experiences
-                    .Where(x => x.Enabled && x.GroupId == groupId)
+                    .Where(x => x.Enabled && !x.IsPrivate && x.GroupId == groupId)
                     .Select(x => x.ExperienceId).ToArray();
             }
         }
@@ -1171,6 +1176,7 @@ namespace NexVerse.Core.Experiences
                 GroupId = source.GroupId,
                 Maturity = source.Maturity,
                 Enabled = source.Enabled,
+                IsPrivate = source.IsPrivate,
                 Admins = new HashSet<Guid>(source.Admins),
                 Contributors = new HashSet<Guid>(source.Contributors),
                 AllowedResidents = new HashSet<Guid>(source.AllowedResidents),
