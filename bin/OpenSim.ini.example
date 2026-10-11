@@ -1286,6 +1286,15 @@
     ; Daher standardmaessig deaktiviert: kein Havok-/PathingLib-Ersatz.
     OpenNavGraphCaps = false
 
+[OGLNpcNavigation]
+    ; EXPERIMENTAL native NPC physics follower. Needs OGLPathfinding=true,
+    ; an authorized NPC plus a developer test harness. NOT Firestorm NavMesh.
+    Enabled = false
+    MaxActivePerRegion = 32
+    MaxWaypoints = 256
+    TickMilliseconds = 1000
+    WaypointTimeoutSeconds = 45
+
 ; OGLVoice ist noch eine reine Discovery-Grundlage, KEIN Audio-Viewer-Modul.
 ; GRID-BETRIEB: keine lokale [OGLVoice]-Sektion notwendig. Der bestehende
 ; NodeAgent-Vertrauensverbindung mit PeerUrl/SharedKey ermittelt den zentralen Provider

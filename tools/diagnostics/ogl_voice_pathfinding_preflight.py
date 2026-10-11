@@ -79,6 +79,76 @@ def assess(sim_cfg, robust_cfg=None, viewer_log=""):
     def add(area, code, severity, message):
         findings.append({"area": area, "code": code, "severity": severity, "message": message})
 
+    # Release 0.9.3.10 native test prerequisites, deliberately read-only.
+    # All values are configuration hints, NOT proof of live authorization.
+    # The versioned bin/OpenSim.ini currently omits these opt-in flags,
+    # which makes the Firestorm/LSL and NPC acceptance gates untestable.
+    xp_enabled = enabled(sim_cfg, "NexExperiencesViewer")
+    if not xp_enabled:
+        add("experiences", "EXPERIENCES_MODULE_DISABLED", "action",
+            "NexExperiencesViewer.Enabled is absent or false.")
+    else:
+        add("experiences", "EXPERIENCES_MODULE_CONFIGURED", "configuration-only",
+            "Region Experience adapter requested; live World API and viewer not verified.")
+        flags = (
+            ("FirestormReadCaps", "EXPERIENCE_READ_CAPS_DISABLED"),
+            ("FirestormPermissionCaps", "EXPERIENCE_PERMISSION_CAPS_DISABLED"),
+            ("ScriptPendingConsent", "EXPERIENCE_CONSENT_DISABLED"),
+            ("NativeExperiencePrompt", "EXPERIENCE_NATIVE_PROMPT_DISABLED"),
+        )
+        for key, code in flags:
+            if not enabled(sim_cfg, "NexExperiencesViewer", key):
+                add("experiences", code, "action",
+                    "Set NexExperiencesViewer." + key +
+                    "=true only on isolated test regions with the correctly scoped keys.")
+        script_key = setting(sim_cfg, "NexExperiencesViewer", "ApiKey")
+        viewer_key = setting(sim_cfg, "NexExperiencesViewer", "ViewerPermissionsApiKey")
+        if not script_key.strip():
+            add("experiences", "EXPERIENCE_SCRIPT_KEY_ABSENT", "action",
+                "Set ApiKey to a scoped experiences:script reference (not a literal secret).")
+        if not viewer_key.strip():
+            add("experiences", "EXPERIENCE_VIEWER_KEY_ABSENT", "action",
+                "Set ViewerPermissionsApiKey to a separate experiences:viewer:permissions key reference.")
+        if script_key and viewer_key and script_key == viewer_key:
+            add("experiences", "EXPERIENCE_KEYS_NOT_SEPARATE", "action",
+                "Script and viewer permissions key references are identical; must be separate.")
+        if script_key and viewer_key and script_key != viewer_key:
+            add("experiences", "EXPERIENCE_KEYS_CONFIGURED_ONLY", "configuration-only",
+                "Key references are different. Env interpolation, actual scopes, "
+                "World API authentication and reachability require live verification.")
+        if not enabled(sim_cfg, "NexExperiencesViewer", "FirestormReadCaps") or \
+                not enabled(sim_cfg, "NexExperiencesViewer", "FirestormPermissionCaps"):
+            add("experiences", "EXPERIENCE_VIEWER_LISTS_UNAVAILABLE", "action",
+                "Firestorm Experience read/list/preferences CAPS cannot be tested until "
+                "FirestormReadCaps and FirestormPermissionCaps are enabled.")
+        # The current implementation intentionally does not accept POST
+        # AgentExperiences, which the standard viewer uses to purchase/create.
+        add("experiences", "EXPERIENCE_VIEWER_CREATE_UNSUPPORTED", "known-limitation",
+            "AgentExperiences is GET-only in this server build. Creating an Experience "
+            "inside Firestorm cannot pass EXP01 until authenticated viewer creation "
+            "is implemented; the World API creation route is separate.")
+
+    if not enabled(sim_cfg, "OGLNpcNavigation"):
+        add("pathfinding", "NPC_FOLLOWER_DISABLED", "action",
+            "OGLNpcNavigation.Enabled is absent or false. Native NPC route tests "
+            "need this independent opt-in plus OGLPathfinding.Enabled=true.")
+    else:
+        add("pathfinding", "NPC_FOLLOWER_CONFIGURED", "configuration-only",
+            "OGLNpcNavigation is enabled; owner authorization, actual NPC placement "
+            "and runtime IOglNpcRouteService tests are still required.")
+    if not enabled(sim_cfg, "OGLPathfinding", "UseVerifiedLayeredSurfaces"):
+        add("pathfinding", "NAV_3D_LAYERS_DISABLED", "action",
+            "Verified layered navigation is off. NAV02/NAV03 (bridges/ramps) "
+            "cannot be accepted using terrain-only routes.")
+    elif not enabled(sim_cfg, "OGLPathfinding", "PhysicsRaycastLayeredSurfaces"):
+        add("pathfinding", "NAV_3D_PHYSICS_PROVIDER_UNVERIFIED", "configuration-only",
+            "UseVerifiedLayeredSurfaces=true but physics raycast source is not "
+            "enabled. A real external verified surface provider must exist.")
+    else:
+        add("pathfinding", "NAV_3D_PHYSICS_CONFIGURED", "configuration-only",
+            "Layered physics probes requested. Collision certification, "
+            "stair/ramp transitions and real mesh coverage remain live tests.")
+
     if "RetrieveNavMeshSrc" in viewer_log:
         add("pathfinding", "FIRESTORM_NAVMESH_CAP_MISSING", "known-limitation",
             "Firestorm requested RetrieveNavMeshSrc. Native terrain A* does not provide "
