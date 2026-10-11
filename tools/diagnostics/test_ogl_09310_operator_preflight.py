@@ -82,10 +82,28 @@ FirestormManageCaps = yes
             self.assertFalse(report["runtime_tested"])
             self.assertFalse(report["release_approved"])
 
-    def test_ini_cannot_claim_effective_runtime_configuration(self):
-        self.assertIn("Source Git SHA is not the running .NET process binary SHA.",
-                      tool.check.__doc__ or "Source Git SHA is not the running .NET process binary SHA."
-                      )
+    def test_outputs_never_claim_live_grid_success(self):
+        with TemporaryDirectory() as base:
+            root = Path(base)
+            for name in ("robust", "sim"):
+                (root / name / "bin").mkdir(parents=True)
+            (root / "robust/bin/Robust.HG.ini").write_text(
+                "[NexExperiences]\\nEnabled = true\\n".replace("\\\\n", "\\n"))
+            (root / "sim/bin/OpenSim.ini").write_text(
+                "[NexExperiencesViewer]\\nEnabled = false\\n".replace("\\\\n", "\\n"))
+            def faux_repo(path):
+                return {
+                    "path": str(path), "git_sha": "a" * 40,
+                    "branch": "main", "opensim_ini_local_changes": False,
+                    "source_dir_exists": True,
+                }
+            with patch.object(tool, "repo_state", side_effect=faux_repo):
+                report = tool.check(root / "robust", root / "sim")
+            self.assertTrue(report["same_source_commit"])
+            self.assertFalse(report["runtime_tested"])
+            self.assertFalse(report["release_approved"])
+            self.assertIn("Source Git SHA is not the running .NET process binary SHA.",
+                          report["limitations"])
 
 
 if __name__ == "__main__":
