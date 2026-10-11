@@ -104,7 +104,7 @@ berechtigt zugeordnet sein. Ein zweiter Bewohner darf keine Admin-Rechte haben.
 | EXP07 | Zwei gleichzeitige Scripts und zwei Avatare | Deny, Timeout, Allow sind script-/avatar-isoliert |
 | EXP08 | Unbefugter Avatar/HG-Gast, gesperrte Parzelle, deaktivierte Experience | Verweigerung trotz alter URLs und Script-Bindung |
 | EXP09 | K/V create/read/update-CAS/delete nach Restart von Robust und Simulatoren | Korrekte Werte, Ausfall-/Backup-/Wiederherstellungsnachweis |
-| EXP10 | Zwei Robust-Instanzen bzw. produktive zentralisierte Topologie | Nachweis eines einzigen autoritativen Writers bzw. transaktionalen Stores – **nicht** aufgrund JSON-Datei allein behaupten |
+| EXP10 | Zwei Robust-Instanzen bzw. produktive zentralisierte Topologie | Auf demselben lokalen Store blockiert die exklusive `.writer.lock` den zweiten Robust; aktive Multi-Host-JSON-Instanzen sind **nicht** unterstützt. Nachweis des einen aktiven Writers plus dokumentierter Recovery-/Wiederanlaufplan, **keine** behauptete SQL-/Active-Active-Freigabe |
 
 EXP01–EXP10 gelten erst als **PASS**, wenn HTTP-/Viewer- und LSL-Ergebnis,
 Persistenz nach Re-Login, Berechtigungskontrolle sowie saubere Logs

@@ -219,7 +219,7 @@ namespace NexVerse.Core.Experiences
         public List<NexExperienceLogEntry> Logs { get; set; } = new List<NexExperienceLogEntry>();
     }
 
-    public sealed class NexExperienceStore
+    public sealed class NexExperienceStore : IDisposable
     {
         public const int CurrentSchemaVersion = 1;
         public const int MaxKeyLength = 1011;
@@ -230,6 +230,12 @@ namespace NexVerse.Core.Experiences
 
         private readonly object m_Sync = new object();
         private readonly string m_Path;
+        // FileShare.None is held for the entire lifetime of the authoritative
+        // Robust store. The file is deliberately not unlinked on release:
+        // deleting the inode would permit another writer to lock a new file.
+        private readonly FileStream m_WriterLease;
+        private bool m_Disposed;
+        private bool m_PersistenceFailed;
         private readonly JsonSerializerOptions m_Json =
             new JsonSerializerOptions { WriteIndented = true };
         private NexExperienceSnapshot m_State;
@@ -240,7 +246,53 @@ namespace NexVerse.Core.Experiences
                 throw new ArgumentException("Experience store path is required.", nameof(path));
 
             m_Path = Path.GetFullPath(path);
-            m_State = Load();
+            string directory = Path.GetDirectoryName(m_Path);
+            if (!string.IsNullOrEmpty(directory))
+                Directory.CreateDirectory(directory);
+            try
+            {
+                // This prevents a second Robust writer on the same local
+                // filesystem, including a second store in this process.
+                // It is NOT a distributed lease or an NFS/SMB fencing token.
+                m_WriterLease = new FileStream(m_Path + ".writer.lock",
+                    FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
+            }
+            catch (IOException error)
+            {
+                throw new InvalidOperationException(
+                    "NexExperiences JSON store already has a writer or its lock is unavailable. " +
+                    "Start only one Robust authority per local store; do not use shared-file active/active.",
+                    error);
+            }
+            try
+            {
+                m_State = Load();
+            }
+            catch
+            {
+                m_WriterLease.Dispose();
+                throw;
+            }
+        }
+
+        public void Dispose()
+        {
+            lock (m_Sync)
+            {
+                if (m_Disposed) return;
+                m_Disposed = true;
+                m_WriterLease.Dispose();
+            }
+        }
+
+        private void EnsureActive()
+        {
+            if (m_Disposed)
+                throw new ObjectDisposedException(nameof(NexExperienceStore));
+            if (m_PersistenceFailed)
+                throw new InvalidOperationException(
+                    "NexExperiences persistence failed. Stop this Robust authority and restore or restart " +
+                    "after checking the JSON store; do not continue with potentially uncommitted permissions.");
         }
 
         public NexExperience Create(
@@ -259,6 +311,7 @@ namespace NexVerse.Core.Experiences
 
             lock (m_Sync)
             {
+                EnsureActive();
                 if (m_State.Experiences.Any(x =>
                     string.Equals(x.Name, normalizedName, StringComparison.OrdinalIgnoreCase)))
                 {
@@ -292,7 +345,10 @@ namespace NexVerse.Core.Experiences
         public NexExperience Get(Guid experienceId)
         {
             lock (m_Sync)
+            {
+                EnsureActive();
                 return Clone(Find(experienceId));
+            }
         }
 
         public IReadOnlyList<NexExperience> Search(string query, int offset, int limit)
@@ -306,6 +362,7 @@ namespace NexVerse.Core.Experiences
 
             lock (m_Sync)
             {
+                EnsureActive();
                 IEnumerable<NexExperience> result =
                     m_State.Experiences.Where(x => x.Enabled);
 
@@ -337,6 +394,7 @@ namespace NexVerse.Core.Experiences
         {
             lock (m_Sync)
             {
+                EnsureActive();
                 NexExperience experience = RequireManage(experienceId, actorId);
                 string normalizedName = NormalizeName(name);
 
@@ -363,6 +421,7 @@ namespace NexVerse.Core.Experiences
         {
             lock (m_Sync)
             {
+                EnsureActive();
                 NexExperience experience = Find(experienceId) ??
                     throw new KeyNotFoundException("Experience was not found.");
 
@@ -397,6 +456,7 @@ namespace NexVerse.Core.Experiences
 
             lock (m_Sync)
             {
+                EnsureActive();
                 NexExperience experience = RequireManage(experienceId, actorId);
                 HashSet<Guid> target;
 
@@ -425,6 +485,7 @@ namespace NexVerse.Core.Experiences
         {
             lock (m_Sync)
             {
+                EnsureActive();
                 NexExperience experience = Find(experienceId);
                 if (experience == null || !experience.Enabled)
                     return NexExperiencePermissionStatus.None;
@@ -456,6 +517,7 @@ namespace NexVerse.Core.Experiences
 
             lock (m_Sync)
             {
+                EnsureActive();
                 NexExperience experience = RequireManage(experienceId, actorId);
                 experience.AllowedResidents.Remove(residentId);
                 experience.BlockedResidents.Remove(residentId);
@@ -489,6 +551,7 @@ namespace NexVerse.Core.Experiences
 
             lock (m_Sync)
             {
+                EnsureActive();
                 NexExperience experience = Find(experienceId);
                 if (experience == null)
                     throw new KeyNotFoundException("Experience was not found.");
@@ -524,6 +587,7 @@ namespace NexVerse.Core.Experiences
                 throw new ArgumentException("Resident ID is required.", nameof(residentId));
             lock (m_Sync)
             {
+                EnsureActive();
                 NexExperience[] active = m_State.Experiences
                     .Where(x => x.Enabled).ToArray();
                 return (
@@ -549,9 +613,12 @@ namespace NexVerse.Core.Experiences
             if (groupId == Guid.Empty)
                 throw new ArgumentException("Group UUID is required.", nameof(groupId));
             lock (m_Sync)
+            {
+                EnsureActive();
                 return m_State.Experiences
                     .Where(x => x.Enabled && x.GroupId == groupId)
                     .Select(x => x.ExperienceId).ToArray();
+            }
         }
 
         public NexExperience SetLocationPolicy(
@@ -568,6 +635,7 @@ namespace NexVerse.Core.Experiences
 
             lock (m_Sync)
             {
+                EnsureActive();
                 NexExperience experience = RequireManage(experienceId, actorId);
                 HashSet<Guid> allow;
                 HashSet<Guid> block;
@@ -613,6 +681,7 @@ namespace NexVerse.Core.Experiences
         {
             lock (m_Sync)
             {
+                EnsureActive();
                 NexExperience experience = Find(experienceId);
                 if (experience == null || !experience.Enabled)
                     return false;
@@ -649,6 +718,7 @@ namespace NexVerse.Core.Experiences
 
             lock (m_Sync)
             {
+                EnsureActive();
                 RequireManage(experienceId, actorId);
                 m_State.ScriptBindings[scriptItemId] = experienceId;
                 AddLog(experienceId, actor, "experience.script.bind", scriptItemId.ToString("D"));
@@ -659,9 +729,12 @@ namespace NexVerse.Core.Experiences
         public Guid ResolveScript(Guid scriptItemId)
         {
             lock (m_Sync)
+            {
+                EnsureActive();
                 return m_State.ScriptBindings.TryGetValue(scriptItemId, out Guid id)
                     ? id
                     : Guid.Empty;
+            }
         }
 
         public bool CreateKeyValue(
@@ -672,6 +745,7 @@ namespace NexVerse.Core.Experiences
         {
             lock (m_Sync)
             {
+                EnsureActive();
                 RequireBoundScript(experienceId, scriptItemId);
                 NexExperience experience = Find(experienceId);
                 string normalized = ValidateKey(key);
@@ -704,6 +778,7 @@ namespace NexVerse.Core.Experiences
         {
             lock (m_Sync)
             {
+                EnsureActive();
                 RequireBoundScript(experienceId, scriptItemId);
                 NexExperience experience = Find(experienceId);
                 return experience.KeyValues.TryGetValue(ValidateKey(key), out value);
@@ -721,6 +796,7 @@ namespace NexVerse.Core.Experiences
         {
             lock (m_Sync)
             {
+                EnsureActive();
                 RequireBoundScript(experienceId, scriptItemId);
                 NexExperience experience = Find(experienceId);
                 string normalized = ValidateKey(key);
@@ -776,6 +852,7 @@ namespace NexVerse.Core.Experiences
         {
             lock (m_Sync)
             {
+                EnsureActive();
                 RequireBoundScript(experienceId, scriptItemId);
                 return Find(experienceId).KeyValues.Count;
             }
@@ -794,6 +871,7 @@ namespace NexVerse.Core.Experiences
 
             lock (m_Sync)
             {
+                EnsureActive();
                 RequireBoundScript(experienceId, scriptItemId);
                 return Find(experienceId).KeyValues.Keys
                     .OrderBy(x => x, StringComparer.Ordinal)
@@ -809,6 +887,7 @@ namespace NexVerse.Core.Experiences
         {
             lock (m_Sync)
             {
+                EnsureActive();
                 RequireBoundScript(experienceId, scriptItemId);
                 return GetStoreBytes(Find(experienceId));
             }
@@ -835,6 +914,7 @@ namespace NexVerse.Core.Experiences
         {
             lock (m_Sync)
             {
+                EnsureActive();
                 RequireBoundScript(experienceId, scriptItemId);
                 NexExperience experience = Find(experienceId);
                 bool removed = experience.KeyValues.Remove(ValidateKey(key));
@@ -859,6 +939,7 @@ namespace NexVerse.Core.Experiences
 
             lock (m_Sync)
             {
+                EnsureActive();
                 return m_State.Logs
                     .Where(x => x.ExperienceId == experienceId)
                     .OrderByDescending(x => x.Timestamp)
@@ -951,13 +1032,22 @@ namespace NexVerse.Core.Experiences
         private NexExperienceSnapshot Load()
         {
             if (!File.Exists(m_Path))
+            {
+                // A crash during the first commit can leave only a temp file.
+                // Never silently recreate an empty authority in that state.
+                if (File.Exists(m_Path + ".tmp"))
+                    throw new InvalidOperationException(
+                        "Incomplete NexExperiences initial commit: snapshot missing but .tmp exists. " +
+                        "Investigate/restore manually; no automatic empty-store reset.");
                 return new NexExperienceSnapshot { SchemaVersion = CurrentSchemaVersion };
+            }
 
             NexExperienceSnapshot state =
                 JsonSerializer.Deserialize<NexExperienceSnapshot>(
                     File.ReadAllText(m_Path),
                     m_Json) ??
-                new NexExperienceSnapshot();
+                throw new InvalidOperationException(
+                    "NexExperiences JSON snapshot is null. Refusing to reset resident permissions.");
 
             if (state.SchemaVersion != CurrentSchemaVersion)
                 throw new InvalidOperationException("Unsupported experience store schema version.");
@@ -984,13 +1074,31 @@ namespace NexVerse.Core.Experiences
 
         private void Save()
         {
-            string directory = Path.GetDirectoryName(m_Path);
-            if (!string.IsNullOrEmpty(directory))
-                Directory.CreateDirectory(directory);
-
+            EnsureActive();
             string temp = m_Path + ".tmp";
-            File.WriteAllText(temp, JsonSerializer.Serialize(m_State, m_Json));
-            File.Move(temp, m_Path, true);
+            try
+            {
+                // Commit on the SAME filesystem. Flush file data before
+                // atomically replacing the primary snapshot. A stale temp is
+                // never auto-promoted and must not override a valid snapshot.
+                byte[] payload = JsonSerializer.SerializeToUtf8Bytes(m_State, m_Json);
+                using (FileStream output = new FileStream(
+                    temp, FileMode.Create, FileAccess.Write, FileShare.None,
+                    64 * 1024, FileOptions.WriteThrough))
+                {
+                    output.Write(payload, 0, payload.Length);
+                    output.Flush(flushToDisk: true);
+                }
+                File.Move(temp, m_Path, true);
+            }
+            catch
+            {
+                // The in-memory state was already mutated by the operation.
+                // Fail closed until the process restarts and reloads the last
+                // committed snapshot instead of serving an uncommitted grant.
+                m_PersistenceFailed = true;
+                throw;
+            }
         }
 
         private static NexExperience Clone(NexExperience source)

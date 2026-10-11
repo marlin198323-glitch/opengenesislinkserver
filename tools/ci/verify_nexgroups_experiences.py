@@ -98,6 +98,32 @@ for marker in (
 ):
     assert marker in experience_store, f"missing Experience core marker: {marker}"
 
+# Multi-Robust JSON authority safety: only one live local writer and
+# fail-closed persistence errors; no false distributed SQL claim.
+robust_example = robust_hg_config
+experiences_regression = regression
+for marker in (
+    "public sealed class NexExperienceStore : IDisposable",
+    "FileShare.None",
+    ".writer.lock",
+    "m_PersistenceFailed = true",
+    "FileOptions.WriteThrough",
+    "output.Flush(flushToDisk: true)",
+    "File.Move(temp, m_Path, true)",
+    "if (File.Exists(m_Path + \".tmp\"))",
+    "NexExperiences JSON snapshot is null",
+    "throw new ObjectDisposedException",
+):
+    assert marker in experience_store, f"unsafe Experience JSON authority: {marker}"
+for marker in ("StoreBackend", "SingleWriterJson",
+               "new NexExperienceStore(", "experienceStore.Dispose()"):
+    assert marker in connector, f"missing Robust single-authority startup guard: {marker}"
+assert 'StoreBackend = "SingleWriterJson"' in robust_example
+for marker in ("secondWriterRejected", "disposedWriterRejected",
+               "incompleteRejected", "nullRejected", "invalidJsonRejected",
+               "stale temp incorrectly overrode last committed snapshot"):
+    assert marker in experiences_regression, f"missing Experience disk regression: {marker}"
+
 for marker in (
     "/api/v1/experiences",
     "/api/v1/experiences/script/resolve",

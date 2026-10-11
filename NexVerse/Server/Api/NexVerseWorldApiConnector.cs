@@ -596,15 +596,33 @@ namespace NexVerse.Server.Api
                 IConfig experiencesConfig =
                     config.Configs["NexExperiences"];
 
+                // JSON remains a single-authority backend. Do not silently
+                // accept a requested SQL/cluster backend that does not exist.
+                string experienceBackend = experiencesConfig?.GetString(
+                    "StoreBackend", "SingleWriterJson")?.Trim();
+                if (!string.Equals(experienceBackend, "SingleWriterJson",
+                        StringComparison.OrdinalIgnoreCase))
+                    throw new InvalidOperationException(
+                        "Unsupported [NexExperiences] StoreBackend: only " +
+                        "SingleWriterJson is implemented. Active/active Robust " +
+                        "requires a future transactional distributed backend.");
+
                 string experienceStorePath =
                     experiencesConfig?.GetString(
                         "StorePath",
                         "data/nexverse-experiences.json") ??
                     "data/nexverse-experiences.json";
 
+                // The constructor acquires the local writer lease BEFORE
+                // loading resident grants and script/KV state. A second
+                // authority sharing this file refuses to start.
                 NexExperienceStore experienceStore =
                     new NexExperienceStore(
                         experienceStorePath);
+                AppDomain.CurrentDomain.ProcessExit +=
+                    (_, __) => experienceStore.Dispose();
+                m_Log.Info("[NEX-EXPERIENCES]: SingleWriterJson authority acquired. " +
+                    "One Robust writer only; no cross-host shared-file failover.");
 
                 NexExperiencesApi experiencesApi =
                     new NexExperiencesApi(
