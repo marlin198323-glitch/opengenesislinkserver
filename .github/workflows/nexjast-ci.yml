@@ -278,6 +278,10 @@ jobs:
         shell: bash
         run: python3 tools/ci/verify_experience_viewer_purchase.py
 
+      - name: Verify compact INIs and automatic simulator ports
+        shell: bash
+        run: python3 tools/ci/verify_opensim_ini_cleanup.py
+
       - name: Regression-test NexExperiences persistence and K/V
         shell: bash
         run: dotnet run --configuration Release --project tools/ci/NexExperiencesRegression/NexExperiencesRegression.csproj
