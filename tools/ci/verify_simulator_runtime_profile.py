@@ -41,6 +41,8 @@ for rel in ("bin/OpenSim.ini", "bin/OpenSim.ini.example", "bin/OpenSimDefaults.i
     path = ROOT / rel
     values = parse_ini(path)
     for key, expected in EXPECTED.items():
+        if rel == "bin/OpenSim.ini" and key == ("XMLRPC", "XmlRpcPort"):
+            expected = "-1"
         actual = values.get(key)
         if actual is None:
             errors.append(f"{rel}: missing active [{key[0]}] {key[1]}")

@@ -127,6 +127,17 @@ namespace OpenSim.Region.CoreModules.Scripting.XMLRPC
                 {
                 }
             }
+            // -1 shares the resolved simulator HTTP listener. 0 disables XML-RPC.
+            if (m_remoteDataPort == -1)
+            {
+                IConfig network = config.Configs["Network"];
+                int listenerPort = network?.GetInt("http_listener_port", 0) ?? 0;
+                if (listenerPort <= 0 || listenerPort > 65535)
+                    throw new InvalidOperationException(
+                        "[XMLRPC]: Shared llRemoteData requires an HTTP listener.");
+                m_remoteDataPort = listenerPort;
+                m_log.InfoFormat("[XMLRPC]: Sharing simulator HTTP TCP port {0}", listenerPort);
+            }
         }
 
         public void PostInitialise()

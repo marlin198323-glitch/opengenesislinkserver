@@ -32,7 +32,7 @@ for path in ("bin/Robust.ini.example", "bin/Robust.HG.ini.example"):
     assert 'Mode = "GridAuthority"' in config
     assert 'IncludeHypergridGuests = true' in config
 sim = (root/"bin/OpenSim.ini.example").read_text()
-assert ';[OGLVoice]' in sim and 'Mode = "Standalone"' in sim
+assert "[OGLVoice]" not in sim, "Standalone voice must be configured by the operator"
 roadmap = (root/"doc/NexVerse/OGLVOICE_ARCHITECTURE.md").read_text()
 assert "nicht" in roadmap.lower() and "LiveKit" in roadmap
 print("OGLVoice Robust/Standalone signed provider discovery CI guard: OK")
