@@ -100,9 +100,8 @@ for marker in (
 
 # Multi-Robust JSON authority safety: only one live local writer and
 # fail-closed persistence errors; no false distributed SQL claim.
-connector = (root/"NexVerse/Server/Api/NexVerseWorldApiConnector.cs").read_text()
-robust_example = (root/"bin/Robust.HG.ini.example").read_text()
-experiences_regression = (root/"tools/ci/NexExperiencesRegression/Program.cs").read_text()
+robust_example = robust_hg_config
+experiences_regression = regression
 for marker in (
     "public sealed class NexExperienceStore : IDisposable",
     "FileShare.None",
