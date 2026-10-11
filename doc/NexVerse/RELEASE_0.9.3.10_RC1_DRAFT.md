@@ -1,6 +1,6 @@
 # OpenGenesisLINK 0.9.3.10 RC1 – Release Notes (ENTWURF)
 
-**Status: DRAFT / NICHT VERÖFFENTLICHT · Scope 12.10.2026.**
+**Status: RC1-PROMOTION ALS BRANCH VORBEREITET / NICHT VERÖFFENTLICHT · Scope 12.10.2026.**
 Kein RC1-/Stable-Tag. Erst nach den
 [22 RC1-Nachweisen](09310_RC1_RELEASE_READINESS.md)
 mit `ogl-release-evidence-v2`, aktualisiertem identischen CI-Commit,
@@ -62,8 +62,10 @@ und keine OGL-NavMesh-CAPS.
 4. Die **22/22 RC1-Pflichtfälle** samt Logs, CPU/RAM-Messungen,
    bekannten Grenzen und Operator-/Maintainer-Signatur
    aus `09310_RC1_RELEASE_READINESS.md` abnehmen.
-5. In einem getrennten Release-PR `Flavour.RC1` setzen und CI
-   am **exakten RC1-Commit** erneut vollständig ausführen.
+5. Auf dem getrennten Promotion-Branch ist `Flavour.RC1` jetzt
+   bereits vorbereitet. Die CI muss am **exakten Promotions-Commit**
+   erneut vollständig erfolgreich sein und alle 22/22 echten Operator-
+   PASS erfordern eine gesonderte Freigabe vor dem Merge/Tag.
    Erst danach Release-Kandidat taggen; keine automatische Stable.
 
 **Stable später:** 23/23 Pflichtfälle, getaggtes RC1 in der
