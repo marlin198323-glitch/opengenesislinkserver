@@ -16,7 +16,7 @@ EXPECTED = {
     ("Map", "TexturePrims"): "true",
     ("Map", "RenderMeshes"): "true",
     ("XMLRPC", "XmlRpcRouterModule"): "XmlRpcRouterModule",
-    ("XMLRPC", "XmlRpcPort"): "20800",
+    ("XMLRPC", "XmlRpcPort"): "20800",  # defaults; shipped simulator profiles use -1 (shared HTTP)
 }
 
 def parse_ini(path: Path):
@@ -41,6 +41,8 @@ for rel in ("bin/OpenSim.ini", "bin/OpenSim.ini.example", "bin/OpenSimDefaults.i
     path = ROOT / rel
     values = parse_ini(path)
     for key, expected in EXPECTED.items():
+        if key == ("XMLRPC", "XmlRpcPort") and rel != "bin/OpenSimDefaults.ini":
+            expected = "-1"
         actual = values.get(key)
         if actual is None:
             errors.append(f"{rel}: missing active [{key[0]}] {key[1]}")
