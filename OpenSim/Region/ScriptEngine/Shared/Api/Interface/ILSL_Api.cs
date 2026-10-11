@@ -234,6 +234,7 @@ namespace OpenSim.Region.ScriptEngine.Shared.Api.Interfaces
               void llGiveInventory(LSL_Key destination, LSL_String inventory);
               void llGiveInventoryList(LSL_Key destination, LSL_String folderName, LSL_List inventory);
        LSL_Integer llGiveMoney(LSL_Key destination, LSL_Integer amount);
+        LSL_String llNexBankRegistrationInfo();
            LSL_Key llNexBankPayout(LSL_Key target, LSL_Integer amount);
            LSL_Key llTransferLindenDollars(LSL_Key destination, LSL_Integer amount);
               void llGodLikeRezObject(string inventory, LSL_Vector pos);

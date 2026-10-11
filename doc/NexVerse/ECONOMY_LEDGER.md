@@ -243,10 +243,25 @@ Root-Objekt-/Task-Skript-Inventaritem-Bindungen kann
 `MasterBankAuthorizedScripts = "OBJEKT-UUID-1/SKRIPT-INVENTAR-UUID-1;OBJEKT-UUID-2/SKRIPT-INVENTAR-UUID-2"`
 
 Die `SKRIPT-INVENTAR-UUID` ist die **Task-Inventory-Item-ID**, nicht
-die Skript-Asset-UUID von `llGetInventoryKey()`. Der Administrator
-muss das Objekt und sein Task-Inventar ueber vertrauenswuerdige
-Simulator-/Inventardiagnose identifizieren. Der Demo-Code liegt unter
-[`tools/diagnostics/ogl_master_bank_payout_test.lsl`](../../tools/diagnostics/ogl_master_bank_payout_test.lsl).
+die Skript-Asset-UUID von `llGetInventoryKey()`. Normales LSL kann diese
+ID nicht auslesen. Daher implementiert OpenGenesisLINK die Funktion
+`llNexBankRegistrationInfo()`: Sie gibt die echten
+`ROOT-OBJEKT-UUID/SKRIPT-INVENTARITEM-UUID` als String aus,
+wenn das Skript direkt im Root-Prim liegt und der Root-Owner dem Skript
+bewusst `PERMISSION_DEBIT` erteilt hat. Andernfalls ist die Rueckgabe
+leer. Die Funktion darf auch bei `MasterBankEnabled=false` verwendet
+werden und **fuehrt keinerlei Bankbuchung aus**.
+
+**Ablauf:** Simulator mit `MasterBankEnabled=false` starten.
+[`ogl_master_bank_payout_test.lsl`](../../tools/diagnostics/ogl_master_bank_payout_test.lsl)
+im Root-Prim starten, als Owner beruehren und Debit-Freigabe bestaetigen.
+Anschliessend erscheinen per `llOwnerSay` die kopierbaren Werte fuer
+`MasterBankOperatorId` und `MasterBankAuthorizedScripts`.
+Beide Werte in die tatsaechlich geladene `OpenSim.ini` eintragen,
+Bankkonto, Zielavatar und Auszahlungslimit kontrollieren,
+**erst danach** `MasterBankEnabled=true` setzen und Simulator
+neu starten. Kopien oder neu gerezzte Objekte brauchen eventuell eine
+erneute Registrierung. Die Ausgabe allein berechtigt nie zur Auszahlung.
 
 **Wichtig:** Das vorhandene `economy:transfer`-Service-Credential ist
 allgemein fuer die World-API uebertragungsberechtigt. Die neue

@@ -1114,6 +1114,12 @@ namespace OpenSim.Region.ScriptEngine.Shared.ScriptBase
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public LSL_String llNexBankRegistrationInfo()
+        {
+            return m_LSL_Functions.llNexBankRegistrationInfo();
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public LSL_Key llNexBankPayout(LSL_Key target, LSL_Integer amount)
         {
             return m_LSL_Functions.llNexBankPayout(target, amount);

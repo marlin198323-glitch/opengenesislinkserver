@@ -3422,6 +3422,23 @@ namespace OpenSim.Region.ScriptEngine.Shared.Api
             return 0;
         }
 
+        // Owner-only diagnostic: a script cannot query its task-inventory
+        // item UUID using standard LSL. Never authorizes a bank transfer.
+        // May be called while MasterBankEnabled=false.
+        public LSL_String llNexBankRegistrationInfo()
+        {
+            SceneObjectPart root = m_host?.ParentGroup?.RootPart;
+            if (root == null || m_item == null || root.OwnerID.IsZero() ||
+                m_item.ItemID.IsZero() ||
+                m_item.PermsGranter != root.OwnerID ||
+                (m_item.PermsMask & ScriptBaseClass.PERMISSION_DEBIT) == 0 ||
+                m_host.UUID != root.UUID ||
+                !root.TaskInventory.ContainsKey(m_item.ItemID))
+                return string.Empty;
+
+            return root.UUID.ToString() + "/" + m_item.ItemID.ToString();
+        }
+
         // Dedicated OGL payment primitive: never falls back to the owner
         // wallet, unlike standard llGiveMoney / llTransferLindenDollars.
         public LSL_Key llNexBankPayout(LSL_Key target, LSL_Integer amount)
