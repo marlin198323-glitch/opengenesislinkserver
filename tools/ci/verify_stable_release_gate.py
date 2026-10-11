@@ -23,19 +23,16 @@ for mark in required:
     assert mark in flow, f"immutable stable release safety gate missing: {mark}"
 assert flow.count("gh release create") == 1
 assert "gh release delete" not in flow and "git push --force" not in flow
-# Scope changes must not accidentally reinstate a proprietary Firestorm
-# Havok compatibility requirement or declare Experiences accepted by CI alone.
+# OGL Pathfinding is fully excluded from the 0.9.3.10 server release.
+# Keep all remaining Experiences/Runtime gates fail-closed until live testing.
 release = Path("doc/NexVerse/RELEASE_TRAIN_0.9.3.10.md").read_text()
-parity = Path("doc/NexVerse/PATHFINDING_EXPERIENCES_FULL_PARITY_09310.md").read_text()
-for mark in (
-    "Firestorm-Havok-NavMesh und OGLVoice sind ausdruecklich keine 0.9.3.10-Stable-Blocker",
-    "**Gate 1 – Functional:**",
-    "**Gate 5 – Operator:**",
-    "Firestorm-NavMesh auf spaeteren Viewer-Train verschoben",
-    "**Gate 6 – Release:**",
-):
-    assert mark in release, f"0.9.3.10 scope/gate missing: {mark}"
-for mark in ("**Gate P (0.9.3.10):**", "**Gate E:**", "**Gate R:**"):
-    assert mark in parity, f"Native/Experience acceptance definition missing: {mark}"
-assert release.count("- [ ] **Gate ") == 6, "do not claim gates passed without live acceptance"
-print("Dev main safe: legacy stable 0.9.3.8 publisher remains gated; 0.9.3.10 native scope requires live acceptance.")
+readiness = Path("doc/NexVerse/09310_RC1_RELEASE_READINESS.md").read_text()
+for mark in ("OGL Pathfinding", "**Gate 1 – Funktional:**",
+             "**Gate 5 – Operator:**", "**Gate 6 – Release:**",
+             "Experience", "40-Fall-Abnahmematrix"):
+    assert mark in release, f"0.9.3.10 revised scope missing: {mark}"
+assert release.count("- [ ] **Gate ") == 6
+assert "39 von 40" in readiness and "40/40" in readiness
+assert "NAV01–NAV08" in readiness and "keine** 0.9.3.10-Gates" in readiness
+assert Path("doc/NexVerse/FUTURE_VIEWER_NAVIGATION.md").is_file()
+print("0.9.3.8 immutable; 0.9.3.10 runtime/Experiences gates retained, OGL Pathfinding deferred.")
