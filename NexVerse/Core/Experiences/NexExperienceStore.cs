@@ -347,6 +347,22 @@ namespace NexVerse.Core.Experiences
         /// Atomic, bounded free acquisition for authenticated Firestorm
         /// residents. No client-specified name, group or Experience UUID.
         /// </summary>
+        public Guid[] GetViewerOwnedExperienceIds(Guid ownerId)
+        {
+            if (ownerId == Guid.Empty)
+                throw new ArgumentException("Owner is required.", nameof(ownerId));
+            lock (m_Sync)
+            {
+                EnsureActive();
+                // Owned profiles must remain editable after their owner
+                // disables them. This does not make disabled scripts runnable
+                // or expose another avatar's private grants.
+                return m_State.Experiences
+                    .Where(x => x.OwnerId == ownerId)
+                    .Select(x => x.ExperienceId).ToArray();
+            }
+        }
+
         public NexExperience CreateViewerExperience(Guid ownerId, string actor)
         {
             if (ownerId == Guid.Empty)
