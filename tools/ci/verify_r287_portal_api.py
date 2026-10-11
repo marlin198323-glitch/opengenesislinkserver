@@ -22,6 +22,11 @@ for x in ("RequireContentOwner(principal, existing.OrganizerId)",
           "RequireContentOwner(principal, existing.OwnerId)",
           "NexDiscoveryPublicationState.Approved",
           '"discovery.event.deleted"', '"discovery.classified.updated"',
+          "RequireResidentActor(principal)",
+          "incoming.OrganizerId = actor", "incoming.OwnerId = actor",
+          "incoming.State = NexDiscoveryPublicationState.Draft",
+          "incoming.State != prior.State",
+          "incoming.PlaceId != prior.PlaceId",
           "Unsupported or protected event PATCH field",
           "Unsupported or protected classified PATCH field"):
     assert x in discovery, "Discovery access control missing: " + x
