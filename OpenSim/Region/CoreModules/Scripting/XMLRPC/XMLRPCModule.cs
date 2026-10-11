@@ -119,6 +119,16 @@ namespace OpenSim.Region.CoreModules.Scripting.XMLRPC
                 try
                 {
                     m_remoteDataPort = config.Configs["XMLRPC"].GetInt("XmlRpcPort", m_remoteDataPort);
+                    // -1 means use the already-configured HTTP listener. Unlike
+                    // port 0 (disabled), this requires no second socket/port.
+                    if (m_remoteDataPort == -1)
+                    {
+                        IConfig network = config.Configs["Network"];
+                        m_remoteDataPort = network?.GetInt("http_listener_port", 0) ?? 0;
+                        if (m_remoteDataPort <= 0)
+                            throw new InvalidOperationException(
+                                "XML-RPC shared port needs a resolved HTTP listener port.");
+                    }
                     m_logChannelLifecycle = config.Configs["XMLRPC"].GetBoolean(
                         "LogChannelLifecycle",
                         m_logChannelLifecycle);
