@@ -1,6 +1,8 @@
 # OpenGenesisLINK 0.9.3.10 RC1 – Operator-Abnahme (noch OFFEN)
 
 Status: **Entwicklungs-/Testanleitung; kein RC1-Tag und keine Stable-Freigabe.**
+
+**Offene Tests aus dem Betreiberprotokoll 11/38:** [09310_ACCEPTANCE_BLOCKERS.md](09310_ACCEPTANCE_BLOCKERS.md). `EXP01` ist für die Firestorm-Erstellung zusätzlich durch den GET-only `AgentExperiences`-CAP blockiert; nicht alle fehlenden Tests sind durch Aktivierung von INI-Schaltern lösbar. `REL01`, `REL02` und `REL07` trotz gesetztem Haken erneut anhand der offenen Experience-Tests bewerten. Read-only Preflight: `python3 tools/diagnostics/ogl_voice_pathfinding_preflight.py --sim-config bin/OpenSim.ini --robust-config bin/Robust.HG.ini`.
 Aktualisiert: 11.10.2026. Freigabe-Gates: [RELEASE_TRAIN_0.9.3.10.md](RELEASE_TRAIN_0.9.3.10.md).
 
 ## Verbindlicher Scope
