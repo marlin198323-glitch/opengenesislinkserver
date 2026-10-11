@@ -54,12 +54,14 @@ namespace NexVerse.RegionModules.Experiences
         private bool m_Enabled;
         private bool m_FirestormReadCaps;
         private bool m_FirestormPermissionCaps;
+        private bool m_FirestormManageCaps;
         private bool m_ScriptPendingConsent;
         private bool m_NativeExperiencePrompt;
         private readonly NexPendingExperienceQueue m_Pending = new();
         private readonly NexExperienceCapLeaseRegistry m_CapLeases = new();
         private Timer m_PendingTimer;
         private string m_ViewerPermissionsApiKey = string.Empty;
+        private string m_ViewerManageApiKey = string.Empty;
         private string m_WorldApiBaseUrl = string.Empty;
         private string m_ApiKey = string.Empty;
         private int m_RequestTimeoutMilliseconds = 3000;
@@ -93,6 +95,8 @@ namespace NexVerse.RegionModules.Experiences
                 section.GetBoolean("FirestormReadCaps", false);
             m_FirestormPermissionCaps =
                 section.GetBoolean("FirestormPermissionCaps", false);
+            m_FirestormManageCaps =
+                section.GetBoolean("FirestormManageCaps", false);
             m_ScriptPendingConsent =
                 section.GetBoolean("ScriptPendingConsent", false);
             m_NativeExperiencePrompt =
@@ -116,6 +120,22 @@ namespace NexVerse.RegionModules.Experiences
                         StringComparison.Ordinal))
                     throw new InvalidOperationException(
                         "[NEX-EXPERIENCES]: A separate experiences:viewer:permissions service API key is required.");
+            }
+
+            if (m_FirestormManageCaps)
+            {
+                if (!m_FirestormPermissionCaps || !m_FirestormReadCaps)
+                    throw new InvalidOperationException(
+                        "[NEX-EXPERIENCES]: FirestormManageCaps requires enabled read and permission CAPS.");
+                m_ViewerManageApiKey = section.GetString(
+                    "ViewerManageApiKey", string.Empty).Trim();
+                if (m_ViewerManageApiKey.Length < 24 ||
+                    m_ViewerManageApiKey.StartsWith("${", StringComparison.Ordinal) ||
+                    string.Equals(m_ViewerManageApiKey, m_ApiKey, StringComparison.Ordinal) ||
+                    string.Equals(m_ViewerManageApiKey, m_ViewerPermissionsApiKey,
+                        StringComparison.Ordinal))
+                    throw new InvalidOperationException(
+                        "[NEX-EXPERIENCES]: Separate experiences:viewer:manage key required.");
             }
 
             m_RequestTimeoutMilliseconds =
@@ -302,12 +322,12 @@ namespace NexVerse.RegionModules.Experiences
                 caps.RegisterSimpleHandler("ExperiencePreferences",
                     new SimpleStreamHandler("/" + UUID.Random(),
                         (req, resp) => HandleViewerPermissions(req, resp, issuingScene, avatar, lease, false)));
-                // Firestorm reads these three tabs separately. Each reply
-                // contains ONLY the avatar's own role IDs. Creation is
-                // deliberately unsupported (GET-only AgentExperiences).
+                // Firestorm enables "Acquire Experience" ONLY when the GET
+                // response includes a "purchase" field. Its button POSTs an
+                // empty LLSD request to this same revocable per-avatar CAP.
                 caps.RegisterSimpleHandler("AgentExperiences",
                     new SimpleStreamHandler("/" + UUID.Random(),
-                        (req, resp) => HandleViewerRoleList(req, resp, issuingScene, avatar, lease, "experience_ids")));
+                        (req, resp) => HandleViewerOwned(req, resp, issuingScene, avatar, lease)));
                 caps.RegisterSimpleHandler("GetAdminExperiences",
                     new SimpleStreamHandler("/" + UUID.Random(),
                         (req, resp) => HandleViewerRoleList(req, resp, issuingScene, avatar, lease, "admin_ids")));
@@ -317,6 +337,10 @@ namespace NexVerse.RegionModules.Experiences
                 caps.RegisterSimpleHandler("GroupExperiences",
                     new SimpleStreamHandler("/" + UUID.Random(),
                         (req, resp) => HandleViewerRoleList(req, resp, issuingScene, avatar, lease, "group")));
+                if (m_FirestormManageCaps)
+                    caps.RegisterSimpleHandler("UpdateExperience",
+                        new SimpleStreamHandler("/" + UUID.Random(),
+                            (req, resp) => HandleViewerUpdate(req, resp, issuingScene, avatar, lease)));
             }
         }
 
@@ -331,6 +355,205 @@ namespace NexVerse.RegionModules.Experiences
             if (json != null)
                 outgoing.Content = new StringContent(json, Encoding.UTF8, "application/json");
             return outgoing;
+        }
+
+        private HttpRequestMessage CreateViewerManageRequest(HttpMethod method,
+            string json)
+        {
+            HttpRequestMessage outbound = new(method,
+                m_WorldApiBaseUrl + "/api/v1/experiences/viewer/manage");
+            outbound.Headers.TryAddWithoutValidation("X-NexVerse-Api-Key",
+                m_ViewerManageApiKey);
+            outbound.Headers.Accept.Add(
+                new MediaTypeWithQualityHeaderValue("application/json"));
+            outbound.Content = new StringContent(json, Encoding.UTF8, "application/json");
+            return outbound;
+        }
+
+        private static OSDMap ParseViewerUpdate(IOSHttpRequest req)
+        {
+            if (req.InputStream == null)
+                throw new ArgumentException("Missing viewer Experience payload.");
+            using MemoryStream buffer = new();
+            byte[] chunk = new byte[1024];
+            int read;
+            while ((read = req.InputStream.Read(chunk, 0, chunk.Length)) > 0)
+            {
+                if (buffer.Length + read > 16384)
+                    throw new ArgumentException("Viewer Experience request is too large.");
+                buffer.Write(chunk, 0, read);
+            }
+            buffer.Position = 0;
+            if (OSDParser.DeserializeLLSDXml(buffer) is not OSDMap data)
+                throw new ArgumentException("Expected LLSD map.");
+            return data;
+        }
+
+        private void HandleViewerOwned(IOSHttpRequest req, IOSHttpResponse resp,
+            Scene scene, UUID avatar, NexExperienceCapLeaseRegistry.Lease lease)
+        {
+            if (req.HttpMethod == "GET")
+            {
+                HandleViewerRoleList(req, resp, scene, avatar, lease, "experience_ids");
+                return;
+            }
+            resp.ContentType = "application/llsd+xml";
+            resp.KeepAlive = false;
+            resp.AddHeader("Cache-Control", "no-store");
+            if (!m_FirestormManageCaps)
+            {
+                resp.StatusCode = (int)HttpStatusCode.MethodNotAllowed;
+                return;
+            }
+            if (!IsCurrentViewer(scene, avatar, lease))
+            {
+                resp.StatusCode = (int)HttpStatusCode.Gone;
+                return;
+            }
+            if (req.HttpMethod != "POST")
+            {
+                resp.StatusCode = (int)HttpStatusCode.MethodNotAllowed;
+                return;
+            }
+            try
+            {
+                // Never trust a viewer-provided owner, Experience ID, price,
+                // group or arbitrary profile attributes. The standard viewer
+                // sends an empty POST; owner comes from the live CAP only.
+                string payload = JsonSerializer.Serialize(new
+                {
+                    owner_id = avatar.ToString()
+                });
+                using HttpRequestMessage request =
+                    CreateViewerManageRequest(HttpMethod.Post, payload);
+                using HttpResponseMessage created = m_Http.Send(request);
+                if (!created.IsSuccessStatusCode)
+                {
+                    resp.StatusCode = (int)created.StatusCode;
+                    return;
+                }
+                OSDMap lists = FetchViewerPermissionLists(avatar);
+                OSDMap result = new()
+                {
+                    ["experience_ids"] = lists["experience_ids"]
+                };
+                // A price of zero means creation does not charge NV$.
+                // The server still enforces an atomic per-avatar quota.
+                if (((OSDArray)lists["experience_ids"]).Count <
+                    NexExperienceStore.MaxViewerExperiencesPerResident)
+                    result["purchase"] = OSD.FromInteger(0);
+                resp.RawBuffer = Encoding.UTF8.GetBytes(
+                    OSDParser.SerializeLLSDXmlString(result));
+                resp.StatusCode = (int)HttpStatusCode.OK;
+            }
+            catch (Exception e) when (e is HttpRequestException ||
+                e is JsonException || e is InvalidOperationException ||
+                e is ArgumentException || e is TaskCanceledException ||
+                e is IOException)
+            {
+                m_Log.WarnFormat("[NEX-EXPERIENCES]: Viewer acquire failed: {0}", e.Message);
+                resp.StatusCode = (int)HttpStatusCode.BadGateway;
+            }
+        }
+
+        private void HandleViewerUpdate(IOSHttpRequest req, IOSHttpResponse resp,
+            Scene scene, UUID avatar, NexExperienceCapLeaseRegistry.Lease lease)
+        {
+            resp.ContentType = "application/llsd+xml";
+            resp.KeepAlive = false;
+            resp.AddHeader("Cache-Control", "no-store");
+            if (!IsCurrentViewer(scene, avatar, lease))
+            {
+                resp.StatusCode = (int)HttpStatusCode.Gone;
+                return;
+            }
+            if (!m_FirestormManageCaps || req.HttpMethod != "POST")
+            {
+                resp.StatusCode = (int)HttpStatusCode.MethodNotAllowed;
+                return;
+            }
+            try
+            {
+                OSDMap values = ParseViewerUpdate(req);
+                if (!values.TryGetValue("public_id", out OSD rawId) ||
+                    !UUID.TryParse(rawId.AsString(), out UUID id) || id.IsZero() ||
+                    !values.TryGetValue("name", out OSD rawName) ||
+                    !values.TryGetValue("description", out OSD rawDescription) ||
+                    !values.TryGetValue("maturity", out OSD rawMaturity) ||
+                    !values.TryGetValue("properties", out OSD rawProperties))
+                    throw new ArgumentException("Incomplete Experience profile.");
+                // Firestorm emits Second Life maturity constants 13/21/42.
+                string maturity = rawMaturity.AsInteger() switch
+                {
+                    13 => "general",
+                    21 => "moderate",
+                    42 => "adult",
+                    _ => throw new ArgumentException("Unsupported viewer maturity.")
+                };
+                int properties = rawProperties.AsInteger();
+                // Privacy/privilege/grid-scope and unsupported fields must not
+                // be silently accepted as successful edits.
+                if ((properties & ~(1 << 6)) != 0)
+                    throw new ArgumentException("Unsupported Experience property flags.");
+                if (values.TryGetValue("group_id", out OSD group) &&
+                    !group.AsUUID().IsZero())
+                    throw new ArgumentException(
+                        "Changing Experience ownership/group in Viewer is not supported.");
+                string name = rawName.AsString();
+                string description = rawDescription.AsString();
+                if (description.Length > 4096)
+                    throw new ArgumentException("Experience description exceeds 4096 characters.");
+                string payload = JsonSerializer.Serialize(new
+                {
+                    owner_id = avatar.ToString(),
+                    experience_id = id.ToString(),
+                    name,
+                    description,
+                    maturity,
+                    enabled = (properties & (1 << 6)) == 0
+                });
+                using HttpRequestMessage request =
+                    CreateViewerManageRequest(HttpMethod.Put, payload);
+                using HttpResponseMessage updated = m_Http.Send(request);
+                if (!updated.IsSuccessStatusCode)
+                {
+                    resp.StatusCode = (int)updated.StatusCode;
+                    return;
+                }
+                // Firestorm's profile editor expects experience_keys, not a
+                // generic API success envelope.
+                using HttpRequestMessage info = CreateRequest(HttpMethod.Get,
+                    "/api/v1/experiences/script/info?ids=" +
+                    Uri.EscapeDataString(id.ToString()));
+                using HttpResponseMessage upstream = m_Http.Send(info);
+                upstream.EnsureSuccessStatusCode();
+                using JsonDocument doc = JsonDocument.Parse(
+                    upstream.Content.ReadAsStringAsync().GetAwaiter().GetResult());
+                OSDArray keys = new();
+                foreach (JsonElement entry in
+                    doc.RootElement.GetProperty("experiences").EnumerateArray())
+                    keys.Add(ViewerExperience(entry));
+                if (keys.Count != 1)
+                    throw new InvalidOperationException("Experience update response missing.");
+                resp.RawBuffer = Encoding.UTF8.GetBytes(
+                    OSDParser.SerializeLLSDXmlString(new OSDMap
+                    {
+                        ["experience_keys"] = keys
+                    }));
+                resp.StatusCode = (int)HttpStatusCode.OK;
+            }
+            catch (ArgumentException e)
+            {
+                m_Log.WarnFormat("[NEX-EXPERIENCES]: Viewer update rejected: {0}", e.Message);
+                resp.StatusCode = (int)HttpStatusCode.BadRequest;
+            }
+            catch (Exception e) when (e is HttpRequestException ||
+                e is JsonException || e is InvalidOperationException ||
+                e is TaskCanceledException || e is IOException)
+            {
+                m_Log.WarnFormat("[NEX-EXPERIENCES]: Viewer update failed: {0}", e.Message);
+                resp.StatusCode = (int)HttpStatusCode.BadGateway;
+            }
         }
 
         private OSDMap FetchViewerPermissionLists(UUID avatar)
@@ -428,6 +651,9 @@ namespace NexVerse.RegionModules.Experiences
                     ids = array;
                 }
                 OSDMap result = new() { ["experience_ids"] = ids };
+                if (role == "experience_ids" && m_FirestormManageCaps &&
+                    ids.Count < NexExperienceStore.MaxViewerExperiencesPerResident)
+                    result["purchase"] = OSD.FromInteger(0);
                 resp.RawBuffer = Encoding.UTF8.GetBytes(
                     OSDParser.SerializeLLSDXmlString(result));
                 resp.StatusCode = (int)HttpStatusCode.OK;
@@ -612,7 +838,14 @@ namespace NexVerse.RegionModules.Experiences
                 ["group_id"] = OSD.FromUUID(groupId),
                 ["name"] = OSD.FromString(e.GetProperty("name").GetString() ?? ""),
                 ["description"] = OSD.FromString(e.GetProperty("description").GetString() ?? ""),
-                ["maturity"] = OSD.FromInteger(e.GetProperty("maturity").GetInt32()),
+                ["maturity"] = OSD.FromInteger(
+                    e.GetProperty("maturity").GetInt32() switch
+                    {
+                        0 => 13,
+                        1 => 21,
+                        2 => 42,
+                        _ => 13
+                    }),
                 ["properties"] = OSD.FromInteger(enabled ? 0 : 1 << 6),
                 ["expiration"] = OSD.FromReal(600.0),
                 ["quota"] = OSD.FromInteger(128)
