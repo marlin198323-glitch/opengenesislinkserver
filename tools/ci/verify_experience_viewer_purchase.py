@@ -40,7 +40,20 @@ for token in ("FirestormManageCaps", "ViewerManageApiKey",
               '"UpdateExperience"'):
     assert token in viewer, "missing Firestorm CAP safety: " + token
 
-assert 'FirestormManageCaps = false' in config
+assert 'FirestormManageCaps = true' in config
+for flag in ("FirestormReadCaps", "FirestormPermissionCaps", "ScriptPendingConsent", "NativeExperiencePrompt"):
+    assert f"{flag} = true" in config, flag
+for guard in (
+    "m_FirestormPermissionCaps = false;",
+    "m_FirestormManageCaps = false;",
+    "m_ScriptPendingConsent = false;",
+    "m_NativeExperiencePrompt = false;",
+    "m_ViewerManageApiKey = string.Empty;",
+    "m_ViewerPermissionsApiKey = string.Empty;",
+    "Central Experience adapter disabled: experiences:script API key is not provisioned.",
+    "No automatic consent will be granted."
+):
+    assert guard in viewer, "missing fail-closed default guard: " + guard
 assert 'ViewerManageApiKey = "${Environment|NEXVERSE_EXPERIENCES_VIEWER_MANAGE_API_KEY}"' in config
 assert "NEXVERSE_EXPERIENCES_VIEWER_MANAGE_API_KEY" in runtime
 assert 'ViewerManageApiKey' not in api  # Secrets never arrive from viewer HTTP.

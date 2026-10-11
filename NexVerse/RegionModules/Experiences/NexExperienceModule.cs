@@ -101,41 +101,55 @@ namespace NexVerse.RegionModules.Experiences
                 section.GetBoolean("ScriptPendingConsent", false);
             m_NativeExperiencePrompt =
                 section.GetBoolean("NativeExperiencePrompt", false);
+            // Shipped simulator templates explicitly enable Experience
+            // capabilities. Fresh installations may not have privileged
+            // World API credentials yet. Fail CLOSED per feature without
+            // aborting the entire simulator startup or granting anything.
             if (m_NativeExperiencePrompt && !m_ScriptPendingConsent)
-                throw new InvalidOperationException(
-                    "[NEX-EXPERIENCES]: NativeExperiencePrompt requires ScriptPendingConsent.");
+            {
+                m_NativeExperiencePrompt = false;
+                m_Log.Warn("[NEX-EXPERIENCES]: Native Experience prompt disabled: explicit pending consent is not enabled.");
+            }
             if (m_ScriptPendingConsent && !m_FirestormPermissionCaps)
-                throw new InvalidOperationException(
-                    "[NEX-EXPERIENCES]: ScriptPendingConsent requires FirestormPermissionCaps.");
+            {
+                m_ScriptPendingConsent = false;
+                m_NativeExperiencePrompt = false;
+                m_Log.Warn("[NEX-EXPERIENCES]: Script consent disabled: Firestorm permission CAPS unavailable.");
+            }
+
             if (m_FirestormPermissionCaps)
             {
-                if (!m_FirestormReadCaps)
-                    throw new InvalidOperationException(
-                        "[NEX-EXPERIENCES]: FirestormPermissionCaps requires FirestormReadCaps.");
                 m_ViewerPermissionsApiKey = section.GetString(
                     "ViewerPermissionsApiKey", string.Empty).Trim();
-                if (m_ViewerPermissionsApiKey.Length < 24 ||
+                if (!m_FirestormReadCaps ||
+                    m_ViewerPermissionsApiKey.Length < 24 ||
                     m_ViewerPermissionsApiKey.StartsWith("${", StringComparison.Ordinal) ||
                     string.Equals(m_ViewerPermissionsApiKey, m_ApiKey,
                         StringComparison.Ordinal))
-                    throw new InvalidOperationException(
-                        "[NEX-EXPERIENCES]: A separate experiences:viewer:permissions service API key is required.");
+                {
+                    m_FirestormPermissionCaps = false;
+                    m_ScriptPendingConsent = false;
+                    m_NativeExperiencePrompt = false;
+                    m_ViewerPermissionsApiKey = string.Empty;
+                    m_Log.Warn("[NEX-EXPERIENCES]: Firestorm permission CAPS and consent disabled: read CAPS or an independent experiences:viewer:permissions key is unavailable. No automatic consent will be granted.");
+                }
             }
 
             if (m_FirestormManageCaps)
             {
-                if (!m_FirestormPermissionCaps || !m_FirestormReadCaps)
-                    throw new InvalidOperationException(
-                        "[NEX-EXPERIENCES]: FirestormManageCaps requires enabled read and permission CAPS.");
                 m_ViewerManageApiKey = section.GetString(
                     "ViewerManageApiKey", string.Empty).Trim();
-                if (m_ViewerManageApiKey.Length < 24 ||
+                if (!m_FirestormReadCaps || !m_FirestormPermissionCaps ||
+                    m_ViewerManageApiKey.Length < 24 ||
                     m_ViewerManageApiKey.StartsWith("${", StringComparison.Ordinal) ||
                     string.Equals(m_ViewerManageApiKey, m_ApiKey, StringComparison.Ordinal) ||
                     string.Equals(m_ViewerManageApiKey, m_ViewerPermissionsApiKey,
                         StringComparison.Ordinal))
-                    throw new InvalidOperationException(
-                        "[NEX-EXPERIENCES]: Separate experiences:viewer:manage key required.");
+                {
+                    m_FirestormManageCaps = false;
+                    m_ViewerManageApiKey = string.Empty;
+                    m_Log.Warn("[NEX-EXPERIENCES]: Firestorm Experience purchase/editor CAPS disabled: prerequisite CAPS or independent experiences:viewer:manage key is unavailable.");
+                }
             }
 
             m_RequestTimeoutMilliseconds =
@@ -155,9 +169,21 @@ namespace NexVerse.RegionModules.Experiences
                     "[NEX-EXPERIENCES]: WorldApiBaseUrl must be an absolute HTTP(S) URL.");
             }
 
-            if (string.IsNullOrWhiteSpace(m_ApiKey))
-                throw new InvalidOperationException(
-                    "[NEX-EXPERIENCES]: ApiKey is required when enabled.");
+            if (string.IsNullOrWhiteSpace(m_ApiKey) ||
+                m_ApiKey.StartsWith("${", StringComparison.Ordinal))
+            {
+                // Even read-only CAPS must not advertise a non-functional
+                // central adapter or attempt remote requests with an
+                // unresolved secret placeholder.
+                m_Enabled = false;
+                m_FirestormReadCaps = false;
+                m_FirestormPermissionCaps = false;
+                m_FirestormManageCaps = false;
+                m_ScriptPendingConsent = false;
+                m_NativeExperiencePrompt = false;
+                m_Log.Warn("[NEX-EXPERIENCES]: Central Experience adapter disabled: experiences:script API key is not provisioned. Configure a trusted World API key and restart.");
+                return;
+            }
 
             m_Http =
                 new HttpClient
