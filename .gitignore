@@ -17,6 +17,10 @@ Thumbs.db
 bin/data/
 data/
 
+# Generated per-installation HTTP port assignments (not source code)
+bin/NexVersePorts/
+NexVersePorts/
+
 # Local NexVerse runtime secrets (never commit)
 bin/nexverse.local.env
 .secrets/
