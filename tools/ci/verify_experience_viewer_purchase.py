@@ -36,9 +36,11 @@ for token in ("FirestormManageCaps", "ViewerManageApiKey",
               "NexExperienceStore.MaxViewerExperiencesPerResident",
               'if (!IsCurrentViewer(scene, avatar, lease))',
               'owner_id = avatar.ToString()', '"experience_keys"',
-              "properties & ~editableFlags",
-              "const int editableFlags = (1 << 5) | (1 << 6)",
-              'is_private = (properties & (1 << 5)) != 0',
+              "NexExperienceViewerFlags.TryDecode(properties,",
+              "received={properties}",
+              "rejected=0x{rejectedFlags:X8}",
+              "only PRIVATE (0x20) and DISABLED (0x40) are editable.",
+              'is_private = isPrivate',
               '"UpdateExperience"'):
     assert token in viewer, "missing Firestorm CAP safety: " + token
 
@@ -77,8 +79,13 @@ assert "request.Url?.AbsolutePath, infoCapPath" in viewer
 assert 'bool isPrivate = BodyBool(viewerBody, "is_private", false);' in api
 assert 'viewerBody.EnumerateObject().Count() != 7' in api
 assert 'is_private = e.IsPrivate' in api
-assert '(isPrivate ? 1 << 5 : 0)' in viewer
+assert "NexExperienceViewerFlags.Encode(enabled, isPrivate)" in viewer
 storage = (root/"NexVerse/Core/Experiences/NexExperienceStore.cs").read_text()
 assert "public bool IsPrivate { get; set; }" in storage
 assert "x.Enabled && !x.IsPrivate" in storage
 assert "IsPrivate = source.IsPrivate" in storage
+
+flagContract = (root/"NexVerse/Core/Experiences/NexExperienceInfoRequestIds.cs").read_text()
+assert "public const int EditableMask = Private | Disabled;" in flagContract
+assert "rejectedFlags = flags & ~EditableMask;" in flagContract
+assert "return rejectedFlags == 0;" in flagContract

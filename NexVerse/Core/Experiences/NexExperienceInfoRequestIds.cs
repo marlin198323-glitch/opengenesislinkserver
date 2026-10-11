@@ -62,4 +62,30 @@ namespace NexVerse.Core.Experiences
             return true;
         }
     }
+
+    /// <summary>
+    /// Only Firestorm PRIVATE and DISABLED may be edited by the resident.
+    /// Never silently discard GRID, PRIVILEGED, SUSPENDED, INVALID or unknown
+    /// flags: accepting them would claim permissions the server did not grant.
+    /// </summary>
+    public static class NexExperienceViewerFlags
+    {
+        public const int Private = 1 << 5;
+        public const int Disabled = 1 << 6;
+        public const int EditableMask = Private | Disabled;
+
+        public static bool TryDecode(int flags, out bool enabled,
+            out bool isPrivate, out int rejectedFlags)
+        {
+            rejectedFlags = flags & ~EditableMask;
+            enabled = (flags & Disabled) == 0;
+            isPrivate = (flags & Private) != 0;
+            return rejectedFlags == 0;
+        }
+
+        public static int Encode(bool enabled, bool isPrivate)
+        {
+            return (enabled ? 0 : Disabled) | (isPrivate ? Private : 0);
+        }
+    }
 }

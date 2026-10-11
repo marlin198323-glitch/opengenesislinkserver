@@ -15,6 +15,32 @@ internal static class Program
     }
 
 
+    private static void VerifyFirestormPropertyFlagContract()
+    {
+        // Firestorm's exact PROPERTY_PRIVATE/DISABLED values: 32/64.
+        foreach (int flags in new[] { 0, 32, 64, 96 })
+        {
+            Require(NexExperienceViewerFlags.TryDecode(flags,
+                    out bool enabled, out bool isPrivate, out int rejected) &&
+                    rejected == 0 &&
+                    enabled == ((flags & 64) == 0) &&
+                    isPrivate == ((flags & 32) != 0) &&
+                    NexExperienceViewerFlags.Encode(enabled, isPrivate) == flags,
+                "Firestorm editable profile flags failed round-trip");
+        }
+
+        // Invalid, elevated grid/privileged, suspended and unknown bits
+        // must be observable as rejected bits, never silently masked.
+        foreach (int forbidden in new[] { 1, 8, 16, 128, 256, -1 })
+        {
+            int incoming = forbidden | 32;
+            Require(!NexExperienceViewerFlags.TryDecode(incoming,
+                    out _, out _, out int rejected) &&
+                    rejected == (incoming & ~96),
+                "Unsupported Experience property flag was accepted");
+        }
+    }
+
     private static void VerifyViewerInfoCapabilityIds()
     {
         string cap = "/CAPS/" + Guid.NewGuid().ToString("D");
@@ -61,6 +87,7 @@ internal static class Program
     private static void Main()
     {
         VerifyViewerInfoCapabilityIds();
+        VerifyFirestormPropertyFlagContract();
         string root =
             Path.Combine(
                 Path.GetTempPath(),
