@@ -1,8 +1,12 @@
 # OpenGenesisLINK 0.9.3.10 – RC1-/Stable-Freigabevorbereitung (Stabilisierung)
 
-**Stand: 12.10.2026 · FREIGABE OFFEN.** Letzte veröffentlichte Stable-Version:
-`v0.9.3.8`. **Dieser getrennte Kandidatenbranch** traegt `0.9.3.10 RC1`; der freigegebene `main`-Stand bleibt `Dev` bis zur Betreiberabnahme.
-**Kein RC1-/Stable-Tag, keine Betreiberfreigabe.**
+**Stand: 12.10.2026 · HISTORISCHE STANDARD-GATE-MATRIX.**
+Der Betreiber hat ausdrücklich die unmittelbare Stable-Schließung angeordnet.
+**Ausnahme für genau 0.9.3.10:** [09310_OPERATOR_RELEASE_DECISION.md](09310_OPERATOR_RELEASE_DECISION.md).
+Diese Checkliste bleibt für die Dokumentation der ursprünglich
+beschlossenen 22 RC1-/23 Stable-Gates erhalten; ihre fehlenden Nachweise
+werden NICHT als PASS gewertet. Die tatsächliche Tag-Publikation hängt
+von einem grünen SHA-identischen GitHub-CI-Publisher ab.
 Der zuletzt geprüfte Entwicklungsstand vor dieser Scope-Änderung ist
 `1b2db582` (PR #177, grüne CI). Das ist **kein** Inworld-/Release-Nachweis.
 Den aktuellen RC-Commit immer neu feststellen und vollständig testen.
@@ -153,11 +157,13 @@ GitHub-CI muss extern geprüft werden. Logs anonymisieren, keine
 Secrets/CAPS-URLs veröffentlichen. Der Checker prüft die **Struktur**,
 nicht die Echtheit eines Betreiberbelegs.
 
-Die hier vorbereitete `VersionInfo.VERSION_FLAVOUR=Flavour.RC1`
-ist **nur eine notwendige, keine hinreichende** Freigabebedingung.
-Der Checker verweigert RC1 trotz Versionskennung, solange die
-22 verifizierten Operator-PASS, exakte SHA/CI, Known-Limitations-
-Pruefung und RC1-Signatur fehlen.
+Für das direkte Stable-Abschlussverfahren wechselt die Version auf
+`VersionInfo.VERSION_FLAVOUR=Flavour.Release`. Der unverändert
+**fail-closed** Evidenz-Checker kann die nicht gelieferte 23-Fall-Matrix
+nicht erfolgreich bestätigen. Die ausdrücklich angeordnete und
+transparent dokumentierte **einmalige** Betreiberabweichung wird nicht
+als automatisches PASS oder als allgemeine Aufhebung dieser Prüflogik
+interpretiert.
 
 ## 6. Historische Protokolle und Grenzen
 
