@@ -132,6 +132,58 @@ namespace NexVerse.Server.Api
                 return;
             }
 
+            // R287: own memberships are not a directory search. Bind the
+            // member to the authenticated resident, never a supplied agent_id.
+            if (path == "/api/v1/groups/mine")
+            {
+                if (!method.Equals("GET", StringComparison.OrdinalIgnoreCase))
+                {
+                    MethodNotAllowed(response, "GET");
+                    return;
+                }
+                if (!Authenticate(request, response, NexScopes.GroupsRead,
+                    out NexPrincipal principal, out UserAccount account))
+                    return;
+                if (account == null ||
+                    !Guid.TryParse(principal.Subject, out Guid resident) ||
+                    resident == Guid.Empty || resident != account.PrincipalID.Guid)
+                {
+                    WriteError(response, HttpStatusCode.Forbidden, "resident_required",
+                        "Own group memberships require an authenticated resident account.");
+                    return;
+                }
+                try
+                {
+                    string selfGroupRequester = resident.ToString("D");
+                    List<GroupMembershipData> memberships =
+                        m_Groups.GetAgentGroupMemberships(selfGroupRequester, selfGroupRequester) ??
+                        new List<GroupMembershipData>();
+                    int offset = int.TryParse(request?.QueryString?["offset"], out int off)
+                        ? Math.Clamp(off, 0, 1000000) : 0;
+                    int limit = int.TryParse(request?.QueryString?["limit"], out int lim)
+                        ? Math.Clamp(lim, 1, 100) : 50;
+                    WriteJson(response, new
+                    {
+                        groups = memberships.Skip(offset).Take(limit).Select(g => new
+                        {
+                            group_id = g.GroupID.ToString(),
+                            name = g.GroupName,
+                            title = g.GroupTitle,
+                            active = g.Active,
+                            role_id = g.ActiveRole.ToString(),
+                            powers = g.GroupPowers.ToString(),
+                            notices = g.AcceptNotices
+                        }).ToArray(),
+                        offset,
+                        limit,
+                        total = memberships.Count,
+                        correlation_id = Correlation(response)
+                    });
+                }
+                catch (Exception e) { WriteFailure(response, e); }
+                return;
+            }
+
             const string prefix = "/api/v1/groups/";
             if (!path.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
             {

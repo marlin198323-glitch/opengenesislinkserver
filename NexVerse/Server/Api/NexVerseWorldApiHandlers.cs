@@ -222,10 +222,20 @@ namespace NexVerse.Server.Api
                     GetOperation("Veröffentlichte Discovery-Events durchsuchen"),
                     AuthenticatedOperations(
                         ("post", "Discovery-Event anlegen oder aktualisieren", "discovery:manage", "201"))),
+                ["/api/v1/events/{eventId}"] = MergeOperations(
+                    GetOperation("Einzelne veröffentlichte Veranstaltung lesen; Entwürfe bleiben verborgen"),
+                    AuthenticatedOperations(
+                        ("patch", "Eigene Veranstaltungsdaten/Schedule ohne Owner-/Statuswechsel ändern", "discovery:manage", "200"),
+                        ("delete", "Eigene Veranstaltung entfernen, mit Audit", "discovery:manage", "200"))),
                 ["/api/v1/classifieds"] = MergeOperations(
                     GetOperation("Veröffentlichte Classifieds durchsuchen"),
                     AuthenticatedOperations(
                         ("post", "Classified anlegen oder aktualisieren", "discovery:manage", "201"))),
+                ["/api/v1/classifieds/{classifiedId}"] = MergeOperations(
+                    GetOperation("Einzelne veröffentlichte Kleinanzeige lesen; Entwürfe bleiben verborgen"),
+                    AuthenticatedOperations(
+                        ("patch", "Eigene Kleinanzeigendaten ohne Eigentums-/Statuswechsel ändern", "discovery:manage", "200"),
+                        ("delete", "Eigene Kleinanzeige entfernen, mit Audit", "discovery:manage", "200"))),
                 ["/api/v1/land-portal"] = GetOperation(
                     "Aktive NV$-Landangebote als Landportal durchsuchen"),
                 ["/api/v1/land-portal/owned"] = AuthenticatedOperations(
@@ -245,6 +255,8 @@ namespace NexVerse.Server.Api
                 ["/api/v1/profiles/{principalId}"] = MergeOperations(
                     GetOperation("Öffentlich sichtbares Avatarprofil lesen; private Profile nur für Eigentümer oder Admin"),
                     AuthenticatedOperations(("patch", "Eigenes Avatarprofil einschließlich Bild-Asset-UUID, Interessen und Sichtbarkeit aktualisieren", "profile:write", "200"))),
+                ["/api/v1/profiles/{principalId}/image"] = GetOperation(
+                    "Browserfähige Profilbild-Bytes der aktuell verknüpften Avatar-Textur; privat nur Owner/Admin"),
                 ["/api/v1/relationships/{principalId}"] = AuthenticatedOperations(
                     ("get", "Eigene Freundesliste mit Anfragezustand, Online-Sichtbarkeit und Rechten lesen", "relationships:read", "200")),
                 ["/api/v1/relationships/{principalId}/{targetId}"] = AuthenticatedOperations(
@@ -270,6 +282,8 @@ namespace NexVerse.Server.Api
                 ["/api/v1/groups"] = AuthenticatedOperations(
                     ("get", "NexGroups durchsuchen", "groups:read", "200"),
                     ("post", "NexGroup erstellen", "groups:manage", "201")),
+                ["/api/v1/groups/mine"] = AuthenticatedOperations(
+                    ("get", "Eigene Gruppenmitgliedschaften und Rollen des authentifizierten Einwohners, ohne Fremd-ID-Parameter", "groups:read", "200")),
                 ["/api/v1/groups/{groupId}"] = AuthenticatedOperations(
                     ("get", "NexGroup-Profil lesen", "groups:read", "200"),
                     ("put", "NexGroup-Profil ändern", "groups:manage", "200"),
@@ -392,6 +406,8 @@ namespace NexVerse.Server.Api
                 ["/api/v1/regions"] = AuthenticatedOperations(
                     ("get", "Auswählbare Home-/Startregionen durchsuchen", "regions:read", "200"),
                     ("post", "NexVerse-verwaltete Region auf einem Simulator-Node erstellen", "regions:manage", "202")),
+                ["/api/v1/regions/{regionId}"] = AuthenticatedOperations(
+                    ("get", "Genau eine Grid-Region anhand UUID lesen", "regions:read", "200")),
                 ["/api/v1/regions/{regionId}/placement"] = AuthenticatedOperations(
                     ("patch", "NexVerse-verwaltete Region nach Placement-Prüfung verschieben", "regions:manage", "202")),
                 ["/api/v1/regions/{regionId}/lifecycle"] = AuthenticatedOperations(
@@ -629,6 +645,59 @@ namespace NexVerse.Server.Api
             ApplyJsonContract(paths, "/api/v1/groups/{groupId}/bans/{agentId}", "post", "Chapter11MutationRequest", "Chapter11ObjectResponse", "200");
             ApplyJsonContract(paths, "/api/v1/groups/{groupId}/accounting", "get", null, "Chapter11ObjectResponse", "200");
             ApplyJsonContract(paths, "/api/v1/groups/{groupId}/capabilities", "get", null, "Chapter11ObjectResponse", "200");
+            ApplyJsonContract(paths, "/api/v1/regions/{regionId}", "get", null, "RegionDetailResponse", "200");
+            AddOperationParameters(paths, "/api/v1/regions/{regionId}", "get",
+                PathParameter("regionId", "Grid-Region UUID"));
+            ApplyJsonContract(paths, "/api/v1/groups/mine", "get", null, "CitizenGroupMembershipsResponse", "200");
+            AddOperationParameters(paths, "/api/v1/groups/mine", "get",
+                PaginationParameter("offset", 0, 0, 1000000),
+                PaginationParameter("limit", 50, 1, 100));
+            ApplyJsonContract(paths, "/api/v1/events", "get", null, "DiscoveryEventListResponse", "200");
+            ApplyJsonContract(paths, "/api/v1/events", "post", "DiscoveryEventRecord", "DiscoveryEventResponse", "201");
+            ApplyJsonContract(paths, "/api/v1/events/{eventId}", "get", null, "DiscoveryEventResponse", "200");
+            ApplyJsonContract(paths, "/api/v1/events/{eventId}", "patch", "DiscoveryEventPatch", "DiscoveryEventResponse", "200");
+            ApplyJsonContract(paths, "/api/v1/events/{eventId}", "delete", null, "DiscoveryDeletedResponse", "200");
+            ApplyJsonContract(paths, "/api/v1/classifieds", "get", null, "DiscoveryClassifiedListResponse", "200");
+            ApplyJsonContract(paths, "/api/v1/classifieds", "post", "DiscoveryClassifiedRecord", "DiscoveryClassifiedResponse", "201");
+            ApplyJsonContract(paths, "/api/v1/classifieds/{classifiedId}", "get", null, "DiscoveryClassifiedResponse", "200");
+            ApplyJsonContract(paths, "/api/v1/classifieds/{classifiedId}", "patch", "DiscoveryClassifiedPatch", "DiscoveryClassifiedResponse", "200");
+            ApplyJsonContract(paths, "/api/v1/classifieds/{classifiedId}", "delete", null, "DiscoveryDeletedResponse", "200");
+            AddOperationParameters(paths, "/api/v1/events/{eventId}", "get",
+                PathParameter("eventId", "Event-UUID"));
+            AddOperationParameters(paths, "/api/v1/events/{eventId}", "patch",
+                PathParameter("eventId", "Event-UUID"));
+            AddOperationParameters(paths, "/api/v1/events/{eventId}", "delete",
+                PathParameter("eventId", "Event-UUID"));
+            AddOperationParameters(paths, "/api/v1/classifieds/{classifiedId}", "get",
+                PathParameter("classifiedId", "Classified-UUID"));
+            AddOperationParameters(paths, "/api/v1/classifieds/{classifiedId}", "patch",
+                PathParameter("classifiedId", "Classified-UUID"));
+            AddOperationParameters(paths, "/api/v1/classifieds/{classifiedId}", "delete",
+                PathParameter("classifiedId", "Classified-UUID"));
+            AddOperationParameters(paths, "/api/v1/profiles/{principalId}/image", "get",
+                PathParameter("principalId", "Avatar-UUID"));
+            // Image output is binary; do not advertise it as JSON.
+            if (paths["/api/v1/profiles/{principalId}/image"] is Dictionary<string, object> imagePath &&
+                imagePath["get"] is Dictionary<string, object> imageOperation)
+            {
+                imageOperation["x-nexverse-ai-instruction"] =
+                    "Nur aktuell im Profil gesetztes Bild. Keine beliebige Asset-UUID; private Profile benoetigen Avatar-Owner oder Admin-Token.";
+                imageOperation["responses"] = new Dictionary<string, object>
+                {
+                    ["200"] = new
+                    {
+                        description = "Bilddaten (JPEG2000 wird zu PNG dekodiert)",
+                        content = new Dictionary<string, object>
+                        {
+                            ["image/png"] = new { schema = new { type = "string", format = "binary" } },
+                            ["image/jpeg"] = new { schema = new { type = "string", format = "binary" } }
+                        }
+                    },
+                    ["401"] = new { description = "Authentifizierung fuer privates Profil erforderlich" },
+                    ["404"] = new { description = "Bild nicht vorhanden oder nicht sichtbar" },
+                    ["503"] = new { description = "Assetdienst oder Codec nicht verfuegbar" }
+                };
+            }
             ApplyJsonContract(paths, "/api/v1/experiences", "get", null, "ExperienceSearchResponse", "200");
             ApplyJsonContract(paths, "/api/v1/experiences", "post", "NexExperienceCreateRequest", "ExperienceDetailsResponse", "201");
             ApplyJsonContract(paths, "/api/v1/experiences/{experienceId}", "get", null, "ExperienceDetailsResponse", "200");
@@ -2957,14 +3026,158 @@ namespace NexVerse.Server.Api
                         ["correlation_id"] = new { type = "string" }
                     }
                 },
+                // R287: real NexDiscoveryStore entities, including the
+                // exact snake_case JSON fields used by NexDiscoveryApi.
+                ["DiscoveryEventRecord"] = new
+                {
+                    type = "object",
+                    required = new[] { "name", "place_id", "organizer_id", "starts_at", "ends_at" },
+                    properties = new Dictionary<string, object>
+                    {
+                        ["event_id"] = new { type = "string", format = "uuid" },
+                        ["place_id"] = new { type = "string", format = "uuid" },
+                        ["organizer_id"] = new { type = "string", format = "uuid" },
+                        ["name"] = new { type = "string", minLength = 1 },
+                        ["description"] = new { type = "string", maxLength = 8192 },
+                        ["image"] = new { type = "string" },
+                        ["maturity"] = new { type = "string", @enum = new[] { "general", "moderate", "adult" } },
+                        ["starts_at"] = new { type = "string", format = "date-time" },
+                        ["ends_at"] = new { type = "string", format = "date-time" },
+                        ["admission_price_minor"] = new { type = "integer", format = "int64", minimum = 0 },
+                        ["tags"] = new { type = "array", items = new { type = "string" } },
+                        ["state"] = new { type = "string", @enum = new[] { "draft", "submitted", "approved", "rejected" } },
+                        ["created_at"] = new { type = "string", format = "date-time" },
+                        ["updated_at"] = new { type = "string", format = "date-time" }
+                    }
+                },
+                ["DiscoveryEventPatch"] = new
+                {
+                    type = "object",
+                    additionalProperties = false,
+                    properties = new Dictionary<string, object>
+                    {
+                        ["name"] = new { type = "string", minLength = 1 },
+                        ["description"] = new { type = "string", maxLength = 8192 },
+                        ["image"] = new { type = "string" },
+                        ["starts_at"] = new { type = "string", format = "date-time" },
+                        ["ends_at"] = new { type = "string", format = "date-time" },
+                        ["admission_price_minor"] = new { type = "integer", format = "int64", minimum = 0 },
+                        ["tags"] = new { type = "array", items = new { type = "string" } }
+                    }
+                },
+                ["DiscoveryEventResponse"] = new
+                {
+                    type = "object",
+                    required = new[] { "event", "correlation_id" },
+                    properties = new Dictionary<string, object>
+                    {
+                        ["event"] = SchemaRef("DiscoveryEventRecord"),
+                        ["correlation_id"] = new { type = "string" }
+                    }
+                },
+                ["DiscoveryEventListResponse"] = new
+                {
+                    type = "object",
+                    required = new[] { "events", "correlation_id" },
+                    properties = new Dictionary<string, object>
+                    {
+                        ["events"] = new { type = "array", items = SchemaRef("DiscoveryEventRecord") },
+                        ["correlation_id"] = new { type = "string" }
+                    }
+                },
+                ["DiscoveryClassifiedRecord"] = new
+                {
+                    type = "object",
+                    required = new[] { "name", "owner_id" },
+                    properties = new Dictionary<string, object>
+                    {
+                        ["classified_id"] = new { type = "string", format = "uuid" },
+                        ["owner_id"] = new { type = "string", format = "uuid" },
+                        ["place_id"] = new { type = "string", format = "uuid" },
+                        ["name"] = new { type = "string" },
+                        ["description"] = new { type = "string", maxLength = 8192 },
+                        ["category"] = new { type = "string", maxLength = 128 },
+                        ["image"] = new { type = "string" },
+                        ["maturity"] = new { type = "string", @enum = new[] { "general", "moderate", "adult" } },
+                        ["tags"] = new { type = "array", items = new { type = "string" } },
+                        ["state"] = new { type = "string", @enum = new[] { "draft", "submitted", "approved", "rejected" } },
+                        ["created_at"] = new { type = "string", format = "date-time" },
+                        ["updated_at"] = new { type = "string", format = "date-time" }
+                    }
+                },
+                ["DiscoveryClassifiedPatch"] = new
+                {
+                    type = "object",
+                    additionalProperties = false,
+                    properties = new Dictionary<string, object>
+                    {
+                        ["name"] = new { type = "string", minLength = 1 },
+                        ["description"] = new { type = "string", maxLength = 8192 },
+                        ["category"] = new { type = "string", maxLength = 128 },
+                        ["image"] = new { type = "string" },
+                        ["tags"] = new { type = "array", items = new { type = "string" } }
+                    }
+                },
+                ["DiscoveryClassifiedResponse"] = new
+                {
+                    type = "object",
+                    required = new[] { "classified", "correlation_id" },
+                    properties = new Dictionary<string, object>
+                    {
+                        ["classified"] = SchemaRef("DiscoveryClassifiedRecord"),
+                        ["correlation_id"] = new { type = "string" }
+                    }
+                },
+                ["DiscoveryClassifiedListResponse"] = new
+                {
+                    type = "object",
+                    required = new[] { "classifieds", "correlation_id" },
+                    properties = new Dictionary<string, object>
+                    {
+                        ["classifieds"] = new { type = "array", items = SchemaRef("DiscoveryClassifiedRecord") },
+                        ["correlation_id"] = new { type = "string" }
+                    }
+                },
+                ["DiscoveryDeletedResponse"] = new
+                {
+                    type = "object",
+                    required = new[] { "deleted", "correlation_id" },
+                    properties = new Dictionary<string, object>
+                    {
+                        ["deleted"] = new { type = "boolean" },
+                        ["correlation_id"] = new { type = "string" }
+                    }
+                },
                 ["DiscoveryObjectResponse"] = new
                 {
-                    type = "object"
+                    type = "object",
+                    description = "Mehrzweck-Discovery-Envelope. Konkrete Event-/Classified-Routen besitzen eigene typisierte Responses.",
+                    additionalProperties = true,
+                    properties = new Dictionary<string, object>
+                    {
+                        ["place"] = new { type = "object" },
+                        ["destination"] = new { type = "object" },
+                        ["places"] = new { type = "array", items = new { type = "object" } },
+                        ["destinations"] = new { type = "array", items = new { type = "object" } },
+                        ["deleted"] = new { type = "boolean" },
+                        ["correlation_id"] = new { type = "string" }
+                    }
                 },
                 ["DiscoveryMutationRequest"] = new
                 {
                     type = "object",
-                    additionalProperties = true
+                    description = "Nur dort verwenden, wo noch kein spezifischer Place-/Destination-Request vorhanden ist; Management-Scopes und Ownership gelten zusätzlich.",
+                    additionalProperties = true,
+                    properties = new Dictionary<string, object>
+                    {
+                        ["place_id"] = new { type = "string", format = "uuid" },
+                        ["destination_id"] = new { type = "string", format = "uuid" },
+                        ["name"] = new { type = "string" },
+                        ["description"] = new { type = "string" },
+                        ["category"] = new { type = "string" },
+                        ["subcategory"] = new { type = "string" },
+                        ["tags"] = new { type = "array", items = new { type = "string" } }
+                    }
                 },
                 ["DiscoveryPlaceRequest"] = new
                 {
@@ -3019,12 +3232,77 @@ namespace NexVerse.Server.Api
                 },
                 ["Chapter11ObjectResponse"] = new
                 {
-                    type = "object"
+                    type = "object",
+                    description = "Legacy Chapter11 Mehrzweck-Envelope; konkrete Viewer Experience-Operationen sind separat typisiert.",
+                    additionalProperties = true,
+                    properties = new Dictionary<string, object>
+                    {
+                        ["group"] = new { type = "object" },
+                        ["groups"] = new { type = "array", items = new { type = "object" } },
+                        ["members"] = new { type = "array", items = new { type = "object" } },
+                        ["roles"] = new { type = "array", items = new { type = "object" } },
+                        ["notices"] = new { type = "array", items = new { type = "object" } },
+                        ["experience"] = SchemaRef("ExperienceApiRecord"),
+                        ["experiences"] = new { type = "array", items = SchemaRef("ExperienceApiRecord") },
+                        ["deleted"] = new { type = "boolean" },
+                        ["correlation_id"] = new { type = "string" }
+                    }
                 },
                 ["Chapter11MutationRequest"] = new
                 {
                     type = "object",
-                    additionalProperties = true
+                    description = "Legacy Chapter11 Mutation; konkrete NexGroups-/Experience-Routen verwenden eigene Request-Modelle, wo implementiert.",
+                    additionalProperties = true,
+                    properties = new Dictionary<string, object>
+                    {
+                        ["name"] = new { type = "string" },
+                        ["charter"] = new { type = "string" },
+                        ["group_id"] = new { type = "string", format = "uuid" },
+                        ["role_id"] = new { type = "string", format = "uuid" },
+                        ["agent_id"] = new { type = "string", format = "uuid" },
+                        ["experience_id"] = new { type = "string", format = "uuid" },
+                        ["description"] = new { type = "string" },
+                        ["enabled"] = new { type = "boolean" },
+                        ["status"] = new { type = "string" }
+                    }
+                },
+                ["RegionDetailResponse"] = new
+                {
+                    type = "object",
+                    required = new[] { "region", "correlation_id" },
+                    properties = new Dictionary<string, object>
+                    {
+                        ["region"] = SchemaRef("Region"),
+                        ["correlation_id"] = new { type = "string" }
+                    }
+                },
+                ["CitizenGroupMembershipRecord"] = new
+                {
+                    type = "object",
+                    required = new[] { "group_id", "name", "title", "active", "role_id", "powers", "notices" },
+                    properties = new Dictionary<string, object>
+                    {
+                        ["group_id"] = new { type = "string", format = "uuid" },
+                        ["name"] = new { type = "string" },
+                        ["title"] = new { type = "string" },
+                        ["active"] = new { type = "boolean" },
+                        ["role_id"] = new { type = "string", format = "uuid" },
+                        ["powers"] = new { type = "string", description = "64-Bit-Gruppenrechte als dezimale Zeichenkette" },
+                        ["notices"] = new { type = "boolean" }
+                    }
+                },
+                ["CitizenGroupMembershipsResponse"] = new
+                {
+                    type = "object",
+                    required = new[] { "groups", "offset", "limit", "total", "correlation_id" },
+                    properties = new Dictionary<string, object>
+                    {
+                        ["groups"] = new { type = "array", items = SchemaRef("CitizenGroupMembershipRecord") },
+                        ["offset"] = new { type = "integer", minimum = 0 },
+                        ["limit"] = new { type = "integer", minimum = 1, maximum = 100 },
+                        ["total"] = new { type = "integer", minimum = 0 },
+                        ["correlation_id"] = new { type = "string" }
+                    }
                 },
                 ["NexGroupCreateRequest"] = new
                 {
@@ -3445,18 +3723,268 @@ namespace NexVerse.Server.Api
                         ["order_id"] = new { type = "string", format = "uuid" }
                     }
                 },
-                ["BankingTransactionsResponse"] = new { type = "object" },
-                ["BankingStatementResponse"] = new { type = "object" },
-                ["BankingReconciliationResponse"] = new { type = "object" },
-                ["PaymentRequestListResponse"] = new { type = "object" },
-                ["PaymentRequestResponse"] = new { type = "object" },
-                ["BankingPolicyResponse"] = new { type = "object" },
-                ["CommerceOrderListResponse"] = new { type = "object" },
-                ["CommerceOrderResponse"] = new { type = "object" },
-                ["LandListingListResponse"] = new { type = "object" },
-                ["LandListingResponse"] = new { type = "object" },
-                ["LandLeaseListResponse"] = new { type = "object" },
-                ["LandLeaseResponse"] = new { type = "object" },
+                ["BankingLedgerPosting"] = new
+                {
+                    type = "object",
+                    properties = new Dictionary<string, object>
+                    {
+                        ["posting_id"] = new { type = "string", format = "uuid" },
+                        ["account_id"] = new { type = "string", format = "uuid" },
+                        ["side"] = new { type = "string" },
+                        ["amount"] = new { type = "integer", format = "int64" },
+                        ["memo"] = new { type = "string" },
+                    }
+                },
+                ["BankingLedgerTransaction"] = new
+                {
+                    type = "object",
+                    properties = new Dictionary<string, object>
+                    {
+                        ["transaction_id"] = new { type = "string", format = "uuid" },
+                        ["kind"] = new { type = "string" },
+                        ["reference"] = new { type = "string" },
+                        ["correlation_id"] = new { type = "string" },
+                        ["currency_code"] = new { type = "string" },
+                        ["occurred_at"] = new { type = "string", format = "date-time" },
+                        ["metadata"] = new { type = "object", additionalProperties = true },
+                        ["postings"] = new { type = "array", items = SchemaRef("BankingLedgerPosting") },
+                    }
+                },
+                ["BankingCurrency"] = new
+                {
+                    type = "object",
+                    properties = new Dictionary<string, object>
+                    {
+                        ["code"] = new { type = "string" },
+                        ["symbol"] = new { type = "string" },
+                        ["minor_units"] = new { type = "integer", minimum = 0 },
+                    }
+                },
+                ["BankingStatement"] = new
+                {
+                    type = "object",
+                    properties = new Dictionary<string, object>
+                    {
+                        ["account_id"] = new { type = "string", format = "uuid" },
+                        ["from"] = new { type = "string", format = "date-time" },
+                        ["to"] = new { type = "string", format = "date-time" },
+                        ["opening_balance"] = new { type = "integer", format = "int64" },
+                        ["closing_balance"] = new { type = "integer", format = "int64" },
+                        ["transactions"] = new { type = "array", items = SchemaRef("BankingLedgerTransaction") },
+                    }
+                },
+                ["BankingReconciliation"] = new
+                {
+                    type = "object",
+                    properties = new Dictionary<string, object>
+                    {
+                        ["account_id"] = new { type = "string", format = "uuid" },
+                        ["derived_balance"] = new { type = "integer", format = "int64" },
+                        ["recomputed_balance"] = new { type = "integer", format = "int64" },
+                        ["transaction_count"] = new { type = "integer", format = "int64" },
+                        ["balanced"] = new { type = "boolean" },
+                    }
+                },
+                ["BankingPaymentRequest"] = new
+                {
+                    type = "object",
+                    properties = new Dictionary<string, object>
+                    {
+                        ["request_id"] = new { type = "string", format = "uuid" },
+                        ["payee_account_id"] = new { type = "string", format = "uuid" },
+                        ["payer_account_id"] = new { type = "string", format = "uuid" },
+                        ["amount"] = new { type = "integer", format = "int64" },
+                        ["reference"] = new { type = "string" },
+                        ["status"] = new { type = "string" },
+                        ["created_at"] = new { type = "string", format = "date-time" },
+                        ["expires_at"] = new { type = "string", format = "date-time" },
+                        ["payment_transaction_id"] = new { type = new[] { "string", "null" }, format = "uuid" },
+                    }
+                },
+                ["BankingTransferPolicy"] = new
+                {
+                    type = "object",
+                    properties = new Dictionary<string, object>
+                    {
+                        ["account_id"] = new { type = "string", format = "uuid" },
+                        ["max_per_transfer"] = new { type = "integer", format = "int64" },
+                        ["daily_outgoing_limit"] = new { type = "integer", format = "int64" },
+                        ["flat_fee"] = new { type = "integer", format = "int64" },
+                        ["fee_account_id"] = new { type = new[] { "string", "null" }, format = "uuid" },
+                    }
+                },
+                ["CommerceOrderRecord"] = new
+                {
+                    type = "object",
+                    properties = new Dictionary<string, object>
+                    {
+                        ["order_id"] = new { type = "string", format = "uuid" },
+                        ["kind"] = new { type = "string" },
+                        ["buyer_account_id"] = new { type = "string", format = "uuid" },
+                        ["seller_account_id"] = new { type = "string", format = "uuid" },
+                        ["amount"] = new { type = "integer", format = "int64" },
+                        ["reference"] = new { type = "string" },
+                        ["external_reference"] = new { type = "string" },
+                        ["status"] = new { type = "string" },
+                        ["payment_transaction_id"] = new { type = new[] { "string", "null" }, format = "uuid" },
+                        ["refund_transaction_id"] = new { type = new[] { "string", "null" }, format = "uuid" },
+                        ["created_at"] = new { type = "string", format = "date-time" },
+                        ["completed_at"] = new { type = "string", format = "date-time" },
+                    }
+                },
+                ["LandListingRecord"] = new
+                {
+                    type = "object",
+                    properties = new Dictionary<string, object>
+                    {
+                        ["listing_id"] = new { type = "string", format = "uuid" },
+                        ["type"] = new { type = "string" },
+                        ["region_id"] = new { type = "string", format = "uuid" },
+                        ["region_name"] = new { type = "string" },
+                        ["parcel_id"] = new { type = "string", format = "uuid" },
+                        ["parcel_local_id"] = new { type = "integer" },
+                        ["parcel_name"] = new { type = "string" },
+                        ["seller_account_id"] = new { type = "string", format = "uuid" },
+                        ["estate_id"] = new { type = new[] { "string", "null" }, format = "uuid" },
+                        ["area"] = new { type = "integer" },
+                        ["price"] = new { type = "integer", format = "int64" },
+                        ["rental_period_days"] = new { type = "integer" },
+                        ["active"] = new { type = "boolean" },
+                        ["created_at"] = new { type = "string", format = "date-time" },
+                    }
+                },
+                ["LandLeaseRecord"] = new
+                {
+                    type = "object",
+                    properties = new Dictionary<string, object>
+                    {
+                        ["lease_id"] = new { type = "string", format = "uuid" },
+                        ["listing_id"] = new { type = "string", format = "uuid" },
+                        ["tenant_account_id"] = new { type = "string", format = "uuid" },
+                        ["landlord_account_id"] = new { type = "string", format = "uuid" },
+                        ["rent"] = new { type = "integer", format = "int64" },
+                        ["period_days"] = new { type = "integer" },
+                        ["starts_at"] = new { type = "string", format = "date-time" },
+                        ["ends_at"] = new { type = "string", format = "date-time" },
+                        ["next_due_at"] = new { type = "string", format = "date-time" },
+                        ["active"] = new { type = "boolean" },
+                        ["last_payment_transaction_id"] = new { type = new[] { "string", "null" }, format = "uuid" },
+                    }
+                },
+                ["BankingTransactionsResponse"] = new
+                {
+                    type = "object",
+                    properties = new Dictionary<string, object>
+                    {
+                        ["account_id"] = new { type = "string", format = "uuid" },
+                        ["transactions"] = new { type = "array", items = SchemaRef("BankingLedgerTransaction") },
+                        ["offset"] = new { type = "integer", minimum = 0 },
+                        ["limit"] = new { type = "integer", minimum = 1, maximum = 1000 },
+                        ["correlation_id"] = new { type = "string" },
+                    }
+                },
+                ["BankingStatementResponse"] = new
+                {
+                    type = "object",
+                    properties = new Dictionary<string, object>
+                    {
+                        ["statement"] = SchemaRef("BankingStatement"),
+                        ["currency"] = SchemaRef("BankingCurrency"),
+                        ["correlation_id"] = new { type = "string" },
+                    }
+                },
+                ["BankingReconciliationResponse"] = new
+                {
+                    type = "object",
+                    properties = new Dictionary<string, object>
+                    {
+                        ["reconciliation"] = SchemaRef("BankingReconciliation"),
+                        ["correlation_id"] = new { type = "string" },
+                    }
+                },
+                ["PaymentRequestListResponse"] = new
+                {
+                    type = "object",
+                    properties = new Dictionary<string, object>
+                    {
+                        ["account_id"] = new { type = "string", format = "uuid" },
+                        ["payment_requests"] = new { type = "array", items = SchemaRef("BankingPaymentRequest") },
+                        ["correlation_id"] = new { type = "string" },
+                    }
+                },
+                ["PaymentRequestResponse"] = new
+                {
+                    type = "object",
+                    properties = new Dictionary<string, object>
+                    {
+                        ["payment_request"] = SchemaRef("BankingPaymentRequest"),
+                        ["correlation_id"] = new { type = "string" },
+                    }
+                },
+                ["BankingPolicyResponse"] = new
+                {
+                    type = "object",
+                    properties = new Dictionary<string, object>
+                    {
+                        ["policy"] = SchemaRef("BankingTransferPolicy"),
+                        ["correlation_id"] = new { type = "string" },
+                    }
+                },
+                ["CommerceOrderListResponse"] = new
+                {
+                    type = "object",
+                    properties = new Dictionary<string, object>
+                    {
+                        ["account_id"] = new { type = "string", format = "uuid" },
+                        ["orders"] = new { type = "array", items = SchemaRef("CommerceOrderRecord") },
+                        ["correlation_id"] = new { type = "string" },
+                    }
+                },
+                ["CommerceOrderResponse"] = new
+                {
+                    type = "object",
+                    properties = new Dictionary<string, object>
+                    {
+                        ["order"] = SchemaRef("CommerceOrderRecord"),
+                        ["correlation_id"] = new { type = "string" },
+                    }
+                },
+                ["LandListingListResponse"] = new
+                {
+                    type = "object",
+                    properties = new Dictionary<string, object>
+                    {
+                        ["listings"] = new { type = "array", items = SchemaRef("LandListingRecord") },
+                        ["correlation_id"] = new { type = "string" },
+                    }
+                },
+                ["LandListingResponse"] = new
+                {
+                    type = "object",
+                    properties = new Dictionary<string, object>
+                    {
+                        ["listing"] = SchemaRef("LandListingRecord"),
+                        ["correlation_id"] = new { type = "string" },
+                    }
+                },
+                ["LandLeaseListResponse"] = new
+                {
+                    type = "object",
+                    properties = new Dictionary<string, object>
+                    {
+                        ["leases"] = new { type = "array", items = SchemaRef("LandLeaseRecord") },
+                        ["correlation_id"] = new { type = "string" },
+                    }
+                },
+                ["LandLeaseResponse"] = new
+                {
+                    type = "object",
+                    properties = new Dictionary<string, object>
+                    {
+                        ["lease"] = SchemaRef("LandLeaseRecord"),
+                        ["correlation_id"] = new { type = "string" },
+                    }
+                },
                 ["EconomyTransferRequest"] = new
                 {
                     type = "object",

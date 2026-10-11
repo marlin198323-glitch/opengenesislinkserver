@@ -870,6 +870,7 @@ namespace NexVerse.Server.Api
                         new NexWebProfileV3Api(
                             userAccounts,
                             profilesData,
+                            assets,
                             authenticator,
                             auditSink);
 

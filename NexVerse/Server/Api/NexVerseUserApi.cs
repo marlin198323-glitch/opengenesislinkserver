@@ -950,6 +950,43 @@ namespace NexVerse.Server.Api
                 return;
             }
 
+            // R287: exact Region UUID lookup reuses the authoritative
+            // grid provider instead of scanning or overloading GET /regions.
+            if (path.StartsWith("/api/v1/regions/", StringComparison.OrdinalIgnoreCase))
+            {
+                if (!IsMethod(request, "GET"))
+                {
+                    WriteError(response, HttpStatusCode.MethodNotAllowed,
+                        "method_not_allowed", "GET is required.");
+                    return;
+                }
+                if (!Authenticate(request, response, NexScopes.RegionsRead,
+                    out NexPrincipal _, out UserAccount _))
+                    return;
+                string tail = path.Substring("/api/v1/regions/".Length);
+                if (tail.Contains('/') || !Guid.TryParse(tail, out Guid regionId) ||
+                    regionId == Guid.Empty)
+                {
+                    WriteError(response, HttpStatusCode.BadRequest,
+                        "invalid_region_id", "A valid region UUID is required.");
+                    return;
+                }
+                NexRegionRecord region = m_Users.ResolveHomeRegion(
+                    regionId.ToString("D"), null);
+                if (region == null)
+                {
+                    WriteError(response, HttpStatusCode.NotFound,
+                        "region_not_found", "Region does not exist.");
+                    return;
+                }
+                WriteJson(response, new
+                {
+                    region = RegionPayload(region),
+                    correlation_id = NexApiRequestContext.Ensure(response)
+                });
+                return;
+            }
+
             if (string.Equals(path, "/api/v1/users/me", StringComparison.OrdinalIgnoreCase))
             {
                 HandleMe(request, response);
