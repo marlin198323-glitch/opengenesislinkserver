@@ -1,7 +1,9 @@
 # Firestorm Experience erwerben – OpenGenesisLINK 0.9.3.10 Dev
 
-**Aktueller Stand: Implementierung im Quellcode; erst nach kontrolliertem
-Developer-Grid-Test freigeben.** Für Firestorm Release x64 7.2.4.80712,
+**Aktueller Stand: Erste Experience wurde im Firestorm auf OGL Developer Gen1
+erstellt und der Profil-Editor wurde sichtbar (Bildnachweis, 11.10.2026).
+Persistenz, zwei Avatare und Consent/Allow/Block/Forget sind noch NICHT
+vollstaendig abgenommen.** Für Firestorm Release x64 7.2.4.80712,
 Region `OGL Developer Gen1`. Keine Änderung am Havok-NavMesh.
 
 ## Warum der Button bisher grau war
@@ -128,7 +130,31 @@ Die Variablen sind in `bin/nexverse.env.example` und
 `bin/config-include/GridCommon.ini` vorgemerkt.
 Keinesfalls echte Token in Chat, Screenshots oder Git ausgeben.
 
-## 3. Ausschließlich auf OGL Developer Gen1 aktivieren
+## 3. Firestorm-CAPS im ausgelieferten OpenSim.ini standardmaessig aktiv
+
+Seit der Default-Korrektur stehen in `bin/OpenSim.ini` und
+`bin/OpenSim.ini.example` die fuenf Einstellungen
+`FirestormReadCaps`, `FirestormPermissionCaps`,
+`FirestormManageCaps`, `ScriptPendingConsent` und
+`NativeExperiencePrompt` auf **true**.
+
+**Sicherheitsverhalten:** Die Schalter allein erteilen niemals
+Experience-Berechtigungen. Fehlt der `experiences:script`-Key, wird
+der zentrale Experience-Adapter fuer diesen Start deaktiviert.
+Fehlt der getrennte Permissions-Key, werden Permissions-CAPS und
+abhaengiger Consent/Prompt deaktiviert; fehlt der Manage-Key,
+bleiben nur Kauf-/Editor-CAPS deaktiviert. Das System protokolliert
+nur allgemeine Warnungen, keine API-Key-Werte. Die benannten
+World-API-Scopes muessen wirklich korrekt ausgestellt und fuer den
+Simulator erreichbar sein.
+
+Beim Upgrade einer schon modifizierten lokalen `OpenSim.ini` gilt:
+Nicht unkontrolliert die Repo-Version uebernehmen, sondern die
+bestehende Betreiberdatei sicher erhalten und die Einstellungen
+gezielt abgleichen. Ein Git-Merge aendert die im laufenden .NET-Prozess
+bereits eingelesenen Werte nicht; danach kontrolliert neu starten.
+
+## 4. Ausschließlich auf OGL Developer Gen1 testen
 
 In der **wirklich geladenen** `/opt/developer/bin/OpenSim.ini`,
 nach einem gesicherten Testkonfigurations-Backup:
@@ -165,7 +191,7 @@ Viewer-CAPS oder Runtime-Secrets werden geprüft.
 Nach kontrolliertem Simulator- und Robust-Neustart ist **neuer Login**
 in Firestorm notwendig, da die CAPS bei Login ausgehandelt werden.
 
-## 4. Tatsächliche Abnahme
+## 5. Tatsächliche Abnahme
 
 1. Als Bewohner A anmelden. Erfahrungen → Eigene.
    `Erlebnis erwerben` muss aktiv sein.
