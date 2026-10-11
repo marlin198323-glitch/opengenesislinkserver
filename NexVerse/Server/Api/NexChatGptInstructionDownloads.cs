@@ -74,12 +74,12 @@ namespace NexVerse.Server.Api
             md.AppendLine();
             md.AppendLine("1. Zuerst den aktuellen Vertrag von " + m_ApiBaseUrl + "/openapi.json laden.");
             md.AppendLine("2. Den gewuenschten Endpunkt anhand von x-nexverse-audience, x-nexverse-scope, x-nexverse-ai-instruction und x-nexverse-security-constraints klassifizieren.");
-            md.AppendLine("3. Entscheiden, ob die Aufgabe zum Buergerportal, Adminbereich oder zu einer Service-Integration gehoert.");
+            md.AppendLine("3. Entscheiden, ob die Aufgabe zum Buergerportal, Adminbereich oder zu einer Service-Integration gehoert. Interne Simulator-/Viewer-CAPS niemals als Buergerportal-Operation einsetzen.");
             md.AppendLine("4. Nur die minimal benoetigten Berechtigungen verwenden.");
             md.AppendLine("5. Vor schreibenden oder loeschenden Admin-Aktionen sicherstellen, dass der Benutzer diese konkrete Aktion angefordert hat.");
             md.AppendLine("6. Bei Fehlern Statuscode, API-Fehler und X-Correlation-Id auswerten; fehlende Rechte niemals umgehen.");
             md.AppendLine();
-            md.AppendLine("Bei Abweichungen ist " + m_ApiBaseUrl + "/openapi.json die technische Quelle der Wahrheit.");
+            md.AppendLine("Bei Abweichungen ist " + m_ApiBaseUrl + "/openapi.json die technische Quelle der Wahrheit. Der Vertrag ist installations- und versionsbezogen; vor Mutationen zusaetzlich echte Scope-/Feature-Freischaltung pruefen.");
             return md.ToString();
         }
 
@@ -135,8 +135,12 @@ namespace NexVerse.Server.Api
             md.AppendLine("- Health: " + m_ApiBaseUrl + "/health");
             md.AppendLine("- Version: " + m_ApiBaseUrl + "/version");
             md.AppendLine("- Capabilities: " + m_ApiBaseUrl + "/capabilities");
+            md.AppendLine("- Gesamtanweisung: " + m_ApiBaseUrl + "/chatgpt-instructions.md");
+            md.AppendLine("- Buergerportal-Anweisung: " + m_ApiBaseUrl + "/chatgpt-buergerportal.md");
+            md.AppendLine("- Admin-Anweisung: " + m_ApiBaseUrl + "/chatgpt-admin.md");
             md.AppendLine();
-            md.AppendLine("Alle API-v1-Aufrufe folgen " + m_ApiBaseUrl + "/<endpunkt>. OAuth/OIDC besitzt zusaetzlich die im OpenAPI-Vertrag dokumentierten /oauth/...-Routen.");
+            md.AppendLine("Die allgemeinen World-API-Routen liegen unter " + m_ApiBaseUrl + "/...; OAuth/OIDC liegt teils unter /oauth/... und /.well-known/openid-configuration (separat im OpenAPI-Vertrag). Manche Routen werden nur registriert, wenn [NexVerseWorldApi] EnablePrivilegedEndpoints und die zugehoerigen Services aktiviert sind.");
+            md.AppendLine("OpenAPI enthaelt auch vertrauenswuerdige Simulator-Bridges: deren Dokumentation erlaubt KEINEN direkten Zugriff mit normalen Einwohner- oder ChatGPT-Tokens.");
             return md;
         }
 
@@ -151,7 +155,9 @@ namespace NexVerse.Server.Api
             md.AppendLine("- Einwohneraktionen standardmaessig auf den authentifizierten Einwohner beschraenken.");
             md.AppendLine("- Zugriff auf fremde Konten, fremdes Inventar oder administrative Ressourcen nur mit dokumentierter Admin-Autorisierung.");
             md.AppendLine("- Fuer zustandsaendernde Operationen den dokumentierten Idempotency-Key verwenden, wenn der Endpunkt dies verlangt.");
-            md.AppendLine("- Request- und Response-Felder aus dem OpenAPI-Schema lesen und nicht erraten.");
+            md.AppendLine("- Request- und Response-Felder aus dem OpenAPI-Schema lesen und nicht erraten. Bei unvollstaendigen Teil-Schemas die Operation nicht blind durch ausgedachte Felder ergaenzen.");
+            md.AppendLine("- API-v1 und Protokollversion sind nicht identisch mit der Serverrelease-Version. OpenGenesisLINK 0.9.3.10 ist Entwicklung, nicht Stable; 0.9.3.8 bleibt letzte Stable.");
+            md.AppendLine("- Ein Eintrag im OpenAPI-Katalog beweist nicht, dass ein optionales Modul im laufenden Robust freigeschaltet oder eine viewer-spezifische Funktion live abgenommen ist.");
             md.AppendLine("- HTTP 401 bedeutet fehlende oder ungueltige Authentifizierung; HTTP 403 bedeutet fehlende Berechtigung. Keinen privilegierten Alternativpfad zum Umgehen ausprobieren.");
             md.AppendLine("- HTTP 429 respektieren und Rate-Limits beachten.");
             md.AppendLine("- X-Correlation-Id bei Fehlersuche und administrativen Vorgaengen erhalten.");
@@ -171,7 +177,7 @@ namespace NexVerse.Server.Api
             md.AppendLine("- Eigene Sitzungen: POST " + m_ApiBaseUrl + "/auth/sessions/revoke");
             md.AppendLine();
             md.AppendLine("### Eigenes Einwohnerkonto");
-            md.AppendLine("- GET /users/me fuer das aktuell authentifizierte Konto.");
+            md.AppendLine("- GET /users/me fuer das aktuell authentifizierte Konto (vollstaendige URL: /api/v1/users/me).");
             md.AppendLine("- GET/PATCH /users/{principalId} nur im dokumentierten Self-Kontext.");
             md.AppendLine("- POST /users/{principalId}/password nur fuer den eigenen Account, ausser eine ausdrueckliche Admin-Autorisierung liegt vor.");
             md.AppendLine();
@@ -214,6 +220,9 @@ namespace NexVerse.Server.Api
             md.AppendLine("- Nur anzeigen und ausfuehren, wenn der angemeldete Einwohner die vom OpenAPI-Vertrag geforderten Scopes besitzt.");
             md.AppendLine("- Ressourcenrollen und serverseitige Ownership-Pruefungen bleiben verbindlich.");
             md.AppendLine("- experiences:script ist fuer vertrauenswuerdige Script-/Service-Integrationen und nicht fuer normale Browser-Selbstbedienung.");
+            md.AppendLine("- /experiences/script/info, /script/search, /script/resolve, /script/details, /script/permission, /script/location und /script/kv sind interne Service-Bridges; keinen experiences:script-Schluessel an Einwohner ausgeben.");
+            md.AppendLine("- /experiences/viewer/permissions und /experiences/viewer/group sind NUR fuer den Simulator hinter kurzlebigen avatar-/regiongebundenen Viewer-CAPS. Kein direkter Aufruf mit selbst gewaehltetem resident_id.");
+            md.AppendLine("- Firestorm Experience-Kauf/Editor, Script-Zustimmung und OGL-Pathfinding nur als implementiert/aktiv behaupten, wenn der konkrete installierte Build, seine Feature-Schalter und Live-Tests dies bestaetigen.");
         }
 
         private static void AppendAdminSection(StringBuilder md)
@@ -243,7 +252,10 @@ namespace NexVerse.Server.Api
             md.AppendLine("- Maschinen-API-Schluessel: /auth/api-keys.");
             md.AppendLine("- OAuth-/Dienst-Clients: /auth/clients.");
             md.AppendLine("- Audit-Historie: /audit.");
-            md.AppendLine("- Neue API-Keys nur mit minimal benoetigten Scopes erzeugen.");
+            md.AppendLine("- Neue API-Keys nur mit minimal benoetigten Scopes erzeugen; aktive Schluessel nicht im MD, Chat oder URL ausgeben.");
+            md.AppendLine("- NexExperiences besitzt getrennte Dienst-Scopes: experiences:script und experiences:viewer:permissions; der letztere ist privilegiert und nur fuer vertrauenswuerdige Simulatoren. Ein Manage-Scope ist nicht automatisch ein Bewohner-Identitaetsnachweis.");
+            md.AppendLine("- Eigentums- und Actor-Regeln beachten: Service-Clients mit experiences:manage duerfen keine beliebigen Bewohner-IDs impersonieren; administrative Delegation erfordert admin:*.");
+            md.AppendLine("- OGLVoice und Havok-kompatibles Firestorm-NavMesh sind in 0.9.3.10 kein als Stable freigegebenes Feature.");
             md.AppendLine();
             md.AppendLine("### Economy-Administration");
             md.AppendLine("- Reversals: /economy/transactions/{transactionId}/reverse.");
@@ -264,6 +276,11 @@ namespace NexVerse.Server.Api
             md.AppendLine();
             md.AppendLine("- Maschinenintegrationen verwenden eingeschraenkte API-Schluessel oder registrierte OAuth-Service-Clients.");
             md.AppendLine("- Kein admin:*-Schluessel fuer normale Simulator- oder Portalaufgaben.");
+            md.AppendLine("- Spezielle Experience-Schluessel: experiences:script fuer die LSL-/Metadaten-Bridge und ein davon verschiedener, privilegiert vergebener experiences:viewer:permissions nur fuer Allow/Block/Forget/GetExperiences und Gruppenlisten.");
+            md.AppendLine("- Die direkte World API /api/v1/experiences/viewer/permissions erfordert einen Service-Principal. resident_id muss aus der aktiven, widerrufbaren Avatar-CAP-Lease stammen, nicht aus Nutzertext.");
+            md.AppendLine("- /api/v1/experiences/script/kv unterstuetzt create, read, update (optional check_original/original_value), delete, stats und keys; keine K/V-Autorisierung ohne zugeordnetes Script.");
+            md.AppendLine("- World-API-Dienstschluessel bei fehlgeschlagenem Test nicht als HTTP-Query oder Teil einer anonymen Viewer-URL versenden.");
+            md.AppendLine("- Ein OpenAPI-Eintrag ist nicht automatisch eine externe ChatGPT-App-Anbindung. Ohne angebundene API-Credentials kann der Agent nicht authentifiziert im Namen des Nutzers handeln.");
             md.AppendLine("- Service-Scopes immer funktionsbezogen und minimal halten.");
             md.AppendLine("- Service-Aktionen muessen Idempotenz-, Audit- und Korrelationsregeln einhalten.");
         }
@@ -273,7 +290,8 @@ namespace NexVerse.Server.Api
             md.AppendLine();
             md.AppendLine("## OpenAPI-Metadaten fuer die automatische Zuordnung");
             md.AppendLine();
-            md.AppendLine("- x-nexverse-audience: citizen, admin und/oder service.");
+            md.AppendLine("- x-nexverse-audience: citizen, admin und/oder service; Service bedeutet nicht automatisch Browser/OAuth-Einwohnerzugriff.");
+            md.AppendLine("- security.apiKeyAuth (Header X-NexVerse-Api-Key) ist bei internen Viewer-Bridges explizit; normalen Bewohner-Bearer dort NICHT verwenden.");
             md.AppendLine("- x-nexverse-scope: benoetigter Berechtigungsumfang.");
             md.AppendLine("- x-nexverse-purpose: Zweck der Operation.");
             md.AppendLine("- x-nexverse-ai-instruction: operation-spezifische Anweisung fuer ChatGPT/API-Agenten.");
@@ -293,6 +311,9 @@ namespace NexVerse.Server.Api
             md.AppendLine("- Idempotenz: Idempotency-Key mit einem stabilen Key pro fachlichem Vorgang.");
             md.AppendLine("- Niemals denselben Idempotency-Key fuer fachlich unterschiedliche Vorgaenge verwenden.");
             md.AppendLine("- Asynchrone Regionsoperationen ueber /region-operations/{operationId} verfolgen.");
+            md.AppendLine("- Bei GET /api/v1/experiences/viewer/permissions bestimmt experience_id die Einzelstatusantwort; ohne experience_id liefert die Bridge mehrere nach Bewohner gefilterte ID-Listen.");
+            md.AppendLine("- Bei PUT /api/v1/experiences/viewer/permissions nur status allowed, blocked oder none und die vom Simulator verifizierte avatar-gebundene resident_id verwenden.");
+            md.AppendLine("- Interne Viewer-Bridges niemals ueber anonyme oder Bewohner-ChatGPT-Aufgaben direkt aufrufen; kein Cross-Avatar-Test mit fremder UUID als Ersatz fuer Authentifizierung.");
             md.AppendLine("- Keine Endpunkte erfinden. Nicht in OpenAPI vorhandene Funktionen als derzeit nicht ueber World API verfuegbar behandeln.");
         }
     }
