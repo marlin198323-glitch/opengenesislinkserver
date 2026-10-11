@@ -3145,12 +3145,34 @@ namespace NexVerse.Server.Api
                 },
                 ["DiscoveryObjectResponse"] = new
                 {
-                    type = "object"
+                    type = "object",
+                    description = "Mehrzweck-Discovery-Envelope. Konkrete Event-/Classified-Routen besitzen eigene typisierte Responses.",
+                    additionalProperties = true,
+                    properties = new Dictionary<string, object>
+                    {
+                        ["place"] = new { type = "object" },
+                        ["destination"] = new { type = "object" },
+                        ["places"] = new { type = "array", items = new { type = "object" } },
+                        ["destinations"] = new { type = "array", items = new { type = "object" } },
+                        ["deleted"] = new { type = "boolean" },
+                        ["correlation_id"] = new { type = "string" }
+                    }
                 },
                 ["DiscoveryMutationRequest"] = new
                 {
                     type = "object",
-                    additionalProperties = true
+                    description = "Nur dort verwenden, wo noch kein spezifischer Place-/Destination-Request vorhanden ist; Management-Scopes und Ownership gelten zusätzlich.",
+                    additionalProperties = true,
+                    properties = new Dictionary<string, object>
+                    {
+                        ["place_id"] = new { type = "string", format = "uuid" },
+                        ["destination_id"] = new { type = "string", format = "uuid" },
+                        ["name"] = new { type = "string" },
+                        ["description"] = new { type = "string" },
+                        ["category"] = new { type = "string" },
+                        ["subcategory"] = new { type = "string" },
+                        ["tags"] = new { type = "array", items = new { type = "string" } }
+                    }
                 },
                 ["DiscoveryPlaceRequest"] = new
                 {
@@ -3205,12 +3227,39 @@ namespace NexVerse.Server.Api
                 },
                 ["Chapter11ObjectResponse"] = new
                 {
-                    type = "object"
+                    type = "object",
+                    description = "Legacy Chapter11 Mehrzweck-Envelope; konkrete Viewer Experience-Operationen sind separat typisiert.",
+                    additionalProperties = true,
+                    properties = new Dictionary<string, object>
+                    {
+                        ["group"] = new { type = "object" },
+                        ["groups"] = new { type = "array", items = new { type = "object" } },
+                        ["members"] = new { type = "array", items = new { type = "object" } },
+                        ["roles"] = new { type = "array", items = new { type = "object" } },
+                        ["notices"] = new { type = "array", items = new { type = "object" } },
+                        ["experience"] = SchemaRef("ExperienceApiRecord"),
+                        ["experiences"] = new { type = "array", items = SchemaRef("ExperienceApiRecord") },
+                        ["deleted"] = new { type = "boolean" },
+                        ["correlation_id"] = new { type = "string" }
+                    }
                 },
                 ["Chapter11MutationRequest"] = new
                 {
                     type = "object",
-                    additionalProperties = true
+                    description = "Legacy Chapter11 Mutation; konkrete NexGroups-/Experience-Routen verwenden eigene Request-Modelle, wo implementiert.",
+                    additionalProperties = true,
+                    properties = new Dictionary<string, object>
+                    {
+                        ["name"] = new { type = "string" },
+                        ["charter"] = new { type = "string" },
+                        ["group_id"] = new { type = "string", format = "uuid" },
+                        ["role_id"] = new { type = "string", format = "uuid" },
+                        ["agent_id"] = new { type = "string", format = "uuid" },
+                        ["experience_id"] = new { type = "string", format = "uuid" },
+                        ["description"] = new { type = "string" },
+                        ["enabled"] = new { type = "boolean" },
+                        ["status"] = new { type = "string" }
+                    }
                 },
                 ["CitizenGroupMembershipRecord"] = new
                 {
