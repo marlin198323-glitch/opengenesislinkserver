@@ -50,6 +50,47 @@ Profile-JSON enthält weiter `profile_image` als UUID und neu optional
 Bilddatei noch Berechtigung. Ein privates Profil benötigt weiterhin Auth.
 Keine API-Keys in Bild-URLs und keine fremden Texture-UUIDs ausprobieren.
 
+## R287: Einzelstatus aller 16 vorgeschlagenen Operationen
+
+Die Nummern entsprechen der Quell-Anforderung
+`WORLD_API_FEHLENDE_ENDPUNKTE_R287.md`. Diese Tabelle unterscheidet
+implementierte API-Routen von noch nicht freigegebenen Produktideen.
+
+| Nr. | Angefragte Operation | Stand | Umsetzung / Begründung |
+| --- | --- | --- | --- |
+| 01 | `GET /assets/{assetId}/image` | **Alternative implementiert, Live offen** | `GET /profiles/{principalId}/image` bindet Asset an Avatar und Sichtbarkeit; kein Zugriff auf beliebige Asset-UUID |
+| 02 | `GET /assets/{assetId}/metadata` | **Offen** | Eigentums-/Inventarrechte für generische Assets noch nicht nachgewiesen |
+| 03 | `GET /notifications` | **Offen** | Echte Quellen, per-User-Persistenz und Berechtigungsmodell fehlen |
+| 04 | `PATCH /notifications/{notificationId}/read` | **Offen** | Abhängig vom Notification-Datenmodell und Owner-Check |
+| 05 | `POST /notifications/read-all` | **Offen** | Abhängig von Inbox-Persistenz und Zustimmung |
+| 06 | `GET /events/{eventId}` | **Implementiert, Live offen** | Nur veröffentlichte Datensätze |
+| 07 | `PATCH /events/{eventId}` | **Implementiert, Live offen** | `discovery:manage`, Owner/Admin, Whitelist, Audit |
+| 08 | `DELETE /events/{eventId}` | **Implementiert, Live offen** | `discovery:manage`, Owner/Admin, Audit |
+| 09 | `GET /classifieds/{classifiedId}` | **Implementiert, Live offen** | Nur veröffentlichte Datensätze |
+| 10 | `PATCH /classifieds/{classifiedId}` | **Implementiert, Live offen** | `discovery:manage`, Owner/Admin, Whitelist, Audit |
+| 11 | `DELETE /classifieds/{classifiedId}` | **Implementiert, Live offen** | `discovery:manage`, Owner/Admin, Audit |
+| 12 | `GET /regions/{regionId}` | **Implementiert, Live offen** | `regions:read`, Grid-UUID-Einzelabfrage |
+| 13 | `GET /groups/mine` | **Implementiert, Live offen** | `groups:read`, nur aktuell authentifizierter Einwohner |
+| 14 | `GET /banking/accounts/{accountId}/owner` | **Offen** | Belegbare Ledger-Owner-Zuordnung und differenzierte Sichtbarkeit erforderlich |
+| 15 | `POST /events/{eventId}/rsvp` | **Zurückgestellt** | Fakultativ; Teilnehmer-/Widerrufs- und Spam-Schutzmodell fehlt |
+| 16 | `POST /economy/credits` | **Nicht freigegeben** | Payment-Webhook-Verifikation, Pflicht-Idempotenz, Ledger-Reconciliation und ausdrücklicher Zahlungsauftrag fehlen |
+
+Damit sind **neun** der sechzehn Vorschläge technisch bearbeitet (einer
+über eine bewusst sicherere alternative Route); **sieben** bleiben offen
+oder absichtlich zurückgestellt. Der Anteil bezeichnet weder produktive
+Freigabe noch vollständige End-to-End-Abnahme.
+
+### Schemas und übrige Vertragslücken
+
+Die **zwölf** zuvor leeren Banking-/Commerce-/Land-Response-Schemas
+sind auf Basis des tatsächlich serialisierten C#-Payloads typisiert.
+**Vier** Legacy-Discovery-/Chapter11-Sammelverträge enthalten nun
+konkrete gemeinsame `properties`, sind wegen polymorpher Responses
+jedoch weiterhin nicht als vollständig typisierte per-Route-DTOs zu
+verstehen. Auth-Clients, Inventory-Outfits, Economy-Account-Owner und
+einige andere im R287 genannten operativen Schemas benötigen weiterhin
+gezielte Vertrags- und Berechtigungstests.
+
 ## Noch NICHT als fertig freigegeben
 
 - Notifications: keine zentrale Inbox/Producer-, Persistenz- und Owner-
