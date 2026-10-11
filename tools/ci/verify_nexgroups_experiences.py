@@ -234,11 +234,13 @@ for marker in (
     assert marker in connector, f"missing chapter 11 API registration: {marker}"
 
 assert "[NexExperiencesViewer]" in opensim_config
-assert "FirestormReadCaps = false" in opensim_config
-assert "FirestormPermissionCaps = false" in opensim_config
-assert "ScriptPendingConsent = false" in opensim_config
-assert "NativeExperiencePrompt = false" in opensim_config
-assert "NativeExperiencePrompt requires ScriptPendingConsent" in experience_module
+assert "FirestormReadCaps = true" in opensim_config
+assert "FirestormPermissionCaps = true" in opensim_config
+assert "ScriptPendingConsent = true" in opensim_config
+assert "NativeExperiencePrompt = true" in opensim_config
+assert "Native Experience prompt disabled: explicit pending consent is not enabled." in experience_module
+assert "m_NativeExperiencePrompt = false;" in experience_module
+assert "m_ScriptPendingConsent = false;" in experience_module
 assert "IExperienceQuestionClient client" in experience_module
 assert "client.SendExperienceQuestion(" in experience_module
 assert "if (!nativePromptSent)" in experience_module
