@@ -79,7 +79,7 @@ assert "request.Url?.AbsolutePath, infoCapPath" in viewer
 assert 'bool isPrivate = BodyBool(viewerBody, "is_private", false);' in api
 assert 'viewerBody.EnumerateObject().Count() != 7' in api
 assert 'is_private = e.IsPrivate' in api
-assert '(isPrivate ? 1 << 5 : 0)' in viewer
+assert "NexExperienceViewerFlags.Encode(enabled, isPrivate)" in viewer
 storage = (root/"NexVerse/Core/Experiences/NexExperienceStore.cs").read_text()
 assert "public bool IsPrivate { get; set; }" in storage
 assert "x.Enabled && !x.IsPrivate" in storage
