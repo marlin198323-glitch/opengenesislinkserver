@@ -3036,6 +3036,226 @@ namespace NexVerse.Server.Api
                         ["mature_publish"] = new { type = "boolean" }
                     }
                 },
+                // NexExperiences contracts are intentionally explicit. The
+                // previous generic Chapter11ObjectResponse hid the actual
+                // API payload, required fields and privileged boundaries.
+                ["ExperienceApiRecord"] = new
+                {
+                    type = "object",
+                    required = new[] { "experience_id", "name", "owner_id", "maturity", "enabled" },
+                    properties = new Dictionary<string, object>
+                    {
+                        ["experience_id"] = new { type = "string", format = "uuid" },
+                        ["name"] = new { type = "string", minLength = 3, maxLength = 64 },
+                        ["description"] = new { type = "string" },
+                        ["owner_id"] = new { type = "string", format = "uuid" },
+                        ["group_id"] = new { type = new[] { "string", "null" }, format = "uuid" },
+                        ["maturity"] = new { type = "string", @enum = new[] { "general", "moderate", "adult" } },
+                        ["enabled"] = new { type = "boolean" },
+                        ["admins"] = UuidArraySchema(),
+                        ["contributors"] = UuidArraySchema(),
+                        ["allowed_residents"] = UuidArraySchema(),
+                        ["blocked_residents"] = UuidArraySchema(),
+                        ["allowed_estates"] = UuidArraySchema(),
+                        ["blocked_estates"] = UuidArraySchema(),
+                        ["allowed_parcels"] = UuidArraySchema(),
+                        ["blocked_parcels"] = UuidArraySchema(),
+                        ["key_value_count"] = new { type = "integer", minimum = 0 },
+                        ["created_at"] = new { type = "string", format = "date-time" },
+                        ["updated_at"] = new { type = "string", format = "date-time" }
+                    }
+                },
+                ["ExperienceDetailsResponse"] = new
+                {
+                    type = "object",
+                    required = new[] { "experience", "correlation_id" },
+                    properties = new Dictionary<string, object>
+                    {
+                        ["experience"] = SchemaRef("ExperienceApiRecord"),
+                        ["correlation_id"] = new { type = "string" }
+                    }
+                },
+                ["ExperienceSearchResponse"] = new
+                {
+                    type = "object",
+                    required = new[] { "experiences", "offset", "limit", "correlation_id" },
+                    properties = new Dictionary<string, object>
+                    {
+                        ["experiences"] = new { type = "array", items = SchemaRef("ExperienceApiRecord") },
+                        ["offset"] = new { type = "integer", minimum = 0 },
+                        ["limit"] = new { type = "integer", minimum = 1, maximum = 500 },
+                        ["correlation_id"] = new { type = "string" }
+                    }
+                },
+                ["ExperienceProfileUpdateRequest"] = new
+                {
+                    type = "object",
+                    properties = new Dictionary<string, object>
+                    {
+                        ["actor_id"] = new { type = "string", format = "uuid" },
+                        ["name"] = new { type = "string", minLength = 3, maxLength = 64 },
+                        ["description"] = new { type = "string" },
+                        ["group_id"] = new { type = new[] { "string", "null" }, format = "uuid" },
+                        ["maturity"] = new { type = "string", @enum = new[] { "general", "moderate", "adult" } },
+                        ["enabled"] = new { type = "boolean" }
+                    }
+                },
+                ["ExperiencePublicRecord"] = new
+                {
+                    type = "object",
+                    required = new[] { "experience_id", "name", "description", "owner_id", "group_id", "maturity", "enabled" },
+                    properties = new Dictionary<string, object>
+                    {
+                        ["experience_id"] = new { type = "string", format = "uuid" },
+                        ["name"] = new { type = "string" },
+                        ["description"] = new { type = "string" },
+                        ["owner_id"] = new { type = "string", format = "uuid" },
+                        ["group_id"] = new { type = "string", format = "uuid" },
+                        ["maturity"] = new { type = "integer", @enum = new[] { 0, 1, 2 } },
+                        ["enabled"] = new { type = "boolean" }
+                    }
+                },
+                ["ExperiencePublicSearchResponse"] = new
+                {
+                    type = "object",
+                    required = new[] { "experiences", "correlation_id" },
+                    properties = new Dictionary<string, object>
+                    {
+                        ["experiences"] = new { type = "array", items = SchemaRef("ExperiencePublicRecord") },
+                        ["correlation_id"] = new { type = "string" }
+                    }
+                },
+                ["ExperiencePublicInfoResponse"] = new
+                {
+                    type = "object",
+                    required = new[] { "experiences", "error_ids", "correlation_id" },
+                    properties = new Dictionary<string, object>
+                    {
+                        ["experiences"] = new { type = "array", items = SchemaRef("ExperiencePublicRecord") },
+                        ["error_ids"] = UuidArraySchema(),
+                        ["correlation_id"] = new { type = "string" }
+                    }
+                },
+                ["ExperienceScriptResolveResponse"] = new
+                {
+                    type = "object",
+                    required = new[] { "script_id", "experience_id", "correlation_id" },
+                    properties = new Dictionary<string, object>
+                    {
+                        ["script_id"] = new { type = "string", format = "uuid" },
+                        ["experience_id"] = new { type = new[] { "string", "null" }, format = "uuid" },
+                        ["correlation_id"] = new { type = "string" }
+                    }
+                },
+                ["ExperienceScriptPermissionResponse"] = new
+                {
+                    type = "object",
+                    required = new[] { "script_id", "resident_id", "experience_id", "status", "allowed", "correlation_id" },
+                    properties = new Dictionary<string, object>
+                    {
+                        ["script_id"] = new { type = "string", format = "uuid" },
+                        ["resident_id"] = new { type = "string", format = "uuid" },
+                        ["experience_id"] = new { type = new[] { "string", "null" }, format = "uuid" },
+                        ["status"] = new { type = "string", @enum = new[] { "none", "allowed", "blocked" } },
+                        ["allowed"] = new { type = "boolean" },
+                        ["correlation_id"] = new { type = "string" }
+                    }
+                },
+                ["ExperienceScriptLocationResponse"] = new
+                {
+                    type = "object",
+                    required = new[] { "experience_id", "allowed", "correlation_id" },
+                    properties = new Dictionary<string, object>
+                    {
+                        ["experience_id"] = new { type = new[] { "string", "null" }, format = "uuid" },
+                        ["allowed"] = new { type = "boolean" },
+                        ["correlation_id"] = new { type = "string" }
+                    }
+                },
+                ["ExperienceKvRequest"] = new
+                {
+                    type = "object",
+                    required = new[] { "script_id", "operation" },
+                    properties = new Dictionary<string, object>
+                    {
+                        ["script_id"] = new { type = "string", format = "uuid" },
+                        ["operation"] = new { type = "string", @enum = new[] { "create", "read", "update", "delete", "stats", "keys" } },
+                        ["key"] = new { type = "string", maxLength = 1011 },
+                        ["value"] = new { type = "string", maxLength = 4095 },
+                        ["check_original"] = new { type = "boolean" },
+                        ["original_value"] = new { type = "string" },
+                        ["start"] = new { type = "integer", minimum = 0 },
+                        ["count"] = new { type = "integer", minimum = 1 }
+                    }
+                },
+                ["ExperienceKvResponse"] = new
+                {
+                    type = "object",
+                    required = new[] { "success", "code", "message", "result", "experience_id", "correlation_id" },
+                    properties = new Dictionary<string, object>
+                    {
+                        ["success"] = new { type = "boolean" },
+                        ["code"] = new { type = "string" },
+                        ["message"] = new { type = "string" },
+                        ["result"] = new { },
+                        ["experience_id"] = new { type = "string", format = "uuid" },
+                        ["correlation_id"] = new { type = "string" }
+                    }
+                },
+                ["ExperienceViewerListsResponse"] = new
+                {
+                    type = "object",
+                    required = new[] { "experiences", "blocked", "experience_ids", "admin_ids", "contributor_ids", "correlation_id" },
+                    properties = new Dictionary<string, object>
+                    {
+                        ["experiences"] = UuidArraySchema(),
+                        ["blocked"] = UuidArraySchema(),
+                        ["experience_ids"] = UuidArraySchema(),
+                        ["admin_ids"] = UuidArraySchema(),
+                        ["contributor_ids"] = UuidArraySchema(),
+                        ["correlation_id"] = new { type = "string" }
+                    }
+                },
+                ["ExperienceViewerDecisionRequest"] = new
+                {
+                    type = "object",
+                    required = new[] { "resident_id", "experience_id", "status" },
+                    properties = new Dictionary<string, object>
+                    {
+                        ["resident_id"] = new { type = "string", format = "uuid" },
+                        ["experience_id"] = new { type = "string", format = "uuid" },
+                        ["status"] = new { type = "string", @enum = new[] { "allowed", "blocked", "none" } }
+                    }
+                },
+                ["ExperienceViewerDecisionResponse"] = new
+                {
+                    type = "object",
+                    required = new[] { "experience_id", "status", "correlation_id" },
+                    properties = new Dictionary<string, object>
+                    {
+                        ["experience_id"] = new { type = "string", format = "uuid" },
+                        ["status"] = new { type = "string", @enum = new[] { "allowed", "blocked", "none" } },
+                        ["correlation_id"] = new { type = "string" }
+                    }
+                },
+                ["ExperienceViewerPermissionReadResponse"] = new
+                {
+                    oneOf = new[]
+                    {
+                        SchemaRef("ExperienceViewerListsResponse"),
+                        SchemaRef("ExperienceViewerDecisionResponse")
+                    }
+                },
+                ["ExperienceViewerGroupResponse"] = new
+                {
+                    type = "object",
+                    required = new[] { "experience_ids", "correlation_id" },
+                    properties = new Dictionary<string, object>
+                    {
+                        ["experience_ids"] = UuidArraySchema(),
+                        ["correlation_id"] = new { type = "string" }
+                    }
+                },
                 ["NexExperienceCreateRequest"] = new
                 {
                     type = "object",
