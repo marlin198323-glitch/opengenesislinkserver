@@ -54,10 +54,14 @@ In der isolierten Developer-Region die Konfiguration aus
     NativeExperiencePrompt = true
 ```
 
-Das eigene Test-Prim kann
-`tools/diagnostics/ogl_experience_firestorm_smoke.lsl` verwenden.
-Eine echte Experience muss vorher bewusst angelegt und dem Script
-berechtigt zugeordnet sein. Ein zweiter Bewohner darf keine Admin-Rechte haben.
+Das interaktive LSL-Livetestskript liegt unter
+[`tools/diagnostics/ogl_experiences_e2e_test.lsl`](../../tools/diagnostics/ogl_experiences_e2e_test.lsl).
+Die schrittweise Anleitung einschliesslich Consent-, Fehlercode-,
+K/V-CAS- und Restart-/Persistenztests steht unter
+[`EXPERIENCES_LSL_E2E_TEST_09310.md`](EXPERIENCES_LSL_E2E_TEST_09310.md).
+Das bisherige `ogl_experience_firestorm_smoke.lsl` bleibt als Minimaltest erhalten.
+Eine echte Experience muss dem Script vorher bewusst zugeordnet sein.
+Ein zweiter Bewohner darf keine Admin-Rechte haben.
 
 | ID | Firestorm-/Server-Versuch | Erwartetes Ergebnis |
 | --- | --- | --- |

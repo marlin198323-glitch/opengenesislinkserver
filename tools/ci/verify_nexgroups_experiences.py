@@ -401,4 +401,36 @@ for marker in (
 ):
     assert marker in regression, f"missing Experience regression marker: {marker}"
 
+
+# The operator must have a runnable, explicitly permission-bound LSL test.
+# This is a source/API-contract check, NOT a claim of in-world compilation.
+lsl_live = Path("tools/diagnostics/ogl_experiences_e2e_test.lsl").read_text(encoding="utf-8")
+for symbol in (
+    "llRequestExperiencePermissions(", "llGetExperienceDetails(",
+    "llAgentInExperience(", "llGetExperienceErrorMessage(",
+    "llCreateKeyValue(", "llReadKeyValue(", "llUpdateKeyValue(",
+    "llDeleteKeyValue(", "llDataSizeKeyValue(", "llKeyCountKeyValue(",
+    "llKeysKeyValue(", "experience_permissions(key resident)",
+    "experience_permissions_denied(key resident, integer code)",
+    "dataserver(key requestId, string data)",
+):
+    assert symbol in lsl_live, f"missing Experience live LSL exercise: {symbol}"
+for symbol in (
+    "XP_ERROR_RETRY_UPDATE", "XP_ERROR_KEY_NOT_FOUND",
+    "Ja Loeschen", "llGetOwner()", "llListFindList(gPending, [requestId])",
+    "No automatic grant", "CHANGED_OWNER",
+):
+    assert symbol in lsl_live, f"unsafe or incomplete Experience test: {symbol}"
+assert "llGiveMoney(" not in lsl_live
+assert "NEXVERSE_EXPERIENCES_API_KEY" not in lsl_live
+assert "EXPERIENCES_VIEWER_MANAGE_API_KEY" not in lsl_live
+for symbol in ("llCreateKeyValue(", "llReadKeyValue(", "llUpdateKeyValue(",
+               "llDeleteKeyValue(", "llDataSizeKeyValue(", "llKeyCountKeyValue(",
+               "llKeysKeyValue(", "llRequestExperiencePermissions(",
+               "llGetExperienceDetails(", "llAgentInExperience(",
+               "llGetExperienceErrorMessage("):
+    assert symbol in lsl_interface and symbol in lsl_stub, (
+        f"Live LSL test references unsupported API: {symbol}")
+assert Path("doc/NexVerse/EXPERIENCES_LSL_E2E_TEST_09310.md").is_file()
+
 print("OpenGenesisLINK Chapter 11 NexGroups/NexExperiences contract: OK")
