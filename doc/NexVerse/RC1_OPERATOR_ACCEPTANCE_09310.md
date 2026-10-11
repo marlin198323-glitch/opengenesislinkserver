@@ -1,112 +1,171 @@
-# OpenGenesisLINK 0.9.3.10 RC1 – Operator-Abnahme (noch OFFEN)
+# OpenGenesisLINK 0.9.3.10 RC1 – Operator-Abnahme (Stabilisierung)
 
-Status: **Entwicklungs-/Testanleitung; kein RC1-Tag und keine Stable-Freigabe.**
+**Stand: 12.10.2026 · Noch KEINE RC1-/Stable-Freigabe.**
+Verbindliche Fall-IDs und Freigabepolitik:
+[09310_RC1_RELEASE_READINESS.md](09310_RC1_RELEASE_READINESS.md).
+**22 echte RC1-Nachweise / 23 Stable-Nachweise**; historische
+Experience-/Outfit-/NAV-Fall-IDs dürfen hierfür nicht wiederverwendet
+werden.
 
-**Historisches Betreiberprotokoll 11/38 (Build a6778c9):** [09310_ACCEPTANCE_BLOCKERS.md](09310_ACCEPTANCE_BLOCKERS.md). Seit PR #158 kann `AgentExperiences` bei opt-in `FirestormManageCaps` einen authentifizierten POST für kostenlosen Erwerb verarbeiten; die damalige GET-only-Codeblockade ist behoben, die echte Firestorm-E2E-Abnahme jedoch **nicht** erbracht. `REL01`, `REL02` und `REL07` trotz alter Haken erneut anhand der offenen Experience-Tests bewerten. Für den aktuellen RC-Plan gelten die 48 Fall-IDs aus [09310_RC1_RELEASE_READINESS.md](09310_RC1_RELEASE_READINESS.md). Read-only Preflight: `python3 tools/diagnostics/ogl_voice_pathfinding_preflight.py --sim-config bin/OpenSim.ini --robust-config bin/Robust.HG.ini`.
-Aktualisiert: 11.10.2026. Freigabe-Gates: [RELEASE_TRAIN_0.9.3.10.md](RELEASE_TRAIN_0.9.3.10.md).
+## 1. Scope und sichere Ausgangskonfiguration
 
-## Verbindlicher Scope
+- **In 0.9.3.10:** .NET 8, lokale/HG-Logins, Region-CAPS/Ports,
+  reguläre LSL- und Inventar-Kompatibilität, NV$-Ledger/Viewer-Economy,
+  GRID-SERVICES-Masterbank als separat autorisiertes Funktionsgate,
+  World API R287, Security, Last, Backup/Recovery.
+- **Vertagt:** NexExperiences für Firestorm, OGL Pathfinding 2.0,
+  OGL My Outfits 2.0, OGLVoice und eigener Renderer. **Keine**
+  entsprechenden Funktions-/E2E-Pflichtgates. Die vorhandenen
+  XP-/LSL-/API-Sicherheitsregressionen bleiben Teil der CI.
+- **RC-Profil:** `[NexExperiencesViewer] Enabled=false`;
+  `[NexEconomyViewer] MasterBankEnabled=false` im normalen
+  Produktionsprofil. Masterbank nur im isolierten Test zeitweilig
+  mit voll autorisierter Operator-/Skriptbindung aktivieren.
 
-- **0.9.3.10:** .NET-8-Runtime, NexExperiences fuer Firestorm/LSL mit K/V, Consent und Persistenz; World API R287 und Inventory.
-- **Spaeter:** OGL Pathfinding wird erst mit dem eigenen Viewer neu geplant. OGL-Navigation und NAV01–NAV08 sind aus dem Server-Release entfernt.
-- **Sicherheit:** Keine gefaelschten NavMesh-CAPS und keine automatischen Experience-Zustimmungen.
+Die aktuell auf dem Host geladenen Nini-Includes/ENV-Werte und
+tatsächlich ausgegebenen CAPS müssen geprüft werden. Eine editierte
+INI oder ein Git-Checkout allein ändert keinen laufenden Prozess.
 
-## 1. Vorbereitung und beweissicheres Protokoll
+## 2. Betreiber-Vorbereitung (nicht überspringen)
 
-1. Notiere Server-/Simulator-Version und den exakten Git-Commit, Firestorm
-   Version, `dotnet --info`, eingesetzte Physics Engine, Region-ID/Dimension,
-   Datenbanktyp, Robust-/Simulator-Topologie und Datum. Keine Tokens loggen.
-2. Sichere die produktive Datenbank, das Inventar, den Experience-Store und
-   die Region-INI. Bestaetige **Wiederherstellbarkeit** in einer Kopie.
-3. Starte Robust und eine isolierte Developer-Region mit gleichem Build.
-   Aktiviere die Testmodule erst nach Kontrollblick auf ihre Config-Defaults.
-4. Fuehre den bestehenden Build und alle Tests aus; mindestens:
+1. Den exakten `git rev-parse HEAD` für **Robust und alle Simulatoren**,
+   die .NET-Version, Firestorm-Build, Regions-/Estate-/Datenbank-IDs,
+   Topologie und Physikengine dokumentieren.
+2. Datenbank, Assets, Inventar, Regions-INI und relevante Betreiber-INI
+   außerhalb des Git-Worktrees sichern. Restore an einer Kopie üben.
+3. `python3 tools/diagnostics/ogl_09310_operator_preflight.py
+   --robust-dir /opt/robust --sim-dir /opt/developer` ausführen.
+   Bei lokal geänderter `bin/OpenSim.ini` nie `git reset --hard`.
+4. Ein separates Developer-Grid bzw. `OGL Developer Gen1` mit
+   zwei Simulatoren und zwei Avataren vorsehen. Vor Liveschritten
+   unter beiden Prozessen denselben Release-Build kontrollieren.
+5. Ganze GitHub-Actions-Pipeline auf demselben SHA grün nachweisen.
+   Dazu gehören bestehende Experience-*Sicherheits*-Regressionen,
+   aber **keine** manuelle Experience-UI-Feature-Abnahme.
 
-   ```bash
-   python3 tools/ci/verify_stable_release_gate.py
-   python3 tools/ci/verify_no_ogl_pathfinding.py
-   python3 tools/ci/verify_nexgroups_experiences.py
-   ```
+## 3. Pflichtdurchläufe im Testgrid
 
-   Die vollstaendige GitHub Actions `NexVerse CI` muss am gleichen Commit
-   gruen sein. **CI ist notwendig, aber nie hinreichend fuer Stable.**
+Die folgenden Blöcke sind eine **Ausführungsreihenfolge**, keine
+Ersatzbelege für die einzelnen 22 Fall-IDs. Für jeden Fall:
+Datum, Avatar-/Regions-Kontext (anonymisiert), Git-Build,
+Testanweisung, beobachtetes Verhalten, Logs und ein konkreter
+`evidence_ref`.
 
-## 2. Experiences im realen Firestorm
+### A – System, Login, Hypergrid und LSL
 
-Administrativ drei **verschiedene, minimal berechtigte** API-Keys bereitstellen:
-`experiences:script`, `experiences:viewer:permissions` und
-`experiences:viewer:manage` (fuer Erwerb und eigenen Profil-Editor).
-Diese Schluessel koennen nur per berechtigter Service-Administration
-ausgestellt werden und duerfen nie im Viewer, Chat oder Git erscheinen.
-In der isolierten Developer-Region die Konfiguration aus
-`FIRESTORM_EXPERIENCE_ACQUIRE_09310.md` verwenden:
+`CORE_BOOT`, `CORE_LOGIN`, `CORE_HG`, `CORE_REGION`,
+`CORE_LSL`: Robust und zwei Simulatoren starten, mehrfach
+an-/abmelden, lokale und HG-Teleports, Neustarts und eigene
+Region-HTTP-Ports prüfen. Mindestens ein normales Timer-/Event-
+und ein XML-RPC-RemoteData-Skript samt Restart ausführen.
+Den Viewer nicht durch Experience-Funktionen blockieren lassen.
+
+### B – NV$ Ledger, Viewer und GRID-SERVICES-Masterbank
+
+`ECON_LEDGER`, `ECON_VIEWER`, `ECON_MASTERBANK`:
+Transaktionen/Idempotenz, negative Salden-/Status-/Scope-Fälle,
+Viewer-Balance und Transfers dokumentieren. Für die Masterbank
+**nur isoliert** und mit expliziter Autorisierung:
 
 ```ini
-[NexExperiencesViewer]
-    Enabled = true
-    ApiKey = "${Environment|NEXVERSE_EXPERIENCES_API_KEY}"
-    ViewerPermissionsApiKey = "${Environment|NEXVERSE_EXPERIENCES_VIEWER_PERMISSIONS_API_KEY}"
-    ViewerManageApiKey = "${Environment|NEXVERSE_EXPERIENCES_VIEWER_MANAGE_API_KEY}"
-    FirestormReadCaps = true
-    FirestormPermissionCaps = true
-    FirestormManageCaps = true
-    ScriptPendingConsent = true
-    NativeExperiencePrompt = true
+[NexEconomyViewer]
+    MasterBankEnabled = false
+    MasterBankAccountId = "6571e388-6218-4574-87db-f9379718315e"
+    MasterBankOperatorId = ""
+    MasterBankAuthorizedScripts = ""
+    MasterBankMaxPayout = 100
 ```
 
-Das interaktive LSL-Livetestskript liegt unter
-[`tools/diagnostics/ogl_experiences_e2e_test.lsl`](../../tools/diagnostics/ogl_experiences_e2e_test.lsl).
-Die schrittweise Anleitung einschliesslich Consent-, Fehlercode-,
-K/V-CAS- und Restart-/Persistenztests steht unter
-[`EXPERIENCES_LSL_E2E_TEST_09310.md`](EXPERIENCES_LSL_E2E_TEST_09310.md).
-Das bisherige `ogl_experience_firestorm_smoke.lsl` bleibt als Minimaltest erhalten.
-Eine echte Experience muss dem Script vorher bewusst zugeordnet sein.
-Ein zweiter Bewohner darf keine Admin-Rechte haben.
+Nach erfolgreichem sicheren Simulatorstart
+`tools/diagnostics/ogl_master_bank_payout_test.lsl` in ein
+Operator-eigenes Root-Prim legen; nach bestätigter
+`PERMISSION_DEBIT` liefert `llNexBankRegistrationInfo()`
+das echte `ROOT-OBJEKT-UUID/SKRIPT-INVENTARITEM-UUID`-Paar.
+Operator-UUID und Paar in die **effektiv geladene** Konfiguration
+eintragen, Konto im Ledger auf korrekten Business-Typ prüfen und
+vor der positiven Auszahlung bewusst finanzieren. Dann
+`MasterBankEnabled=true` nur auf dem Testsimulator setzen
+und neu starten. Einen 1-NV$-Payout plus `transaction_result`
+und negative Fälle (fremdes Objekt/Skript, keine Debit-Zustimmung,
+ungenügende Deckung, Limit überschritten, ungeeigneter Empfänger)
+belegen. **Kein** Geld aus dem Avatar-Wallet als Bankauszahlung
+interpretieren. Danach wieder deaktivieren, sofern nicht ausdrücklich
+und gesondert produktiv freigegeben.
 
-| ID | Firestorm-/Server-Versuch | Erwartetes Ergebnis |
-| --- | --- | --- |
-| EXP_CREATE | Avatar A klickt im Reiter Eigene auf Erlebnis erwerben, editiert Profil und loggt neu ein | Eigene Experience wird einmalig kostenfrei angelegt und bleibt nur fuer A editierbar; Maximum zehn; keine NV$-Buchung |
-| EXP01 | B bittet erstmals per Script um Berechtigung | Native Anfrage bzw. expliziter gesicherter Fallback; **keine** automatische Zustimmung |
-| EXP02 | B waehlt Allow im Viewer | Persistentes `ExperiencePreferences` Allow und genau passendes `experience_permissions` |
-| EXP03 | B waehlt Block bzw. Deny | Korrekte Fehlermeldung/`experience_permissions_denied`, keine Teilberechtigung |
-| EXP04 | B fuehrt Forget aus, meldet sich ab und wieder an | Geloeschtes Recht bleibt geloescht, kein alter Grant |
-| EXP05 | Script Reset/Remove im offenen Zustimmungsdialog | Anfrage wird abgebrochen, kein veraltetes LSL-Event |
-| EXP06 | B teleportiert auf zweite Region oder loggt aus | Vorherige Experience-CAPS scheitern; keine alten Leases erneut gueltig |
-| EXP07 | Zwei gleichzeitige Scripts und zwei Avatare | Deny, Timeout, Allow sind script-/avatar-isoliert |
-| EXP08 | Unbefugter Avatar/HG-Gast, gesperrte Parzelle, deaktivierte Experience | Verweigerung trotz alter URLs und Script-Bindung |
-| EXP09 | K/V create/read/update-CAS/delete nach Restart von Robust und Simulatoren | Korrekte Werte, Ausfall-/Backup-/Wiederherstellungsnachweis |
-| EXP10 | Zwei Robust-Instanzen bzw. produktive zentralisierte Topologie | Auf demselben lokalen Store blockiert die exklusive `.writer.lock` den zweiten Robust; aktive Multi-Host-JSON-Instanzen sind **nicht** unterstützt. Nachweis des einen aktiven Writers plus dokumentierter Recovery-/Wiederanlaufplan, **keine** behauptete SQL-/Active-Active-Freigabe |
+### C – Inventar und World API
 
-EXP01–EXP10 gelten erst als **PASS**, wenn HTTP-/Viewer- und LSL-Ergebnis,
-Persistenz nach Re-Login, Berechtigungskontrolle sowie saubere Logs
-zusammen dokumentiert sind. Die CI-Tests zu Lease-Revoke, Role-CAPS und
-Timeouts ersetzen diese Ende-zu-Ende-Pruefung nicht.
+`INV_CORE`, `INV_THUMB`: bestandsnahe Inventar-/Asset-/Link-/
+Rechte-/Persistenz-Prüfung sowie Thumbnail-J2K-Upload und Abruf
+nach Cache-Neuaufbau. Die bekannte Firestorm-Thumbnail-
+Aktualisierungseinschränkung ist keine bestandene Cache-Fix-Abnahme.
+**Nicht** `My Outfits`-Galerie, `Kein Outfit` oder COF
+als funktional fertig bestätigen.
 
-## 3. Weiterhin offene allgemeine Stable-Gates
+`API_AUTH`, `API_IMAGE`, `API_DISCOVERY`, `API_GROUPS`,
+`API_REGIONS`: echte laufende R287-Endpunkte testen, mit gültigem
+und ungültigem Scope, Privacy-/Owner- und Zugriffsschutz.
+Keine API-Keys oder private Bild-/Assetbytes in Logs veröffentlichen.
 
-- **APP01:** Firestorm Appearance `Kein Outfit`/Current Outfit/Links
-  mit Bestandsnutzer pruefen, ohne Outfits automatisch zu zerstoeren.
-- **INV01:** Akzeptierte bekannte Einschraenkung: Austausch eines
-  Outfit-Ordner-Thumbnails wird in Firestorm 7.2.4 mit bestehendem
-  Inventarcache teils nicht aktualisiert; Cache-Neuaufbau zeigt das
-  gespeicherte neue Asset. **Kein Nachweis einer Fehlerbehebung.**
-- **RUNTIME:** Gegen v0.9.3.8 messen: CPU, RAM/Heap, GC, Scheduler-/Region-Ticks,
-  Login, Teleport/HG, Inventar, NexBus, NV$, Watchdog und Logwarnungen.
-- **RECOVERY:** Backup, Update, Restart, Rollback auf **unveraendertes**
-  `v0.9.3.8`, kontrollierte Datenmigration/Restore, Secrets getrennt
-  und Rollback bei nicht rueckwaertskompatibler Schemaaenderung.
-- **PORTAL:** R287-Bildbytes mit echtem J2K, private Profile, Event-/Classified-Owner-Rechte, eigene Gruppen und Regionendetails ueber Live-API testen. Offen gebliebene R287-Funktionen nicht als fertig kennzeichnen.
-- **RELEASE:** Gruener identischer Build-Commit, Maintainer-Review,
-  ausgefuellte EXP-/RUNTIME-Resultate, dokumentierte Known Limitations,
-  danach erst RC1-Tag. Stable erfordert gesonderte Betreiber-Abnahme.
+### D – Performance, Recovery und Security
 
-## 4. Ergebniserfassung
+`PERF_BASELINE`, `PERF_STRESS`: gleiches Regionen-/Avatar-/
+Assetprofil unter `v0.9.3.8` und `0.9.3.10`. CPU, RAM/Heap,
+GC, Region-Tick, ThreadPool, UDP-Watchdog, HG-/Teleport-/NV$-
+Warteschlangen und Fehlerraten dokumentieren. Keine Verbesserung
+behaupten, bevor sie gemessen wurde.
 
-Fuer **jede** Fall-ID: Datum, Region-ID, Server-/Viewer-Build, Testverantwortliche,
-`PASS` / `FAIL` / `NOT RUN`, anonymisierter Logausschnitt, beobachtetes
-Viewer-/LSL-Verhalten, Reproduktionsschritte, offene Issue/PR-Nummer.
-Fehlende Nachweise sind **NOT RUN**, nie pauschal PASS.
+`RECOVERY_RESTORE`: SQL, Inventar, Assets und Regionen in
+einer **isolierten Kopie** wiederherstellen, Objekt-/Wallet-
+Integrität prüfen und Downgrade-Migrationsrisiken dokumentieren.
+Produktions-Datenbanken niemals ungeprüft zurückmigrieren.
 
-**Aktueller Stand bei Erstellung: alle Live-Operator-Fall-IDs NOT RUN.**
-Fuer 0.9.3.10 wird weder ein RC1 noch ein Stable-Tag durch diese
-Dokumentation automatisch freigegeben.
+`SEC_XP_OFF`: Effektiv geladene `[NexExperiencesViewer]
+Enabled=false`, keine Get-/Edit-/Permission-/Prompt-CAPS,
+keine auto-gewährten XP-Rechte und keine Reaktivierung durch
+fehlende Secrets. Alte Experience-Store-Daten bleiben gesichert,
+werden jedoch nicht als Bestandteil einer fertigen Viewer-
+Integration veröffentlicht.
+
+`SEC_SECRETS`: Scope-/Owner-/HG-Grenzen, HTTPS, API-Key-
+Trennung, Geheimnisschutz sowie getrennte Service-/Viewer-
+Identitäten überprüfen.
+
+### E – Deployment und Freigabe
+
+`RELEASE_DEPLOY`: gleiche SHA aller relevanten laufenden
+Prozesse, aktiver Build und effective INI, Deploy-/Restartbeleg.
+`RELEASE_OPERATOR`: Maintainer und Operator prüfen die
+22 anonymisierten Belege, bestätigte bekannte Einschränkungen
+und erteilen eine explizite **RC1**-Freigabe.
+
+`STABLE_APPROVAL`: wird erst **nach** dem RC1-Tag geprüft.
+Mindestens 24 h beobachteter Betrieb, tatsächlich ausgeführter
+Restore/Rollback, taggeprüfter RC1-Vorfahre, `Flavour.Release`
+und eigene **Stable**-Signatur. Keine Freigabe aus CI allein.
+
+## 4. Evidenzvorlage und Sperre
+
+```bash
+cd /opt/developer
+python3 tools/ci/verify_09310_release_readiness.py \
+  --init /root/ogl-release-evidence/0.9.3.10-rc1-v2.json
+
+python3 tools/ci/verify_09310_release_readiness.py \
+  --evidence /root/ogl-release-evidence/0.9.3.10-rc1-v2.json \
+  --stage rc1
+```
+
+**Alle Fälle beginnen als `NOT_RUN`.** Nur reale
+Operatorbeobachtungen dürfen in `PASS` geändert werden.
+Die v1-Datei mit alten Experience-Nachweisen kann für v2
+nicht wiederverwendet werden. Der Checker selbst ist kein
+Release-Automat; solange `Flavour.Dev` steht, bleibt RC1 gesperrt.
+
+## 5. Archivierte Testanleitungen
+
+Alte `EXP_CREATE`, `EXP01–10`, `LSL01–06`,
+`DB01–06`, `APP01` und `NAV*` aus
+[09310_ACCEPTANCE_BLOCKERS.md](09310_ACCEPTANCE_BLOCKERS.md)
+und den Experiences-E2E-Anleitungen sind **historische**
+Entwicklungs-/Debugbelege und keine RC1-Freigabeanforderungen.
+Keine bestehenden Sicherheits-Regressionstests entfernen.
