@@ -5,6 +5,7 @@
 // 3. Bankoperator erteilt PERMISSION_DEBIT nach bewusstem Dialog.
 // 4. TARGET_AVATAR mit echter lokalen oder anwesenden HG-Avatar-UUID ersetzen.
 // Kein API-Key, kein freier Touch-Faucet, kein unlimitierter Timer.
+// llNexBankPayout kann NIE aus dem privaten Avatar-Wallet bezahlen.
 key TARGET_AVATAR = NULL_KEY;
 integer AMOUNT_NV = 1;
 
@@ -32,7 +33,7 @@ default
             llOwnerSay("TEST NICHT GESTARTET: TARGET_AVATAR und Betrag konfigurieren.");
             return;
         }
-        key txn = llTransferLindenDollars(TARGET_AVATAR, AMOUNT_NV);
+        key txn = llNexBankPayout(TARGET_AVATAR, AMOUNT_NV);
         llOwnerSay("Masterbank-Transaktion angefragt: " + (string)txn);
     }
 

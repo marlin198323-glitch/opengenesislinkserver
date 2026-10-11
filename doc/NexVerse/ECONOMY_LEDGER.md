@@ -250,3 +250,13 @@ wird aber nicht in Heimatgrid-Waehrung exportiert.
 Zinsen/ATM-Buchungen werden spaeter als gedeckte Ledger-Transaktionen
 mit eigenem Reservekonto, Freigaben und Limits implementiert.
 Noch **keine** automatische Zinszahlung oder ATM-Live-Freigabe.
+
+
+**Sicherheitsnachtrag:** Bank-Payouts aus LSL verwenden ausschliesslich die
+OGL-Funktion `llNexBankPayout(avatar, betrag)` mit
+`transaction_result`. Normales `llGiveMoney` und
+`llTransferLindenDollars` bleiben **avatarfinanzierte** Funktionen.
+Wenn die Masterbank deaktiviert oder das Script nicht berechtigt ist,
+meldet `llNexBankPayout` einen Fehler und belastet **niemals** das
+private Konto des Bankoperators. Das Demo-Script verwendet nur diesen
+eindeutig abgegrenzten Aufruf.

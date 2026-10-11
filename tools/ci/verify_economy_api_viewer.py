@@ -208,9 +208,21 @@ for marker in ("MasterBankEnabled", "MasterBankAccountId", "MasterBankOperatorId
                '"/api/v1/banking/transfers"', "EnsureMasterBankAccount(",
                "GetAgentCircuitData(avatarId)", "IsAuthorizedBankScript(objectId"):
     assert marker in viewer, "Incomplete bank payout implementation: " + marker
-for marker in ("INexMasterBankPayoutModule", "bank.TryBankPayout(",
-               "m_item.PermsGranter != rootOwner"):
-    assert marker in lsl, "Master bank not bound to LSL debit permission: " + marker
+for marker in ("INexMasterBankPayoutModule", "llNexBankPayout(",
+               "bank.TryBankPayout(", "m_item.PermsGranter != ownerId",
+               "MASTER_BANK_SCRIPT_NOT_AUTHORIZED"):
+    assert marker in lsl, "Master bank lacks dedicated LSL payout: " + marker
+assert "llNexBankPayout(" in Path(
+    "OpenSim/Region/ScriptEngine/Shared/Api/Interface/ILSL_Api.cs").read_text()
+assert "llNexBankPayout(" in Path(
+    "OpenSim/Region/ScriptEngine/Shared/Api/Runtime/LSL_Stub.cs").read_text()
+assert "llNexBankPayout(TARGET_AVATAR, AMOUNT_NV)" in Path(
+    "tools/diagnostics/ogl_master_bank_payout_test.lsl").read_text()
+assert "TryBankPayout(" not in lsl.split(
+    "public LSL_Integer llGiveMoney(", 1)[1].split(
+    "public LSL_Key llNexBankPayout(", 1)[0]
+assert "TryBankPayout(" not in lsl.split(
+    "public LSL_Key llTransferLindenDollars(", 1)[1].split("#endregion", 1)[0]
 for marker in ("unauthorized Master Bank payout delegation accepted",
                "master bank could not payout to HG resident wallet",
                "master bank created unbacked money"):
