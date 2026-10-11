@@ -17,11 +17,16 @@ nicht der aktuelle API-Gesamtvertrag.
 | P1: Classified-Korrektur | PATCH/DELETE `/api/v1/classifieds/{classifiedId}` | `discovery:manage` plus Owner oder `admin:*`, Audit |
 | P2: Eigene Gruppen | GET `/api/v1/groups/mine` | Authentifizierter Einwohner, `groups:read`, keine `agent_id`-Fremdabfrage, begrenzte Pagination |
 
+Die bestehenden Event-/Classified-POST-Upsert-Routen sind zusätzlich gegen
+Fremd-Owner, Eintragsübernahme und Status-Eskalation geschützt: normale
+Einwohner erzeugen eigene Entwürfe; eine beliebig mitgesendete UUID,
+`organizer_id`/`owner_id` oder `state=approved` ist keine Autorisierung.
+Administrative Freigaben benötigen ausdrücklich `admin:*`.
+
 PATCH ist absichtlich eng begrenzt: Name, Beschreibung, Bild, Tags, Eventzeiten
 und Veranstaltungs-Eintrittspreis bzw. Classified-Kategorie. Änderungen an
 Owner, Place-ID, UUID, Veröffentlichungsstatus und Moderationsdaten werden
-nicht stillschweigend angenommen. Existierende POST-Upsert-Routen bleiben
-separat zu härten, falls Clients sie für unberechtigte Änderungen benutzen.
+nicht stillschweigend angenommen. Existierende POST-Upsert-Routen erzwingen ebenfalls Owner-/Statusschutz.
 
 ### Avatar-Bild-Bytes und Einschränkungen
 
