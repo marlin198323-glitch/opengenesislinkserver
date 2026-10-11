@@ -28,6 +28,8 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Net;
+using System.Net.Sockets;
 using System.Reflection;
 using System.Threading;
 using System.Xml;
@@ -342,7 +344,146 @@ namespace OpenSim
                     = startupConfig.GetString("clientstack_plugin", "OpenSim.Region.ClientStack.LindenUDP.dll");
             }
 
+            NexVerseHttpPortAllocator.Apply(m_config.Source);
             m_networkServersInfo.loadFromConfiguration(m_config.Source);
+        }
+    }
+
+    /// <summary>
+    /// Optional port allocation for multiple Grid simulators on one host.
+    /// Port leases use cross-process file locks and remain held until process exit.
+    /// The chosen port is persisted so simulator restarts prefer their previous
+    /// endpoint. Nothing changes if the operator explicitly configures a port.
+    /// </summary>
+    internal static class NexVerseHttpPortAllocator
+    {
+        private static readonly ILog m_log =
+            LogManager.GetLogger(typeof(NexVerseHttpPortAllocator));
+        private static readonly object m_sync = new object();
+        private static FileStream m_portLease;
+        private static int m_allocatedPort;
+
+        public static void Apply(IConfigSource source)
+        {
+            IConfig network = source.Configs["Network"];
+            if (network == null)
+                return;
+
+            int configuredPort = network.GetInt("http_listener_port", 9000);
+            if (configuredPort != 0)
+                return;
+
+            IConfig settings = source.Configs["NexVerseAutoPorts"];
+            if (settings == null || !settings.GetBoolean("Enabled", false))
+                throw new InvalidOperationException(
+                    "[PORTS]: http_listener_port=0 requires [NexVerseAutoPorts] Enabled=true.");
+            if (network.GetBoolean("http_listener_ssl", false))
+                throw new InvalidOperationException(
+                    "[PORTS]: Automatic HTTP ports currently require http_listener_ssl=false.");
+
+            int min = settings.GetInt("HttpPortMin", 9000);
+            int max = settings.GetInt("HttpPortMax", 9099);
+            if (min < 1024 || max > 65535 || min > max || max - min > 1000)
+                throw new InvalidOperationException(
+                    "[PORTS]: Invalid automatic HTTP port range.");
+
+            lock (m_sync)
+            {
+                if (m_portLease != null)
+                {
+                    network.Set("http_listener_port", m_allocatedPort);
+                    return;
+                }
+
+                // Persist the preferred port per deployment directory. This is
+                // runtime state, NOT an option to commit back to OpenSim.ini.
+                string dataDirectory = Path.Combine(Util.configDir(), "NexVersePorts");
+                string locksDirectory = Path.Combine(Path.GetTempPath(),
+                    "opengenesislink-http-port-locks");
+                Directory.CreateDirectory(dataDirectory);
+                Directory.CreateDirectory(locksDirectory);
+                string preferredFile = Path.Combine(dataDirectory, "http.port");
+                int preferred = -1;
+                if (File.Exists(preferredFile))
+                    int.TryParse(File.ReadAllText(preferredFile).Trim(), out preferred);
+
+                // First try the last successfully advertised port, then scan.
+                for (int pass = 0; pass < 2; pass++)
+                {
+                    int start = pass == 0 ? preferred : min;
+                    int finish = pass == 0 ? preferred : max;
+                    if (pass == 0 && (preferred < min || preferred > max))
+                        continue;
+
+                    for (int port = start; port <= finish; port++)
+                    {
+                        // Avoid conflicts with an optional separate HTTPS listener.
+                        if (network.GetBoolean("ssl_listener", false) &&
+                            port == network.GetInt("https_port", 0))
+                            continue;
+                        string lockFile = Path.Combine(locksDirectory,
+                            port.ToString(System.Globalization.CultureInfo.InvariantCulture) + ".lock");
+                        FileStream lease = null;
+                        try
+                        {
+                            lease = new FileStream(lockFile, FileMode.OpenOrCreate,
+                                FileAccess.ReadWrite, FileShare.ReadWrite);
+                            lease.Lock(0, 1);
+                        }
+                        catch (IOException)
+                        {
+                            lease?.Dispose();
+                            continue; // Another simulator already owns this port.
+                        }
+
+                        bool available = false;
+                        System.Net.Sockets.TcpListener probe = null;
+                        try
+                        {
+                            probe = new System.Net.Sockets.TcpListener(IPAddress.Any, port);
+                            probe.Start();
+                            available = true;
+                        }
+                        catch (SocketException)
+                        {
+                            // Another service (possibly not OpenGenesisLINK) is bound.
+                        }
+                        finally
+                        {
+                            probe?.Stop();
+                        }
+
+                        if (!available)
+                        {
+                            lease.Unlock(0, 1);
+                            lease.Dispose();
+                            continue;
+                        }
+
+                        try
+                        {
+                            File.WriteAllText(preferredFile, port.ToString(
+                                System.Globalization.CultureInfo.InvariantCulture));
+                            network.Set("http_listener_port", port);
+                            m_allocatedPort = port;
+                            m_portLease = lease; // Hold cross-process lease for lifetime.
+                            m_log.InfoFormat(
+                                "[PORTS]: Automatic simulator HTTP listener assigned TCP {0}.",
+                                port);
+                            return;
+                        }
+                        catch
+                        {
+                            lease.Unlock(0, 1);
+                            lease.Dispose();
+                            throw;
+                        }
+                    }
+                }
+            }
+            throw new InvalidOperationException(
+                "[PORTS]: No free TCP port in configured HTTP range. " +
+                "Adjust HttpPortMin/HttpPortMax or release an occupied port.");
         }
     }
 }
