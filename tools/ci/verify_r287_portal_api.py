@@ -70,7 +70,7 @@ for name, required in {
     "Chapter11MutationRequest": ("agent_id", "role_id"),
 }.items():
     start = api.index(f'["{name}"] = new')
-    segment = api[start: api.find("\\n                },", start) + 20]
+    segment = api[start: api.find("\n                },", start) + 20]
     assert "properties = new Dictionary<string, object>" in segment, name
     for prop in required:
         assert f'["{prop}"]' in segment, f"{name} lacks {prop}"
