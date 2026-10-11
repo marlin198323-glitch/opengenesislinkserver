@@ -31,6 +31,20 @@ REQUIRED_CASES = tuple(
 ) + EXTRA
 assert len(REQUIRED_CASES) == 48
 
+# REL07 in the historic owner's 38-item form says *both* "RC1 accepted"
+# and "Stable separately approved". Requiring it before RC1 exists makes
+# RC1 publication logically impossible. Stable still requires REL07.
+RC1_POST_RELEASE_CASES = frozenset({"REL07"})
+
+
+def required_cases_for(stage):
+    if stage == "rc1":
+        return tuple(x for x in REQUIRED_CASES if x not in RC1_POST_RELEASE_CASES)
+    if stage == "stable":
+        return REQUIRED_CASES
+    raise ValueError("Unknown release stage")
+
+
 
 def checkout_sha():
     return subprocess.check_output(
@@ -118,7 +132,7 @@ def validate(manifest, stage, expected_sha, flavour, rc_commit=None):
     cases = manifest.get("cases")
     if not isinstance(cases, dict):
         return errors + ["Required test cases are missing."]
-    for key in REQUIRED_CASES:
+    for key in required_cases_for(stage):
         item = cases.get(key)
         if not isinstance(item, dict):
             errors.append(f"{key}: NOT RUN (no evidence record)")
@@ -138,6 +152,8 @@ def validate(manifest, stage, expected_sha, flavour, rc_commit=None):
         need(isinstance(notes, str) and len(notes.strip()) >= 8,
              f"{key}: missing observed result / notes")
     if stage == "rc1":
+        # Once RC1 has been tagged, its approval is reviewed for Stable
+        # only. The additional evidence item REL07 stays NOT_RUN in RC1.
         need(flavour == "RC1",
              "RC1 requires VersionInfo.VERSION_FLAVOUR = Flavour.RC1.")
     else:
