@@ -21,6 +21,14 @@ namespace OpenSim.Region.Framework.Interfaces
             out int maturity,
             out bool enabled);
 
+        /// <summary>
+        /// After an authenticated task-script upload compiled successfully,
+        /// enforce live object/script edit permissions and persist the chosen
+        /// Experience in the central authority. Zero removes a binding.
+        /// </summary>
+        bool TrySetViewerScriptExperience(UUID primId, UUID scriptItemId,
+            UUID avatarId, UUID experienceId, out string reason);
+
         bool HasExperiencePermission(
             UUID scriptItemId,
             UUID residentId,
