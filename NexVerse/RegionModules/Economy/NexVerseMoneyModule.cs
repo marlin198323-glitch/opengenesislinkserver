@@ -13,6 +13,7 @@ using log4net;
 using Mono.Addins;
 using Nini.Config;
 using Nwc.XmlRpc;
+using NexVerse.Core.Economy;
 using OpenMetaverse;
 using OpenMetaverse.StructuredData;
 using OpenSim.Framework;
@@ -38,10 +39,16 @@ namespace NexVerse.RegionModules.Economy
             new object();
         private readonly Dictionary<ulong, Scene> m_Scenes =
             new Dictionary<ulong, Scene>();
+        // Maps the original foreign avatar to the globally namespaced wallet.
+        // Entries survive region changes within this simulator process. If a
+        // different verified home claims the same UUID, fail closed.
+        private readonly Dictionary<UUID, UUID> m_HypergridWallets =
+            new Dictionary<UUID, UUID>();
 
         private HttpClient m_Http;
         private bool m_Enabled;
         private bool m_LegacyHelperRegistered;
+        private bool m_AllowHypergridGuests;
         private string m_LocalEconomyUrl = string.Empty;
         private string m_CurrencyPurchasePortalUrl = string.Empty;
         private Dictionary<string, XmlRpcMethod> m_LegacyRpcHandlers;
@@ -189,6 +196,10 @@ namespace NexVerse.RegionModules.Economy
                         5),
                     0,
                     300);
+            // Explicit opt-in. A visiting account is never inferred from
+            // a viewer-controlled UUID or an unverified display name.
+            m_AllowHypergridGuests =
+                economy.GetBoolean("AllowHypergridGuests", false);
 
             string feeWallet =
                 economy.GetString(
@@ -357,7 +368,10 @@ namespace NexVerse.RegionModules.Economy
                 null;
 
             lock (m_Sync)
+            {
                 m_Scenes.Clear();
+                m_HypergridWallets.Clear();
+            }
 
             m_Http?.Dispose();
             m_Http =
@@ -375,12 +389,20 @@ namespace NexVerse.RegionModules.Economy
 
             try
             {
+                if (!TryResolveWallet(agentID, false, out UUID walletId,
+                        out string identityError))
+                {
+                    m_Log.DebugFormat(
+                        "[NEX-ECONOMY-VIEWER]: Kein freigegebenes NV$-HG-Wallet fuer {0}: {1}",
+                        agentID, identityError);
+                    return 0;
+                }
                 using HttpRequestMessage request =
                     CreateRequest(
                         HttpMethod.Get,
                         "/api/v1/economy/balance?account_id=" +
                         Uri.EscapeDataString(
-                            agentID.ToString()));
+                            walletId.ToString()));
 
                 using HttpResponseMessage response =
                     m_Http.Send(request);
@@ -1284,15 +1306,13 @@ namespace NexVerse.RegionModules.Economy
 
             try
             {
-                if (!EnsureLocalServiceWallet(
-                        buyer,
+                if (!TryResolveWallet(buyer, true, out UUID buyerWallet,
                         out reason) ||
-                    !EnsureLocalServiceWallet(
-                        seller,
-                        out reason))
-                {
+                    !TryResolveWallet(seller, false, out UUID sellerWallet,
+                        out reason) ||
+                    !EnsureLocalServiceWallet(buyer, out reason) ||
+                    !EnsureLocalServiceWallet(seller, out reason))
                     return false;
-                }
 
                 byte[] payload =
                     JsonSerializer.SerializeToUtf8Bytes(
@@ -1302,9 +1322,9 @@ namespace NexVerse.RegionModules.Economy
                                 orderId.ToString(),
                             kind,
                             buyer_account_id =
-                                buyer.ToString(),
+                                buyerWallet.ToString(),
                             seller_account_id =
-                                seller.ToString(),
+                                sellerWallet.ToString(),
                             amount,
                             reference =
                                 string.IsNullOrWhiteSpace(reference)
@@ -1434,24 +1454,23 @@ namespace NexVerse.RegionModules.Economy
 
             try
             {
-                if (!EnsureLocalServiceWallet(
-                        fromUser,
+                if (!TryResolveWallet(fromUser, true, out UUID fromWallet,
                         out reason) ||
-                    !EnsureLocalServiceWallet(
-                        toUser,
-                        out reason))
-                {
+                    !TryResolveWallet(toUser, false, out UUID toWallet,
+                        out reason) ||
+                    fromWallet == toWallet ||
+                    !EnsureLocalServiceWallet(fromUser, out reason) ||
+                    !EnsureLocalServiceWallet(toUser, out reason))
                     return false;
-                }
 
                 byte[] payload =
                     JsonSerializer.SerializeToUtf8Bytes(
                         new
                         {
                             from_account_id =
-                                fromUser.ToString(),
+                                fromWallet.ToString(),
                             to_account_id =
-                                toUser.ToString(),
+                                toWallet.ToString(),
                             amount,
                             reference =
                                 string.IsNullOrWhiteSpace(reference)
@@ -1684,6 +1703,177 @@ namespace NexVerse.RegionModules.Economy
             }
         }
 
+
+
+        // Account IDs in the Viewer are raw avatar UUIDs. Never use a HG
+        // avatar's bare UUID as ledger authority: two foreign homes may use
+        // the same UUID, or it may collide with a local Resident.
+        private bool TryResolveWallet(UUID avatarId, bool activeGuestDebit,
+            out UUID walletId, out string reason)
+        {
+            walletId = avatarId;
+            reason = string.Empty;
+            if (avatarId.IsZero())
+            {
+                reason = "NV$ account ID missing.";
+                return false;
+            }
+
+            Scene[] scenes;
+            lock (m_Sync)
+                scenes = new List<Scene>(m_Scenes.Values).ToArray();
+
+            foreach (Scene scene in scenes)
+            {
+                if (scene == null ||
+                    !scene.TryGetScenePresence(avatarId, out ScenePresence sp) ||
+                    sp == null || sp.IsDeleted || sp.IsChildAgent ||
+                    sp.IsNPC || sp.IsInTransit || sp.ControllingClient == null)
+                    continue;
+
+                var circuit = scene.AuthenticateHandler?.GetAgentCircuitData(avatarId);
+                if (circuit == null || circuit.AgentID != avatarId ||
+                    circuit.SessionID.IsZero() ||
+                    circuit.SessionID != sp.ControllingClient.SessionId ||
+                    sp.ControllingClient.AgentId != avatarId ||
+                    !sp.ControllingClient.IsActive)
+                {
+                    reason = "No authenticated active avatar circuit.";
+                    return false;
+                }
+
+                bool guest = (circuit.teleportFlags &
+                    (uint)Constants.TeleportFlags.ViaHGLogin) != 0 ||
+                    (scene.UserManagementModule != null &&
+                     !scene.UserManagementModule.IsLocalGridUser(avatarId));
+
+                if (!guest)
+                {
+                    // A stale HG binding and a new local session with the
+                    // same UUID must never share financial authority.
+                    lock (m_Sync)
+                        if (m_HypergridWallets.ContainsKey(avatarId))
+                        {
+                            reason = "Ambiguous avatar UUID across grid identities.";
+                            return false;
+                        }
+                    return true;
+                }
+
+                if (!m_AllowHypergridGuests)
+                {
+                    reason = "HG NV$ participation is disabled by the operator.";
+                    return false;
+                }
+                if (circuit.ServiceURLs == null ||
+                    !circuit.ServiceURLs.TryGetValue("HomeURI", out object rawHome) ||
+                    rawHome == null)
+                {
+                    reason = "Verified Hypergrid home URI is missing.";
+                    return false;
+                }
+
+                string home = rawHome.ToString();
+                UUID expected;
+                try
+                {
+                    expected = new UUID(NexHypergridWalletIdentity.AccountId(
+                        home, avatarId.Guid));
+                }
+                catch (ArgumentException)
+                {
+                    reason = "Invalid verified Hypergrid home URI.";
+                    return false;
+                }
+
+                lock (m_Sync)
+                    if (m_HypergridWallets.TryGetValue(avatarId, out UUID previous) &&
+                        previous != expected)
+                    {
+                        reason = "Conflicting verified Hypergrid homes for avatar UUID.";
+                        return false;
+                    }
+
+                if (!EnsureHypergridServiceWallet(avatarId, home,
+                        expected, out reason))
+                    return false;
+
+                lock (m_Sync)
+                    m_HypergridWallets[avatarId] = expected;
+                walletId = expected;
+                return true;
+            }
+
+            // An already-authenticated guest can receive NV$ after
+            // leaving a local region, but cannot debit an offline wallet.
+            lock (m_Sync)
+                if (m_HypergridWallets.TryGetValue(avatarId, out UUID cached))
+                {
+                    if (activeGuestDebit)
+                    {
+                        reason = "HG NV$ debits require a live verified session.";
+                        return false;
+                    }
+                    walletId = cached;
+                    return true;
+                }
+
+            // Ordinary local accounts and local group wallets remain
+            // fully backward compatible with their original UUIDs.
+            return true;
+        }
+
+        private bool EnsureHypergridServiceWallet(UUID avatarId, string home,
+            UUID expectedWallet, out string reason)
+        {
+            reason = string.Empty;
+            lock (m_Sync)
+                if (m_HypergridWallets.TryGetValue(avatarId, out UUID cached) &&
+                    cached == expectedWallet)
+                    return true;
+
+            try
+            {
+                byte[] body = JsonSerializer.SerializeToUtf8Bytes(new
+                {
+                    avatar_id = avatarId.ToString(),
+                    home_uri = home,
+                    display_name = "HG " + avatarId.ToString()
+                });
+                using HttpRequestMessage request = CreateRequest(
+                    HttpMethod.Post, "/api/v1/economy/hypergrid/wallets/ensure");
+                request.Content = new ByteArrayContent(body);
+                request.Content.Headers.ContentType =
+                    new MediaTypeHeaderValue("application/json");
+                using HttpResponseMessage response = m_Http.Send(request);
+                if (!response.IsSuccessStatusCode)
+                {
+                    reason = "Central HG wallet provisioning rejected: " +
+                        ReadErrorMessage(response);
+                    return false;
+                }
+                using JsonDocument json = JsonDocument.Parse(
+                    response.Content.ReadAsStringAsync().GetAwaiter().GetResult());
+                if (!json.RootElement.TryGetProperty("account",
+                        out JsonElement account) ||
+                    !account.TryGetProperty("account_id", out JsonElement rawId) ||
+                    !UUID.TryParse(rawId.GetString(), out UUID actual) ||
+                    actual != expectedWallet)
+                {
+                    reason = "Untrusted HG wallet provisioning response.";
+                    return false;
+                }
+                return true;
+            }
+            catch (Exception e)
+            {
+                reason = "HG wallet service unavailable.";
+                m_Log.WarnFormat(
+                    "[NEX-ECONOMY-VIEWER]: HG wallet provisioning failed: {0}",
+                    e.Message);
+                return false;
+            }
+        }
 
         private bool EnsureLocalServiceWallet(
             UUID accountId,
