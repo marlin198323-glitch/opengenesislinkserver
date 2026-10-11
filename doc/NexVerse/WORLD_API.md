@@ -6,11 +6,47 @@ Current stable server release: **OpenGenesisLINK v0.9.3.8 — NexSearch, Places,
 
 World API v1 was completed as the 0.9.3.2 development checkpoint on 3 October 2026 and remains the control-plane API foundation for the active OpenGenesisLINK development line. NexVerse continues as the deployment/grid identity.
 
-Current development endpoint:
+Current development deployment base (confirm against the active `[NexVerseWorldApi] PublicBaseUrl` and installed runtime):
 
 `http://world.stadt-nexverse.de/api/v1`
 
-NexVerse currently runs Robust directly on TCP port 80 without a reverse proxy. Therefore `world.stadt-nexverse.de` should resolve to the same Robust host as the public grid endpoint. The World API uses its own `/api/v1` path namespace.
+The endpoint above reflects the historically documented direct HTTP/port-80 deployment, **not a guarantee of live reachability, HTTPS or TLS protection**. Secure authenticated API traffic using an HTTPS reverse proxy or a comparably protected trusted network. Do not transmit bearer tokens, passwords or service API keys across plain public HTTP. The World API uses its own `/api/v1` namespace, whereas OAuth/OIDC endpoints include `/oauth/...` and `/.well-known/openid-configuration`. Paths in OpenAPI may depend on `EnablePrivilegedEndpoints`, configured services and simulator-side CAPS.
+
+## Aktueller Dokumentationsvertrag (0.9.3.10 Dev, 11.10.2026)
+
+Die **drei dynamisch generierten ChatGPT-MD-Anweisungen** und die **OpenAPI 3.1** werden vom Robust-Prozess geliefert. Verwende fuer einen konkreten Grid-Betrieb die Antworten derselben laufenden Version und nicht eine alte aus Git ausgecheckte Datei. Dieser Repository-Stand dokumentiert den **Quellcode**, nicht das automatische Deployment von /opt/robust und /opt/developer.
+
+| Ressource | HTTP-Methode und Pfad | Verwendungszweck |
+| --- | --- | --- |
+| OpenAPI | `GET /api/v1/openapi.json` | Autoritativer Maschinenvertrag inklusive `x-nexverse-*`-Hinweisen |
+| HTML-Explorer | `GET /api/v1/docs` | Durchsuchbarer Katalog; optionale Services koennen deaktiviert sein |
+| Gesamtanweisung | `GET /api/v1/chatgpt-instructions.md` | Einwohner, Admin und interne Dienste strikt getrennt |
+| Buergerportal | `GET /api/v1/chatgpt-buergerportal.md` | Self-/OAuth-Zugriff, niemals Admin-Impersonation |
+| Adminbereich | `GET /api/v1/chatgpt-admin.md` | Explizit autorisierte Mutationen, Scope-/Audit-Regeln |
+
+Anweisungen enthalten die Basis-URL aus der Runtime-Konfiguration. Sie **berechtigen** ChatGPT nicht, ohne angebundene Authentifizierung zu handeln. Der OpenAPI-Katalog ist ein technischer Vertrag, **kein Beleg** dafuer, dass jeder optionale Endpunkt in einem bestimmten Deployment aktiv oder bereits durch reale Viewer-Tests abgenommen ist.
+
+### NexExperiences – korrekte Service- und Viewer-Grenzen
+
+| Endpunkt | Methode | Scope | Zielgruppe |
+| --- | --- | --- | --- |
+| `/api/v1/experiences` | GET / POST | `experiences:read` / `experiences:manage` | Authentifizierte Verwaltung, ggf. Owner-/Admin-Grenze |
+| `/api/v1/experiences/{experienceId}` | GET / PUT / DELETE | `experiences:read` / `experiences:manage` | Authentifizierte Verwaltung |
+| `/api/v1/experiences/script/search` | GET | `experiences:script` | Simulator-Viewer-Metadatensuche |
+| `/api/v1/experiences/script/info` | GET | `experiences:script` | Simulator-Viewer-Kurzprofile mit `ids` (1–64 UUIDs, max. 4000 Zeichen) |
+| `/api/v1/experiences/script/resolve` | GET | `experiences:script` | Script-Bindung |
+| `/api/v1/experiences/script/details` | GET | `experiences:script` | Script-/Experience-Details |
+| `/api/v1/experiences/script/permission` | GET | `experiences:script` | Script-/Avatar-Berechtigung |
+| `/api/v1/experiences/script/location` | GET | `experiences:script` | Estate-/Parzellenfreigabe |
+| `/api/v1/experiences/script/kv` | POST | `experiences:script` | `create`, `read`, `update` (CAS), `delete`, `stats`, `keys` |
+| `/api/v1/experiences/viewer/permissions` | GET / PUT | `experiences:viewer:permissions` | Nur vertrauenswuerdiger Simulator, nicht Bewohner-Token |
+| `/api/v1/experiences/viewer/group` | GET | `experiences:viewer:permissions` | Nur vertrauenswuerdiger Simulator |
+
+`GET /viewer/permissions?resident_id=<uuid>` liefert ID-Listen (`experiences`, `blocked`, `experience_ids`, `admin_ids`, `contributor_ids`). Mit `&experience_id=<uuid>` liefert es stattdessen `status: none|allowed|blocked`; `PUT` erwartet `resident_id`, `experience_id` und `status: allowed|blocked|none`. Alle Browser-/Firestorm-Zugriffe muessen zuerst durch eine gueltige *avatar- und regionsgebundene Simulator-CAP* laufen. Die zentrale HTTP-Route allein authentifiziert keinen Einwohner nur anhand von `resident_id`. Der dedizierte Viewer-Permissions-Schluessel darf weder mit `experiences:script` noch mit einem Admin- oder Einwohner-Token verwechselt werden.
+
+Beim zentralen Experience-JSON-Store ist derzeit nur `SingleWriterJson` mit lokalem Writer-Lease implementiert. Ein verteilter SQL-/Active-Active-Store ist noch **nicht freigegeben**. Der Firestorm-Experience-Kauf/Editor ist im derzeitigen freigegebenen **main**-Stand noch **nicht als funktional abgenommen**; eine separate Entwicklungsarbeit hierfuer laeuft. Firestorm-Havok-`RetrieveNavMeshSrc` bleibt im jetzigen Viewer bewusst nicht behauptet und OGLVoice ist verschoben.
+
+**Konsistenzschutz:** `tools/ci/verify_worldapi_chatgpt_openapi.py` gleicht die expliziten Experience-Routen mit OpenAPI ab. Der GitHub-Robust-Smoke-Test laedt die echte `openapi.json`, validiert die Viewer-Service-Sicherheitsmetadaten, JSON-Schemas und alle drei MD-Downloads.
 
 
 #### Bürgerportal-Weltkarte

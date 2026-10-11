@@ -322,6 +322,18 @@ namespace NexVerse.Server.Api
                     ("put", "Estate-/Parcel-Policy ändern", "experiences:manage", "200")),
                 ["/api/v1/experiences/{experienceId}/scripts/{scriptId}/bind"] = AuthenticatedOperations(
                     ("post", "Script an Experience binden", "experiences:manage", "200")),
+                // Trusted simulator proxy routes are real World API endpoints.
+                // The viewer receives *only* expiring per-avatar simulator CAPS,
+                // never these authenticated Robust API paths or service keys.
+                ["/api/v1/experiences/script/search"] = AuthenticatedOperations(
+                    ("get", "Öffentliche Experience-Metadaten für Simulator-Such-CAPS", "experiences:script", "200")),
+                ["/api/v1/experiences/script/info"] = AuthenticatedOperations(
+                    ("get", "Experience-Kurzprofile für Viewer-CAPS (max. 64 UUIDs)", "experiences:script", "200")),
+                ["/api/v1/experiences/viewer/permissions"] = SimulatorBridgeOperations(
+                    ("get", "Eigene Experience-Listen oder Berechtigungsstatus über authentifizierten Simulator lesen", "experiences:viewer:permissions", "200"),
+                    ("put", "Explizites Firestorm Allow/Block/Forget für den aktuell angemeldeten Avatar speichern", "experiences:viewer:permissions", "200")),
+                ["/api/v1/experiences/viewer/group"] = SimulatorBridgeOperations(
+                    ("get", "Experience-IDs einer Gruppe für die Viewer-CAP ermitteln", "experiences:viewer:permissions", "200")),
                 ["/api/v1/experiences/script/resolve"] = AuthenticatedOperations(
                     ("get", "Script-Experience-Bindung auflösen", "experiences:script", "200")),
                 ["/api/v1/experiences/script/details"] = AuthenticatedOperations(
@@ -614,16 +626,50 @@ namespace NexVerse.Server.Api
             ApplyJsonContract(paths, "/api/v1/groups/{groupId}/bans/{agentId}", "post", "Chapter11MutationRequest", "Chapter11ObjectResponse", "200");
             ApplyJsonContract(paths, "/api/v1/groups/{groupId}/accounting", "get", null, "Chapter11ObjectResponse", "200");
             ApplyJsonContract(paths, "/api/v1/groups/{groupId}/capabilities", "get", null, "Chapter11ObjectResponse", "200");
-            ApplyJsonContract(paths, "/api/v1/experiences", "get", null, "Chapter11ObjectResponse", "200");
-            ApplyJsonContract(paths, "/api/v1/experiences", "post", "NexExperienceCreateRequest", "Chapter11ObjectResponse", "201");
-            ApplyJsonContract(paths, "/api/v1/experiences/{experienceId}", "get", null, "Chapter11ObjectResponse", "200");
-            ApplyJsonContract(paths, "/api/v1/experiences/{experienceId}", "put", "Chapter11MutationRequest", "Chapter11ObjectResponse", "200");
+            ApplyJsonContract(paths, "/api/v1/experiences", "get", null, "ExperienceSearchResponse", "200");
+            ApplyJsonContract(paths, "/api/v1/experiences", "post", "NexExperienceCreateRequest", "ExperienceDetailsResponse", "201");
+            ApplyJsonContract(paths, "/api/v1/experiences/{experienceId}", "get", null, "ExperienceDetailsResponse", "200");
+            ApplyJsonContract(paths, "/api/v1/experiences/{experienceId}", "put", "ExperienceProfileUpdateRequest", "ExperienceDetailsResponse", "200");
             ApplyJsonContract(paths, "/api/v1/experiences/{experienceId}/logs", "get", null, "Chapter11ObjectResponse", "200");
             ApplyJsonContract(paths, "/api/v1/experiences/script/resolve", "get", null, "Chapter11ObjectResponse", "200");
             ApplyJsonContract(paths, "/api/v1/experiences/script/details", "get", null, "Chapter11ObjectResponse", "200");
             ApplyJsonContract(paths, "/api/v1/experiences/script/permission", "get", null, "Chapter11ObjectResponse", "200");
             ApplyJsonContract(paths, "/api/v1/experiences/script/location", "get", null, "Chapter11ObjectResponse", "200");
-            ApplyJsonContract(paths, "/api/v1/experiences/script/kv", "post", "Chapter11MutationRequest", "Chapter11ObjectResponse", "200");
+            ApplyJsonContract(paths, "/api/v1/experiences/script/kv", "post", "ExperienceKvRequest", "ExperienceKvResponse", "200");
+            ApplyJsonContract(paths, "/api/v1/experiences/script/search", "get", null, "ExperiencePublicSearchResponse", "200");
+            ApplyJsonContract(paths, "/api/v1/experiences/script/info", "get", null, "ExperiencePublicInfoResponse", "200");
+            ApplyJsonContract(paths, "/api/v1/experiences/script/resolve", "get", null, "ExperienceScriptResolveResponse", "200");
+            ApplyJsonContract(paths, "/api/v1/experiences/script/details", "get", null, "ExperienceDetailsResponse", "200");
+            ApplyJsonContract(paths, "/api/v1/experiences/script/permission", "get", null, "ExperienceScriptPermissionResponse", "200");
+            ApplyJsonContract(paths, "/api/v1/experiences/script/location", "get", null, "ExperienceScriptLocationResponse", "200");
+            ApplyJsonContract(paths, "/api/v1/experiences/viewer/permissions", "get", null, "ExperienceViewerPermissionReadResponse", "200");
+            ApplyJsonContract(paths, "/api/v1/experiences/viewer/permissions", "put", "ExperienceViewerDecisionRequest", "ExperienceViewerDecisionResponse", "200");
+            ApplyJsonContract(paths, "/api/v1/experiences/viewer/group", "get", null, "ExperienceViewerGroupResponse", "200");
+            // Simulator Experience bridges: exactly the query names and bounds
+            // consumed by NexExperienceModule/NexExperiencesApi.
+            AddOperationParameters(paths, "/api/v1/experiences/script/search", "get",
+                QueryParameter("q", false, "Namens-Teiltext, begrenzt durch Simulator-CAP."),
+                PaginationParameter("offset", 0, 0, 1000000),
+                PaginationParameter("limit", 20, 1, 50));
+            AddOperationParameters(paths, "/api/v1/experiences/script/info", "get",
+                QueryParameter("ids", true, "Kommagetrennte 1 bis 64 Experience-UUIDs, max. 4000 Zeichen."));
+            AddOperationParameters(paths, "/api/v1/experiences/script/resolve", "get",
+                QueryParameter("script_id", true, "UUID der Script-Inventory-Instanz."));
+            AddOperationParameters(paths, "/api/v1/experiences/script/details", "get",
+                QueryParameter("experience_id", false, "Experience-UUID; alternativ script_id."),
+                QueryParameter("script_id", false, "Script-UUID wenn experience_id fehlt."));
+            AddOperationParameters(paths, "/api/v1/experiences/script/permission", "get",
+                QueryParameter("script_id", true, "Gebundene Script-UUID."),
+                QueryParameter("resident_id", true, "Avatar-UUID; nur intern vertrauter Script-Dienst."));
+            AddOperationParameters(paths, "/api/v1/experiences/script/location", "get",
+                QueryParameter("script_id", true, "Gebundene Script-UUID."),
+                QueryParameter("estate_id", false, "Optionale Estate UUID."),
+                QueryParameter("parcel_id", false, "Optionale Parcel UUID."));
+            AddOperationParameters(paths, "/api/v1/experiences/viewer/permissions", "get",
+                QueryParameter("resident_id", true, "Vom authentifizierten Avatar-CAP serverseitig gebundene UUID."),
+                QueryParameter("experience_id", false, "Optional: Einzeleinstellung statt aller Listen."));
+            AddOperationParameters(paths, "/api/v1/experiences/viewer/group", "get",
+                QueryParameter("group_id", true, "UUID der angefragten Gruppe."));
             ApplyJsonContract(paths, "/api/v1/banking/transactions", "get", null, "BankingTransactionsResponse", "200");
             ApplyJsonContract(paths, "/api/v1/banking/statements", "get", null, "BankingStatementResponse", "200");
             ApplyJsonContract(paths, "/api/v1/banking/reconciliation", "get", null, "BankingReconciliationResponse", "200");
@@ -1332,11 +1378,11 @@ namespace NexVerse.Server.Api
                         codename = NexVersePlatform.MilestoneCodename,
                         status = "development",
                         published = "2026-10-09",
-                        compatibility = "OpenGenesisLINK v0.9.3.10 Dev — OGLVoice und Pathfinding gemeinsamer Release-Train",
+                        compatibility = "OpenGenesisLINK v0.9.3.10 Dev — native Navigation und NexExperiences in Abnahme; Firestorm-NavMesh und OGLVoice zurueckgestellt",
                         highlights = new[]
                         {
-                            "0.9.3.9 OGLVoice und Runtime-Modernisierung sowie 0.9.3.10 Pathfinding werden gemeinsam entwickelt",
-                            "Native Pathfinding-A*-Kernkomponente und .NET-ThreadPool-Bereinigung im Entwicklungsstand; keine Voice- oder NavMesh-Produktivfreigabe",
+                            "0.9.3.9/0.9.3.10 bilden einen gemeinsamen Entwicklungsstand ohne separate Stable-0.9.3.9-Freigabe",
+                            "Nativer OGL-3D-Pathfinding-A*-Kern, NPC-Wegpunkte und NexExperiences-Simulator-CAPS als Opt-in; keine abgeschlossene reale Viewer-/LSL-/Mehrregionen-Abnahme",
                             "0.9.3.8 bleibt die letzte offiziell freigegebene Stable-Version"
                         }
                     },
@@ -2196,6 +2242,40 @@ namespace NexVerse.Server.Api
             return result;
         }
 
+        private static object SimulatorBridgeOperations(
+            params (string method, string summary, string scope, string successCode)[] operations)
+        {
+            // These endpoints require a dedicated trusted simulator credential.
+            // In particular a resident OAuth/Bearer principal must not be
+            // mistaken for the live avatar whose CAPS delegated the request.
+            Dictionary<string, object> result =
+                (Dictionary<string, object>)AuthenticatedOperations(operations);
+            foreach (KeyValuePair<string, object> entry in result)
+            {
+                Dictionary<string, object> operation = (Dictionary<string, object>)entry.Value;
+                operation["security"] = new object[]
+                {
+                    new Dictionary<string, string[]>
+                    {
+                        ["apiKeyAuth"] = Array.Empty<string>()
+                    }
+                };
+                operation["x-nexverse-audience"] = new[] { "service" };
+                operation["x-nexverse-ai-instruction"] =
+                    "Nur ein verifizierter Simulator darf diese interne World-API-Bridge verwenden. " +
+                    "Das resident_id-Feld ist durch die aktuelle, widerrufbare Viewer-CAP-Sitzung zu binden; " +
+                    "niemals aus einer ChatGPT-Eingabe oder URL eines Dritten übernehmen.";
+                operation["x-nexverse-security-constraints"] = new[]
+                {
+                    "Nur separat administrativ vergebene API-Schlüssel mit experiences:viewer:permissions.",
+                    "Kein Einwohner-Bearer-Token, keine Endnutzer- oder LSL-Verwendung.",
+                    "Live Root-Agent, CAPS-Lease und Regionsbindung muss der Simulator vor dem Aufruf prüfen.",
+                    "Allow, Block und Forget nur nach expliziter Viewerentscheidung; Audit erforderlich."
+                };
+            }
+            return result;
+        }
+
         private static string[] AudienceForScope(
             string scope)
         {
@@ -2954,6 +3034,226 @@ namespace NexVerse.Server.Api
                         ["open_enrollment"] = new { type = "boolean" },
                         ["allow_publish"] = new { type = "boolean" },
                         ["mature_publish"] = new { type = "boolean" }
+                    }
+                },
+                // NexExperiences contracts are intentionally explicit. The
+                // previous generic Chapter11ObjectResponse hid the actual
+                // API payload, required fields and privileged boundaries.
+                ["ExperienceApiRecord"] = new
+                {
+                    type = "object",
+                    required = new[] { "experience_id", "name", "owner_id", "maturity", "enabled" },
+                    properties = new Dictionary<string, object>
+                    {
+                        ["experience_id"] = new { type = "string", format = "uuid" },
+                        ["name"] = new { type = "string", minLength = 3, maxLength = 64 },
+                        ["description"] = new { type = "string" },
+                        ["owner_id"] = new { type = "string", format = "uuid" },
+                        ["group_id"] = new { type = new[] { "string", "null" }, format = "uuid" },
+                        ["maturity"] = new { type = "string", @enum = new[] { "general", "moderate", "adult" } },
+                        ["enabled"] = new { type = "boolean" },
+                        ["admins"] = UuidArraySchema(),
+                        ["contributors"] = UuidArraySchema(),
+                        ["allowed_residents"] = UuidArraySchema(),
+                        ["blocked_residents"] = UuidArraySchema(),
+                        ["allowed_estates"] = UuidArraySchema(),
+                        ["blocked_estates"] = UuidArraySchema(),
+                        ["allowed_parcels"] = UuidArraySchema(),
+                        ["blocked_parcels"] = UuidArraySchema(),
+                        ["key_value_count"] = new { type = "integer", minimum = 0 },
+                        ["created_at"] = new { type = "string", format = "date-time" },
+                        ["updated_at"] = new { type = "string", format = "date-time" }
+                    }
+                },
+                ["ExperienceDetailsResponse"] = new
+                {
+                    type = "object",
+                    required = new[] { "experience", "correlation_id" },
+                    properties = new Dictionary<string, object>
+                    {
+                        ["experience"] = SchemaRef("ExperienceApiRecord"),
+                        ["correlation_id"] = new { type = "string" }
+                    }
+                },
+                ["ExperienceSearchResponse"] = new
+                {
+                    type = "object",
+                    required = new[] { "experiences", "offset", "limit", "correlation_id" },
+                    properties = new Dictionary<string, object>
+                    {
+                        ["experiences"] = new { type = "array", items = SchemaRef("ExperienceApiRecord") },
+                        ["offset"] = new { type = "integer", minimum = 0 },
+                        ["limit"] = new { type = "integer", minimum = 1, maximum = 500 },
+                        ["correlation_id"] = new { type = "string" }
+                    }
+                },
+                ["ExperienceProfileUpdateRequest"] = new
+                {
+                    type = "object",
+                    properties = new Dictionary<string, object>
+                    {
+                        ["actor_id"] = new { type = "string", format = "uuid" },
+                        ["name"] = new { type = "string", minLength = 3, maxLength = 64 },
+                        ["description"] = new { type = "string" },
+                        ["group_id"] = new { type = new[] { "string", "null" }, format = "uuid" },
+                        ["maturity"] = new { type = "string", @enum = new[] { "general", "moderate", "adult" } },
+                        ["enabled"] = new { type = "boolean" }
+                    }
+                },
+                ["ExperiencePublicRecord"] = new
+                {
+                    type = "object",
+                    required = new[] { "experience_id", "name", "description", "owner_id", "group_id", "maturity", "enabled" },
+                    properties = new Dictionary<string, object>
+                    {
+                        ["experience_id"] = new { type = "string", format = "uuid" },
+                        ["name"] = new { type = "string" },
+                        ["description"] = new { type = "string" },
+                        ["owner_id"] = new { type = "string", format = "uuid" },
+                        ["group_id"] = new { type = "string", format = "uuid" },
+                        ["maturity"] = new { type = "integer", @enum = new[] { 0, 1, 2 } },
+                        ["enabled"] = new { type = "boolean" }
+                    }
+                },
+                ["ExperiencePublicSearchResponse"] = new
+                {
+                    type = "object",
+                    required = new[] { "experiences", "correlation_id" },
+                    properties = new Dictionary<string, object>
+                    {
+                        ["experiences"] = new { type = "array", items = SchemaRef("ExperiencePublicRecord") },
+                        ["correlation_id"] = new { type = "string" }
+                    }
+                },
+                ["ExperiencePublicInfoResponse"] = new
+                {
+                    type = "object",
+                    required = new[] { "experiences", "error_ids", "correlation_id" },
+                    properties = new Dictionary<string, object>
+                    {
+                        ["experiences"] = new { type = "array", items = SchemaRef("ExperiencePublicRecord") },
+                        ["error_ids"] = UuidArraySchema(),
+                        ["correlation_id"] = new { type = "string" }
+                    }
+                },
+                ["ExperienceScriptResolveResponse"] = new
+                {
+                    type = "object",
+                    required = new[] { "script_id", "experience_id", "correlation_id" },
+                    properties = new Dictionary<string, object>
+                    {
+                        ["script_id"] = new { type = "string", format = "uuid" },
+                        ["experience_id"] = new { type = new[] { "string", "null" }, format = "uuid" },
+                        ["correlation_id"] = new { type = "string" }
+                    }
+                },
+                ["ExperienceScriptPermissionResponse"] = new
+                {
+                    type = "object",
+                    required = new[] { "script_id", "resident_id", "experience_id", "status", "allowed", "correlation_id" },
+                    properties = new Dictionary<string, object>
+                    {
+                        ["script_id"] = new { type = "string", format = "uuid" },
+                        ["resident_id"] = new { type = "string", format = "uuid" },
+                        ["experience_id"] = new { type = new[] { "string", "null" }, format = "uuid" },
+                        ["status"] = new { type = "string", @enum = new[] { "none", "allowed", "blocked" } },
+                        ["allowed"] = new { type = "boolean" },
+                        ["correlation_id"] = new { type = "string" }
+                    }
+                },
+                ["ExperienceScriptLocationResponse"] = new
+                {
+                    type = "object",
+                    required = new[] { "experience_id", "allowed", "correlation_id" },
+                    properties = new Dictionary<string, object>
+                    {
+                        ["experience_id"] = new { type = new[] { "string", "null" }, format = "uuid" },
+                        ["allowed"] = new { type = "boolean" },
+                        ["correlation_id"] = new { type = "string" }
+                    }
+                },
+                ["ExperienceKvRequest"] = new
+                {
+                    type = "object",
+                    required = new[] { "script_id", "operation" },
+                    properties = new Dictionary<string, object>
+                    {
+                        ["script_id"] = new { type = "string", format = "uuid" },
+                        ["operation"] = new { type = "string", @enum = new[] { "create", "read", "update", "delete", "stats", "keys" } },
+                        ["key"] = new { type = "string", maxLength = 1011 },
+                        ["value"] = new { type = "string", maxLength = 4095 },
+                        ["check_original"] = new { type = "boolean" },
+                        ["original_value"] = new { type = "string" },
+                        ["start"] = new { type = "integer", minimum = 0 },
+                        ["count"] = new { type = "integer", minimum = 1 }
+                    }
+                },
+                ["ExperienceKvResponse"] = new
+                {
+                    type = "object",
+                    required = new[] { "success", "code", "message", "result", "experience_id", "correlation_id" },
+                    properties = new Dictionary<string, object>
+                    {
+                        ["success"] = new { type = "boolean" },
+                        ["code"] = new { type = "string" },
+                        ["message"] = new { type = "string" },
+                        ["result"] = new { },
+                        ["experience_id"] = new { type = "string", format = "uuid" },
+                        ["correlation_id"] = new { type = "string" }
+                    }
+                },
+                ["ExperienceViewerListsResponse"] = new
+                {
+                    type = "object",
+                    required = new[] { "experiences", "blocked", "experience_ids", "admin_ids", "contributor_ids", "correlation_id" },
+                    properties = new Dictionary<string, object>
+                    {
+                        ["experiences"] = UuidArraySchema(),
+                        ["blocked"] = UuidArraySchema(),
+                        ["experience_ids"] = UuidArraySchema(),
+                        ["admin_ids"] = UuidArraySchema(),
+                        ["contributor_ids"] = UuidArraySchema(),
+                        ["correlation_id"] = new { type = "string" }
+                    }
+                },
+                ["ExperienceViewerDecisionRequest"] = new
+                {
+                    type = "object",
+                    required = new[] { "resident_id", "experience_id", "status" },
+                    properties = new Dictionary<string, object>
+                    {
+                        ["resident_id"] = new { type = "string", format = "uuid" },
+                        ["experience_id"] = new { type = "string", format = "uuid" },
+                        ["status"] = new { type = "string", @enum = new[] { "allowed", "blocked", "none" } }
+                    }
+                },
+                ["ExperienceViewerDecisionResponse"] = new
+                {
+                    type = "object",
+                    required = new[] { "experience_id", "status", "correlation_id" },
+                    properties = new Dictionary<string, object>
+                    {
+                        ["experience_id"] = new { type = "string", format = "uuid" },
+                        ["status"] = new { type = "string", @enum = new[] { "allowed", "blocked", "none" } },
+                        ["correlation_id"] = new { type = "string" }
+                    }
+                },
+                ["ExperienceViewerPermissionReadResponse"] = new
+                {
+                    oneOf = new[]
+                    {
+                        SchemaRef("ExperienceViewerListsResponse"),
+                        SchemaRef("ExperienceViewerDecisionResponse")
+                    }
+                },
+                ["ExperienceViewerGroupResponse"] = new
+                {
+                    type = "object",
+                    required = new[] { "experience_ids", "correlation_id" },
+                    properties = new Dictionary<string, object>
+                    {
+                        ["experience_ids"] = UuidArraySchema(),
+                        ["correlation_id"] = new { type = "string" }
                     }
                 },
                 ["NexExperienceCreateRequest"] = new

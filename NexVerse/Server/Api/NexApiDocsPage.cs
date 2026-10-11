@@ -365,7 +365,7 @@ input,textarea,select{width:100%;background:#08131e;color:var(--text);border:1px
 
 <section class="page" id="page-chatgpt">
 <div class="hero">
-<div><div class="eyebrow">KI-Integration</div><h1>ChatGPT-Anweisungen &amp; Portaltrennung</h1><p>Downloadbare Arbeitsanweisungen fuer ChatGPT und API-Agenten. Die Trennung zwischen Buergerportal, Adminbereich und technischen Diensten folgt den Zielgruppen- und Scope-Metadaten des laufenden OpenAPI-Vertrags.</p></div>
+<div><div class="eyebrow">KI-Integration</div><h1>ChatGPT-Anweisungen &amp; Portaltrennung</h1><p>Downloadbare Arbeitsanweisungen fuer ChatGPT und API-Agenten. Die Trennung zwischen Buergerportal, Adminbereich und technischen Diensten folgt den Zielgruppen- und Scope-Metadaten des laufenden OpenAPI-Vertrags. Interne Simulator-Bridges (z. B. Experiences) sind keine direkt benutzbaren Einwohner-Endpunkte.</p></div>
 <div class="pill"><span class="dot good"></span><span>OpenAPI-gebunden</span></div>
 </div>
 
@@ -377,7 +377,7 @@ input,textarea,select{width:100%;background:#08131e;color:var(--text);border:1px
 <a class="action actionlink" href="/api/v1/openapi.json" target="_blank" rel="noreferrer">OpenAPI JSON oeffnen</a>
 <button class="action" data-goto="explorer">API-Explorer oeffnen</button>
 </div>
-<div class="portalmeta">Technische Quelle der Wahrheit bleibt immer der aktuelle OpenAPI-3.1-Vertrag des laufenden Servers.</div>
+<div class="portalmeta">Technische Quelle der Wahrheit bleibt immer der aktuelle OpenAPI-3.1-Vertrag des laufenden Servers. Dokumentierte optionale Endpunkte koennen je nach Robust-Konfiguration deaktiviert sein. Service-only Routen erfordern gesonderte berechtigte Simulator-Schluessel; OpenAPI-Zugriff allein erteilt keine Rechte.</div>
 </div>
 
 <div class="portalgrid">
