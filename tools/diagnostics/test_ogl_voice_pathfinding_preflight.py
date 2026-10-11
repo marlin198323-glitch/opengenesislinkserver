@@ -108,7 +108,7 @@ Enabled = false
         ):
             self.assertIn(code, findings, code)
         self.assertEqual(findings["EXPERIENCE_VIEWER_CREATE_UNSUPPORTED"]["severity"],
-                         "known-limitation")
+                         "action")
 
     def test_09310_opted_in_still_does_not_claim_live_success(self):
         sim = module.parse_opensim_ini("""
