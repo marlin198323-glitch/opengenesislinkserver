@@ -190,3 +190,34 @@ for marker in ("HG origin isolation/canonicalization failed",
                "HG transfer ledger balance mismatch",
                "HG account allowed overdraft"):
     assert marker in hg_tests, "Missing HG wallet regression: " + marker
+
+# Master Bank: object/script authority, prefunded separate wallet,
+# explicit operator debit grant, no LSL-side API key or minting.
+master_policy = Path("NexVerse/Core/Economy/NexMasterBankPayoutPolicy.cs").read_text()
+master_intf = Path("OpenSim/Region/Framework/Interfaces/INexMasterBankPayoutModule.cs").read_text()
+lsl = Path("OpenSim/Region/ScriptEngine/Shared/Api/Implementation/LSL_Api.cs").read_text()
+regression = Path("tools/ci/NexEconomyPolicyRegression/Program.cs").read_text()
+for marker in ("IsAuthorized(", "CanPayout(", "objectUUID/scriptItemUUID",
+               "ownerId == OperatorId", "amount <= MaxAmount"):
+    assert marker in master_policy, "Master Bank policy missing: " + marker
+for marker in ("INexMasterBankPayoutModule", "IsAuthorizedBankScript(",
+               "TryBankPayout("):
+    assert marker in master_intf and marker in viewer, "Missing native bank script boundary: " + marker
+for marker in ("MasterBankEnabled", "MasterBankAccountId", "MasterBankOperatorId",
+               "MasterBankAuthorizedScripts", "MasterBankMaxPayout",
+               '"/api/v1/banking/transfers"', "EnsureMasterBankAccount(",
+               "GetAgentCircuitData(avatarId)", "IsAuthorizedBankScript(objectId"):
+    assert marker in viewer, "Incomplete bank payout implementation: " + marker
+for marker in ("INexMasterBankPayoutModule", "bank.TryBankPayout(",
+               "m_item.PermsGranter != rootOwner"):
+    assert marker in lsl, "Master bank not bound to LSL debit permission: " + marker
+for marker in ("unauthorized Master Bank payout delegation accepted",
+               "master bank could not payout to HG resident wallet",
+               "master bank created unbacked money"):
+    assert marker in regression, "Missing bank payout regression: " + marker
+for p in ("bin/OpenSim.ini", "bin/OpenSim.ini.example"):
+    config = Path(p).read_text()
+    assert "MasterBankEnabled = false" in config
+    assert 'MasterBankAccountId = ""' in config
+    assert 'MasterBankAuthorizedScripts = ""' in config
+assert "NEXVERSE_ECONOMY_API_KEY" not in Path("tools/diagnostics/ogl_master_bank_payout_test.lsl").read_text()

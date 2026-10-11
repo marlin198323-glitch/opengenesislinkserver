@@ -177,3 +177,76 @@ durch einen normalen LSL-`llGiveMoney`-Trick simuliert werden.
 Ein Test mit mindestens zwei fremden Home-Grids, identischen
 Original-UUIDs auf unterschiedlichen Home-Grids und getrennten
 Sim-Prozessen ist fuer produktive Aktivierung Pflicht.
+
+## Zentrale NV$-Masterbank fuer freigegebene LSL-Skripte (11.10.2026)
+
+Die **Masterbank** ist ein vom Betreiber eingerichtetes, dauerhaftes
+`Business`-Wallet mit frei waehlbarer UUID. Das Guthaben verbleibt
+ausschliesslich im NexVerse-Ledger; die Bank ist **keine Geldschoepfungs-API**.
+Sie kann gegenueber lokalen und **angemeldeten HG-Gast-Wallets**
+dieselben virtuellen NV$ auszahlen.
+
+**Sicherheitsmodell:** Die Bankkonto-UUID allein darf nie eine Auszahlung
+freigeben. Der Simulator prueft vor *jedem* Vorgang:
+- `MasterBankEnabled = true` und vorhandene getrennte Bank- und
+  Betreiber-UUID; das empfangende Ziel muss aktuell in NexVerse
+  angemeldet sein.
+- Nur exakt erlaubte Paare aus **Root-Objekt-UUID und
+  LSL-Skript-Inventaritem-UUID** erhalten Zugriff. Skriptkopien
+  und neu gerezzte Objekte haben normalerweise neue IDs und bleiben gesperrt.
+- Das Objekt gehoert dem eingetragenen `MasterBankOperatorId`.
+  Der Betreiber hat dem Skript `PERMISSION_DEBIT` erteilt.
+- `MasterBankMaxPayout` begrenzt jede einzelne Auszahlung.
+  Zusatzeinschraenkungen wie Tageslimits koennen ueber die zentrale
+  Banking-Transferpolicy fuer das Bankkonto gesetzt werden.
+- Die Umbuchung geht ueber `POST /api/v1/banking/transfers`,
+  mit Idempotency-Key, autoritativer Deckungspruefung und
+  Double-Entry-Journal. Der Auszahlungscode nutzt ausschliesslich
+  die getrennte Bankkonto-UUID als Quelle.
+- Keine Schluessel, HTTP-API-Tokens oder privilegierten UUID-Claims
+  werden an das LSL-Skript ausgegeben. Das Skript ruft die vorhandenen
+  `llGiveMoney` oder besser `llTransferLindenDollars`-Funktionen auf.
+  `transaction_result` liefert bei letzterem Erfolg oder Fehler.
+
+**Konfiguration:** In der geladenen Simulator-`OpenSim.ini`:
+
+```ini
+[NexEconomyViewer]
+    MasterBankEnabled = false
+    MasterBankAccountId = ""
+    MasterBankOperatorId = ""
+    MasterBankAuthorizedScripts = ""
+    MasterBankMaxPayout = 100
+```
+
+Die Bank darf erst nach kontrollierter Einrichtung aktiviert werden.
+`MasterBankAccountId` ist eine fest gewaehlte **neue, unbenutzte UUID**
+und darf nicht der UUID eines vorhandenen Avatars, Gruppenwallets oder
+Systemkontos entsprechen. Der Server legt das Konto beim ersten
+autorisierten Einsatz als Business-Wallet mit **0 NV$** an.
+
+**Beispiel fuer mehrere Skripte:**
+`MasterBankAuthorizedScripts = "OBJEKT-UUID-1/SKRIPT-INVENTAR-UUID-1;OBJEKT-UUID-2/SKRIPT-INVENTAR-UUID-2"`
+
+Die `SKRIPT-INVENTAR-UUID` ist die **Task-Inventory-Item-ID**, nicht
+die Skript-Asset-UUID von `llGetInventoryKey()`. Der Administrator
+muss das Objekt und sein Task-Inventar ueber vertrauenswuerdige
+Simulator-/Inventardiagnose identifizieren. Der Demo-Code liegt unter
+[`tools/diagnostics/ogl_master_bank_payout_test.lsl`](../../tools/diagnostics/ogl_master_bank_payout_test.lsl).
+
+**Wichtig:** Das vorhandene `economy:transfer`-Service-Credential ist
+allgemein fuer die World-API uebertragungsberechtigt. Die neue
+Skriptdelegation haertet die *Inworld-Aufrufer* ab, sie ersetzt
+nicht die Absicherung vertrauenswuerdiger Simulatoren und ihrer
+Maschinenkeys. Kein ungepruefter LSL-HTTP-Endpunkt darf dieses
+Credential nutzen. Konten und Tokens bleiben zentral durch den Betreiber
+verwaltet.
+
+HG-Bewohner duerfen NV$ **nur innerhalb NexVerse** verwenden. Sie
+koennen dort kaufen, verkaufen und bei spaeteren Bankfunktionen
+einzahlen, auszahlen und Zinsen auf virtuelle NV$ erhalten.
+Das Guthaben bleibt auch nach dem Ausloggen im zentralen Ledger,
+wird aber nicht in Heimatgrid-Waehrung exportiert.
+Zinsen/ATM-Buchungen werden spaeter als gedeckte Ledger-Transaktionen
+mit eigenem Reservekonto, Freigaben und Limits implementiert.
+Noch **keine** automatische Zinszahlung oder ATM-Live-Freigabe.

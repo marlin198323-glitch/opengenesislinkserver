@@ -122,6 +122,67 @@ internal static class Program
                 9999, "HG overdraft"),
             label + ": HG account allowed overdraft");
 
+
+        // The Master Bank is an opt-in, prefunded Business wallet. Its UUID
+        // does not grant authority: both exact script binding and operator
+        // ownership are necessary for every delegated payout.
+        Guid bankId = Guid.NewGuid();
+        Guid operatorId = Guid.NewGuid();
+        Guid payoutObject1 = Guid.NewGuid();
+        Guid payoutScript1 = Guid.NewGuid();
+        Guid payoutObject2 = Guid.NewGuid();
+        Guid payoutScript2 = Guid.NewGuid();
+        NexMasterBankPayoutPolicy disabled = new NexMasterBankPayoutPolicy(
+            bankId, operatorId, 100, "");
+        Require(!disabled.Enabled && !disabled.IsAuthorized(
+                    payoutObject1, payoutScript1, operatorId),
+            label + ": Master Bank was enabled without explicit scripts");
+
+        NexMasterBankPayoutPolicy master = new NexMasterBankPayoutPolicy(
+            bankId, operatorId, 50,
+            payoutObject1.ToString("D") + "/" + payoutScript1.ToString("D") +
+            ";" + payoutObject2.ToString("D") + "/" + payoutScript2.ToString("D"));
+        Require(master.Enabled &&
+                master.IsAuthorized(payoutObject1, payoutScript1, operatorId) &&
+                master.IsAuthorized(payoutObject2, payoutScript2, operatorId) &&
+                !master.IsAuthorized(payoutObject1, payoutScript2, operatorId) &&
+                !master.IsAuthorized(payoutObject1, payoutScript1, Guid.NewGuid()) &&
+                master.CanPayout(payoutObject1, payoutScript1, operatorId,
+                    foreignAvatar, 25) &&
+                !master.CanPayout(payoutObject1, payoutScript1, operatorId,
+                    foreignAvatar, 51) &&
+                !master.CanPayout(payoutObject1, payoutScript1, operatorId,
+                    foreignAvatar, 0) &&
+                !master.CanPayout(payoutObject1, payoutScript1, operatorId,
+                    bankId, 5),
+            label + ": unauthorized Master Bank payout delegation accepted");
+        RequireThrows<ArgumentException>(
+            () => new NexMasterBankPayoutPolicy(bankId, operatorId, 10,
+                payoutObject1.ToString("D")),
+            label + ": unqualified Master Bank script ID accepted");
+        RequireThrows<ArgumentException>(
+            () => new NexMasterBankPayoutPolicy(operatorId, operatorId, 10,
+                payoutObject1.ToString("D") + "/" + payoutScript1.ToString("D")),
+            label + ": Master Bank account indistinguishable from operator");
+        NexLedgerAccount bank = economy.EnsureWalletAccount(bankId,
+            NexLedgerAccountClass.Business, "NexVerse CI Master Bank");
+        Require(bank.AccountClass == NexLedgerAccountClass.Business &&
+                economy.GetBalance(bankId) == 0,
+            label + ": Master Bank created with a non-zero balance");
+        // Only a *separate explicit* funding adjustment credits the bank.
+        economy.AdministrativeAdjustment(bankId, systemId, 100,
+            "ci-admin", "explicit prefunding of master bank");
+        NexLedgerAppendResult masterPayout = economy.BankingTransfer(
+            bankId, guestWallet.AccountId, 25, "CI bank reward");
+        Require(masterPayout.Created &&
+                economy.GetBalance(bankId) == 75 &&
+                economy.GetBalance(guestWallet.AccountId) == 29,
+            label + ": master bank could not payout to HG resident wallet");
+        RequireThrows<NexLedgerPolicyException>(
+            () => economy.BankingTransfer(bankId, guestWallet.AccountId,
+                9999, "unfunded master payout"),
+            label + ": master bank created unbacked money");
+
         NexLedgerAccount resident =
             economy.EnsureResidentAccount(
                 residentId,
