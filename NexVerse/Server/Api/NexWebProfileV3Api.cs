@@ -2,6 +2,9 @@
 
 using System;
 using System.IO;
+using System.Drawing;
+using System.Drawing.Imaging;
+using OpenMetaverse.Imaging;
 using System.Net;
 using System.Text;
 using System.Text.Json;
@@ -25,17 +28,22 @@ namespace NexVerse.Server.Api
     {
         private readonly IUserAccountService m_Accounts;
         private readonly IProfilesData m_Profiles;
+        private readonly IAssetService m_Assets;
+        private const int MaxProfileAssetBytes = 8 * 1024 * 1024;
+        private const int MaxProfileImageWidth = 2048;
         private readonly NexApiAuthenticator m_Authenticator;
         private readonly INexAuditSink m_Audit;
 
         public NexWebProfileV3Api(
             IUserAccountService accounts,
             IProfilesData profiles,
+            IAssetService assets,
             NexApiAuthenticator authenticator,
             INexAuditSink audit = null)
         {
             m_Accounts = accounts ?? throw new ArgumentNullException(nameof(accounts));
             m_Profiles = profiles ?? throw new ArgumentNullException(nameof(profiles));
+            m_Assets = assets;
             m_Authenticator = authenticator ?? throw new ArgumentNullException(nameof(authenticator));
             m_Audit = audit ?? NullNexAuditSink.Instance;
         }
@@ -43,8 +51,11 @@ namespace NexVerse.Server.Api
         public void Handle(IOSHttpRequest httpRequest, IOSHttpResponse httpResponse)
         {
             string[] segments = (httpRequest?.UriPath ?? string.Empty).Trim('/').Split('/');
-            // /api/v1/profiles/{uuid}
-            if (segments.Length != 4 ||
+            // /api/v1/profiles/{uuid} and profile-bound binary image:
+            // /api/v1/profiles/{uuid}/image. Never accept arbitrary asset IDs.
+            bool imageRequest = segments.Length == 5 &&
+                segments[4].Equals("image", StringComparison.OrdinalIgnoreCase);
+            if ((segments.Length != 4 && !imageRequest) ||
                 !segments[0].Equals("api", StringComparison.OrdinalIgnoreCase) ||
                 !segments[1].Equals("v1", StringComparison.OrdinalIgnoreCase) ||
                 !segments[2].Equals("profiles", StringComparison.OrdinalIgnoreCase) ||
@@ -58,6 +69,18 @@ namespace NexVerse.Server.Api
             if (account == null)
             {
                 WriteJson(httpResponse, HttpStatusCode.NotFound, new { error = "profile_not_found" });
+                return;
+            }
+
+            if (imageRequest)
+            {
+                if (string.Equals(httpRequest.HttpMethod, "GET", StringComparison.OrdinalIgnoreCase))
+                    GetImage(account, httpRequest, httpResponse);
+                else
+                {
+                    httpResponse.AddHeader("Allow", "GET");
+                    WriteJson(httpResponse, HttpStatusCode.MethodNotAllowed, new { error = "method_not_allowed" });
+                }
                 return;
             }
 
@@ -107,6 +130,8 @@ namespace NexVerse.Server.Api
                 username = account.Username,
                 display_name = account.EffectiveDisplayName,
                 profile_image = profile.ImageId.ToString(),
+                profile_image_url = profile.ImageId.IsZero() || m_Assets == null
+                    ? null : "/api/v1/profiles/" + account.PrincipalID + "/image",
                 about = profile.AboutText ?? string.Empty,
                 web_url = profile.WebUrl ?? string.Empty,
                 interests = new
@@ -126,6 +151,144 @@ namespace NexVerse.Server.Api
                 picks = m_Profiles.GetAvatarPicks(account.PrincipalID),
                 classifieds = m_Profiles.GetClassifiedRecords(account.PrincipalID)
             });
+        }
+
+        /// <summary>
+        /// Only the avatar's *current profile picture* can be retrieved.
+        /// OpenSim asset IDs alone never confer authority. Published profiles
+        /// may be read anonymously; private pictures require owner/admin.
+        /// In particular scripts, inventory textures and friends-only assets
+        /// can never be enumerated through this route.
+        /// </summary>
+        private void GetImage(UserAccount account, IOSHttpRequest request,
+            IOSHttpResponse response)
+        {
+            if (m_Assets == null)
+            {
+                WriteJson(response, HttpStatusCode.ServiceUnavailable,
+                    new { error = "profile_image_service_unavailable" });
+                return;
+            }
+
+            UserProfileProperties profile =
+                new UserProfileProperties { UserId = account.PrincipalID };
+            string error = string.Empty;
+            if (!m_Profiles.GetAvatarProperties(ref profile, ref error))
+            {
+                WriteJson(response, HttpStatusCode.NotFound,
+                    new { error = "profile_image_not_found" });
+                return;
+            }
+            if (!profile.PublishProfile)
+            {
+                if (!m_Authenticator.TryAuthenticate(request, NexScopes.ProfileRead,
+                    out NexPrincipal principal, out UserAccount _,
+                    out int status, out string authError))
+                {
+                    WriteJson(response, (HttpStatusCode)status,
+                        new { error = authError });
+                    return;
+                }
+                if ((!UUID.TryParse(principal.Subject, out UUID subject) ||
+                      subject != account.PrincipalID) &&
+                    !principal.HasScope(NexScopes.AdminAll))
+                {
+                    WriteJson(response, HttpStatusCode.NotFound,
+                        new { error = "profile_image_not_found" });
+                    return;
+                }
+            }
+            if (profile.ImageId.IsZero())
+            {
+                WriteJson(response, HttpStatusCode.NotFound,
+                    new { error = "profile_image_not_found" });
+                return;
+            }
+
+            try
+            {
+                // Asset origin, MIME metadata and the image extension from a
+                // browser request are untrusted. Validate the actual bytes.
+                AssetBase asset = m_Assets.Get(profile.ImageId.ToString());
+                if (asset == null || asset.Data == null ||
+                    asset.Data.Length == 0 ||
+                    asset.Data.Length > MaxProfileAssetBytes ||
+                    (asset.Type != (sbyte)AssetType.Texture &&
+                     asset.Type != (sbyte)AssetType.ImageJPEG &&
+                     asset.Type != (sbyte)AssetType.TextureTGA &&
+                     asset.Type != (sbyte)AssetType.ImageTGA))
+                {
+                    WriteJson(response, HttpStatusCode.NotFound,
+                        new { error = "profile_image_not_found" });
+                    return;
+                }
+                byte[] raw = asset.Data;
+                byte[] result;
+                string mime;
+                if (raw.Length >= 8 && raw[0] == 0x89 && raw[1] == 0x50 &&
+                    raw[2] == 0x4e && raw[3] == 0x47 &&
+                    raw[4] == 0x0d && raw[5] == 0x0a &&
+                    raw[6] == 0x1a && raw[7] == 0x0a)
+                {
+                    result = raw;
+                    mime = "image/png";
+                }
+                else if (raw.Length >= 3 && raw[0] == 0xff &&
+                         raw[1] == 0xd8 && raw[2] == 0xff)
+                {
+                    result = raw;
+                    mime = "image/jpeg";
+                }
+                else
+                {
+                    // OpenSim profile textures are commonly JPEG2000. Decode
+                    // to a browser-supported image; do not forward raw J2K.
+                    ManagedImage managedImage;
+                    Image image;
+                    if (!OpenJPEG.DecodeToImage(raw, out managedImage, out image) ||
+                        image == null)
+                    {
+                        WriteJson(response, HttpStatusCode.UnsupportedMediaType,
+                            new { error = "profile_image_decode_failed" });
+                        return;
+                    }
+                    using (image)
+                    {
+                        if (image.Width <= 0 || image.Height <= 0 ||
+                            image.Width > MaxProfileImageWidth ||
+                            image.Height > MaxProfileImageWidth)
+                        {
+                            WriteJson(response, HttpStatusCode.RequestEntityTooLarge,
+                                new { error = "profile_image_too_large" });
+                            return;
+                        }
+                        using MemoryStream buffer = new MemoryStream();
+                        image.Save(buffer, ImageFormat.Png);
+                        if (buffer.Length > MaxProfileAssetBytes)
+                        {
+                            WriteJson(response, HttpStatusCode.RequestEntityTooLarge,
+                                new { error = "profile_image_too_large" });
+                            return;
+                        }
+                        result = buffer.ToArray();
+                        mime = "image/png";
+                    }
+                }
+                response.StatusCode = (int)HttpStatusCode.OK;
+                response.ContentType = mime;
+                response.AddHeader("X-Content-Type-Options", "nosniff");
+                // Conservative cache policy: an avatar may revoke public
+                // visibility immediately without old CDN/profile copies.
+                response.AddHeader("Cache-Control", "private, no-store");
+                response.KeepAlive = false;
+                response.RawBuffer = result;
+            }
+            catch (Exception)
+            {
+                // Do not disclose backend URLs, raw asset metadata or IDs.
+                WriteJson(response, HttpStatusCode.ServiceUnavailable,
+                    new { error = "profile_image_service_unavailable" });
+            }
         }
 
         private void Patch(
