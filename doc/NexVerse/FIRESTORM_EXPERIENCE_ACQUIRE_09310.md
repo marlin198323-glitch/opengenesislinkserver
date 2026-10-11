@@ -203,7 +203,8 @@ in Firestorm notwendig, da die CAPS bei Login ausgehandelt werden.
    ändern.
 4. Zehn Experiences besitzen und elften Erwerb versuchen:
    keine unbeschränkte Erzeugung, keine NV$-Belastung.
-5. Anschliessend `tools/diagnostics/ogl_experiences_e2e_test.lsl` nach\n   `doc/NexVerse/EXPERIENCES_LSL_E2E_TEST_09310.md` der Experience zuweisen,
+5. Anschliessend `tools/diagnostics/ogl_experiences_e2e_test.lsl` nach
+   `doc/NexVerse/EXPERIENCES_LSL_E2E_TEST_09310.md` der Experience zuweisen,
    zweitem Avatar B mit echten CAPS Allow/Block/Forget anbieten,
    Script-Reset, Timeout, Regionswechsel und Robust-Neustart prüfen.
 6. Keine Pathfinding-Tests: Dieses Vorhaben wurde aus 0.9.3.10 entfernt.

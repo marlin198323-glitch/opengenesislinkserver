@@ -418,7 +418,7 @@ for symbol in (
 for symbol in (
     "XP_ERROR_RETRY_UPDATE", "XP_ERROR_KEY_NOT_FOUND",
     "Ja Loeschen", "llGetOwner()", "llListFindList(gPending, [requestId])",
-    "No automatic grant", "CHANGED_OWNER",
+    "Kein automatisches Allow", "CHANGED_OWNER",
 ):
     assert symbol in lsl_live, f"unsafe or incomplete Experience test: {symbol}"
 assert "llGiveMoney(" not in lsl_live
