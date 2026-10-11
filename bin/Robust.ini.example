@@ -228,6 +228,11 @@
     Enabled = false
 
 [NexExperiences]
+    ; Persistent store: only one local Robust writer is supported.
+    ; Separate hosts must NOT share this file over NFS/SMB as active/active.
+    ; Keep the writer lock file alongside the JSON; do not delete it to
+    ; force a second writer. SQL/cluster storage is not implemented yet.
+    StoreBackend = "SingleWriterJson"
     ; Native OpenGenesisLINK Experience authority used by World API and LSL adapters.
     ; This file is server-owned and must be writable by the Robust process.
     StorePath = "data/nexverse-experiences.json"
