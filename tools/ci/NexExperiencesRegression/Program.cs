@@ -387,6 +387,8 @@ internal static class Program
         reopened.UpdateProfile(created.ExperienceId, owner,
             "CI Experience", "temporarily disabled", created.GroupId,
             NexExperienceMaturity.Moderate, false, "ci");
+        Require(reopened.GetViewerOwnedExperienceIds(owner).Contains(created.ExperienceId),
+            "owner must still see disabled Experience to re-enable it in Firestorm");
         Require(!reopened.GetResidentLists(admin).Admin.Contains(created.ExperienceId) &&
                 !reopened.GetResidentLists(contributor).Contributor.Contains(created.ExperienceId) &&
                 !reopened.GetGroupExperiences(created.GroupId).Contains(created.ExperienceId),
