@@ -246,3 +246,20 @@ assert f'MasterBankAccountId = "{master_bank_id}"' in profile
 assert "MasterBankEnabled = false" in profile
 assert 'MasterBankOperatorId = ""' in profile
 assert 'MasterBankAuthorizedScripts = ""' in profile
+
+// The registration helper reports IDs but may never pay or authorize.
+for filename in ("OpenSim/Region/ScriptEngine/Shared/Api/Interface/ILSL_Api.cs",
+                 "OpenSim/Region/ScriptEngine/Shared/Api/Runtime/LSL_Stub.cs",
+                 "OpenSim/Region/ScriptEngine/Shared/Api/Implementation/LSL_Api.cs"):
+    assert "llNexBankRegistrationInfo(" in Path(filename).read_text()
+registration = lsl.split("public LSL_String llNexBankRegistrationInfo()", 1)[1].split(
+    "public LSL_Key llNexBankPayout(", 1)[0]
+for guard in ("m_item.PermsGranter != root.OwnerID",
+              "ScriptBaseClass.PERMISSION_DEBIT",
+              "m_host.UUID != root.UUID",
+              "!root.TaskInventory.ContainsKey(m_item.ItemID)",
+              'root.UUID.ToString() + "/" + m_item.ItemID.ToString()'):
+    assert guard in registration, "unsafe bank registration helper: " + guard
+assert "TryBankPayout" not in registration
+assert "llNexBankRegistrationInfo()" in Path(
+    "tools/diagnostics/ogl_master_bank_payout_test.lsl").read_text()
