@@ -378,6 +378,144 @@ namespace NexVerse.Server.Api
                 }
             }
 
+            // R287: dedicated detail APIs. Public GET must not reveal
+            // unpublished drafts even when their UUID is known.
+            if (TryResourceId(path, "/api/v1/events/", out Guid eventId))
+            {
+                NexEventRecord existing = m_Store.GetEvent(eventId);
+                if (method.Equals("GET", StringComparison.OrdinalIgnoreCase))
+                {
+                    if (existing == null ||
+                        existing.State != NexDiscoveryPublicationState.Approved)
+                    {
+                        NotFound(response, "event_not_found", "Published event was not found.");
+                        return;
+                    }
+                    WriteJson(response, new
+                    {
+                        @event = existing,
+                        correlation_id = Correlation(response)
+                    });
+                    return;
+                }
+                if (!method.Equals("PATCH", StringComparison.OrdinalIgnoreCase) &&
+                    !method.Equals("DELETE", StringComparison.OrdinalIgnoreCase))
+                {
+                    MethodNotAllowed(response, "GET, PATCH or DELETE");
+                    return;
+                }
+                if (!Authenticate(request, response, NexScopes.DiscoveryManage,
+                    out NexPrincipal principal, out _))
+                    return;
+                try
+                {
+                    if (existing == null)
+                        throw new KeyNotFoundException("Event was not found.");
+                    RequireContentOwner(principal, existing.OrganizerId);
+                    if (method.Equals("DELETE", StringComparison.OrdinalIgnoreCase))
+                    {
+                        bool deleted = m_Store.DeleteEvent(eventId);
+                        Audit(principal, "discovery.event.deleted", "event:" + eventId, response);
+                        WriteJson(response, new { deleted, correlation_id = Correlation(response) });
+                        return;
+                    }
+
+                    // PATCH accepts only mutable descriptive/schedule fields.
+                    // Publication state, organizer identity, UUID, place and
+                    // moderation cannot be escalated via this route.
+                    using JsonDocument doc = JsonDocument.Parse(request.InputStream);
+                    if (doc.RootElement.ValueKind != JsonValueKind.Object)
+                        throw new ArgumentException("PATCH requires a JSON object.");
+                    NexEventRecord next = existing;
+                    foreach (JsonProperty prop in doc.RootElement.EnumerateObject())
+                    {
+                        switch (prop.Name)
+                        {
+                            case "name": next.Name = prop.Value.GetString(); break;
+                            case "description": next.Description = prop.Value.GetString(); break;
+                            case "image": next.Image = prop.Value.GetString(); break;
+                            case "starts_at": next.StartsAt = prop.Value.GetDateTimeOffset(); break;
+                            case "ends_at": next.EndsAt = prop.Value.GetDateTimeOffset(); break;
+                            case "admission_price_minor": next.AdmissionPriceMinor = prop.Value.GetInt64(); break;
+                            case "tags": next.Tags = JsonSerializer.Deserialize<List<string>>(
+                                prop.Value.GetRawText(), s_Json); break;
+                            default: throw new ArgumentException(
+                                "Unsupported or protected event PATCH field: " + prop.Name);
+                        }
+                    }
+                    NexEventRecord updated = m_Store.UpsertEvent(next);
+                    Audit(principal, "discovery.event.updated", "event:" + eventId, response);
+                    WriteJson(response, new { @event = updated, correlation_id = Correlation(response) });
+                }
+                catch (Exception e) { WriteFailure(response, e); }
+                return;
+            }
+
+            if (TryResourceId(path, "/api/v1/classifieds/", out Guid classifiedId))
+            {
+                NexClassifiedRecord existing = m_Store.GetClassified(classifiedId);
+                if (method.Equals("GET", StringComparison.OrdinalIgnoreCase))
+                {
+                    if (existing == null ||
+                        existing.State != NexDiscoveryPublicationState.Approved)
+                    {
+                        NotFound(response, "classified_not_found", "Published classified was not found.");
+                        return;
+                    }
+                    WriteJson(response, new
+                    {
+                        classified = existing,
+                        correlation_id = Correlation(response)
+                    });
+                    return;
+                }
+                if (!method.Equals("PATCH", StringComparison.OrdinalIgnoreCase) &&
+                    !method.Equals("DELETE", StringComparison.OrdinalIgnoreCase))
+                {
+                    MethodNotAllowed(response, "GET, PATCH or DELETE");
+                    return;
+                }
+                if (!Authenticate(request, response, NexScopes.DiscoveryManage,
+                    out NexPrincipal principal, out _))
+                    return;
+                try
+                {
+                    if (existing == null)
+                        throw new KeyNotFoundException("Classified was not found.");
+                    RequireContentOwner(principal, existing.OwnerId);
+                    if (method.Equals("DELETE", StringComparison.OrdinalIgnoreCase))
+                    {
+                        bool deleted = m_Store.DeleteClassified(classifiedId);
+                        Audit(principal, "discovery.classified.deleted", "classified:" + classifiedId, response);
+                        WriteJson(response, new { deleted, correlation_id = Correlation(response) });
+                        return;
+                    }
+                    using JsonDocument doc = JsonDocument.Parse(request.InputStream);
+                    if (doc.RootElement.ValueKind != JsonValueKind.Object)
+                        throw new ArgumentException("PATCH requires a JSON object.");
+                    NexClassifiedRecord next = existing;
+                    foreach (JsonProperty prop in doc.RootElement.EnumerateObject())
+                    {
+                        switch (prop.Name)
+                        {
+                            case "name": next.Name = prop.Value.GetString(); break;
+                            case "description": next.Description = prop.Value.GetString(); break;
+                            case "category": next.Category = prop.Value.GetString(); break;
+                            case "image": next.Image = prop.Value.GetString(); break;
+                            case "tags": next.Tags = JsonSerializer.Deserialize<List<string>>(
+                                prop.Value.GetRawText(), s_Json); break;
+                            default: throw new ArgumentException(
+                                "Unsupported or protected classified PATCH field: " + prop.Name);
+                        }
+                    }
+                    NexClassifiedRecord updated = m_Store.UpsertClassified(next);
+                    Audit(principal, "discovery.classified.updated", "classified:" + classifiedId, response);
+                    WriteJson(response, new { classified = updated, correlation_id = Correlation(response) });
+                }
+                catch (Exception e) { WriteFailure(response, e); }
+                return;
+            }
+
             NotFound(response, "not_found", "Discovery content endpoint was not found.");
         }
 
@@ -927,6 +1065,16 @@ namespace NexVerse.Server.Api
             NexDiscoveryMaturity? maximum,
             NexDiscoveryMaturity actual) =>
             !maximum.HasValue || actual <= maximum.Value;
+
+        private static void RequireContentOwner(NexPrincipal principal, Guid ownerId)
+        {
+            if (principal != null && principal.HasScope(NexScopes.AdminAll))
+                return;
+            if (principal == null || !Guid.TryParse(principal.Subject, out Guid subject) ||
+                ownerId == Guid.Empty || subject != ownerId)
+                throw new UnauthorizedAccessException(
+                    "Only the content owner or a grid administrator can modify this resource.");
+        }
 
         private bool Authenticate(
             IOSHttpRequest request,
