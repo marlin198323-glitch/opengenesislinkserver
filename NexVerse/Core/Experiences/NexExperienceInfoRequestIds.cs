@@ -7,6 +7,8 @@ namespace NexVerse.Core.Experiences
     /// <summary>
     /// Parse Firestorm's GetExperienceInfo URL without confusing the random
     /// viewer-session capability with the appended Experience identifier.
+    /// Firestorm actually batches IDs as /cap/id/?page_size=N&public_id=UUID
+    /// (repeated public_id values), not only as /cap/id/UUID.
     /// No path outside that exact CAP can retrieve an Experience.
     /// </summary>
     public static class NexExperienceInfoRequestIds
@@ -24,8 +26,11 @@ namespace NexVerse.Core.Experiences
             if (root.Length == 0 || root[0] != '/')
                 return false;
 
-            // Legacy GET /cap?public_id=uuid&public_id=uuid
-            if (string.Equals(path, root, StringComparison.Ordinal))
+            // Current Firestorm: GET /cap/id/?page_size=N&public_id=uuid
+            // with repeated public_id values. Also support legacy /cap?public_id.
+            // Require the exact path: /cap/id/extra or other CAPS must fail.
+            if (string.Equals(path, root, StringComparison.Ordinal) ||
+                string.Equals(path, root + "/id", StringComparison.Ordinal))
             {
                 if (queryIds == null || queryIds.Length == 0 ||
                     queryIds.Length > 64)
