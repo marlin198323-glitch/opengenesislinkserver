@@ -330,7 +330,37 @@ namespace NexVerse.Server.Api
 
                     try
                     {
-                        NexEventRecord saved = m_Store.UpsertEvent(ReadBody<NexEventRecord>(request));
+                        NexEventRecord incoming = ReadBody<NexEventRecord>(request);
+                        NexEventRecord prior = incoming.EventId == Guid.Empty
+                            ? null : m_Store.GetEvent(incoming.EventId);
+                        if (prior == null && incoming.EventId != Guid.Empty)
+                            throw new KeyNotFoundException("Event was not found.");
+                        if (!principal.HasScope(NexScopes.AdminAll))
+                        {
+                            // A service key scoped only to discovery:manage
+                            // must never impersonate a resident. Publication
+                            // and moderation remain admin-only on POST too.
+                            Guid actor = RequireResidentActor(principal);
+                            if (prior != null)
+                            {
+                                RequireContentOwner(principal, prior.OrganizerId);
+                                if (incoming.OrganizerId != prior.OrganizerId ||
+                                    incoming.PlaceId != prior.PlaceId ||
+                                    incoming.State != prior.State)
+                                    throw new UnauthorizedAccessException(
+                                        "Event owner, place and publication state are protected.");
+                            }
+                            else
+                            {
+                                if (incoming.OrganizerId != Guid.Empty &&
+                                    incoming.OrganizerId != actor)
+                                    throw new UnauthorizedAccessException(
+                                        "Event organizer must be the authenticated resident.");
+                                incoming.OrganizerId = actor;
+                                incoming.State = NexDiscoveryPublicationState.Draft;
+                            }
+                        }
+                        NexEventRecord saved = m_Store.UpsertEvent(incoming);
                         Audit(principal, "discovery.event.upserted", "event:" + saved.EventId, response);
                         WriteJson(response, new { @event = saved, correlation_id = Correlation(response) }, HttpStatusCode.Created);
                     }
@@ -366,7 +396,34 @@ namespace NexVerse.Server.Api
 
                     try
                     {
-                        NexClassifiedRecord saved = m_Store.UpsertClassified(ReadBody<NexClassifiedRecord>(request));
+                        NexClassifiedRecord incoming = ReadBody<NexClassifiedRecord>(request);
+                        NexClassifiedRecord prior = incoming.ClassifiedId == Guid.Empty
+                            ? null : m_Store.GetClassified(incoming.ClassifiedId);
+                        if (prior == null && incoming.ClassifiedId != Guid.Empty)
+                            throw new KeyNotFoundException("Classified was not found.");
+                        if (!principal.HasScope(NexScopes.AdminAll))
+                        {
+                            Guid actor = RequireResidentActor(principal);
+                            if (prior != null)
+                            {
+                                RequireContentOwner(principal, prior.OwnerId);
+                                if (incoming.OwnerId != prior.OwnerId ||
+                                    incoming.PlaceId != prior.PlaceId ||
+                                    incoming.State != prior.State)
+                                    throw new UnauthorizedAccessException(
+                                        "Classified owner, place and publication state are protected.");
+                            }
+                            else
+                            {
+                                if (incoming.OwnerId != Guid.Empty &&
+                                    incoming.OwnerId != actor)
+                                    throw new UnauthorizedAccessException(
+                                        "Classified owner must be the authenticated resident.");
+                                incoming.OwnerId = actor;
+                                incoming.State = NexDiscoveryPublicationState.Draft;
+                            }
+                        }
+                        NexClassifiedRecord saved = m_Store.UpsertClassified(incoming);
                         Audit(principal, "discovery.classified.upserted", "classified:" + saved.ClassifiedId, response);
                         WriteJson(response, new { classified = saved, correlation_id = Correlation(response) }, HttpStatusCode.Created);
                     }
@@ -1065,6 +1122,16 @@ namespace NexVerse.Server.Api
             NexDiscoveryMaturity? maximum,
             NexDiscoveryMaturity actual) =>
             !maximum.HasValue || actual <= maximum.Value;
+
+        private static Guid RequireResidentActor(NexPrincipal principal)
+        {
+            if (principal == null ||
+                !Guid.TryParse(principal.Subject, out Guid actor) ||
+                actor == Guid.Empty)
+                throw new UnauthorizedAccessException(
+                    "Only a resident or administrator may create or update content.");
+            return actor;
+        }
 
         private static void RequireContentOwner(NexPrincipal principal, Guid ownerId)
         {
