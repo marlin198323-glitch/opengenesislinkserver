@@ -282,6 +282,8 @@ namespace NexVerse.Server.Api
                 ["/api/v1/groups"] = AuthenticatedOperations(
                     ("get", "NexGroups durchsuchen", "groups:read", "200"),
                     ("post", "NexGroup erstellen", "groups:manage", "201")),
+                ["/api/v1/groups/mine"] = AuthenticatedOperations(
+                    ("get", "Eigene Gruppenmitgliedschaften und Rollen des authentifizierten Einwohners, ohne Fremd-ID-Parameter", "groups:read", "200")),
                 ["/api/v1/groups/{groupId}"] = AuthenticatedOperations(
                     ("get", "NexGroup-Profil lesen", "groups:read", "200"),
                     ("put", "NexGroup-Profil ändern", "groups:manage", "200"),
@@ -641,6 +643,10 @@ namespace NexVerse.Server.Api
             ApplyJsonContract(paths, "/api/v1/groups/{groupId}/bans/{agentId}", "post", "Chapter11MutationRequest", "Chapter11ObjectResponse", "200");
             ApplyJsonContract(paths, "/api/v1/groups/{groupId}/accounting", "get", null, "Chapter11ObjectResponse", "200");
             ApplyJsonContract(paths, "/api/v1/groups/{groupId}/capabilities", "get", null, "Chapter11ObjectResponse", "200");
+            ApplyJsonContract(paths, "/api/v1/groups/mine", "get", null, "CitizenGroupMembershipsResponse", "200");
+            AddOperationParameters(paths, "/api/v1/groups/mine", "get",
+                PaginationParameter("offset", 0, 0, 1000000),
+                PaginationParameter("limit", 50, 1, 100));
             ApplyJsonContract(paths, "/api/v1/events", "get", null, "DiscoveryEventListResponse", "200");
             ApplyJsonContract(paths, "/api/v1/events", "post", "DiscoveryEventRecord", "DiscoveryEventResponse", "201");
             ApplyJsonContract(paths, "/api/v1/events/{eventId}", "get", null, "DiscoveryEventResponse", "200");
@@ -3205,6 +3211,34 @@ namespace NexVerse.Server.Api
                 {
                     type = "object",
                     additionalProperties = true
+                },
+                ["CitizenGroupMembershipRecord"] = new
+                {
+                    type = "object",
+                    required = new[] { "group_id", "name", "title", "active", "role_id", "powers", "notices" },
+                    properties = new Dictionary<string, object>
+                    {
+                        ["group_id"] = new { type = "string", format = "uuid" },
+                        ["name"] = new { type = "string" },
+                        ["title"] = new { type = "string" },
+                        ["active"] = new { type = "boolean" },
+                        ["role_id"] = new { type = "string", format = "uuid" },
+                        ["powers"] = new { type = "string", description = "64-Bit-Gruppenrechte als dezimale Zeichenkette" },
+                        ["notices"] = new { type = "boolean" }
+                    }
+                },
+                ["CitizenGroupMembershipsResponse"] = new
+                {
+                    type = "object",
+                    required = new[] { "groups", "offset", "limit", "total", "correlation_id" },
+                    properties = new Dictionary<string, object>
+                    {
+                        ["groups"] = new { type = "array", items = SchemaRef("CitizenGroupMembershipRecord") },
+                        ["offset"] = new { type = "integer", minimum = 0 },
+                        ["limit"] = new { type = "integer", minimum = 1, maximum = 100 },
+                        ["total"] = new { type = "integer", minimum = 0 },
+                        ["correlation_id"] = new { type = "string" }
+                    }
                 },
                 ["NexGroupCreateRequest"] = new
                 {
