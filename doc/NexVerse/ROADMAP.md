@@ -2,7 +2,7 @@
 
 > Status: 0.9.3.8 Stable released 8 October 2026  
 > Current stable release: **OpenGenesisLINK v0.9.3.8**  
-> Active development train: **OpenGenesisLINK v0.9.3.10 Dev – stabilization and RC1 readiness** (NexExperiences/Firestorm paused and RC-profile disabled; Pathfinding 2.0 and My Outfits 2.0 deferred to own Viewer; OGLVoice deferred; no separate 0.9.3.9 Stable)  
+> Latest stabilized release: **OpenGenesisLINK 0.9.3.10 Stable** (operator-approved one-time evidence exception; see [decision](09310_OPERATOR_RELEASE_DECISION.md)). OGL Pathfinding 2.0 and My Outfits 2.0 remain deferred.
 > Completed release train: **0.9.3.2 → 0.9.3.3 → 0.9.3.4 → 0.9.3.8**  
 > Latest release candidate: **OpenGenesisLINK v0.9.3.8 RC1** (successfully validated)  
 > Completed milestone: **0.9.3.8 — Search, Places, Land and Destination Guide**  
