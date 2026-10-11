@@ -98,3 +98,25 @@ assert 'lease, "creator_ids"' in viewer
 assert '"admin_ids", "contributor_ids", "creator_ids"' in viewer
 assert 'creator_ids = m_Store.GetViewerCreatorExperienceIds(resident)' in api
 assert "GetViewerCreatorExperienceIds(Guid residentId)" in store
+
+# Full Firestorm script-Experience round-trip:
+# GET GetCreatorExperiences -> POST UpdateScriptTask experience -> central
+# viewer:manage-scoped binding -> GET GetMetadata -> persisted resolve.
+assert 'caps.RegisterSimpleHandler("GetMetadata",' in viewer
+assert 'HandleViewerScriptMetadata(' in viewer
+assert '"experience"] = OSD.FromUUID(experience)' in viewer
+assert 'TrySetViewerScriptExperience(UUID primId,' in viewer
+assert '"/api/v1/experiences/viewer/script-binding"' in viewer
+assert 'm_Store.SetViewerScriptExperience(owner, script,' in api
+assert 'NexScopes.ExperiencesViewerManage' in api
+assert 'SetViewerScriptExperience(Guid avatarId, Guid scriptItemId,' in store
+assert 'prior.OwnerId != avatarId' in store
+assert '!target.Enabled' in store
+assert 'target.Contributors.Contains(avatarId)' in store
+upload = (root/"OpenSim/Region/ClientStack/Linden/Caps/BunchOfCaps/UpdateItemAsset.cs").read_text()
+assert 'map.TryGetValue("experience", out tmp)' in upload
+assert 'uploader.OnCompiled = () =>' in upload
+assert 'if (errors.Count == 0 && OnCompiled != null)' in upload
+assert 'CanEditScript(itemID, objectID, m_AgentID)' in upload
+assert 'TrySetViewerScriptExperience(' in upload
+assert "GetMetadata" in viewer
