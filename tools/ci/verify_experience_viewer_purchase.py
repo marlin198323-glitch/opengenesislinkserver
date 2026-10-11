@@ -64,12 +64,14 @@ assert 'ViewerManageApiKey' not in api  # Secrets never arrive from viewer HTTP.
 assert 'm_ViewerManageApiKey' not in store  # Core persistence has no secrets.
 print("Firestorm Experience acquire/edit scope, quota and avatar-bound CAPS: OK")
 
-# GetExperienceInfo must parse the Firestorm /id/uuid CAP suffix and
-# reject foreign/ambiguous URL forms (covered by NexExperiencesRegression).
+# GetExperienceInfo must parse the *actual* Firestorm /id/?public_id=UUID
+# batched CAP URL as well as /id/uuid, without widening CAPS access.
+# Tests cover malformed/foreign/mixed paths (NexExperiencesRegression).
 info_parser = (root/"NexVerse/Core/Experiences/NexExperienceInfoRequestIds.cs").read_text()
 for token in ("TryParse(string requestPath, string capPath,",
               'path.StartsWith(root + "/", StringComparison.Ordinal)',
               'suffix.StartsWith("id/", StringComparison.OrdinalIgnoreCase)',
+              'string.Equals(path, root + "/id", StringComparison.Ordinal)',
               "Guid.TryParseExact", "queryIds.Length > 64"):
     assert token in info_parser, "ExperienceInfo CAP URL guard missing: " + token
 assert "NexExperienceInfoRequestIds.TryParse(" in viewer

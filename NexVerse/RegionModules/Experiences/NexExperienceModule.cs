@@ -975,10 +975,10 @@ namespace NexVerse.RegionModules.Experiences
                 }
                 else
                 {
-                    // Firestorm resolves GetExperienceInfo by appending
-                    // /id/<uuid>/ to the advertised capability. Older callers
-                    // may supply repeated ?public_id=<uuid> query values.
-                    // Both forms must be bound to this one random CAP path.
+                    // Firestorm's cache batches GetExperienceInfo requests
+                    // as /id/?page_size=N&public_id=<uuid>[&public_id=<uuid>].
+                    // Also accept the direct /id/<uuid>/ form. All requests
+                    // remain bound to this avatar's random revocable CAP.
                     if (!NexExperienceInfoRequestIds.TryParse(
                             request.Url?.AbsolutePath, infoCapPath,
                             request.QueryString?.GetValues("public_id"),
