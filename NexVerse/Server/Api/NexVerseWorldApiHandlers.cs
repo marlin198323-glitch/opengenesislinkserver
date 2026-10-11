@@ -406,6 +406,8 @@ namespace NexVerse.Server.Api
                 ["/api/v1/regions"] = AuthenticatedOperations(
                     ("get", "Auswählbare Home-/Startregionen durchsuchen", "regions:read", "200"),
                     ("post", "NexVerse-verwaltete Region auf einem Simulator-Node erstellen", "regions:manage", "202")),
+                ["/api/v1/regions/{regionId}"] = AuthenticatedOperations(
+                    ("get", "Genau eine Grid-Region anhand UUID lesen", "regions:read", "200")),
                 ["/api/v1/regions/{regionId}/placement"] = AuthenticatedOperations(
                     ("patch", "NexVerse-verwaltete Region nach Placement-Prüfung verschieben", "regions:manage", "202")),
                 ["/api/v1/regions/{regionId}/lifecycle"] = AuthenticatedOperations(
@@ -643,6 +645,9 @@ namespace NexVerse.Server.Api
             ApplyJsonContract(paths, "/api/v1/groups/{groupId}/bans/{agentId}", "post", "Chapter11MutationRequest", "Chapter11ObjectResponse", "200");
             ApplyJsonContract(paths, "/api/v1/groups/{groupId}/accounting", "get", null, "Chapter11ObjectResponse", "200");
             ApplyJsonContract(paths, "/api/v1/groups/{groupId}/capabilities", "get", null, "Chapter11ObjectResponse", "200");
+            ApplyJsonContract(paths, "/api/v1/regions/{regionId}", "get", null, "RegionDetailResponse", "200");
+            AddOperationParameters(paths, "/api/v1/regions/{regionId}", "get",
+                PathParameter("regionId", "Grid-Region UUID"));
             ApplyJsonContract(paths, "/api/v1/groups/mine", "get", null, "CitizenGroupMembershipsResponse", "200");
             AddOperationParameters(paths, "/api/v1/groups/mine", "get",
                 PaginationParameter("offset", 0, 0, 1000000),
@@ -3259,6 +3264,16 @@ namespace NexVerse.Server.Api
                         ["description"] = new { type = "string" },
                         ["enabled"] = new { type = "boolean" },
                         ["status"] = new { type = "string" }
+                    }
+                },
+                ["RegionDetailResponse"] = new
+                {
+                    type = "object",
+                    required = new[] { "region", "correlation_id" },
+                    properties = new Dictionary<string, object>
+                    {
+                        ["region"] = SchemaRef("Region"),
+                        ["correlation_id"] = new { type = "string" }
                     }
                 },
                 ["CitizenGroupMembershipRecord"] = new
