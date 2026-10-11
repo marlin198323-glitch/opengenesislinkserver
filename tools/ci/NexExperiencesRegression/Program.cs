@@ -235,6 +235,31 @@ internal static class Program
             "checked K/V update failed");
 
         Require(
+            !store.UpdateKeyValue(
+                created.ExperienceId,
+                script,
+                "missing-checked",
+                "should-not-be-created",
+                true,
+                string.Empty,
+                out retryMismatch) && retryMismatch,
+            "CAS update of missing key must fail, even with empty original");
+        Require(
+            !store.TryReadKeyValue(
+                created.ExperienceId,
+                script,
+                "missing-checked",
+                out _),
+            "failed checked update must not create a key");
+        NexExperienceStore reloadedAfterCas = new NexExperienceStore(path);
+        Require(
+            !reloadedAfterCas.TryReadKeyValue(
+                created.ExperienceId,
+                script,
+                "missing-checked",
+                out _),
+            "failed checked update must not persist a phantom key");
+        Require(
             store.UpdateKeyValue(
                 created.ExperienceId,
                 script,

@@ -732,12 +732,15 @@ namespace NexVerse.Core.Experiences
                         normalized,
                         out string current);
 
+                // A checked update is a compare-and-swap, not an upsert.
+                // Absence can never match a supplied original value (even
+                // an empty string): do not silently create a missing key.
                 if (checkOriginal &&
-                    exists &&
-                    !string.Equals(
-                        current,
-                        originalValue ?? string.Empty,
-                        StringComparison.Ordinal))
+                    (!exists ||
+                     !string.Equals(
+                         current,
+                         originalValue ?? string.Empty,
+                         StringComparison.Ordinal)))
                 {
                     retryMismatch = true;
                     return false;
