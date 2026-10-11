@@ -16,11 +16,11 @@ from pathlib import Path
 REPOSITORY = "opengenesislink/opengenesislinkserver"
 VERSION = "0.9.3.10"
 HISTORIC = {
-    "SYS": 4, "EXP": 8, "LSL": 6, "DB": 6, "NAV": 7, "REL": 7
+    "SYS": 4, "EXP": 8, "LSL": 6, "DB": 6, "REL": 7
 }
-# Additional gates introduced after the original 38-case operator report.
+# Additional gates from original 38-case operator report, excluding 7 deferred NAV cases.
 EXTRA = (
-    "EXP_CREATE", "NAV08", "APP01", "PORTAL_IMAGE",
+    "EXP_CREATE", "APP01", "PORTAL_IMAGE",
     "PORTAL_DISCOVERY", "PORTAL_GROUPS", "PORTAL_REGION",
     "PORTAL_AUTH", "RUNTIME_STRESS", "RECOVERY_RESTORE",
 )
@@ -29,7 +29,7 @@ REQUIRED_CASES = tuple(
     for prefix, count in HISTORIC.items()
     for number in range(1, count + 1)
 ) + EXTRA
-assert len(REQUIRED_CASES) == 48
+assert len(REQUIRED_CASES) == 40
 
 # REL07 in the historic owner's 38-item form says *both* "RC1 accepted"
 # and "Stable separately approved". Requiring it before RC1 exists makes

@@ -72,8 +72,6 @@ def simulator_settings(cp):
         "experience_manage_caps": enabled(cp, section, "FirestormManageCaps"),
         "native_experience_prompt": enabled(cp, section, "NativeExperiencePrompt"),
         "script_pending_consent": enabled(cp, section, "ScriptPendingConsent"),
-        "native_pathfinding": enabled(cp, "OGLPathfinding", "Enabled"),
-        "native_npc_navigation": enabled(cp, "OGLNpcNavigation", "Enabled"),
     }
     refs = [setting(cp, section, k) for k in (
         "ApiKey", "ViewerPermissionsApiKey", "ViewerManageApiKey"
@@ -140,7 +138,7 @@ def check(robust, simulator):
         "limitations": [
             "Source Git SHA is not the running .NET process binary SHA.",
             "Read-only INI scanner cannot resolve Nini includes or runtime env.",
-            "No viewer, two-avatar, live assets, persistence, physics or backup test.",
+            "No viewer, two-avatar, live assets, persistence, or backup test.",
             "No credentials, capability URLs or environment values are displayed.",
         ],
     }

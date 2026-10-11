@@ -147,39 +147,11 @@ def assess(sim_cfg, robust_cfg=None, viewer_log=""):
                 add("experiences", "EXPERIENCE_VIEWER_MANAGE_DEPENDENCY", "action",
                     "FirestormManageCaps needs read and permission CAPS enabled.")
 
-    if not enabled(sim_cfg, "OGLNpcNavigation"):
-        add("pathfinding", "NPC_FOLLOWER_DISABLED", "action",
-            "OGLNpcNavigation.Enabled is absent or false. Native NPC route tests "
-            "need this independent opt-in plus OGLPathfinding.Enabled=true.")
-    else:
-        add("pathfinding", "NPC_FOLLOWER_CONFIGURED", "configuration-only",
-            "OGLNpcNavigation is enabled; owner authorization, actual NPC placement "
-            "and runtime IOglNpcRouteService tests are still required.")
-    if not enabled(sim_cfg, "OGLPathfinding", "UseVerifiedLayeredSurfaces"):
-        add("pathfinding", "NAV_3D_LAYERS_DISABLED", "action",
-            "Verified layered navigation is off. NAV02/NAV03 (bridges/ramps) "
-            "cannot be accepted using terrain-only routes.")
-    elif not enabled(sim_cfg, "OGLPathfinding", "PhysicsRaycastLayeredSurfaces"):
-        add("pathfinding", "NAV_3D_PHYSICS_PROVIDER_UNVERIFIED", "configuration-only",
-            "UseVerifiedLayeredSurfaces=true but physics raycast source is not "
-            "enabled. A real external verified surface provider must exist.")
-    else:
-        add("pathfinding", "NAV_3D_PHYSICS_CONFIGURED", "configuration-only",
-            "Layered physics probes requested. Collision certification, "
-            "stair/ramp transitions and real mesh coverage remain live tests.")
-
     if "RetrieveNavMeshSrc" in viewer_log:
-        add("pathfinding", "FIRESTORM_NAVMESH_CAP_MISSING", "known-limitation",
-            "Firestorm requested RetrieveNavMeshSrc. Native terrain A* does not provide "
-            "a Second Life-compatible binary NavMesh/Havok payload; no fake CAP is advertised.")
-    if enabled(sim_cfg, "OGLPathfinding"):
-        add("pathfinding", "NATIVE_TERRAIN_ENABLED", "info",
-            "OGLPathfinding.Enabled=true; native terrain navigation may operate after initial snapshot. "
-            "This does NOT enable Firestorm NavMesh UI.")
-    else:
-        add("pathfinding", "NATIVE_TERRAIN_DISABLED", "action",
-            "OGLPathfinding.Enabled is false or absent. Enable only for a controlled native A*/NPC test; "
-            "not a solution for RetrieveNavMeshSrc.")
+        add("viewer", "FIRESTORM_NAVMESH_UNSUPPORTED", "known-limitation",
+            "The OpenGenesisLINK 0.9.3.10 server does not implement NavMesh. "
+            "No OGL Pathfinding module or Firestorm NavMesh CAP is available; "
+            "this is deferred to a future own-viewer development train.")
 
     if "Unable to provision voice account" in viewer_log or "cannot POST url ''" in viewer_log:
         add("voice", "FIRESTORM_VIVOX_FALLBACK", "observed",
@@ -255,7 +227,7 @@ def main():
     if args.json:
         print(json.dumps({"findings": findings}, indent=2, ensure_ascii=False))
     else:
-        print("OpenGenesisLINK Voice / Pathfinding Preflight (read-only)")
+        print("OpenGenesisLINK Voice / Experiences Preflight (read-only)")
         for item in findings:
             print(f"[{item['area']}][{item['severity']}] {item['code']}: {item['message']}")
         print("NOTE: INI includes, env interpolation, processes and actual media health "

@@ -25,12 +25,12 @@ SharedKey = "must-not-print"
                          "https://media.example.org/internal/webrtc/v1/exchange")
         self.assertNotIn("must-not-print", str(module.assess({}, cfg)))
 
-    def test_no_false_navmesh_success(self):
-        sim = module.parse_opensim_ini("[OGLPathfinding]\nEnabled = true\n")
+    def test_firestorm_navmesh_capability_remains_explicitly_unsupported(self):
+        sim = module.parse_opensim_ini("[NexExperiencesViewer]\\nEnabled = true\\n")
         issues = module.assess(sim, viewer_log="cannot find capability 'RetrieveNavMeshSrc'")
         codes = {x["code"] for x in issues}
-        self.assertIn("NATIVE_TERRAIN_ENABLED", codes)
-        self.assertIn("FIRESTORM_NAVMESH_CAP_MISSING", codes)
+        self.assertIn("FIRESTORM_NAVMESH_UNSUPPORTED", codes)
+        self.assertNotIn("NATIVE_TERRAIN_ENABLED", codes)
 
     def test_missing_gateway_and_old_vivox(self):
         sim = module.parse_opensim_ini("[NexVerseNodeAgent]\nEnabled = true\n")
@@ -84,15 +84,12 @@ MediaGatewayUrl = "https://media.example.org/internal/webrtc/v1/exchange"
         self.assertIn("STANDALONE_SIGNATURE_KEY_UNVERIFIED", codes)
 
 
-    def test_09310_unconfigured_experience_and_npc_gate(self):
-        # Match the abbreviated flags shipped by bin/OpenSim.ini.
+    def test_09310_unconfigured_experience_gate(self):
         sim = module.parse_opensim_ini("""
 [NexExperiencesViewer]
 Enabled = true
 WorldApiBaseUrl = "https://world.stadt-nexverse.de"
 ApiKey = "${Environment|NEXVERSE_EXPERIENCES_API_KEY}"
-[OGLPathfinding]
-Enabled = false
 """)
         findings = {x["code"]: x for x in module.assess(sim)}
         for code in (
@@ -101,16 +98,14 @@ Enabled = false
             "EXPERIENCE_CONSENT_DISABLED",
             "EXPERIENCE_NATIVE_PROMPT_DISABLED",
             "EXPERIENCE_VIEWER_KEY_ABSENT",
-            "NPC_FOLLOWER_DISABLED",
-            "NAV_3D_LAYERS_DISABLED",
-            "NATIVE_TERRAIN_DISABLED",
             "EXPERIENCE_VIEWER_CREATE_UNSUPPORTED",
         ):
             self.assertIn(code, findings, code)
         self.assertEqual(findings["EXPERIENCE_VIEWER_CREATE_UNSUPPORTED"]["severity"],
                          "action")
+        self.assertFalse(any(x["area"] == "pathfinding" for x in findings.values()))
 
-    def test_09310_opted_in_still_does_not_claim_live_success(self):
+    def test_09310_configured_experiences_not_claimed_live_success(self):
         sim = module.parse_opensim_ini("""
 [NexExperiencesViewer]
 Enabled = true
@@ -120,23 +115,13 @@ ScriptPendingConsent = true
 NativeExperiencePrompt = true
 ApiKey = "${Environment|NEXVERSE_EXPERIENCES_API_KEY}"
 ViewerPermissionsApiKey = "${Environment|NEXVERSE_EXPERIENCES_VIEWER_PERMISSIONS_API_KEY}"
-[OGLPathfinding]
-Enabled = true
-UseVerifiedLayeredSurfaces = true
-PhysicsRaycastLayeredSurfaces = true
-[OGLNpcNavigation]
-Enabled = true
 """)
         findings = module.assess(sim)
         codes = {x["code"] for x in findings}
-        for disabled in ("EXPERIENCE_CONSENT_DISABLED",
-                         "EXPERIENCE_PERMISSION_CAPS_DISABLED",
-                         "NPC_FOLLOWER_DISABLED", "NATIVE_TERRAIN_DISABLED"):
-            self.assertNotIn(disabled, codes, disabled)
-        for configured in ("EXPERIENCE_KEYS_CONFIGURED_ONLY",
-                           "NPC_FOLLOWER_CONFIGURED", "NAV_3D_PHYSICS_CONFIGURED",
-                           "EXPERIENCE_VIEWER_CREATE_UNSUPPORTED"):
-            self.assertIn(configured, codes, configured)
+        self.assertNotIn("EXPERIENCE_CONSENT_DISABLED", codes)
+        self.assertNotIn("EXPERIENCE_PERMISSION_CAPS_DISABLED", codes)
+        self.assertIn("EXPERIENCE_KEYS_CONFIGURED_ONLY", codes)
+        self.assertIn("EXPERIENCE_VIEWER_CREATE_UNSUPPORTED", codes)
         self.assertTrue(all(x["severity"] != "success" for x in findings))
 
     def test_09310_duplicate_experience_keys_are_flagged_without_leak(self):
