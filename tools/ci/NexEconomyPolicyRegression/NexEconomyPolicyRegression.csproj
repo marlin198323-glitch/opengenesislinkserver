@@ -25,5 +25,6 @@
     <Compile Include="../../../NexVerse/Core/Economy/NexLedgerSqlStore.cs" Link="NexLedgerSqlStore.cs" />
     <Compile Include="../../../NexVerse/Core/Economy/NexLedgerSqlRuntime.cs" Link="NexLedgerSqlRuntime.cs" />
     <Compile Include="../../../NexVerse/Core/Economy/NexEconomyService.cs" Link="NexEconomyService.cs" />
+    <Compile Include="../../../NexVerse/Core/Economy/NexHypergridWalletIdentity.cs" Link="NexHypergridWalletIdentity.cs" />
   </ItemGroup>
 </Project>

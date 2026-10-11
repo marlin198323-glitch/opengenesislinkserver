@@ -67,6 +67,61 @@ internal static class Program
                 systemId,
             label + ": system account ensure is not idempotent");
 
+
+        // An HG wallet is neither a local avatar UUID nor shared between
+        // home grids. Run against BOTH SQL and in-memory backing stores.
+        Guid foreignAvatar = Guid.NewGuid();
+        string hgHome = "https://grid-one.example.org/";
+        Guid foreignId = NexHypergridWalletIdentity.AccountId(
+            hgHome, foreignAvatar);
+        Require(foreignId != foreignAvatar &&
+                foreignId == NexHypergridWalletIdentity.AccountId(
+                    "https://GRID-ONE.example.org:443", foreignAvatar) &&
+                foreignId != NexHypergridWalletIdentity.AccountId(
+                    "https://grid-two.example.org/", foreignAvatar),
+            label + ": HG origin isolation/canonicalization failed");
+        RequireThrows<ArgumentException>(
+            () => NexHypergridWalletIdentity.AccountId(
+                "https://example.org/user?id=x", foreignAvatar),
+            label + ": HG user-specific URL must not be a wallet origin");
+        RequireThrows<ArgumentException>(
+            () => NexHypergridWalletIdentity.AccountId(
+                "file:///etc/passwd", foreignAvatar),
+            label + ": unsafe non-HTTP HG origin accepted");
+        RequireThrows<ArgumentException>(
+            () => NexHypergridWalletIdentity.AccountId(
+                hgHome, Guid.Empty),
+            label + ": empty HG avatar UUID accepted");
+
+        NexLedgerAccount guestWallet = economy.EnsureHypergridResidentAccount(
+            hgHome, foreignAvatar, "Guest Test");
+        NexLedgerAccount otherHomeWallet =
+            economy.EnsureHypergridResidentAccount(
+                "https://grid-two.example.org/", foreignAvatar, "Guest Two");
+        Require(guestWallet.AccountId == foreignId &&
+                guestWallet.AccountClass == NexLedgerAccountClass.Resident &&
+                guestWallet.NormalSide == NexLedgerSide.Credit &&
+                guestWallet.Reference.StartsWith("hg:", StringComparison.Ordinal) &&
+                otherHomeWallet.AccountId != foreignId &&
+                economy.GetBalance(foreignId) == 0 &&
+                economy.EnsureHypergridResidentAccount(
+                    hgHome, foreignAvatar, "new display").AccountId == foreignId,
+            label + ": duplicate/incorrect HG wallet or nonzero free grant");
+        NexVirtualBankAccount hgNvban =
+            economy.EnsureVirtualBankAccount(foreignId);
+        Require(economy.ResolveVirtualBankAccount(hgNvban.Identifier).AccountId ==
+                foreignId, label + ": HG wallet missing durable NVBAN mapping");
+        economy.AdministrativeAdjustment(foreignId, systemId, 7,
+            "test-operator", "explicit HG test credit");
+        economy.Transfer(foreignId, otherHomeWallet.AccountId, 3, "HG transfer");
+        Require(economy.GetBalance(foreignId) == 4 &&
+                economy.GetBalance(otherHomeWallet.AccountId) == 3,
+            label + ": HG transfer ledger balance mismatch");
+        RequireThrows<NexLedgerPolicyException>(
+            () => economy.Transfer(foreignId, otherHomeWallet.AccountId,
+                9999, "HG overdraft"),
+            label + ": HG account allowed overdraft");
+
         NexLedgerAccount resident =
             economy.EnsureResidentAccount(
                 residentId,
