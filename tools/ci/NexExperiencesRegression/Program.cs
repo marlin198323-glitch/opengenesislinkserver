@@ -67,12 +67,25 @@ internal static class Program
         Accept(cap + "/id/" + id, null, first);
         Accept(cap + "/id/" + id + "/", null, first);
         Accept(cap + "/" + id, null, first);
+        // Firestorm's real GET request uses a fixed /id/ suffix and
+        // ?page_size=N&public_id=... (the query page_size is read elsewhere).
+        Accept(cap + "/id/", new[] { id }, first);
+        Accept(cap + "/id", new[] { id, other }, first, second);
+        Accept(cap + "/id/", new[] { id, other }, first, second);
+        Accept(cap + "/id/", new[] { id, id }, first, first);
+
         Accept(cap, new[] { id }, first);
         Accept(cap + "/", new[] { id, other }, first, second);
 
         // A CAP may never become a generic Experience query endpoint.
         Deny(cap, null);
         Deny(cap + "/id/", null);
+        Deny(cap + "/id", null);
+        Deny(cap + "/id/extraneous", new[] { id });
+        Deny(cap + "/id/" + id, new[] { id });
+        Deny(cap + "/id/", new[] { "broken" });
+        Deny(cap + "/id/", new string[65]);
+        Deny(cap + "-other/id/", new[] { id });
         Deny(cap + "/id/not-an-id", null);
         Deny(cap + "/id/" + Guid.Empty.ToString("D"), null);
         Deny(cap + "/id/" + id + "/garbage", null);
