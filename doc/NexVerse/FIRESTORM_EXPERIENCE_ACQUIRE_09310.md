@@ -23,7 +23,7 @@ Die neue `FirestormManageCaps`-Option registriert:
 | `AgentExperiences` | POST | Kostenfrei genau eine Experience für den aktuellen Avatar anlegen; aktualisierte IDs |
 | `IsExperienceAdmin` | GET | `status` nur für selbst besessene Experience |
 | `UpdateExperience` | POST | Nur eigener Name, Beschreibung, Altersfreigabe, Aktiviert-Status |
-| `GetExperienceInfo` | GET | Profildaten des angelegten Erlebnisses, auch nach Relaunch |
+| `GetExperienceInfo` | GET | Profildaten, auch über den Firestorm-Pfad `/id/<uuid>/` und nach Relaunch |
 | `ExperiencePreferences` | GET/PUT/DELETE | Separate Berechtigungs-CAPS für Allow/Block/Forget |
 
 Erstellung ist zunächst **kostenfrei**, mit maximal zehn Experiences
@@ -215,3 +215,19 @@ beider laufenden Prozesse prüfen – keine Keys oder vollständigen
 Bearer-CAP-URLs in Logs oder Chat weitergeben.
 
 **Bis Abnahme:** 0.9.3.10 Dev, nicht RC1 oder Stable.
+
+## 6. Korrektur GET-ExperienceInfo-Pfad (11.10.2026)
+
+Bei `GetExperienceInfo` haengt Firestorm an die zufaellige
+CAP-URL die Erfahrung als `/id/<uuid>/` an. Der vorherige Handler
+registrierte zwar die variable URL, las aber ausschliesslich
+`?public_id=<uuid>`; das konnte beim Profilabruf HTTP 400 verursachen.
+
+Der GET-Handler akzeptiert jetzt das zu **seinem** CAPS-Token
+gehoerende Pfadformat und das bisherige query-basierte Format.
+Mehrdeutige Kombinationen, andere CAP-Pfade, Null-UUIDs,
+ungueltige UUIDs, uebergrosse ID-Listen und zusaetzliche
+Pfadsegmente werden vor einer World-API-Anfrage abgelehnt.
+Jeder Zugriff erfordert weiterhin eine aktuelle Root-Agent-CAP-Lease.
+Ein zusaetzlicher echter Firestorm-Relog-/Profilabruf-Test ist
+weiterhin ein offener Operator-Gate: Gruene CI zaehlt nicht als PASS.

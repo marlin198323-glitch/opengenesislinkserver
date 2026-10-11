@@ -327,9 +327,11 @@ namespace NexVerse.RegionModules.Experiences
             // revoked even if an old HTTP handler still exists.
             NexExperienceCapLeaseRegistry.Lease lease = m_CapLeases.Issue(
                 issuingScene.RegionInfo.RegionID.Guid, avatar.Guid);
-            var info = new SimpleStreamHandler("/" + UUID.Random(),
+            string infoCapPath = "/" + UUID.Random();
+            var info = new SimpleStreamHandler(infoCapPath,
                 (request, response) => HandleFirestormRead(
-                    request, response, issuingScene, avatar, lease, false));
+                    request, response, issuingScene, avatar, lease, false,
+                    infoCapPath));
             // Register with CAPS for correct per-session URL generation and
             // destruction, then register its handler as a variable path
             // because Firestorm appends /id/ to GetExperienceInfo.
@@ -928,7 +930,8 @@ namespace NexVerse.RegionModules.Experiences
 
         private void HandleFirestormRead(IOSHttpRequest request,
             IOSHttpResponse response, Scene issuingScene, UUID avatar,
-            NexExperienceCapLeaseRegistry.Lease lease, bool search)
+            NexExperienceCapLeaseRegistry.Lease lease, bool search,
+            string infoCapPath = null)
         {
             response.ContentType = "application/llsd+xml";
             response.KeepAlive = false;
@@ -964,23 +967,21 @@ namespace NexVerse.RegionModules.Experiences
                 }
                 else
                 {
-                    string[] ids = request.QueryString?.GetValues("public_id") ??
-                        Array.Empty<string>();
-                    if (ids.Length == 0 || ids.Length > 64)
+                    // Firestorm resolves GetExperienceInfo by appending
+                    // /id/<uuid>/ to the advertised capability. Older callers
+                    // may supply repeated ?public_id=<uuid> query values.
+                    // Both forms must be bound to this one random CAP path.
+                    if (!NexExperienceInfoRequestIds.TryParse(
+                            request.Url?.AbsolutePath, infoCapPath,
+                            request.QueryString?.GetValues("public_id"),
+                            out Guid[] infoIds))
                     {
                         response.StatusCode = (int)HttpStatusCode.BadRequest;
                         return;
                     }
-                    foreach (string raw in ids)
-                    {
-                        if (!UUID.TryParse(raw, out UUID id) || id.IsZero())
-                        {
-                            response.StatusCode = (int)HttpStatusCode.BadRequest;
-                            return;
-                        }
-                    }
                     apiPath = "/api/v1/experiences/script/info?ids=" +
-                        Uri.EscapeDataString(string.Join(",", ids));
+                        Uri.EscapeDataString(string.Join(",",
+                            Array.ConvertAll(infoIds, id => id.ToString("D"))));
                 }
 
                 using HttpRequestMessage upstreamRequest = CreateRequest(HttpMethod.Get, apiPath);
