@@ -231,3 +231,47 @@ Pfadsegmente werden vor einer World-API-Anfrage abgelehnt.
 Jeder Zugriff erfordert weiterhin eine aktuelle Root-Agent-CAP-Lease.
 Ein zusaetzlicher echter Firestorm-Relog-/Profilabruf-Test ist
 weiterhin ein offener Operator-Gate: Gruene CI zaehlt nicht als PASS.
+
+## 7. Firestorm "Erlebnis verwenden" und Script-Upload (12.10.2026)
+
+Firestorm blendet die Experience-Auswahl im Task-LSL-Editor nur ein, wenn
+`GetCreatorExperiences` mindestens eine passende Experience liefert.
+Dabei gehoeren **Owner**, Experience-Admins und explizite Contributors
+zur Script-Erstellerliste; `contributor_ids` allein genuegt nicht.
+Deaktivierte Experiences duerfen dort nicht auftauchen.
+
+Die Script-Editor-Auswahl ist nur die erste Haelfte. Das Feld
+`experience=<uuid>` aus Firestorms `UpdateScriptTask` wird nach
+erfolgreicher Skriptkompilierung ueber die zentrale, getrennt mit
+`experiences:viewer:manage` autorisierte World API als persistentes
+`script_id -> experience_id`-Binding gespeichert. Das Script muss
+weiterhin im Objekt-Task-Inventar existieren und der im Simulator
+eingeloggte Editor die Rechte `CanEditScript` besitzen.
+Der Store prueft **zusaetzlich** aktive Experience und die Rolle des
+Skript-Editors; beim Aufheben der Auswahl wird nur eine eigene oder
+delegierte Bindung aufgehoben. Der Simulator darf nicht blind dem
+Experience-UUID-Wert aus dem Viewer vertrauen.
+
+`GetMetadata` liefert die zuvor persistierte Experience-ID nur nach
+aktueller CAPS-Pruefung und Editierberechtigung fuer dieses Script.
+Eine neue Owner-Sitzung sollte die Zuordnung dadurch wieder anzeigen.
+Wenn das World-API-Binding fehlschlaegt, wird der Skriptupload als
+Fehler gemeldet statt still eine scheinbar gespeicherte Zuordnung
+vorzutaeuschen.
+
+**Pruefen:** Simulator und zentrale World API mit aktualisiertem
+Build neu starten und Firestorm neu anmelden, eine aktive eigene
+Experience im LSL-Editor auswaehlen, Script speichern, Editor schliessen
+und wieder oeffnen. Danach in LSL
+`llGetExperienceDetails(NULL_KEY)` testen. World API und
+Simulator muessen beide denselben aktuellen Code verwenden.
+
+Der Button **Speichern** im **Experience-Profil** ist dagegen ein
+separater Pfad: `IsExperienceAdmin` und `UpdateExperience` muessen
+beide im Viewer verfuegbar sein. Er bleibt normal ausgegraut, solange
+kein Profildetail tatsaechlich veraendert wurde. Falls er auch nach
+Aendern des Namens nicht aktiv wird, muss der Simulator die
+`IsExperienceAdmin`-CAP und ihre authentifizierte Owner-Liste pruefen.
+
+Alle automatischen Tests sind noch kein Ersatz fuer einen echten
+Firestorm-Inworld-End-to-End-Test.

@@ -30,6 +30,7 @@ for path in (
     "/api/v1/experiences/viewer/permissions",
     "/api/v1/experiences/viewer/group",
     "/api/v1/experiences/viewer/manage",
+    "/api/v1/experiences/viewer/script-binding",
 ):
     assert path in specified, path
 
@@ -48,6 +49,8 @@ contracts = {
     "ExperienceViewerAcquireRequest",
     "ExperienceViewerProfileRequest",
     "ExperienceViewerManageResponse",
+    "ExperienceViewerScriptBindingRequest",
+    "ExperienceViewerScriptBindingResponse",
 }
 for name in contracts:
     assert f'["{name}"] = new' in spec, "Missing OpenAPI schema: " + name

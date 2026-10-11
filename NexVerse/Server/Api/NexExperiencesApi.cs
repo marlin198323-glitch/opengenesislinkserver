@@ -280,6 +280,56 @@ namespace NexVerse.Server.Api
                 return;
             }
 
+            // Trusted simulator-side task-script upload association.
+            // The viewer has no API key; this request is performed only
+            // after script edit rights and compilation have been verified.
+            if (path == "/api/v1/experiences/viewer/script-binding")
+            {
+                if (!RequireMethod(method, "POST", response))
+                    return;
+                if (!Authenticate(request, response,
+                    NexScopes.ExperiencesViewerManage,
+                    out NexPrincipal principal, out UserAccount account))
+                    return;
+                if (account != null)
+                {
+                    WriteError(response, HttpStatusCode.Forbidden,
+                        "service_key_required",
+                        "Script bindings require a delegated simulator credential.");
+                    return;
+                }
+                if (!TryBody(request, response, out JsonElement body))
+                    return;
+                try
+                {
+                    if (body.EnumerateObject().Count() != 3)
+                        throw new ArgumentException(
+                            "Script binding accepts owner_id, script_id and experience_id only.");
+                    Guid owner = BodyGuid(body, "owner_id");
+                    Guid script = BodyGuid(body, "script_id");
+                    string rawExperience = BodyRawString(body, "experience_id");
+                    if (!Guid.TryParse(rawExperience, out Guid selectedExperienceId))
+                        throw new ArgumentException("Invalid Experience UUID.");
+
+                    m_Store.SetViewerScriptExperience(owner, script,
+                        selectedExperienceId, principal.Subject);
+                    Audit(principal, "experience.viewer.script_binding",
+                        selectedExperienceId, response);
+                    WriteJson(response, new
+                    {
+                        bound = selectedExperienceId != Guid.Empty,
+                        script_id = script.ToString("D"),
+                        experience_id = selectedExperienceId.ToString("D"),
+                        correlation_id = Correlation(response)
+                    });
+                }
+                catch (Exception e)
+                {
+                    WriteFailure(response, e);
+                }
+                return;
+            }
+
             // High-trust simulator-only route for Firestorm Experience
             // preferences.  A separate API key with ONLY
             // experiences:viewer:permissions is required.  It must never be

@@ -789,6 +789,59 @@ namespace NexVerse.Core.Experiences
             }
         }
 
+        /// <summary>
+        /// Apply a task-script Experience selection made through the trusted
+        /// simulator viewer upload. The simulator verifies the live editor
+        /// and task item; the authoritative store verifies creator roles.
+        /// </summary>
+        public void SetViewerScriptExperience(Guid avatarId, Guid scriptItemId,
+            Guid experienceId, string actor)
+        {
+            if (avatarId == Guid.Empty || scriptItemId == Guid.Empty)
+                throw new ArgumentException("Avatar and task-script item IDs are required.");
+            lock (m_Sync)
+            {
+                EnsureActive();
+                if (m_State.ScriptBindings.TryGetValue(scriptItemId, out Guid previous))
+                {
+                    NexExperience prior = Find(previous) ??
+                        throw new InvalidOperationException("Previous Experience is missing.");
+                    if (prior.OwnerId != avatarId && !prior.Admins.Contains(avatarId) &&
+                        !prior.Contributors.Contains(avatarId))
+                        throw new UnauthorizedAccessException(
+                            "This avatar cannot replace another Experience's script binding.");
+                }
+
+                if (experienceId == Guid.Empty)
+                {
+                    if (m_State.ScriptBindings.Remove(scriptItemId))
+                    {
+                        AddLog(previous, actor, "experience.script.viewer_unbind",
+                            scriptItemId.ToString("D"));
+                        Save();
+                    }
+                    return;
+                }
+
+                NexExperience target = Find(experienceId) ??
+                    throw new KeyNotFoundException("Experience not found.");
+                if (!target.Enabled ||
+                    (target.OwnerId != avatarId && !target.Admins.Contains(avatarId) &&
+                     !target.Contributors.Contains(avatarId)))
+                    throw new UnauthorizedAccessException(
+                        "Only owner/admin/contributor may select an active Experience.");
+
+                if (m_State.ScriptBindings.TryGetValue(scriptItemId, out Guid existing) &&
+                    existing == experienceId)
+                    return;
+
+                m_State.ScriptBindings[scriptItemId] = experienceId;
+                AddLog(experienceId, actor, "experience.script.viewer_bind",
+                    scriptItemId.ToString("D"));
+                Save();
+            }
+        }
+
         public void BindScript(
             Guid experienceId,
             Guid actorId,
