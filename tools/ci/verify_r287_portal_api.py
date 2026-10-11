@@ -28,7 +28,7 @@ for x in ("RequireContentOwner(principal, existing.OrganizerId)",
 
 for x in ('path == "/api/v1/groups/mine"',
           "NexScopes.GroupsRead", "resident != account.PrincipalID.Guid",
-          "GetAgentGroupMemberships(requester, requester)"):
+          "GetAgentGroupMemberships(selfGroupRequester, selfGroupRequester)"):
     assert x in groups, "membership privacy missing: " + x
 
 for path in ("/api/v1/profiles/{principalId}/image",
