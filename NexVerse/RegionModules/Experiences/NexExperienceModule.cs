@@ -1105,8 +1105,19 @@ namespace NexVerse.RegionModules.Experiences
             UUID scriptItemId, UUID avatarId, UUID experienceId, out string reason)
         {
             reason = "Experience script editing is unavailable.";
-            if (!m_Enabled || !m_FirestormManageCaps || m_Http == null ||
-                primId.IsZero() || scriptItemId.IsZero() || avatarId.IsZero())
+            // Standard Firestorm script uploads always include an Experience
+            // UUID, often ZERO. When this opt-in feature is unavailable,
+            // ordinary non-Experience scripts must still be compilable.
+            if (!m_Enabled || !m_FirestormManageCaps || m_Http == null)
+            {
+                if (experienceId.IsZero())
+                {
+                    reason = string.Empty;
+                    return true;
+                }
+                return false;
+            }
+            if (primId.IsZero() || scriptItemId.IsZero() || avatarId.IsZero())
                 return false;
 
             // Recheck live avatar, object and script inventory here as well
