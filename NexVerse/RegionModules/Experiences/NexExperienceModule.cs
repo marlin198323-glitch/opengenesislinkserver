@@ -567,12 +567,14 @@ namespace NexVerse.RegionModules.Experiences
                     _ => throw new ArgumentException("Unsupported viewer maturity.")
                 };
                 int properties = rawProperties.AsInteger();
-                // Firestorm can edit PRIVATE (bit 5) and DISABLED (bit 6).
-                // PRIVILEGED, GRID, SUSPENDED, INVALID and unknown flags
-                // must remain rejected: an owner cannot elevate grid scope.
-                const int editableFlags = (1 << 5) | (1 << 6);
-                if ((properties & ~editableFlags) != 0)
-                    throw new ArgumentException("Unsupported Experience property flags.");
+                if (!NexExperienceViewerFlags.TryDecode(properties,
+                        out bool enabled, out bool isPrivate, out int rejectedFlags))
+                    throw new ArgumentException(
+                        "Unsupported Experience property flags. " +
+                        $"received={properties} (0x{properties:X8}), " +
+                        $"rejected=0x{rejectedFlags:X8}; " +
+                        "only PRIVATE (0x20) and DISABLED (0x40) are editable. " +
+                        "Check current simulator DLL and Firestorm Experience cache.");
                 if (values.TryGetValue("group_id", out OSD group) &&
                     !group.AsUUID().IsZero())
                     throw new ArgumentException(
@@ -588,8 +590,8 @@ namespace NexVerse.RegionModules.Experiences
                     name,
                     description,
                     maturity,
-                    enabled = (properties & (1 << 6)) == 0,
-                    is_private = (properties & (1 << 5)) != 0
+                    enabled,
+                    is_private = isPrivate
                 });
                 using HttpRequestMessage request =
                     CreateViewerManageRequest(HttpMethod.Put, payload);
@@ -927,8 +929,8 @@ namespace NexVerse.RegionModules.Experiences
                         2 => 42,
                         _ => 13
                     }),
-                ["properties"] = OSD.FromInteger((enabled ? 0 : 1 << 6) |
-                    (isPrivate ? 1 << 5 : 0)),
+                ["properties"] = OSD.FromInteger(
+                    NexExperienceViewerFlags.Encode(enabled, isPrivate)),
                 ["expiration"] = OSD.FromReal(600.0),
                 ["quota"] = OSD.FromInteger(128)
             };
