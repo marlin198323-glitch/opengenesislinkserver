@@ -222,10 +222,20 @@ namespace NexVerse.Server.Api
                     GetOperation("Veröffentlichte Discovery-Events durchsuchen"),
                     AuthenticatedOperations(
                         ("post", "Discovery-Event anlegen oder aktualisieren", "discovery:manage", "201"))),
+                ["/api/v1/events/{eventId}"] = MergeOperations(
+                    GetOperation("Einzelne veröffentlichte Veranstaltung lesen; Entwürfe bleiben verborgen"),
+                    AuthenticatedOperations(
+                        ("patch", "Eigene Veranstaltungsdaten/Schedule ohne Owner-/Statuswechsel ändern", "discovery:manage", "200"),
+                        ("delete", "Eigene Veranstaltung entfernen, mit Audit", "discovery:manage", "200"))),
                 ["/api/v1/classifieds"] = MergeOperations(
                     GetOperation("Veröffentlichte Classifieds durchsuchen"),
                     AuthenticatedOperations(
                         ("post", "Classified anlegen oder aktualisieren", "discovery:manage", "201"))),
+                ["/api/v1/classifieds/{classifiedId}"] = MergeOperations(
+                    GetOperation("Einzelne veröffentlichte Kleinanzeige lesen; Entwürfe bleiben verborgen"),
+                    AuthenticatedOperations(
+                        ("patch", "Eigene Kleinanzeigendaten ohne Eigentums-/Statuswechsel ändern", "discovery:manage", "200"),
+                        ("delete", "Eigene Kleinanzeige entfernen, mit Audit", "discovery:manage", "200"))),
                 ["/api/v1/land-portal"] = GetOperation(
                     "Aktive NV$-Landangebote als Landportal durchsuchen"),
                 ["/api/v1/land-portal/owned"] = AuthenticatedOperations(
@@ -245,6 +255,8 @@ namespace NexVerse.Server.Api
                 ["/api/v1/profiles/{principalId}"] = MergeOperations(
                     GetOperation("Öffentlich sichtbares Avatarprofil lesen; private Profile nur für Eigentümer oder Admin"),
                     AuthenticatedOperations(("patch", "Eigenes Avatarprofil einschließlich Bild-Asset-UUID, Interessen und Sichtbarkeit aktualisieren", "profile:write", "200"))),
+                ["/api/v1/profiles/{principalId}/image"] = GetOperation(
+                    "Browserfähige Profilbild-Bytes der aktuell verknüpften Avatar-Textur; privat nur Owner/Admin"),
                 ["/api/v1/relationships/{principalId}"] = AuthenticatedOperations(
                     ("get", "Eigene Freundesliste mit Anfragezustand, Online-Sichtbarkeit und Rechten lesen", "relationships:read", "200")),
                 ["/api/v1/relationships/{principalId}/{targetId}"] = AuthenticatedOperations(
@@ -629,6 +641,52 @@ namespace NexVerse.Server.Api
             ApplyJsonContract(paths, "/api/v1/groups/{groupId}/bans/{agentId}", "post", "Chapter11MutationRequest", "Chapter11ObjectResponse", "200");
             ApplyJsonContract(paths, "/api/v1/groups/{groupId}/accounting", "get", null, "Chapter11ObjectResponse", "200");
             ApplyJsonContract(paths, "/api/v1/groups/{groupId}/capabilities", "get", null, "Chapter11ObjectResponse", "200");
+            ApplyJsonContract(paths, "/api/v1/events", "get", null, "DiscoveryEventListResponse", "200");
+            ApplyJsonContract(paths, "/api/v1/events", "post", "DiscoveryEventRecord", "DiscoveryEventResponse", "201");
+            ApplyJsonContract(paths, "/api/v1/events/{eventId}", "get", null, "DiscoveryEventResponse", "200");
+            ApplyJsonContract(paths, "/api/v1/events/{eventId}", "patch", "DiscoveryEventPatch", "DiscoveryEventResponse", "200");
+            ApplyJsonContract(paths, "/api/v1/events/{eventId}", "delete", null, "DiscoveryDeletedResponse", "200");
+            ApplyJsonContract(paths, "/api/v1/classifieds", "get", null, "DiscoveryClassifiedListResponse", "200");
+            ApplyJsonContract(paths, "/api/v1/classifieds", "post", "DiscoveryClassifiedRecord", "DiscoveryClassifiedResponse", "201");
+            ApplyJsonContract(paths, "/api/v1/classifieds/{classifiedId}", "get", null, "DiscoveryClassifiedResponse", "200");
+            ApplyJsonContract(paths, "/api/v1/classifieds/{classifiedId}", "patch", "DiscoveryClassifiedPatch", "DiscoveryClassifiedResponse", "200");
+            ApplyJsonContract(paths, "/api/v1/classifieds/{classifiedId}", "delete", null, "DiscoveryDeletedResponse", "200");
+            AddOperationParameters(paths, "/api/v1/events/{eventId}", "get",
+                PathParameter("eventId", "Event-UUID"));
+            AddOperationParameters(paths, "/api/v1/events/{eventId}", "patch",
+                PathParameter("eventId", "Event-UUID"));
+            AddOperationParameters(paths, "/api/v1/events/{eventId}", "delete",
+                PathParameter("eventId", "Event-UUID"));
+            AddOperationParameters(paths, "/api/v1/classifieds/{classifiedId}", "get",
+                PathParameter("classifiedId", "Classified-UUID"));
+            AddOperationParameters(paths, "/api/v1/classifieds/{classifiedId}", "patch",
+                PathParameter("classifiedId", "Classified-UUID"));
+            AddOperationParameters(paths, "/api/v1/classifieds/{classifiedId}", "delete",
+                PathParameter("classifiedId", "Classified-UUID"));
+            AddOperationParameters(paths, "/api/v1/profiles/{principalId}/image", "get",
+                PathParameter("principalId", "Avatar-UUID"));
+            // Image output is binary; do not advertise it as JSON.
+            if (paths["/api/v1/profiles/{principalId}/image"] is Dictionary<string, object> imagePath &&
+                imagePath["get"] is Dictionary<string, object> imageOperation)
+            {
+                imageOperation["x-nexverse-ai-instruction"] =
+                    "Nur aktuell im Profil gesetztes Bild. Keine beliebige Asset-UUID; private Profile benoetigen Avatar-Owner oder Admin-Token.";
+                imageOperation["responses"] = new Dictionary<string, object>
+                {
+                    ["200"] = new
+                    {
+                        description = "Bilddaten (JPEG2000 wird zu PNG dekodiert)",
+                        content = new Dictionary<string, object>
+                        {
+                            ["image/png"] = new { schema = new { type = "string", format = "binary" } },
+                            ["image/jpeg"] = new { schema = new { type = "string", format = "binary" } }
+                        }
+                    },
+                    ["401"] = new { description = "Authentifizierung fuer privates Profil erforderlich" },
+                    ["404"] = new { description = "Bild nicht vorhanden oder nicht sichtbar" },
+                    ["503"] = new { description = "Assetdienst oder Codec nicht verfuegbar" }
+                };
+            }
             ApplyJsonContract(paths, "/api/v1/experiences", "get", null, "ExperienceSearchResponse", "200");
             ApplyJsonContract(paths, "/api/v1/experiences", "post", "NexExperienceCreateRequest", "ExperienceDetailsResponse", "201");
             ApplyJsonContract(paths, "/api/v1/experiences/{experienceId}", "get", null, "ExperienceDetailsResponse", "200");
