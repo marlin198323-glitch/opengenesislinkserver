@@ -247,7 +247,7 @@ assert "MasterBankEnabled = false" in profile
 assert 'MasterBankOperatorId = ""' in profile
 assert 'MasterBankAuthorizedScripts = ""' in profile
 
-// The registration helper reports IDs but may never pay or authorize.
+# The registration helper reports IDs but may never pay or authorize.
 for filename in ("OpenSim/Region/ScriptEngine/Shared/Api/Interface/ILSL_Api.cs",
                  "OpenSim/Region/ScriptEngine/Shared/Api/Runtime/LSL_Stub.cs",
                  "OpenSim/Region/ScriptEngine/Shared/Api/Implementation/LSL_Api.cs"):
