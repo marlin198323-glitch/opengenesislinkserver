@@ -221,7 +221,8 @@ namespace NexVerse.Server.Api
             md.AppendLine("- Ressourcenrollen und serverseitige Ownership-Pruefungen bleiben verbindlich.");
             md.AppendLine("- experiences:script ist fuer vertrauenswuerdige Script-/Service-Integrationen und nicht fuer normale Browser-Selbstbedienung.");
             md.AppendLine("- /experiences/script/info, /script/search, /script/resolve, /script/details, /script/permission, /script/location und /script/kv sind interne Service-Bridges; keinen experiences:script-Schluessel an Einwohner ausgeben.");
-            md.AppendLine("- /experiences/viewer/permissions und /experiences/viewer/group sind NUR fuer den Simulator hinter kurzlebigen avatar-/regiongebundenen Viewer-CAPS. Kein direkter Aufruf mit selbst gewaehltetem resident_id.");
+            md.AppendLine("- /experiences/viewer/permissions und /experiences/viewer/group sind NUR fuer den Simulator hinter kurzlebigen avatar-/regiongebundenen Viewer-CAPS. Kein direkter Aufruf mit selbst gewaehltem resident_id.");
+            md.AppendLine("- /experiences/viewer/manage (POST Erwerb, PUT Profil) ist ein gesonderter Simulator-Service-Bridge-Endpoint mit experiences:viewer:manage; niemals direkt aus Einwohner-ChatGPT-OAuth aufrufen.");
             md.AppendLine("- Firestorm Experience-Kauf/Editor, Script-Zustimmung und OGL-Pathfinding nur als implementiert/aktiv behaupten, wenn der konkrete installierte Build, seine Feature-Schalter und Live-Tests dies bestaetigen.");
         }
 
@@ -253,7 +254,8 @@ namespace NexVerse.Server.Api
             md.AppendLine("- OAuth-/Dienst-Clients: /auth/clients.");
             md.AppendLine("- Audit-Historie: /audit.");
             md.AppendLine("- Neue API-Keys nur mit minimal benoetigten Scopes erzeugen; aktive Schluessel nicht im MD, Chat oder URL ausgeben.");
-            md.AppendLine("- NexExperiences besitzt getrennte Dienst-Scopes: experiences:script und experiences:viewer:permissions; der letztere ist privilegiert und nur fuer vertrauenswuerdige Simulatoren. Ein Manage-Scope ist nicht automatisch ein Bewohner-Identitaetsnachweis.");
+            md.AppendLine("- NexExperiences besitzt drei strikt getrennte Dienst-Scopes: experiences:script, experiences:viewer:permissions und experiences:viewer:manage; die beiden letzteren sind privilegiert, nur fuer vertrauenswuerdige Simulatoren. Ein Manage-Scope ist nicht automatisch ein Bewohner-Identitaetsnachweis.");
+            md.AppendLine("- Der neue POST/PUT /experiences/viewer/manage erfordert eigenes experiences:viewer:manage API-Key-Material; Avatar-UUID und Ownership stammen aus der gueltigen Simulator-CAP, nicht aus frei gewaehltem Nutzerinput.");
             md.AppendLine("- Eigentums- und Actor-Regeln beachten: Service-Clients mit experiences:manage duerfen keine beliebigen Bewohner-IDs impersonieren; administrative Delegation erfordert admin:*.");
             md.AppendLine("- OGLVoice und Havok-kompatibles Firestorm-NavMesh sind in 0.9.3.10 kein als Stable freigegebenes Feature.");
             md.AppendLine();
@@ -276,7 +278,9 @@ namespace NexVerse.Server.Api
             md.AppendLine();
             md.AppendLine("- Maschinenintegrationen verwenden eingeschraenkte API-Schluessel oder registrierte OAuth-Service-Clients.");
             md.AppendLine("- Kein admin:*-Schluessel fuer normale Simulator- oder Portalaufgaben.");
-            md.AppendLine("- Spezielle Experience-Schluessel: experiences:script fuer die LSL-/Metadaten-Bridge und ein davon verschiedener, privilegiert vergebener experiences:viewer:permissions nur fuer Allow/Block/Forget/GetExperiences und Gruppenlisten.");
+            md.AppendLine("- Spezielle Experience-Schluessel: experiences:script fuer die LSL-/Metadaten-Bridge, experiences:viewer:permissions nur fuer Allow/Block/Forget/GetExperiences und Gruppenlisten, experiences:viewer:manage nur fuer authentifizierten Erwerb und Eigentuermer-Profiledits.");
+            md.AppendLine("- FirestormManageCaps bleibt per Default false; fuer den Developer-Simulator benoetigt es die separaten Voraussetzungen FirestormReadCaps und FirestormPermissionCaps und einen nur fuer experiences:viewer:manage gueltigen Schluessel.");
+            md.AppendLine("- Experience-Erwerb ist kostenlos (kein NV$-Debit) mit maximal zehn eigenen Experiences; nicht als unbegrenzte oder kostenpflichtige Marketplace-API darstellen.");
             md.AppendLine("- Die direkte World API /api/v1/experiences/viewer/permissions erfordert einen Service-Principal. resident_id muss aus der aktiven, widerrufbaren Avatar-CAP-Lease stammen, nicht aus Nutzertext.");
             md.AppendLine("- /api/v1/experiences/script/kv unterstuetzt create, read, update (optional check_original/original_value), delete, stats und keys; keine K/V-Autorisierung ohne zugeordnetes Script.");
             md.AppendLine("- World-API-Dienstschluessel bei fehlgeschlagenem Test nicht als HTTP-Query oder Teil einer anonymen Viewer-URL versenden.");
