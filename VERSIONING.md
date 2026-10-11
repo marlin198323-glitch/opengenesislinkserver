@@ -1,9 +1,9 @@
 # OpenGenesisLINK versioning
 
-Current stable release: **OpenGenesisLINK v0.9.3.8**  
-RC1 promotion branch (not published): **OpenGenesisLINK v0.9.3.10 RC1**, covering .NET runtime stabilization, NV$ Economy/GRID SERVICES Masterbank, inventory core, R287 World API and RC1 validation. **NexExperiences/Firestorm is paused and disabled in the release profile.** OGL Pathfinding 2.0 and OGL My Outfits 2.0 are deferred to the own viewer; OGLVoice remains deferred. No 0.9.3.9 Stable release.  
-Latest release candidate: **OpenGenesisLINK v0.9.3.8 RC1** (validated and promoted)  
-Active milestone (candidate branch only): **0.9.3.10 RC1 — technisch vorbereitet, Freigabe wegen offener 22/22 Operatornachweise gesperrt**  
+Current stable release: **OpenGenesisLINK v0.9.3.10** (operator-authorized closure with separately documented incomplete formal evidence)  
+Completed stabilization train: **OpenGenesisLINK v0.9.3.10**, covering .NET runtime stabilization, NV$ Economy/GRID SERVICES Masterbank, inventory core, R287 World API and RC1 validation. **NexExperiences/Firestorm is paused and disabled in the release profile.** OGL Pathfinding 2.0 and OGL My Outfits 2.0 are deferred to the own viewer; OGLVoice remains deferred. No 0.9.3.9 Stable release.  
+Last tested RC1 promotion: **OpenGenesisLINK v0.9.3.10 RC1** (PR #179, CI green; no separate RC1 tag created)  
+Completed milestone: **0.9.3.10 Stable — direkte Betreiberfreigabe mit dokumentierter Ausnahme von nicht belegten Einzel-/Langzeittests**  
 Next architectural consolidation line: **OpenGenesisLINK v0.9.4.0**  
 Completed milestone codename: **NEXJAST**
 
@@ -35,7 +35,7 @@ OpenGenesisLINK continues from the OpenSimulator 0.9.3.0 source baseline and the
 - `OpenGenesisLINK v0.9.3.8 Dev` — completed feature implementation and development hardening for NexSearch, Places, Land Portal and Destination Guide.
 - `OpenGenesisLINK v0.9.3.8 RC1` — validated prerelease. Operator reported successful cross-region and estate-wide LSL tests, including NexBus across separate simulator processes; cross-owner and log-clean checks were not separately documented.
 - `OpenGenesisLINK v0.9.3.8` — **stable release, 8 October 2026**; promoted after successful RC1 operator acceptance and green release CI. Known limitations and previously unverified edge cases remain documented in the release notes.
-- `OpenGenesisLINK v0.9.3.10 RC1` — candidate-only promotion for the stabilization train for .NET runtime, local/HG logins, NV$ Economy/GRID SERVICES Masterbank, inventory/asset foundations and R287 World API. NexExperiences viewer integration is paused and disabled in shipped RC templates (security regressions remain); OGL Pathfinding 2.0, OGL My Outfits 2.0 and any Experiences 2.0 are deferred to the own viewer; OGLVoice is separate. No RC1 tag or Stable release; promotion remains blocked pending operator evidence v2: 22 RC1/23 Stable cases. See `doc/NexVerse/RELEASE_TRAIN_0.9.3.10.md`.
+- `OpenGenesisLINK v0.9.3.10` — Stable Abschluss des Stabilisierungstrains nach ausdrücklicher Betreiberentscheidung (12.10.2026) for .NET runtime, local/HG logins, NV$ Economy/GRID SERVICES Masterbank, inventory/asset foundations and R287 World API. NexExperiences viewer integration is paused and disabled in shipped RC templates (security regressions remain); OGL Pathfinding 2.0, OGL My Outfits 2.0 and any Experiences 2.0 are deferred to the own viewer; OGLVoice is separate. Die 22 RC1-Funktionsprüfungen wurden vom Betreiber im Chat bestätigt, jedoch nicht mit einzeln referenzierbaren v2-Belegen eingereicht. Die 23/23-Formalprüfung einschließlich 24-h-Soak wurde nicht abgeschlossen; bewusste einmalige Ausnahme: `doc/NexVerse/09310_OPERATOR_RELEASE_DECISION.md`. Dies ist keine Empfehlung für spätere Releases. See `doc/NexVerse/RELEASE_TRAIN_0.9.3.10.md`.
 - `OpenGenesisLINK v0.9.4.0` — Generation 1 consolidation line for broader OGL branding, German administration surfaces and the native addon subsystem.
 
 The product-name transition does not rewrite provenance. OpenSimulator 0.9.3.0 remains the historical source baseline, and inherited licensing remains attached to inherited code until independently replaced.

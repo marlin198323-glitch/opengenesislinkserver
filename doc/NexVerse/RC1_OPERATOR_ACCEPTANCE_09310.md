@@ -1,3 +1,9 @@
+**Historische Standard-Abnahmeanleitung, Stand 12.10.2026.**
+Die direkte Stable-Publikation erfolgt im Auftrag des Betreibers unter
+der [einmaligen Ausnahmeentscheidung](09310_OPERATOR_RELEASE_DECISION.md).
+Die unverändert strenge 22/23-Checkliste ist **nicht** als formal
+vollständig belegter Testsatz auszugeben.
+
 # OpenGenesisLINK 0.9.3.10 RC1 – Operator-Abnahme (Stabilisierung)
 
 **Stand: 12.10.2026 · Noch KEINE RC1-/Stable-Freigabe.**

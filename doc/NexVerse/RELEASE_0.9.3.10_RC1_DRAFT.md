@@ -1,6 +1,8 @@
 # OpenGenesisLINK 0.9.3.10 RC1 – Release Notes (ENTWURF)
 
-**Status: RC1-PROMOTION ALS BRANCH VORBEREITET / NICHT VERÖFFENTLICHT · Scope 12.10.2026.**
+**Status: HISTORISCHER RC1-ENTWURF (kein RC1-Tag erstellt).**
+Stable-Notes: [RELEASE_0.9.3.10.md](RELEASE_0.9.3.10.md).
+Einmalige Betreiberentscheidung: [09310_OPERATOR_RELEASE_DECISION.md](09310_OPERATOR_RELEASE_DECISION.md).
 Kein RC1-/Stable-Tag. Erst nach den
 [22 RC1-Nachweisen](09310_RC1_RELEASE_READINESS.md)
 mit `ogl-release-evidence-v2`, aktualisiertem identischen CI-Commit,

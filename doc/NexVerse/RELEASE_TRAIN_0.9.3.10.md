@@ -1,9 +1,9 @@
 # OpenGenesisLINK 0.9.3.10 – Runtime- und Stabilisierungs-Release-Train
 
-**RC1-Promotion-Branch (nicht freigegeben):** `OpenGenesisLINK 0.9.3.10 RC1`  
-**Letzte veröffentlichte Stable-Version:** `OpenGenesisLINK 0.9.3.8` (Tag `v0.9.3.8`)  
+**Abgeschlossener Stabilisierungstrain:** `OpenGenesisLINK 0.9.3.10` (Stable)  
+**Vorherige Stable-Version:** `OpenGenesisLINK 0.9.3.8` (Tag `v0.9.3.8` bleibt unverändert)  
 **Freigabeziel:** `OpenGenesisLINK 0.9.3.10 Stable`; **keine separate Stable-Version 0.9.3.9**.  
-**Status:** RC1-Versionskennung ist auf einem getrennten Promotion-Branch vorbereitet; die verbindlichen 22 Live-Operator-PASS fehlen. Der Branch ist **nicht** auf `main` gemergt, es existiert KEIN RC1-Tag und KEINE Stable-Freigabe. Ein gruener Build ersetzt keine Live-Abnahme. Verbindlicher Ablauf: [09310_RC1_RELEASE_READINESS.md](09310_RC1_RELEASE_READINESS.md).
+**Status:** Stabilisierungsentwicklung abgeschlossen. Betreiber hat 22 Prüfungen im Chat als OK bestätigt und den **direkten Stable-Abschluss trotz fehlender v2-Einzelnachweise und ohne bestätigten 24-h-Soak** angeordnet. Dokumentiert in [09310_OPERATOR_RELEASE_DECISION.md](09310_OPERATOR_RELEASE_DECISION.md); keine Tests erfunden, unveränderliches Tag nur nach erfolgreichem Publishing-Workflow. Die alte RC1-Matrix bleibt als historische Standard-Policy bestehen. Ein gruener Build ersetzt keine Live-Abnahme. Verbindlicher Ablauf: [09310_RC1_RELEASE_READINESS.md](09310_RC1_RELEASE_READINESS.md).
 
 **Aktuelle Scope-Entscheidung (11.10.2026):** OGL Pathfinding ist aus dieser Version **und dem aktuellen Server-Code** komplett entfernt: keine A*-Kerne, keine Terrain-/Layered-Navigation, keine NPC-Follower, keine OGLNavGraph- oder Firestorm-NavMesh-CAPS. Der eigene OpenGenesisLINK-Viewer kann spaeter ein unabhaengiges Navigationsvorhaben erhalten. Dessen Protokolle und serverseitige Sicherheitsgrenzen werden erst dann neu geplant.
 
@@ -126,7 +126,7 @@ ist erst spaeter fuer den eigenen Viewer zu planen.
 ## F. Kompatibilität und Releasepolitik
 
 - Die stabile Referenz `v0.9.3.8` bleibt verfügbar; kein Verschieben eines Tags.
-- Dieser **noch nicht freigegebene Branch** verwendet `OpenGenesisLINK 0.9.3.10 RC1` fuer Runtime und Stabilisierung. `main` bleibt bis zur realen 22/22-Operatorabnahme und Freigabe `Dev`; kein Tag oder oeffentlicher RC1-Release durch bloßes Umbenennen. NexExperiences sind nur archivierter opt-in Dev-Code, keine freigegebene Funktionszusage.
+- **Stable-Code** verwendet `OpenGenesisLINK 0.9.3.10` (VersionInfo.Flavour.Release); vorheriges `RC1` ist integriert. Ein separates RC1-Tag wurde nicht erstellt. Die direkte Betreiberausnahme ist ausschliesslich fuer diese Version dokumentiert, keine Abschwaechung künftiger Live-Releasegates. NexExperiences sind nur archivierter opt-in Dev-Code, keine freigegebene Funktionszusage.
 - Keine separate Veröffentlichung `0.9.3.9 Stable`.
 - OGLVoice bleibt standardmaessig inaktiv und ist ausdruecklich auf einen spaeteren Entwicklungsabschnitt vertagt. Vorhandenen Code, Tests und Sicherheitsgrenzen beibehalten; keine produktive Gateway-Aktivierung zur Erfuellung dieses Release-Trains.
 - Kein OGL Pathfinding oder NavMesh-CAPS in der 0.9.3.10-Version behaupten; eigener Viewer erst in einem spaeteren Projekt.

@@ -45,5 +45,34 @@ for ini in ("bin/OpenSim.ini", "bin/OpenSim.ini.example"):
         "\n[", 1)[0]
     assert "Enabled = false" in section, (
         "0.9.3.10 must not ship active Experience viewer CAPS: " + ini)
+# Dedicated 0.9.3.10 stable publisher: the existing immutable .8 release
+# workflow remains unchanged and ineligible for the new version.
+new_flow = Path(".github/workflows/publish-0.9.3.10-stable.yml").read_text()
+for mark in (
+    'workflows: ["NexVerse CI"]',
+    'branches: [main]',
+    "github.event.workflow_run.conclusion == 'success'",
+    "github.event.workflow_run.event == 'push'",
+    'test "$(git rev-parse HEAD)" = "$STABLE_SHA"',
+    'VersionNumber = "0.9.3.10"',
+    'VERSION_FLAVOUR = Flavour.Release;',
+    'test -s doc/NexVerse/RELEASE_0.9.3.10.md',
+    'test -s doc/NexVerse/09310_OPERATOR_RELEASE_DECISION.md',
+    'tag="v0.9.3.10"',
+    "Stable release already exists. No replacement or rewrite.",
+    "gh release create",
+):
+    assert mark in new_flow, "0.9.3.10 publisher missing: " + mark
+assert new_flow.count("gh release create") == 1
+assert "gh release delete" not in new_flow
+assert "git push --force" not in new_flow
+assert "github.event.workflow_run.head_repository.full_name == github.repository" in new_flow
+assert Path("doc/NexVerse/RELEASE_0.9.3.10.md").is_file()
+assert Path("doc/NexVerse/09310_OPERATOR_RELEASE_DECISION.md").is_file()
+decision = Path("doc/NexVerse/09310_OPERATOR_RELEASE_DECISION.md").read_text()
+assert "nicht bereitgestellt" in decision
+assert "nicht separat" in decision
+assert "v0.9.3.8" in decision
+assert "einmalige" in decision
 assert Path("doc/NexVerse/FUTURE_VIEWER_NAVIGATION.md").is_file()
 print("0.9.3.8 immutable; 0.9.3.10 stabilization gates, XP disabled, Viewer 2.0 deferred.")
