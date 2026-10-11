@@ -61,6 +61,13 @@ jobs:
         shell: bash
         run: python3 tools/ci/verify_stable_release_gate.py
 
+      - name: Test fail-closed OpenGenesisLINK 0.9.3.10 release evidence gate
+        shell: bash
+        run: |
+          python3 -m unittest discover -s tools/ci -p 'test_verify_09310_release_readiness.py' -v
+          # Do not invoke an empty operator manifest as a simulated PASS:
+          # the real RC1/Stable evidence check is a separate manual gate.
+
       - name: Verify runtime secrets are not committed
         shell: bash
         run: python3 tools/ci/verify_no_plaintext_runtime_secrets.py

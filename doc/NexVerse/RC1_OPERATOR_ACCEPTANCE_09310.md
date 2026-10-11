@@ -2,7 +2,7 @@
 
 Status: **Entwicklungs-/Testanleitung; kein RC1-Tag und keine Stable-Freigabe.**
 
-**Offene Tests aus dem Betreiberprotokoll 11/38:** [09310_ACCEPTANCE_BLOCKERS.md](09310_ACCEPTANCE_BLOCKERS.md). `EXP01` ist für die Firestorm-Erstellung zusätzlich durch den GET-only `AgentExperiences`-CAP blockiert; nicht alle fehlenden Tests sind durch Aktivierung von INI-Schaltern lösbar. `REL01`, `REL02` und `REL07` trotz gesetztem Haken erneut anhand der offenen Experience-Tests bewerten. Read-only Preflight: `python3 tools/diagnostics/ogl_voice_pathfinding_preflight.py --sim-config bin/OpenSim.ini --robust-config bin/Robust.HG.ini`.
+**Historisches Betreiberprotokoll 11/38 (Build a6778c9):** [09310_ACCEPTANCE_BLOCKERS.md](09310_ACCEPTANCE_BLOCKERS.md). Seit PR #158 kann `AgentExperiences` bei opt-in `FirestormManageCaps` einen authentifizierten POST für kostenlosen Erwerb verarbeiten; die damalige GET-only-Codeblockade ist behoben, die echte Firestorm-E2E-Abnahme jedoch **nicht** erbracht. `REL01`, `REL02` und `REL07` trotz alter Haken erneut anhand der offenen Experience-Tests bewerten. Für den aktuellen RC-Plan gelten die 48 Fall-IDs aus [09310_RC1_RELEASE_READINESS.md](09310_RC1_RELEASE_READINESS.md). Read-only Preflight: `python3 tools/diagnostics/ogl_voice_pathfinding_preflight.py --sim-config bin/OpenSim.ini --robust-config bin/Robust.HG.ini`.
 Aktualisiert: 11.10.2026. Freigabe-Gates: [RELEASE_TRAIN_0.9.3.10.md](RELEASE_TRAIN_0.9.3.10.md).
 
 ## Verbindlicher Scope
@@ -72,20 +72,23 @@ Das Firestorm-Pathfinding-Menue bleibt erwartungsgemaess grau.
 
 ## 3. Experiences im realen Firestorm
 
-Administrativ zwei **getrennte** API-Keys bereitstellen: einen normalen
-Experience-Service-Key und ausschliesslich
-`experiences:viewer:permissions` fuer den Viewer-Permissions-Proxy. Keine
-Klartextwerte in Git, Chat, Logs oder diese Tabelle schreiben. In der
-Developer-Region nach Backup die Konfiguration aus
-`PATHFINDING_EXPERIENCES_FULL_PARITY_09310.md` verwenden:
+Administrativ drei **verschiedene, minimal berechtigte** API-Keys bereitstellen:
+`experiences:script`, `experiences:viewer:permissions` und
+`experiences:viewer:manage` (fuer Erwerb und eigenen Profil-Editor).
+Diese Schluessel koennen nur per berechtigter Service-Administration
+ausgestellt werden und duerfen nie im Viewer, Chat oder Git erscheinen.
+In der isolierten Developer-Region die Konfiguration aus
+`FIRESTORM_EXPERIENCE_ACQUIRE_09310.md` verwenden:
 
 ```ini
 [NexExperiencesViewer]
     Enabled = true
     ApiKey = "${Environment|NEXVERSE_EXPERIENCES_API_KEY}"
     ViewerPermissionsApiKey = "${Environment|NEXVERSE_EXPERIENCES_VIEWER_PERMISSIONS_API_KEY}"
+    ViewerManageApiKey = "${Environment|NEXVERSE_EXPERIENCES_VIEWER_MANAGE_API_KEY}"
     FirestormReadCaps = true
     FirestormPermissionCaps = true
+    FirestormManageCaps = true
     ScriptPendingConsent = true
     NativeExperiencePrompt = true
 ```
@@ -97,6 +100,7 @@ berechtigt zugeordnet sein. Ein zweiter Bewohner darf keine Admin-Rechte haben.
 
 | ID | Firestorm-/Server-Versuch | Erwartetes Ergebnis |
 | --- | --- | --- |
+| EXP_CREATE | Avatar A klickt im Reiter Eigene auf Erlebnis erwerben, editiert Profil und loggt neu ein | Eigene Experience wird einmalig kostenfrei angelegt und bleibt nur fuer A editierbar; Maximum zehn; keine NV$-Buchung |
 | EXP01 | B bittet erstmals per Script um Berechtigung | Native Anfrage bzw. expliziter gesicherter Fallback; **keine** automatische Zustimmung |
 | EXP02 | B waehlt Allow im Viewer | Persistentes `ExperiencePreferences` Allow und genau passendes `experience_permissions` |
 | EXP03 | B waehlt Block bzw. Deny | Korrekte Fehlermeldung/`experience_permissions_denied`, keine Teilberechtigung |
@@ -126,6 +130,7 @@ Timeouts ersetzen diese Ende-zu-Ende-Pruefung nicht.
 - **RECOVERY:** Backup, Update, Restart, Rollback auf **unveraendertes**
   `v0.9.3.8`, kontrollierte Datenmigration/Restore, Secrets getrennt
   und Rollback bei nicht rueckwaertskompatibler Schemaaenderung.
+- **PORTAL:** R287-Bildbytes mit echtem J2K, private Profile, Event-/Classified-Owner-Rechte, eigene Gruppen und Regionendetails ueber Live-API testen. Offen gebliebene R287-Funktionen nicht als fertig kennzeichnen.
 - **RELEASE:** Gruener identischer Build-Commit, Maintainer-Review,
   ausgefuellte NAV-/EXP-/RUNTIME-Resultate, dokumentierte Known Limitations,
   danach erst RC1-Tag. Stable erfordert gesonderte Betreiber-Abnahme.

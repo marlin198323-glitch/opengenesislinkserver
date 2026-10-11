@@ -1,5 +1,15 @@
 # 0.9.3.10 – Abnahme-Blocker nach Firestorm-7.2.4-Pruefprotokoll
 
+**Hinweis 11.10.2026 nach PR #158/#159:** Diese Datei ist eine **historische
+Momentaufnahme fuer Build a6778c9**, kein aktueller Blocker-Beweis
+fuer HEAD. Der ehemals GET-only Viewer-CAP kann im aktuellen
+Quellcode bei Opt-in `FirestormManageCaps` kostenfrei erwerben und
+grundlegende Profile bearbeiten. Die Live-Abnahme fehlt unveraendert.
+Aktueller Pflichtumfang und Sperren: [09310_RC1_RELEASE_READINESS.md](09310_RC1_RELEASE_READINESS.md).
+Die neue Experience-Funktion benoetigt **drei** getrennte Serviceschluessel,
+siehe [FIRESTORM_EXPERIENCE_ACQUIRE_09310.md](FIRESTORM_EXPERIENCE_ACQUIRE_09310.md).
+Die folgenden Befunde beschreiben weiterhin ausschliesslich den damaligen Test.
+
 **Stand:** 11.10.2026, gemeldeter Build `a6778c9`, Region
 `OGL Developer Gen1`, Firestorm `7.2.4.80712`.
 Protokoll: **11/38 manuell abgehakt, 27/38 offen**.
