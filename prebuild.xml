@@ -1996,6 +1996,7 @@
       </Configuration>
 
       <ReferencePath>../../../bin/</ReferencePath>
+      <Reference name="System.Drawing.Common"/>
       <Reference name="NexVerse.Core"/>
       <Reference name="OpenMetaverse"/>
       <Reference name="OpenMetaverseTypes"/>
