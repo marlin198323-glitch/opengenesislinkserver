@@ -338,6 +338,7 @@ namespace NexVerse.RegionModules.Experiences
                     new SimpleStreamHandler("/" + UUID.Random(),
                         (req, resp) => HandleViewerRoleList(req, resp, issuingScene, avatar, lease, "group")));
                 if (m_FirestormManageCaps)
+                {
                     caps.RegisterSimpleHandler("UpdateExperience",
                         new SimpleStreamHandler("/" + UUID.Random(),
                             (req, resp) => HandleViewerUpdate(req, resp, issuingScene, avatar, lease)));
@@ -345,6 +346,7 @@ namespace NexVerse.RegionModules.Experiences
                         new SimpleStreamHandler("/" + UUID.Random(),
                             (req, resp) => HandleViewerIsExperienceAdmin(req, resp,
                                 issuingScene, avatar, lease)));
+                }
             }
         }
 
