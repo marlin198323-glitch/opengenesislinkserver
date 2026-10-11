@@ -47,5 +47,37 @@ for schema in ("DiscoveryEventRecord", "DiscoveryEventPatch", "DiscoveryEventRes
                "CitizenGroupMembershipRecord", "CitizenGroupMembershipsResponse"):
     assert f'["{schema}"] = new' in api, "missing JSON schema: " + schema
 assert '["image/png"] = new' in api and 'format = "binary"' in api
+# R287 originally named 16 response schemas that used empty opaque
+# type=object entries. All 12 Banking/Commerce/Land envelopes now declare
+# their real fields; the four polymorphic Discovery/Groups envelopes declare
+# a documented subset and are not falsely advertised as complete DTOs.
+for name, required in {
+    "BankingTransactionsResponse": ("account_id", "transactions", "limit"),
+    "BankingStatementResponse": ("statement", "currency", "correlation_id"),
+    "BankingReconciliationResponse": ("reconciliation",),
+    "PaymentRequestListResponse": ("payment_requests",),
+    "PaymentRequestResponse": ("payment_request",),
+    "BankingPolicyResponse": ("policy",),
+    "CommerceOrderListResponse": ("orders",),
+    "CommerceOrderResponse": ("order",),
+    "LandListingListResponse": ("listings",),
+    "LandListingResponse": ("listing",),
+    "LandLeaseListResponse": ("leases",),
+    "LandLeaseResponse": ("lease",),
+    "DiscoveryObjectResponse": ("place", "correlation_id"),
+    "DiscoveryMutationRequest": ("place_id", "name"),
+    "Chapter11ObjectResponse": ("group", "members", "correlation_id"),
+    "Chapter11MutationRequest": ("agent_id", "role_id"),
+}.items():
+    start = api.index(f'["{name}"] = new')
+    segment = api[start: api.find("\\n                },", start) + 20]
+    assert "properties = new Dictionary<string, object>" in segment, name
+    for prop in required:
+        assert f'["{prop}"]' in segment, f"{name} lacks {prop}"
+
+for x in ("RegionDetailResponse", "DiscoveryEventRecord",
+          "DiscoveryClassifiedRecord", "CitizenGroupMembershipsResponse"):
+    assert f'["{x}"] = new' in api
+
 assert "no-store" in profile
-print("R287 profile image, Discovery detail/update/delete and own groups contract: OK")
+print("R287 portal API owner isolation, 16 previously-empty schema names and live route contract: OK")
