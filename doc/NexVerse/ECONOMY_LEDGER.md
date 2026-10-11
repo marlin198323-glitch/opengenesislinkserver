@@ -204,9 +204,10 @@ freigeben. Der Simulator prueft vor *jedem* Vorgang:
   Double-Entry-Journal. Der Auszahlungscode nutzt ausschliesslich
   die getrennte Bankkonto-UUID als Quelle.
 - Keine Schluessel, HTTP-API-Tokens oder privilegierten UUID-Claims
-  werden an das LSL-Skript ausgegeben. Das Skript ruft die vorhandenen
-  `llGiveMoney` oder besser `llTransferLindenDollars`-Funktionen auf.
-  `transaction_result` liefert bei letzterem Erfolg oder Fehler.
+  werden an das LSL-Skript ausgegeben. Das Skript ruft ausschliesslich
+  `llNexBankPayout` auf und erhaelt das Ergebnis im
+  `transaction_result`-Event. Standardfunktionen wie `llGiveMoney`
+  bleiben **avatarfinanziert** und koennen das Bankkonto nicht belasten.
 
 **Konfiguration:** In der geladenen Simulator-`OpenSim.ini`:
 
