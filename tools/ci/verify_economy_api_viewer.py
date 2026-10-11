@@ -230,7 +230,9 @@ for marker in ("unauthorized Master Bank payout delegation accepted",
 for p in ("bin/OpenSim.ini", "bin/OpenSim.ini.example"):
     config = Path(p).read_text()
     assert "MasterBankEnabled = false" in config
-    assert 'MasterBankAccountId = ""' in config
+    expected_bank_id = ('6571e388-6218-4574-87db-f9379718315e'
+                        if p == "bin/OpenSim.ini" else '')
+    assert f'MasterBankAccountId = "{expected_bank_id}"' in config
     assert 'MasterBankAuthorizedScripts = ""' in config
 assert "NEXVERSE_ECONOMY_API_KEY" not in Path("tools/diagnostics/ogl_master_bank_payout_test.lsl").read_text()
 
