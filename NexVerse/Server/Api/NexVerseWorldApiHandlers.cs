@@ -3659,18 +3659,268 @@ namespace NexVerse.Server.Api
                         ["order_id"] = new { type = "string", format = "uuid" }
                     }
                 },
-                ["BankingTransactionsResponse"] = new { type = "object" },
-                ["BankingStatementResponse"] = new { type = "object" },
-                ["BankingReconciliationResponse"] = new { type = "object" },
-                ["PaymentRequestListResponse"] = new { type = "object" },
-                ["PaymentRequestResponse"] = new { type = "object" },
-                ["BankingPolicyResponse"] = new { type = "object" },
-                ["CommerceOrderListResponse"] = new { type = "object" },
-                ["CommerceOrderResponse"] = new { type = "object" },
-                ["LandListingListResponse"] = new { type = "object" },
-                ["LandListingResponse"] = new { type = "object" },
-                ["LandLeaseListResponse"] = new { type = "object" },
-                ["LandLeaseResponse"] = new { type = "object" },
+                ["BankingLedgerPosting"] = new
+                {
+                    type = "object",
+                    properties = new Dictionary<string, object>
+                    {
+                        ["posting_id"] = new { type = "string", format = "uuid" },
+                        ["account_id"] = new { type = "string", format = "uuid" },
+                        ["side"] = new { type = "string" },
+                        ["amount"] = new { type = "integer", format = "int64" },
+                        ["memo"] = new { type = "string" },
+                    }
+                },
+                ["BankingLedgerTransaction"] = new
+                {
+                    type = "object",
+                    properties = new Dictionary<string, object>
+                    {
+                        ["transaction_id"] = new { type = "string", format = "uuid" },
+                        ["kind"] = new { type = "string" },
+                        ["reference"] = new { type = "string" },
+                        ["correlation_id"] = new { type = "string" },
+                        ["currency_code"] = new { type = "string" },
+                        ["occurred_at"] = new { type = "string", format = "date-time" },
+                        ["metadata"] = new { type = "object", additionalProperties = true },
+                        ["postings"] = new { type = "array", items = SchemaRef("BankingLedgerPosting") },
+                    }
+                },
+                ["BankingCurrency"] = new
+                {
+                    type = "object",
+                    properties = new Dictionary<string, object>
+                    {
+                        ["code"] = new { type = "string" },
+                        ["symbol"] = new { type = "string" },
+                        ["minor_units"] = new { type = "integer", minimum = 0 },
+                    }
+                },
+                ["BankingStatement"] = new
+                {
+                    type = "object",
+                    properties = new Dictionary<string, object>
+                    {
+                        ["account_id"] = new { type = "string", format = "uuid" },
+                        ["from"] = new { type = "string", format = "date-time" },
+                        ["to"] = new { type = "string", format = "date-time" },
+                        ["opening_balance"] = new { type = "integer", format = "int64" },
+                        ["closing_balance"] = new { type = "integer", format = "int64" },
+                        ["transactions"] = new { type = "array", items = SchemaRef("BankingLedgerTransaction") },
+                    }
+                },
+                ["BankingReconciliation"] = new
+                {
+                    type = "object",
+                    properties = new Dictionary<string, object>
+                    {
+                        ["account_id"] = new { type = "string", format = "uuid" },
+                        ["derived_balance"] = new { type = "integer", format = "int64" },
+                        ["recomputed_balance"] = new { type = "integer", format = "int64" },
+                        ["transaction_count"] = new { type = "integer", format = "int64" },
+                        ["balanced"] = new { type = "boolean" },
+                    }
+                },
+                ["BankingPaymentRequest"] = new
+                {
+                    type = "object",
+                    properties = new Dictionary<string, object>
+                    {
+                        ["request_id"] = new { type = "string", format = "uuid" },
+                        ["payee_account_id"] = new { type = "string", format = "uuid" },
+                        ["payer_account_id"] = new { type = "string", format = "uuid" },
+                        ["amount"] = new { type = "integer", format = "int64" },
+                        ["reference"] = new { type = "string" },
+                        ["status"] = new { type = "string" },
+                        ["created_at"] = new { type = "string", format = "date-time" },
+                        ["expires_at"] = new { type = "string", format = "date-time" },
+                        ["payment_transaction_id"] = new { type = new[] { "string", "null" }, format = "uuid" },
+                    }
+                },
+                ["BankingTransferPolicy"] = new
+                {
+                    type = "object",
+                    properties = new Dictionary<string, object>
+                    {
+                        ["account_id"] = new { type = "string", format = "uuid" },
+                        ["max_per_transfer"] = new { type = "integer", format = "int64" },
+                        ["daily_outgoing_limit"] = new { type = "integer", format = "int64" },
+                        ["flat_fee"] = new { type = "integer", format = "int64" },
+                        ["fee_account_id"] = new { type = new[] { "string", "null" }, format = "uuid" },
+                    }
+                },
+                ["CommerceOrderRecord"] = new
+                {
+                    type = "object",
+                    properties = new Dictionary<string, object>
+                    {
+                        ["order_id"] = new { type = "string", format = "uuid" },
+                        ["kind"] = new { type = "string" },
+                        ["buyer_account_id"] = new { type = "string", format = "uuid" },
+                        ["seller_account_id"] = new { type = "string", format = "uuid" },
+                        ["amount"] = new { type = "integer", format = "int64" },
+                        ["reference"] = new { type = "string" },
+                        ["external_reference"] = new { type = "string" },
+                        ["status"] = new { type = "string" },
+                        ["payment_transaction_id"] = new { type = new[] { "string", "null" }, format = "uuid" },
+                        ["refund_transaction_id"] = new { type = new[] { "string", "null" }, format = "uuid" },
+                        ["created_at"] = new { type = "string", format = "date-time" },
+                        ["completed_at"] = new { type = "string", format = "date-time" },
+                    }
+                },
+                ["LandListingRecord"] = new
+                {
+                    type = "object",
+                    properties = new Dictionary<string, object>
+                    {
+                        ["listing_id"] = new { type = "string", format = "uuid" },
+                        ["type"] = new { type = "string" },
+                        ["region_id"] = new { type = "string", format = "uuid" },
+                        ["region_name"] = new { type = "string" },
+                        ["parcel_id"] = new { type = "string", format = "uuid" },
+                        ["parcel_local_id"] = new { type = "integer" },
+                        ["parcel_name"] = new { type = "string" },
+                        ["seller_account_id"] = new { type = "string", format = "uuid" },
+                        ["estate_id"] = new { type = new[] { "string", "null" }, format = "uuid" },
+                        ["area"] = new { type = "integer" },
+                        ["price"] = new { type = "integer", format = "int64" },
+                        ["rental_period_days"] = new { type = "integer" },
+                        ["active"] = new { type = "boolean" },
+                        ["created_at"] = new { type = "string", format = "date-time" },
+                    }
+                },
+                ["LandLeaseRecord"] = new
+                {
+                    type = "object",
+                    properties = new Dictionary<string, object>
+                    {
+                        ["lease_id"] = new { type = "string", format = "uuid" },
+                        ["listing_id"] = new { type = "string", format = "uuid" },
+                        ["tenant_account_id"] = new { type = "string", format = "uuid" },
+                        ["landlord_account_id"] = new { type = "string", format = "uuid" },
+                        ["rent"] = new { type = "integer", format = "int64" },
+                        ["period_days"] = new { type = "integer" },
+                        ["starts_at"] = new { type = "string", format = "date-time" },
+                        ["ends_at"] = new { type = "string", format = "date-time" },
+                        ["next_due_at"] = new { type = "string", format = "date-time" },
+                        ["active"] = new { type = "boolean" },
+                        ["last_payment_transaction_id"] = new { type = new[] { "string", "null" }, format = "uuid" },
+                    }
+                },
+                ["BankingTransactionsResponse"] = new
+                {
+                    type = "object",
+                    properties = new Dictionary<string, object>
+                    {
+                        ["account_id"] = new { type = "string", format = "uuid" },
+                        ["transactions"] = new { type = "array", items = SchemaRef("BankingLedgerTransaction") },
+                        ["offset"] = new { type = "integer", minimum = 0 },
+                        ["limit"] = new { type = "integer", minimum = 1, maximum = 1000 },
+                        ["correlation_id"] = new { type = "string" },
+                    }
+                },
+                ["BankingStatementResponse"] = new
+                {
+                    type = "object",
+                    properties = new Dictionary<string, object>
+                    {
+                        ["statement"] = SchemaRef("BankingStatement"),
+                        ["currency"] = SchemaRef("BankingCurrency"),
+                        ["correlation_id"] = new { type = "string" },
+                    }
+                },
+                ["BankingReconciliationResponse"] = new
+                {
+                    type = "object",
+                    properties = new Dictionary<string, object>
+                    {
+                        ["reconciliation"] = SchemaRef("BankingReconciliation"),
+                        ["correlation_id"] = new { type = "string" },
+                    }
+                },
+                ["PaymentRequestListResponse"] = new
+                {
+                    type = "object",
+                    properties = new Dictionary<string, object>
+                    {
+                        ["account_id"] = new { type = "string", format = "uuid" },
+                        ["payment_requests"] = new { type = "array", items = SchemaRef("BankingPaymentRequest") },
+                        ["correlation_id"] = new { type = "string" },
+                    }
+                },
+                ["PaymentRequestResponse"] = new
+                {
+                    type = "object",
+                    properties = new Dictionary<string, object>
+                    {
+                        ["payment_request"] = SchemaRef("BankingPaymentRequest"),
+                        ["correlation_id"] = new { type = "string" },
+                    }
+                },
+                ["BankingPolicyResponse"] = new
+                {
+                    type = "object",
+                    properties = new Dictionary<string, object>
+                    {
+                        ["policy"] = SchemaRef("BankingTransferPolicy"),
+                        ["correlation_id"] = new { type = "string" },
+                    }
+                },
+                ["CommerceOrderListResponse"] = new
+                {
+                    type = "object",
+                    properties = new Dictionary<string, object>
+                    {
+                        ["account_id"] = new { type = "string", format = "uuid" },
+                        ["orders"] = new { type = "array", items = SchemaRef("CommerceOrderRecord") },
+                        ["correlation_id"] = new { type = "string" },
+                    }
+                },
+                ["CommerceOrderResponse"] = new
+                {
+                    type = "object",
+                    properties = new Dictionary<string, object>
+                    {
+                        ["order"] = SchemaRef("CommerceOrderRecord"),
+                        ["correlation_id"] = new { type = "string" },
+                    }
+                },
+                ["LandListingListResponse"] = new
+                {
+                    type = "object",
+                    properties = new Dictionary<string, object>
+                    {
+                        ["listings"] = new { type = "array", items = SchemaRef("LandListingRecord") },
+                        ["correlation_id"] = new { type = "string" },
+                    }
+                },
+                ["LandListingResponse"] = new
+                {
+                    type = "object",
+                    properties = new Dictionary<string, object>
+                    {
+                        ["listing"] = SchemaRef("LandListingRecord"),
+                        ["correlation_id"] = new { type = "string" },
+                    }
+                },
+                ["LandLeaseListResponse"] = new
+                {
+                    type = "object",
+                    properties = new Dictionary<string, object>
+                    {
+                        ["leases"] = new { type = "array", items = SchemaRef("LandLeaseRecord") },
+                        ["correlation_id"] = new { type = "string" },
+                    }
+                },
+                ["LandLeaseResponse"] = new
+                {
+                    type = "object",
+                    properties = new Dictionary<string, object>
+                    {
+                        ["lease"] = SchemaRef("LandLeaseRecord"),
+                        ["correlation_id"] = new { type = "string" },
+                    }
+                },
                 ["EconomyTransferRequest"] = new
                 {
                     type = "object",
