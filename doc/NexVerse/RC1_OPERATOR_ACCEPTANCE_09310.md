@@ -159,7 +159,9 @@ python3 tools/ci/verify_09310_release_readiness.py \
 Operatorbeobachtungen dürfen in `PASS` geändert werden.
 Die v1-Datei mit alten Experience-Nachweisen kann für v2
 nicht wiederverwendet werden. Der Checker selbst ist kein
-Release-Automat; solange `Flavour.Dev` steht, bleibt RC1 gesperrt.
+Release-Automat; `Flavour.RC1` auf einem Kandidatenbranch erteilt
+noch keine Release-Freigabe. Ohne 22/22 reale PASS und Signaturen
+bleibt RC1 weiterhin gesperrt.
 
 ## 5. Archivierte Testanleitungen
 

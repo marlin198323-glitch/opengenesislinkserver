@@ -1,7 +1,7 @@
 # OpenGenesisLINK 0.9.3.10 – RC1-/Stable-Freigabevorbereitung (Stabilisierung)
 
 **Stand: 12.10.2026 · FREIGABE OFFEN.** Letzte veröffentlichte Stable-Version:
-`v0.9.3.8`. Aktiver Branch: `main`, Version `0.9.3.10 Dev`.
+`v0.9.3.8`. **Dieser getrennte Kandidatenbranch** traegt `0.9.3.10 RC1`; der freigegebene `main`-Stand bleibt `Dev` bis zur Betreiberabnahme.
 **Kein RC1-/Stable-Tag, keine Betreiberfreigabe.**
 Der zuletzt geprüfte Entwicklungsstand vor dieser Scope-Änderung ist
 `1b2db582` (PR #177, grüne CI). Das ist **kein** Inworld-/Release-Nachweis.
@@ -153,8 +153,11 @@ GitHub-CI muss extern geprüft werden. Logs anonymisieren, keine
 Secrets/CAPS-URLs veröffentlichen. Der Checker prüft die **Struktur**,
 nicht die Echtheit eines Betreiberbelegs.
 
-Solange `VersionInfo.VERSION_FLAVOUR=Flavour.Dev` ist, kann der
-Checker absichtlich keine RC1-Freigabe erteilen.
+Die hier vorbereitete `VersionInfo.VERSION_FLAVOUR=Flavour.RC1`
+ist **nur eine notwendige, keine hinreichende** Freigabebedingung.
+Der Checker verweigert RC1 trotz Versionskennung, solange die
+22 verifizierten Operator-PASS, exakte SHA/CI, Known-Limitations-
+Pruefung und RC1-Signatur fehlen.
 
 ## 6. Historische Protokolle und Grenzen
 

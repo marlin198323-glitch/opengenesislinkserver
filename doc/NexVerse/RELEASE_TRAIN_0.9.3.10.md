@@ -1,9 +1,9 @@
 # OpenGenesisLINK 0.9.3.10 – Runtime- und Stabilisierungs-Release-Train
 
-**Aktive Entwicklung:** `OpenGenesisLINK 0.9.3.10 Dev`  
+**RC1-Promotion-Branch (nicht freigegeben):** `OpenGenesisLINK 0.9.3.10 RC1`  
 **Letzte veröffentlichte Stable-Version:** `OpenGenesisLINK 0.9.3.8` (Tag `v0.9.3.8`)  
 **Freigabeziel:** `OpenGenesisLINK 0.9.3.10 Stable`; **keine separate Stable-Version 0.9.3.9**.  
-**Status:** Quellcode und CI fuer aktuelle Dev-Features vorhanden, RC1-Vorbereitung gestartet; KEIN RC-Tag und KEINE Stable-Freigabe. Ein gruener Build ersetzt keine Live-Abnahme. Verbindlicher Ablauf: [09310_RC1_RELEASE_READINESS.md](09310_RC1_RELEASE_READINESS.md).
+**Status:** RC1-Versionskennung ist auf einem getrennten Promotion-Branch vorbereitet; die verbindlichen 22 Live-Operator-PASS fehlen. Der Branch ist **nicht** auf `main` gemergt, es existiert KEIN RC1-Tag und KEINE Stable-Freigabe. Ein gruener Build ersetzt keine Live-Abnahme. Verbindlicher Ablauf: [09310_RC1_RELEASE_READINESS.md](09310_RC1_RELEASE_READINESS.md).
 
 **Aktuelle Scope-Entscheidung (11.10.2026):** OGL Pathfinding ist aus dieser Version **und dem aktuellen Server-Code** komplett entfernt: keine A*-Kerne, keine Terrain-/Layered-Navigation, keine NPC-Follower, keine OGLNavGraph- oder Firestorm-NavMesh-CAPS. Der eigene OpenGenesisLINK-Viewer kann spaeter ein unabhaengiges Navigationsvorhaben erhalten. Dessen Protokolle und serverseitige Sicherheitsgrenzen werden erst dann neu geplant.
 
@@ -126,7 +126,7 @@ ist erst spaeter fuer den eigenen Viewer zu planen.
 ## F. Kompatibilität und Releasepolitik
 
 - Die stabile Referenz `v0.9.3.8` bleibt verfügbar; kein Verschieben eines Tags.
-- Die aktive Produktversion bleibt `OpenGenesisLINK 0.9.3.10 Dev` fuer Runtime und Stabilisierung; keine oeffentliche Stable-Verwechslung. NexExperiences sind nur archivierter opt-in Dev-Code, keine freigegebene Funktionszusage.
+- Dieser **noch nicht freigegebene Branch** verwendet `OpenGenesisLINK 0.9.3.10 RC1` fuer Runtime und Stabilisierung. `main` bleibt bis zur realen 22/22-Operatorabnahme und Freigabe `Dev`; kein Tag oder oeffentlicher RC1-Release durch bloßes Umbenennen. NexExperiences sind nur archivierter opt-in Dev-Code, keine freigegebene Funktionszusage.
 - Keine separate Veröffentlichung `0.9.3.9 Stable`.
 - OGLVoice bleibt standardmaessig inaktiv und ist ausdruecklich auf einen spaeteren Entwicklungsabschnitt vertagt. Vorhandenen Code, Tests und Sicherheitsgrenzen beibehalten; keine produktive Gateway-Aktivierung zur Erfuellung dieses Release-Trains.
 - Kein OGL Pathfinding oder NavMesh-CAPS in der 0.9.3.10-Version behaupten; eigener Viewer erst in einem spaeteren Projekt.
