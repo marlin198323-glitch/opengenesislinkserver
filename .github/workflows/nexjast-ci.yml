@@ -82,6 +82,22 @@ jobs:
         run: |
           python3 tools/ci/verify_experiences_nexbus_enabled.py
 
+      - name: OGL LSL 0.9.3.11 contract inventory and regression
+        shell: bash
+        run: |
+          mkdir -p /tmp/ogl-lsl-parity
+          python3 tools/lsl/lsl_matrix.py --verify --output /tmp/ogl-lsl-parity/lsl-matrix.json
+          python3 -m unittest discover -s tools/ci -p 'test_lsl_matrix.py' -v
+
+      - name: Upload LSL contract inventory
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ogl-lsl-09311-contract-matrix
+          path: /tmp/ogl-lsl-parity/lsl-matrix.json
+          if-no-files-found: ignore
+          retention-days: 30
+
       - name: Verify OSSL policy coverage
         shell: bash
         run: python3 tools/ci/verify_ossl_policy.py
@@ -422,6 +438,10 @@ jobs:
       - name: Build Release
         shell: bash
         run: dotnet build --configuration Release OpenSim.sln
+
+      - name: Runtime LSL core conformance (0.9.3.11)
+        shell: bash
+        run: dotnet run --configuration Release --project tools/ci/LslConformanceRegression/LslConformanceRegression.csproj
 
       - name: Regression-test Firestorm My Outfits system folder against real SQLite inventory
         shell: bash
