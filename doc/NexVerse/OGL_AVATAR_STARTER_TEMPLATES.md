@@ -65,6 +65,9 @@ automatischer, unveränderlicher Snapshot-Export und kein Admin-Publish-Endpunkt
 Leere Vor- oder Nachnamen werden abgewiesen. Ein Modellavatar darf sich
 nicht mit sich selbst als Startervorlage registrieren (UUID- und Namensprüfung).
 Diese Prüfungen ersetzen keine vollständige Portalvalidierung.
+Fehlt der Authentifizierungsdienst, wird die Starter-Registrierung
+vor Kontoanlage abgelehnt. Schlägt das Setzen des Passworts fehl,
+liefert sie einen Fehler zurück, ohne weitere Initialisierung.
 Schlägt die Inventarinitialisierung fehl, liefert der Starter-Registrierungsweg
 nun einen Fehler zurück. **Achtung:** Da die Kontoanlage im bestehenden
 OpenSimulator-Ablauf davor erfolgt, ist das kein atomarer Rollback: Ein
