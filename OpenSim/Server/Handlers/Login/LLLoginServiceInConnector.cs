@@ -58,7 +58,7 @@ namespace OpenSim.Server.Handlers.Login
             Object[] args = new Object[] { config, simService, libService };
             m_LoginService = ServerUtils.LoadPlugin<ILoginService>(loginService, args);
 
-            InitializeHandlers(server);
+            InitializeHandlers(server, config);
         }
 
         public LLLoginServiceInConnector(IConfigSource config, IHttpServer server, string configName) :
@@ -70,7 +70,7 @@ namespace OpenSim.Server.Handlers.Login
 
             m_LoginService = ServerUtils.LoadPlugin<ILoginService>(loginService, args);
 
-            InitializeHandlers(server);
+            InitializeHandlers(server, config);
         }
 
         public LLLoginServiceInConnector(IConfigSource config, IHttpServer server) :
@@ -103,7 +103,7 @@ namespace OpenSim.Server.Handlers.Login
             return loginService;
         }
 
-        private void InitializeHandlers(IHttpServer server)
+        private void InitializeHandlers(IHttpServer server, IConfigSource config)
         {
             LLLoginHandlers loginHandlers = new LLLoginHandlers(m_LoginService, m_Proxy);
 //            server.AddXmlRPCHandler("login_to_simulator",
@@ -114,7 +114,7 @@ namespace OpenSim.Server.Handlers.Login
             server.SetDefaultLLSDHandler(loginHandlers.HandleLLSDLogin);
             // Separate versioned JSON login on this same public Robust
             // HTTP listener. Disabled by default; HTTPS required.
-            OglViewerLoginHandler oglLogin = new OglViewerLoginHandler(m_LoginService, m_Config);
+            OglViewerLoginHandler oglLogin = new OglViewerLoginHandler(m_LoginService, config);
             server.AddSimpleStreamHandler(new SimpleStreamHandler(
                 OglViewerLoginHandler.Route, oglLogin.Handle, "OGL Viewer JSON Login"));
             //server.AddWebSocketHandler("/WebSocket/GridLogin", loginHandlers.HandleWebSocketLoginEvents);
