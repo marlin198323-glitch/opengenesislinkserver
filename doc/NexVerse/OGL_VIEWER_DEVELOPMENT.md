@@ -184,7 +184,9 @@ Accept: application/json
 
 `first`, `last`, `passwd` und `protocol_version=1` sind
 Pflichtfelder; alle anderen sind optional. Der JSON-Body ist
-auf **8192 Byte** begrenzt. Der Viewer darf `passwd`, Sitzungs-IDs
+auf **8192 Byte** begrenzt. Der Operator begrenzt Versuche über
+`[OglViewerLogin] MaxAttemptsPerMinute` (Standard 5 pro Minute und
+Remote-IP; nicht mit dem Legacy-DOS-Schutz verwechseln). Der Viewer darf `passwd`, Sitzungs-IDs
 und CAPS-Tokens nicht in Klartextlogs aufnehmen. Die bisherige
 OpenSim-Loginlogik entscheidet weiterhin über gesperrte Benutzer,
 Passwortgültigkeit, Regionszuweisung und die Session.
