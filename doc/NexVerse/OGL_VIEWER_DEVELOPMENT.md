@@ -148,11 +148,89 @@ die API nach korrekt ausgehandelter Discovery aktiv selbst.
 
 ### A3. Nativer OGL JSON-Login (Server: DEVELOPMENT, Viewer: PLANNED)
 
-**Geplanter Pfad:** `POST /ogl/v1/login` auf **demselben Robust-Dienst/
-PublicPort**. Solange Feature-Flag `ogl_native_login=false` oder
-`endpoints.ogl_login=null` ist, bleibt die Route für den Viewer
-**nicht verwendbar**. Ein angekündigter Login muss auf dem
-tatsächlich deployten Server nachweislich aktiv sein.
+**Implementierter Entwicklungs-Pfad:** `POST /ogl/v1/login` auf **demselben Robust-Dienst/
+PublicPort**. Der Server bietet einen JSON-Adapter zur bestehenden
+`ILoginService`-Benutzer-/Session-/CAPS-Pipeline.
+**Standard in den ausgelieferten `Robust.HG.ini*`-Vorlagen: `[OglViewerLogin] Enabled=false`.**
+Die Discovery bewirbt ihn nur bei `Enabled=true` **und**
+konfigurierter gültiger externer `PublicLoginUrl` mit
+**HTTPS** und dem exakten Pfad `/ogl/v1/login`.
+Solange `ogl_native_login=false` oder `endpoints.ogl_login=null`
+ist, bleibt er aus Sicht des Viewers **nicht verwendbar**.
+
+**Aktueller Entwicklungsvertrag v1** (die folgenden Beispiele sind
+noch **nicht live** im NexVerse-Grid abgenommen):
+
+```http
+POST https://hg.stadt-nexverse.de/ogl/v1/login
+Content-Type: application/json
+Accept: application/json
+```
+
+```json
+{
+  "protocol_version": 1,
+  "first": "Beispiel",
+  "last": "Resident",
+  "passwd": "<nur über TLS gesendetes Konto-Passwort>",
+  "start": "last",
+  "scope_id": "00000000-0000-0000-0000-000000000000",
+  "version": "OpenGenesisLINK Viewer Dev",
+  "channel": "OpenGenesisLINK Viewer",
+  "mac": "Unknown",
+  "id0": "Unknown"
+}
+```
+
+`first`, `last`, `passwd` und `protocol_version=1` sind
+Pflichtfelder; alle anderen sind optional. Der JSON-Body ist
+auf **8192 Byte** begrenzt. Der Viewer darf `passwd`, Sitzungs-IDs
+und CAPS-Tokens nicht in Klartextlogs aufnehmen. Die bisherige
+OpenSim-Loginlogik entscheidet weiterhin über gesperrte Benutzer,
+Passwortgültigkeit, Regionszuweisung und die Session.
+
+**Erfolgsantwort** (vereinfacht; tatsächliche Felder entsprechen
+dem OpenSim-`LoginResponse.ToOSDMap()`):
+
+```json
+{
+  "protocol_version": 1,
+  "login_response": {
+    "login": "true",
+    "agent_id": "<UUID>",
+    "session_id": "<UUID>",
+    "secure_session_id": "<UUID>",
+    "seed_capability": "<URL>",
+    "sim_ip": "<SIM-IP>",
+    "sim_port": 9000
+  }
+}
+```
+
+Die vollständige `login_response` umfasst zusätzlich Appearance-,
+Inventory-, Region- und Login-Felder des bestehenden Servers.
+**Nicht** als gespeicherten User-Token über Sitzungen hinweg behandeln.
+HTTP-Fehler bestehen aus `protocol_version`, `error`, `message`;
+wichtige Fälle: `404 not_available` (Feature aus), `405 method_not_allowed`,
+`426 tls_required`, `415 unsupported_media_type`,
+`413 request_too_large`, `400 invalid_json/unsupported_protocol/invalid_request`,
+`401 login_failed`, `429 rate_limited`,
+`503 login_unavailable`. Die Fehlermeldungen geben weder Kontodetails
+noch Original-Passwort preis.
+
+**TLS-Termination:** Direkte HTTPS-Verbindung
+(`request.IsSecured`) **oder** fest eingetragener, kontrollierter
+Reverse-Proxy (`TrustedTlsProxyAddress`, exakte Remote-IP
+**und** `X-Forwarded-Proto: https`). Der Proxy muss
+über eine nicht öffentlich zugängliche Backend-Verbindung
+mit Robust kommunizieren. `User-Agent`, `X-Forwarded-For`
+und ein ungesichertes `X-Forwarded-Proto`-Header alleine
+beweisen nichts. Ohne TLS wird **426** ausgeliefert;
+ein Passwort darf dabei nicht verarbeitet werden.
+
+**Release-Status:** DEV-Branch; produktive Aktivierung,
+positiver Login mit echtem Avatar und vollständige
+CAPS-/Logout-/Teleport-/Relogin-Abnahme **noch offen**.
 
 **Verbindlicher Rahmen:**
 - JSON über **HTTPS**, niemals ein Passwort/Hash/Web-Login-Key
