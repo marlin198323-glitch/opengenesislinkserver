@@ -118,6 +118,9 @@
     <Compile Include="Login\LLLoginServiceInConnector.cs">
       <SubType>Code</SubType>
     </Compile>
+    <Compile Include="Login\OglViewerLoginHandler.cs">
+      <SubType>Code</SubType>
+    </Compile>
     <Compile Include="Login\LLLoginHandlers.cs">
       <SubType>Code</SubType>
     </Compile>
