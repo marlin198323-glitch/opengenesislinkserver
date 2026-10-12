@@ -2069,4 +2069,55 @@ Rules for changes:
 6. Compatibility regressions must be treated as defects unless intentionally documented.
 7. Production releases require build, migration and smoke-test verification.
 
+---
 
+# OpenGenesisLINK Generation 2 — parallele Entwicklungsroadmap (geplant)
+
+> **Status:** Architekturentscheidung / geplant, keine Implementierungs- oder Testfreigabe.
+> **Beginn:** Parallel zur Fertigstellung von Generation 1 (0.9.4.0); Gen-1-Stable bleibt unabhängig.
+> **Zielrepository:** `opengenesislink/oglserver` (separat anzulegen, nicht mit `main` verwechseln).
+> **Testgrid:** `beta.stadt-nexverse.de` (geplant, noch kein Betriebsnachweis).
+
+## G2.1 Plattform und Kompatibilität
+
+- [ ] Eigenständige modulare .NET-basierte Serverplattform mit `OGLRobust`, `OGLSimulator`, Service-SDK und versionierten APIs.
+- [ ] Eigene Konfigurationen `OGLRobust.ini` und `OGLSimulator.ini` mit deutschsprachigen Kommentaren, Validierung, verständlichen Konsolenmeldungen und Web-Einrichtungsassistenten.
+- [ ] OGL Viewer kann Gen 1 und das Gen-2-Beta-Grid separat auswählen; Capability-/Protokollversionen werden ausgehandelt.
+- [ ] Vorhandene NexVerse-Zugangsdaten über einen abgesicherten Gen-1-Identity-Adapter nutzen, ohne Passwörter zu kopieren; konsistente Avatar-UUID im eigenen Verbund.
+- [ ] Produktive Gen-1-Daten strikt von Gen-2-Testdaten isolieren; Inventar und Appearance kontrolliert importieren, zunächst ohne bidirektionale Schreibsynchronisation.
+- [ ] Klassisches Hypergrid in beide Richtungen über getestete Legacy-Adapter unterstützen; zusätzlich eigenständiges OGL-Federation-Protokoll entwickeln.
+- [ ] MPL-2.0-Lizenzierung für neue Eigenentwicklungen vorsehen; Lizenzpflichten übernommener Komponenten separat prüfen.
+
+## G2.2 MariaDB als Standarddatenbank
+
+**Entscheidung:** MariaDB statt PostgreSQL als offizielle primäre Gen-2-Datenbank.
+
+- [ ] Eigener MariaDB-Datenzugriff mit versionierten, rücksetzbaren Schema-Migrationen.
+- [ ] In MariaDB ausschließlich notwendige strukturierte Daten speichern: Accounts/Identitätsreferenzen, Inventareinträge, Asset-UUID-zu-Hash-Zuordnung, Metadaten, Regionen, Berechtigungen und Referenzen.
+- [ ] Große Binärassets nicht standardmäßig als BLOBs in MariaDB speichern.
+- [ ] Indizes, Transaktionen, Datenintegrität, Schema-Upgrades und Lasttests für große Inventare definieren.
+- [ ] DB-Backups und Asset-Backups als zusammengehörige, wiederherstellbare Sicherungseinheiten behandeln.
+
+## G2.3 OGL AssetStore: FSAssets-kompatibler Content-Addressable Storage
+
+**Entscheidung:** Neuer dateibasierter OGL AssetStore mit SHA-256-Deduplizierung; bestehende FSAssets-Bestände über Import-/Kompatibilitätsadapter unterstützen, nicht FSAssets unverändert als neue Kernarchitektur übernehmen.
+
+- [ ] Unveränderliche Asset-Inhalte anhand SHA-256 adressieren und atomar in verteilten Hash-Verzeichnissen speichern.
+- [ ] Identische Binärinhalte nur einmal ablegen, auch wenn mehrere Asset-UUIDs auf denselben Hash zeigen; UUIDs und Berechtigungs-/Typmetadaten bleiben erhalten.
+- [ ] Kollisions-/Integritätsprüfung, Upload-Staging, Absturzsicherheit und DB-/Dateisystem-Konsistenz sicherstellen.
+- [ ] RAM-/SSD-Cache mit messbaren Grenzen; optionale spätere S3-kompatible Storage-Backends.
+- [ ] Sichere, verzögerte Garbage Collection nur nach vollständiger Referenzprüfung einschließlich Hypergrid-, Backup- und Migrationsreferenzen.
+- [ ] FSAssets-Import mit Validierung von UUIDs, Typen, Hashes und Referenzen sowie nachvollziehbarem Rollback.
+- [ ] Konsistente Datenbank-Snapshots und inkrementelle Asset-Sicherungen samt Restore-Probetests; kein irreführendes Versprechen, dass allein ein MariaDB-Dump ausreicht.
+- [ ] Speicherverbrauch, Deduplizierungsquote, Asset-Latenz und Wiederherstellungsdauer unter realistischer Last messen.
+
+## G2.4 Erste Meilensteine
+
+- [ ] **G2 M0 — Repository & Architektur:** `oglserver`, Build/CI, Lizenzprüfung, Modulgrenzen, Konfigurationsschema, MariaDB-Migrationsgrundlage.
+- [ ] **G2 M1 — Storage:** OGL AssetStore, MariaDB-Metadaten, UUID/Hash-Mapping, FSAssets-Testimport, Integritäts- und Restore-Tests.
+- [ ] **G2 M2 — Dienste:** OGL Robust auf Port 8100, Webverwaltung, Identity-Adapter, abgesicherte JSON GridInfo.
+- [ ] **G2 M3 — Beta-Grid:** OGL Simulator mit Testregion, Viewer-Grid-Auswahl `beta.stadt-nexverse.de`, Anmeldung mit bestehendem NexVerse-Account.
+- [ ] **G2 M4 — Kompatibilität:** Appearance-/Inventarimport, Legacy-Viewer/Hypergrid in beide Richtungen, OAR/IAR- und LSL-Regressionen.
+- [ ] **G2 M5 — Leistungsnachweis:** Vergleich von RAM, CPU, Region-Tick, Asset-Latenz und Backup-/Restore-Zeiten mit Generation 1.
+
+**Freigaberegel:** Gen 2 bleibt Beta, bis Funktionstests, Sicherheitsprüfungen, Datenmigration, Backup/Restore und Legacy-Kompatibilität nachgewiesen sind. Kein produktiver Gen-1-Datenbestand darf durch Beta-Tests verändert werden.
