@@ -106,6 +106,10 @@ jobs:
         shell: bash
         run: dotnet run --configuration Release --project tools/ci/HypergridUriRegression/HypergridUriRegression.csproj
 
+      - name: Verify OGL Viewer living integration contract
+        shell: bash
+        run: python3 tools/ci/verify_ogl_viewer_contract.py
+
       - name: Verify HG deployment endpoints
         shell: bash
         run: python3 tools/ci/verify_hg_deployment_endpoints.py
