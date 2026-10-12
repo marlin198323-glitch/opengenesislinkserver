@@ -50,6 +50,9 @@ namespace OpenSim.Services.UserAccountService
         /// Should we create default entries (minimum body parts/clothing, avatar wearable entries) for a new avatar?
         /// </summary>
         private bool m_CreateDefaultAvatarEntries;
+        private bool m_OglStarterTemplatesEnabled;
+        private string m_OglBenjaminTemplate;
+        private string m_OglLunaTemplate;
 
         protected IGridService m_GridService;
         protected IAuthenticationService m_AuthenticationService;
@@ -85,6 +88,10 @@ namespace OpenSim.Services.UserAccountService
                 m_AvatarService = LoadPlugin<IAvatarService>(avatarServiceDll, new Object[] { config });
 
             m_CreateDefaultAvatarEntries = userConfig.GetBoolean("CreateDefaultAvatarEntries", false);
+            IConfig starterConfig = config.Configs["OglAvatarTemplates"];
+            m_OglStarterTemplatesEnabled = starterConfig != null && starterConfig.GetBoolean("Enabled", false);
+            m_OglBenjaminTemplate = starterConfig?.GetString("BenjaminModel", "Benjamin Resident") ?? "Benjamin Resident";
+            m_OglLunaTemplate = starterConfig?.GetString("LunaModel", "Luna Resident") ?? "Luna Resident";
 
             if (m_RootInstance == null)
             {
@@ -687,7 +694,7 @@ namespace OpenSim.Services.UserAccountService
                             if (String.IsNullOrEmpty(model))
                                 CreateDefaultAppearanceEntries(account.PrincipalID);
                             else
-                                EstablishAppearance(account.PrincipalID, model);
+                                EstablishAppearance(account.PrincipalID, ResolveOglStarterModel(model));
                         }
                     }
 
@@ -706,6 +713,31 @@ namespace OpenSim.Services.UserAccountService
             }
 
             return account;
+        }
+
+        /// <summary>
+        /// Maps explicit portal template identifiers to existing OpenSimulator model
+        /// avatars. Never interprets an arbitrary portal value as an account name.
+        /// Legacy full-name model arguments retain their existing behavior.
+        /// </summary>
+        private string ResolveOglStarterModel(string model)
+        {
+            if (!model.StartsWith("ogl:", StringComparison.OrdinalIgnoreCase))
+                return model;
+
+            if (!m_OglStarterTemplatesEnabled)
+            {
+                m_log.Warn("[OGL AVATAR TEMPLATES]: Starter template requested while disabled");
+                return string.Empty;
+            }
+
+            if (string.Equals(model, "ogl:benjamin", StringComparison.OrdinalIgnoreCase))
+                return m_OglBenjaminTemplate;
+            if (string.Equals(model, "ogl:luna", StringComparison.OrdinalIgnoreCase))
+                return m_OglLunaTemplate;
+
+            m_log.Warn("[OGL AVATAR TEMPLATES]: Unknown starter template identifier");
+            return string.Empty;
         }
 
         protected void CreateDefaultAppearanceEntries(UUID principalID)
