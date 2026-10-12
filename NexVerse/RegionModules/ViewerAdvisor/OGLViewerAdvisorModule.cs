@@ -149,8 +149,8 @@ namespace NexVerse.RegionModules.ViewerAdvisor
                 if (candidate.Length == prefix.Length)
                     return true;
 
-                // Do not exempt a different viewer whose name merely begins
-                // with the same letters (e.g. "OGL Viewer Copycat").
+                // Require a separator after the reported product name.
+                // Viewer-supplied names are not authenticated identities.
                 char delimiter = candidate[prefix.Length];
                 if (char.IsWhiteSpace(delimiter) || delimiter == '-' ||
                     delimiter == '_' || delimiter == '/' || delimiter == '(' ||
