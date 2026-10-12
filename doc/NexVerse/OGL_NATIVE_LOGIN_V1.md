@@ -63,3 +63,42 @@ Das ist noch **kein finalisiertes, unabhängig versioniertes OGL-Antwortschema**
 - Die Discovery bleibt absichtlich auf `ogl_native_login: false` und
   `ogl_login: null`.
 - Nicht auf öffentlichen Produktionssystemen aktivieren.
+
+## Native-Core-/Legacy-Bridge-Architektur
+
+Beide Viewer-Protokolle sind Adapter für **denselben** `ILoginService`:
+
+```text
+OGL Viewer -- JSON /ogl/v1/login --+
+                                   +--> ILoginService --> bestehende Authentifizierung
+Firestorm -- XML-RPC / LLSD ------+                   --> Session / Presence / CAPS
+```
+
+Die JSON-Antwort ist aktuell bewusst ein Kompatibilitäts-Bridge-Format:
+`LoginResponse.ToOSDMap()` wird als JSON serialisiert. Die bestehenden
+Session-/Circuit-/CAPS-Daten werden damit nicht neu erfunden. Künftige native
+Erweiterungen gehören in einen versionierten OGL-Antwortumschlag und dürfen
+keine bestehenden Login-Felder stillschweigend umdeuten.
+
+### Neue Schutzmaßnahmen im Entwicklungsbranch
+
+- `protocol_version: 1` wird unterstützt; ein abweichender expliziter Wert
+  wird abgelehnt.
+- Der einfache IP-Limiter räumt veraltete Einträge auf und begrenzt seine
+  interne Tabelle auf 4096 Einträge. Das ist **noch kein** verteilter oder
+  produktionsreifer Schutz.
+- Unerwartete Login-Exceptions werden ohne potenziell sensible Details
+  protokolliert.
+- Die Aktivierung bleibt ausdrücklich `false`; Discovery kündigt den
+  experimentellen Login nicht als betriebsbereit an.
+
+### Abnahmekriterien vor Aktivierung
+
+1. GitHub-CI-Build erfolgreich.
+2. JSON-Login positiv/negativ, Scope, Rate-Limit und Größenlimit getestet.
+3. Bestehender Firestorm XML-RPC/LLSD-Login unverändert erfolgreich.
+4. HTTPS- und Reverse-Proxy-Vertrauensgrenze definiert und getestet.
+5. Belastbarer Schutz gegen Brute-Force und Replay implementiert.
+6. OGL Viewer verarbeitet die Session-, CAPS- und Region-Informationen korrekt.
+
+Keine Aussage über bestandene Tests ohne konkrete CI-Ergebnisse.
