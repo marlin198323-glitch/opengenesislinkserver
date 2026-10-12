@@ -112,6 +112,11 @@ namespace OpenSim.Server.Handlers.Login
             server.AddXmlRPCHandler("login_to_simulator",loginHandlers.HandleXMLRPCLogin, false);
             server.AddXmlRPCHandler("set_login_level", loginHandlers.HandleXMLRPCSetLoginLevel, false);
             server.SetDefaultLLSDHandler(loginHandlers.HandleLLSDLogin);
+            // Separate versioned JSON login on this same public Robust
+            // HTTP listener. Disabled by default; HTTPS required.
+            OglViewerLoginHandler oglLogin = new OglViewerLoginHandler(m_LoginService, m_Config);
+            server.AddSimpleStreamHandler(new SimpleStreamHandler(
+                OglViewerLoginHandler.Route, oglLogin.Handle, "OGL Viewer JSON Login"));
             //server.AddWebSocketHandler("/WebSocket/GridLogin", loginHandlers.HandleWebSocketLoginEvents);
         }
     }
