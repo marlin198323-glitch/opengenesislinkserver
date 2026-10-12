@@ -640,6 +640,11 @@ namespace OpenSim.Services.UserAccountService
         /// <param name="model"></param>
         public UserAccount CreateUser(UUID scopeID, UUID principalID, string firstName, string lastName, string password, string email, string model = "")
         {
+            if (string.IsNullOrWhiteSpace(firstName) || string.IsNullOrWhiteSpace(lastName))
+            {
+                m_log.Warn("[USER ACCOUNT SERVICE]: Refusing empty account name");
+                return null;
+            }
             firstName = firstName.Trim();
             lastName = lastName.Trim();
 
@@ -661,6 +666,14 @@ namespace OpenSim.Services.UserAccountService
                 }
 
                 UserAccount templateAccount = GetUserAccount(UUID.Zero, names[0], names[1]);
+                if (templateAccount != null &&
+                    (templateAccount.PrincipalID == principalID ||
+                     (string.Equals(firstName, names[0], StringComparison.OrdinalIgnoreCase) &&
+                      string.Equals(lastName, names[1], StringComparison.OrdinalIgnoreCase))))
+                {
+                    m_log.Warn("[OGL AVATAR TEMPLATES]: Model avatar cannot register using itself as template");
+                    return null;
+                }
                 if (templateAccount == null || m_AvatarService == null ||
                     m_InventoryService == null ||
                     m_AvatarService.GetAppearance(templateAccount.PrincipalID) == null)
