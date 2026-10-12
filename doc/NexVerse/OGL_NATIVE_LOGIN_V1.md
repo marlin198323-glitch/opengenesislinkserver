@@ -21,3 +21,45 @@ Stand: 2026-10-12. Entwicklungsbranch, **nicht Stable**.
 7. Erst danach Discovery-Felder `ogl_login` und `ogl_native_login` aktivieren.
 
 **Hinweis:** Die Route ist ein sicherer Integrationsanker, noch kein funktionsfähiger nativer Login. Keine Stable-Freigabe ohne Build und Tests.
+
+## Experimenteller JSON-Handler (Branch feature/ogl-native-login-v1)
+
+Der Handler ist mit derselben `ILoginService`-Instanz wie XML-RPC und LLSD verbunden.
+Er ist **standardmäßig deaktiviert**. Nur für kontrollierte Tests kann in der
+Robust-Konfiguration unter `[LoginService]` gesetzt werden:
+
+```ini
+OglNativeLoginEnabled = false
+```
+
+Die Freigabe über `true` ist ausschließlich für einen direkten HTTPS-Testlistener
+vorgesehen. `IOSHttpRequest.IsSecured` muss wahr sein; ein HTTP-Listener hinter
+einem TLS-terminierenden Reverse-Proxy wird derzeit bewusst abgewiesen.
+`X-Forwarded-Proto` wird aus Sicherheitsgründen nicht vertraut.
+
+Beispiel für den Testrequest (nur über HTTPS):
+
+```json
+{
+  "first": "Test",
+  "last": "Resident",
+  "passwd": "PASSWORD",
+  "start": "last",
+  "version": "OGL Viewer Dev",
+  "channel": "OpenGenesisLINK Viewer"
+}
+```
+
+Die Antwort ist die JSON-Serialisierung des regulären OpenSim-`LoginResponse.ToOSDMap()`.
+Das ist noch **kein finalisiertes, unabhängig versioniertes OGL-Antwortschema**.
+
+### Bekannte Einschränkungen
+
+- Der aktuelle IP-Limiter (mindestens 2 Sekunden Abstand) ist nur ein Prototyp:
+  keine verteilte Koordination, keine garantierte Speicherbereinigung, keine
+  per-Account-Sperre. Vor Produktivbetrieb ersetzen.
+- Ein Anti-Replay-Mechanismus für das native Protokoll fehlt noch.
+- Keine Ende-zu-Ende-Tests oder erfolgreiche Kompilierung bestätigt.
+- Die Discovery bleibt absichtlich auf `ogl_native_login: false` und
+  `ogl_login: null`.
+- Nicht auf öffentlichen Produktionssystemen aktivieren.
