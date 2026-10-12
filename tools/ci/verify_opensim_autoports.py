@@ -24,8 +24,10 @@ for rel, arch, enabled, http, xmlrpc in (
     assert cfg.get("Startup", "physics") == "BulletSim"
     assert cfg.get("Startup", "meshing") == "Meshmerizer"
     assert cfg.get("Economy", "economymodule") == "NexVerseMoneyModule"
-    for key in ("MasterBankEnabled", "AllowHypergridGuests"):
-        assert not cfg.getboolean("NexEconomyViewer", key)
+    # Hypergrid guest NV$ wallets are enabled in operator templates, but
+    # unauthorized Masterbank payouts remain disabled by default.
+    assert not cfg.getboolean("NexEconomyViewer", "MasterBankEnabled")
+    assert cfg.getboolean("NexEconomyViewer", "AllowHypergridGuests")
     # Experiences are paused for 0.9.3.10. Keep inactive opt-in
     # flag definitions for a later train; never activate them by default.
     assert not cfg.getboolean("NexExperiencesViewer", "Enabled")
