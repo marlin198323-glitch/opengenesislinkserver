@@ -1453,14 +1453,14 @@ namespace NexVerse.Server.Api
                         api_version = NexVersePlatform.ApiVersion,
                         server_line = "0.9.3.10",
                         codename = NexVersePlatform.MilestoneCodename,
-                        status = "development",
-                        published = "2026-10-09",
-                        compatibility = "OpenGenesisLINK v0.9.3.10 Dev — native Navigation und NexExperiences in Abnahme; Firestorm-NavMesh und OGLVoice zurueckgestellt",
+                        status = "release",
+                        published = "2026-10-12",
+                        compatibility = "OpenGenesisLINK v0.9.3.10 Stable — .NET-8-Stabilisierung, NV$ Economy/Masterbank, Inventar und World API R287; NexExperiences deaktiviert",
                         highlights = new[]
                         {
-                            "0.9.3.9/0.9.3.10 bilden einen gemeinsamen Entwicklungsstand ohne separate Stable-0.9.3.9-Freigabe",
-                            "Nativer OGL-3D-Pathfinding-A*-Kern, NPC-Wegpunkte und NexExperiences-Simulator-CAPS als Opt-in; keine abgeschlossene reale Viewer-/LSL-/Mehrregionen-Abnahme",
-                            "0.9.3.8 bleibt die letzte offiziell freigegebene Stable-Version"
+                            "OpenGenesisLINK 0.9.3.10 Stable veröffentlicht; v0.9.3.8 bleibt als vorherige Stable-Version erhalten",
+                            "NexExperiences/Firestorm pausiert und standardmäßig deaktiviert; OGL Pathfinding 2.0 und OGL My Outfits 2.0 auf den eigenen Viewer verschoben",
+                            "Direkte Betreiberfreigabe mit dokumentierter Ausnahme von nicht einzeln nachgewiesenen 24-h-/Restore-Formalprüfungen"
                         }
                     },
                     new
@@ -1899,8 +1899,8 @@ namespace NexVerse.Server.Api
                         new { version = "0.9.3.6", codename = "", title = "NV$-Wirtschaft, Bankwesen, Handel und Land", status = "completed", checklist = (object)null, summary = "Natives Kontobuch, Bankwesen, Viewer-Wirtschaftskompatibilität und Landhandel abgeschlossen.", evidence = new[] { "Doppelte Buchfuehrung und persistente Konten", "NVBAN/Banking/Commerce/Landhandel", "Live-MariaDB/PostgreSQL- und Runtime-CI gruen" } },
                         new { version = "0.9.3.7", codename = "", title = "NexGroups und NexExperiences", status = "completed", checklist = (object)null, summary = "NexGroups-Paritaetsschicht, native NexExperiences und Experience-LSL abgeschlossen.", evidence = new[] { "NexGroups Management/Moderation/API plus NV$-Gruppenkonto", "Native Experience-Permissions, Policies, Script-Bindings und persistentes K/V", "Release-Build, Hypergrid, LLLogin, World API und Chapter-11-CI gruen" } },
                         new { version = "0.9.3.8", codename = "", title = "Suche, Orte, Land und Reiseführer", status = "released", checklist = (object)null, summary = "NexSearch, Places, Land Portal und Destination Guide einschließlich optionaler Viewer-CAPS abgeschlossen.", evidence = new[] { "NexSearch aggregiert autoritative People-, Groups-, Grid-, Experience- und NV$-Landdaten", "Persistente Places, Events, Classifieds und moderierte Destinationen", "NexSearch/NexPlaces/NexLandPortal/NexDestinationGuide Viewer-CAPS sowie CI-Persistenz- und Moderationsregression" } },
-                        new { version = "0.9.3.9", codename = "", title = "OGLVoice – zentraler WebRTC-Voice-Dienst", status = "started", checklist = (object)null, summary = "Zentraler mandantenfaehiger LiveKit-Voice-Dienst mit Robust-Auto-Discovery, Standalone-Integration, Hypergrid-Gaesten und NexVerse-Unlimited.", evidence = Array.Empty<string>() },
-                        new { version = "0.9.3.10", codename = "", title = "Wegfindung", status = "started", checklist = (object)null, summary = "Wegfindungsdienst, NavMesh-Verhalten und LSL-Integration.", evidence = Array.Empty<string>() },
+                        new { version = "0.9.3.9", codename = "", title = "OGLVoice – späterer Entwicklungstrain", status = "deferred", checklist = (object)null, summary = "OGLVoice/LiveKit wird gesondert fortgeführt; für 0.9.3.9 wurde keine separate Stable-Version veröffentlicht.", evidence = Array.Empty<string>() },
+                        new { version = "0.9.3.10", codename = "", title = "Runtime-/Economy-/Inventar-/World-API-Stabilisierung", status = "released", checklist = (object)null, summary = "OpenGenesisLINK 0.9.3.10 Stable wurde am 12.10.2026 veröffentlicht. NexExperiences ist deaktiviert; OGL Pathfinding 2.0 und My Outfits 2.0 sind auf den eigenen Viewer verschoben. Die direkte Betreiber-Risikoübernahme statt vollständiger v2-Einzelbelege ist ausdrücklich dokumentiert.", evidence = new[] { "Stable-Release v0.9.3.10 auf GitHub", "CI-Release-Build und NV$-Datenbankmatrix erfolgreich", "doc/NexVerse/09310_OPERATOR_RELEASE_DECISION.md" } },
                         new { version = "0.9.3.11", codename = "", title = "LSL-Parität I — Kernkonformität", status = "planned", checklist = (object)null, summary = "Maschinenlesbare LSL-Matrix, Konformitätstests und Härtung der Script-Sandbox.", evidence = Array.Empty<string>() },
                         new { version = "0.9.3.12", codename = "", title = "LSL-Parität II — Erweiterte Systeme", status = "planned", checklist = (object)null, summary = "Erweiterte LSL-Systeme, Profiler und Entwicklerwerkzeuge.", evidence = Array.Empty<string>() },
                         new { version = "0.9.3.13", codename = "", title = "Assets, Darstellung, Marktplatz und Medien", status = "planned", checklist = (object)null, summary = "NexAsset, moderne Material- und Inhaltspipeline, Marktplatz und Medien.", evidence = Array.Empty<string>() },
