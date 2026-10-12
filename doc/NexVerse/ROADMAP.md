@@ -1,24 +1,23 @@
 # OpenGenesisLINK Roadmap
 
-> Status: 0.9.3.8 Stable released 8 October 2026  
-> Current stable release: **OpenGenesisLINK v0.9.3.8**  
-> Latest stabilized release: **OpenGenesisLINK 0.9.3.10 Stable** (operator-approved one-time evidence exception; see [decision](09310_OPERATOR_RELEASE_DECISION.md)). OGL Pathfinding 2.0 and My Outfits 2.0 remain deferred.
-> Completed release train: **0.9.3.2 → 0.9.3.3 → 0.9.3.4 → 0.9.3.8**  
-> Latest release candidate: **OpenGenesisLINK v0.9.3.8 RC1** (successfully validated)  
-> Completed milestone: **0.9.3.8 — Search, Places, Land and Destination Guide**  
-> Completed milestone codename: **NEXJAST**  
-> Historical source baseline: OpenSimulator 0.9.3.0 ("Nessie")
+> **Aktuelle Stable-Version:** **[OpenGenesisLINK v0.9.3.10](https://github.com/opengenesislink/opengenesislinkserver/releases/tag/v0.9.3.10)** (veröffentlicht am 12.10.2026)
+> **Status:** Stabilisierungsrelease abgeschlossen; [Betreiberfreigabe und dokumentierte Abweichungen](09310_OPERATOR_RELEASE_DECISION.md)
+> **Vorheriger Stable-Stand:** v0.9.3.8 (historisch, veröffentlicht am 08.10.2026)
+> **Abgeschlossene Entwicklungslinien:** 0.9.3.1 bis 0.9.3.8 sowie 0.9.3.10; keine separate Stable-Version 0.9.3.9
+> **Nächste geplante Meilensteine:** 0.9.3.11 bis 0.9.3.16; danach **0.9.4.0 – OpenGenesisLINK Generation 1**
+> **Verschoben auf nach 0.9.4.0:** OGL Experiences 2.0, OGL Pathfinding 2.0 und OGL My Outfits 2.0 für den eigenen Viewer (Versionen noch nicht festgelegt)
+> **Historische Quellbasis:** OpenSimulator 0.9.3.0 ("Nessie")
 
-**Scope change 12 October 2026:** The binding 0.9.3.10 release gate is now
-[09310_RC1_RELEASE_READINESS.md](09310_RC1_RELEASE_READINESS.md)
-with 22 RC1/23 Stable live operator cases (evidence v2). Historical
-Experience/LSL/DB/APP release checkboxes elsewhere in this roadmap
-are design/development history, **not** RC1 obligations. Existing
-Experience code and regression checks remain, but Firestorm Experience
-integration is paused and must be disabled on the RC deployment.
-OGL Pathfinding 2.0, OGL My Outfits 2.0 and a possible OGL
-Experiences 2.0 will be separately specified for the own viewer.
-No implied RC tag or Stable approval.
+**Scope- und Freigabebeschluss vom 12.10.2026:** 0.9.3.10 Stable ist
+veröffentlicht. Die ursprünglich geplanten [22 RC1-/23 Stable-Operatorfälle](09310_RC1_RELEASE_READINESS.md)
+wurden aufgrund einer [ausdrücklich dokumentierten einmaligen Betreiberentscheidung](09310_OPERATOR_RELEASE_DECISION.md)
+nicht vollständig mit individuellen Nachweisen belegt; offene Formalnachweise
+werden **nicht** als bestanden ausgegeben. Die Experience-/Pathfinding-/My-Outfits-2.0-
+Viewerintegration ist **nicht Bestandteil** des Stable-Releases oder der
+Abnahme von Generation 1. Bereits vorhandener experimenteller Experience-Code
+und Sicherheitsregressionen bleiben erhalten, aber Experience-Viewer-CAPS sind
+im ausgelieferten Standardprofil deaktiviert. Neue verbindliche Feature- und
+LSL-Abnahmekriterien stehen erst im Abschnitt **„Nach 0.9.4.0 – eigene Viewer-Generation“**.
 
 ## 1. Vision
 
@@ -34,7 +33,7 @@ The target architecture is centered around:
 - Firestorm/Second Life protocol compatibility where required;
 - full-featured NV$ economy and banking;
 - modern identity, social, profile, inventory, group and estate services;
-- Experiences and Pathfinding;
+- OGL Experiences 2.0 and OGL Pathfinding 2.0 as independent **post-0.9.4.0** own-viewer/server projects;
 - a centralized, multi-tenant, LiveKit-based OGLVoice WebRTC platform;
 - a systematic LSL parity program;
 - search, places, land and destination services;
@@ -1068,7 +1067,7 @@ Support Firestorm-visible flows including:
 
 ### 11.2 Experiences
 
-**Status: native service completed.**
+**Historischer Implementierungsstand:** Der native Experience-Service und seine Datenmodelle sind im Quellcode vorhanden; die Firestorm-Integration ist **pausiert und nicht produktiv abgenommen**. Neuentwicklung und Live-Abnahme von OGL Experiences 2.0 erfolgen **erst nach 0.9.4.0**.
 
 - [x] owner;
 - [x] optional group association;
@@ -1087,7 +1086,7 @@ Support Firestorm-visible flows including:
 
 ### 11.3 Experience LSL
 
-**Status: implemented and guarded by CI.**
+**Historischer Implementierungsstand:** Die genannten LSL-Funktionen besitzen Implementierungs-/CI-Abdeckung, jedoch **keine erfolgreiche produktive Experience-Viewer-Abnahme**. Der zukünftige native Experience-2.0-LSL-Vertrag und seine Abnahmekriterien liegen **nach 0.9.4.0**.
 
 - [x] `llRequestExperiencePermissions`;
 - [x] `experience_permissions`;
@@ -1197,7 +1196,7 @@ No new feature milestone should begin until this gate is closed. The 0.9.3.8 fea
 
 # Milestone 0.9.3.9
 
-> Historical development checkpoint: **Runtime modernisation and existing non-Voice work** continue in the **0.9.3.10 Dev → RC → Stable** train. The formerly planned **OGLVoice** deliverable is deferred to a **later, undated development train**. No separate 0.9.3.9 Stable release. Active release gates: [RELEASE_TRAIN_0.9.3.10.md](RELEASE_TRAIN_0.9.3.10.md).
+> **Historischer Entwicklungs-Checkpoint (abgeschlossen):** Die Runtime-Arbeiten gingen in die veröffentlichte **0.9.3.10 Stable** ein. Für 0.9.3.9 gab es **keinen separaten Stable-Release**. OGLVoice bleibt auf einen späteren, noch nicht terminierten Entwicklungszweig verschoben. Historische Release-Gates: [RELEASE_TRAIN_0.9.3.10.md](RELEASE_TRAIN_0.9.3.10.md).
 
 ### 13.0 Runtime-/ThreadPool-Modernisierung
 
@@ -1273,26 +1272,43 @@ Architektur- und Abnahmedokument: [OGLVOICE_ARCHITECTURE.md](OGLVOICE_ARCHITECTU
 - Secrets nur serverseitig; Viewer-CAPS erhalten kurzlebige, raumgebundene Token, keine OGLVoice-Admin-Schlüssel.
 - Der eigene OGL-Viewer kann zukünftig eine native LiveKit-Integration bekommen.
 
-# Milestone 0.9.3.10 — Runtime, NexExperiences und Stabilisierung
+# Milestone 0.9.3.10 — Runtime- und Plattformstabilisierung (Stable veröffentlicht)
 
-> **Scope-Beschluss 11.10.2026:** OGL Pathfinding, NavMesh, NPC-Wegpunktmotor, OGL-Navigations-CAPS und die zugehoerigen Servermodule sind aus 0.9.3.10 komplett entfernt. Die NAV-Testfaelle sind gestrichen. Ein spaeteres, eigenstaendiges Navigationskonzept wird erst gemeinsam mit dem eigenen OpenGenesisLINK-Viewer geplant. Firestorm/OpenSim wird nicht durch erfundene NavMesh-CAPS erweitert.
+> **Abgeschlossen am 12.10.2026:** [Stable v0.9.3.10](https://github.com/opengenesislink/opengenesislinkserver/releases/tag/v0.9.3.10).
+> Verbindliche Featuregrenzen und die einmalige, transparent dokumentierte
+> Abweichung von den ursprünglich festgelegten Operator-Nachweisen stehen
+> in [RELEASE_0.9.3.10.md](RELEASE_0.9.3.10.md) und
+> [09310_OPERATOR_RELEASE_DECISION.md](09310_OPERATOR_RELEASE_DECISION.md).
 
-## 14.1 .NET-8-Runtime
-- Geerbte Mono-/ThreadPool-Begrenzungen entfernen, Start-/Runtime-Telemetrie sichern.
-- Identische CPU-, Heap-, GC-, Netzwerk- und Tick-Messungen gegen v0.9.3.8 durchfuehren.
-- Login, Region, Teleport, Hypergrid, NV$, NexBus und Inventory regressionsfest pruefen.
+## 14.1 .NET-8-Runtime und Basisdienste
 
-## 14.2 NexExperiences fuer Firestorm und LSL
-- Viewer-Erwerb, Owner-Editor, Berechtigungen und Experience-CAPS live testen.
-- Explizite Allow/Block/Forget-Zustimmung, Script-Binding, Fehler/Timeout und K/V sicherstellen.
-- Mit zwei Avataren und mehreren Simulatoren samt Neustart, Persistenz und Restore abnehmen.
+- Geerbte Mono-/ThreadPool-Kompatibilität bereinigen und Startup-/Runtime-Regressionen absichern.
+- Login, Regionen, Teleport, Hypergrid, NV$, NexBus, Inventar und World API R287 mit CI prüfen.
+- Identische CPU-/Heap-/GC-/Netzwerk-/Tick-Messungen gegen v0.9.3.8
+  bleiben sinnvoller **nachgelagerter Leistungsnachweis**; keine ungemessenen Vorteile behaupten.
 
-## 14.3 Verbleibende Release-Umfaenge
-- World API R287 und reale Rechte-/Datenpruefung; Inventory/Outfits einschliesslich COF.
-- Release-Build, Security, Performance, Wiederherstellung und Rollback.
-- Erst nach den Pflichtnachweisen RC1/Stable freigeben.
+## 14.2 Bewusst verschobene Funktionen
 
-**Ausgeschlossen:** OGL Pathfinding, Firestorm-Havok-NavMesh, eigener Viewer/Renderer, OGLVoice und nicht implementierte dynamische SL-Character-LSL-APIs.
+- **NexExperiences/Firestorm:** bisheriger opt-in Code bleibt vorhanden,
+  ist aber nicht produktiv freigegeben; ausgelieferte Experience-Viewer-CAPS deaktiviert.
+- **OGL Experiences 2.0 und OGL Pathfinding 2.0:** native Neuentwicklung für
+  eigenen Viewer samt serverseitigen Rechten/LSL-Schnittstellen **nach 0.9.4.0**.
+- **OGL My Outfits 2.0:** eigene Viewer-Funktion **nach 0.9.4.0**;
+  grundlegende Inventar- und Asset-Kompatibilität bleibt erhalten.
+- OGLVoice und neuer Renderer bleiben getrennte, später zu planende Vorhaben.
+
+## 14.3 Historische Release-Abnahme
+
+- GitHub-Release-Build und technische Runtime-/NV$-Regressionen erfolgreich.
+- 22 RC1-Prüfungen vom Betreiber im Chat als OK bestätigt; datierte
+  Einzelbelege und 24-h-Soak-/Restore-Protokolle wurden **nicht vollständig
+  unabhängig verifiziert**. Die direkte Stable-Freigabe war eine
+  ausdrücklich dokumentierte einmalige Betreiberentscheidung.
+- **Keine** Experience-/Pathfinding-/My-Outfits-2.0-Feature- oder
+  LSL-Abnahmepflichten für 0.9.3.10. Diese werden **erst nach 0.9.4.0** definiert.
+
+**Ausgeschlossen:** Firestorm-Havok-NavMesh, eigener Viewer/Renderer,
+OGLVoice und neue dynamische SL-Character-LSL-APIs.
 
 ---
 # Milestone 0.9.3.11
@@ -1364,10 +1380,8 @@ Measure and limit:
 
 ## 16. LSL Parity II — Advanced Systems
 
-Concentrate on modern and complex LSL domains:
+Concentrate on modern and complex LSL domains **excluding deferred own-viewer features**:
 
-- Experiences;
-- Pathfinding;
 - HTTP;
 - JSON;
 - media;
@@ -1381,6 +1395,13 @@ Concentrate on modern and complex LSL domains:
 - economy;
 - remote data compatibility;
 - newer server-side LSL additions.
+
+**Ausgenommen in 0.9.3.12:** LSL-Erweiterungen für **Experiences 2.0**
+und **Pathfinding 2.0** werden zusammen mit ihren serverseitigen
+Sicherheitsgrenzen, Viewer-Protokollen und Live-Abnahmen erst **nach
+0.9.4.0 (Generation 1)** entwickelt. Frühere Experience-LSL-Routinen
+bleiben als Legacy-/Sicherheitsregression erhalten, aber ihre Existenz
+ist kein erfolgreicher End-to-End-Nachweis.
 
 ### 16.1 LSL profiler and developer tools
 
@@ -1662,8 +1683,8 @@ Expose supported server capabilities so compatible viewers and tools can adapt w
 
 Examples:
 
-- Experiences;
-- Pathfinding;
+- Experiences 2.0 (reserved for post-0.9.4.0 capability negotiation);
+- Pathfinding 2.0 (reserved for post-0.9.4.0 capability negotiation);
 - PBR;
 - NexVoice protocol level;
 - NV$ protocol level;
@@ -1691,9 +1712,12 @@ Target characteristics:
 - Firestorm land purchase/payment flows work.
 - inventory API and OAR/IAR jobs are stable.
 - NexGroups is production-capable.
-- Experiences are available.
-- Pathfinding is available.
-- LSL parity is measurable and regression-tested.
+- **Experiences 2.0, Pathfinding 2.0 and My Outfits 2.0 are explicitly
+  deferred to the own-viewer generation AFTER 0.9.4.0 and are NOT
+  Generation 1 acceptance/release gates.** Existing Experience legacy
+  code remains opt-in/disabled; no false claim of working Firestorm UI.
+- LSL parity is measurable and regression-tested for the **in-scope**
+  LSL functions, excluding deferred Experience-2.0 and Pathfinding-2.0 APIs.
 - Search/Places/Land/Destination services are integrated.
 - monitoring and audit coverage are production-grade.
 - NexBus and Job Engine are core infrastructure.
@@ -1757,6 +1781,82 @@ Architecture requirements:
 
 The catalog protocol must be documented and versioned so third-party repositories can be supported later without coupling the core to one website.
 
+### 21.3 Verbindliche Scope-Grenze für Generation 1
+
+**0.9.4.0 ist abnahmefähig ohne Experiences 2.0, Pathfinding 2.0
+und My Outfits 2.0.** Entscheidend sind die in diesem Meilenstein
+beschriebenen OGL-Plattform-, Verwaltungs-, Addon-, Sicherheits- und
+Kompatibilitätsziele. Nicht eingeführte Viewer-CAPS werden nicht
+fälschlich als verfügbar gemeldet. Legacy-Experiences bleiben im
+Standardprofil deaktiviert. Die folgenden Feature-Abnahmen werden
+**erst nach der Veröffentlichung von 0.9.4.0** verbindlich.
+
+---
+
+# Nach 0.9.4.0 – eigene Viewer-Generation (Versionsnummer noch offen)
+
+**Status: geplant und verschoben, nicht Teil der 0.9.4.0-Abnahme.**
+Hier werden die LSL-Entwicklungsaufgaben und die zugehörigen
+Produktions-/Abnahmekriterien gebündelt. Ein konkreter nächster
+Versionsname (z. B. 0.9.4.x oder 0.9.5.x) wird erst nach der
+Generation-1-Freigabe festgelegt; es gibt noch keinen Release-Termin.
+
+## OGL Experiences 2.0 – eigenes Viewer-Protokoll und LSL
+
+- Eigenes natives Experience-UI statt weiterer Reparaturversuche
+  der bisherigen Firestorm-Experience-Implementierung.
+- Zentral verwaltete Owner-/Contributor-Rechte, explizites
+  Allow/Block/Forget, sichere Viewer-CAPS oder ein versioniertes
+  OGL-Protokoll sowie nachvollziehbare Zustimmung/Widerruf.
+- LSL-Funktionen und Events für Experience-Berechtigungen, Script-Binding,
+  persistenten K/V-Speicher, Fehler, Timeouts und Revocation neu definieren
+  bzw. bewusst kompatible Bestandsfunktionen vollständig absichern.
+- Script- und Avatarrechte durch den Simulator autoritativ prüfen;
+  kein automatisches Grant, kein unautorisierter Zugriff über Hypergrid.
+- **Abnahme:** Zwei Avatare, mehrere Simulatoren und eigene
+  Viewer-Builds; positive/negative Rechtefälle, Owner-Editor,
+  Skriptzuordnung, Allow/Block/Forget, K/V-Persistenz,
+  Regionwechsel, Neustart und Restore mit echten Laufzeitbelegen.
+  CI-Abdeckung allein ersetzt keinen Viewer-Test.
+
+## OGL Pathfinding 2.0 – Navigation, NavMesh/NPC und LSL
+
+- Neue serverseitige autoritative Navigation für Gelände, Meshes,
+  bewegliche Hindernisse, Wegpunkte und regionsübergreifende
+  Übergänge; Viewer ist für Visualisierung und Bearbeitung zuständig.
+- Versionierte eigene Viewer-/Simulator-Capabilities und
+  Laufzeit-Invalidierung der Navigationsdaten, keine Behauptung
+  von Firestorm-Havok-/SL-NavMesh-Kompatibilität ohne echte Implementierung.
+- LSL-/OGL-API für Pfadanfragen, Bewegung/Steuerung,
+  Status-/Fehler-Events, Unterbrechung, Berechtigungen und
+  Script-Ressourcenlimits erst in diesem Nachfolgeprojekt entwickeln.
+- **Abnahme:** Dynamische Hindernisse, Kollisionen, Terrainänderungen,
+  NPC-/Character-Routen, Multi-Agent-/Lasttests, Grenzübertritte,
+  Rechteprüfungen, ungültige Ziele, Abbrüche, Persistenz und
+  reproduzierbare Viewer-/Simulator-Integrationsläufe.
+
+## OGL My Outfits 2.0 – eigener Outfit-Manager
+
+- Native Viewer-Galerie mit gespeicherten Outfits, Vorschaubildern,
+  sicherem Wear/Replace/Remove und Inventar-/Asset-Synchronisation.
+- **Abnahme:** Berechtigungen, systemweite Ordner/Links, Attachment-/
+  Appearance-Konsistenz, Relogin, Cache-Neuaufbau, Regionswechsel
+  und Wiederherstellung; keine destruktive automatische Reparatur
+  bestehender Nutzer-Outfits.
+
+## Gemeinsame spätere Release-Gates
+
+- Alle neuen Experience-/Pathfinding-LSL-Funktionen mit
+  Signature-/Event-/Permission-/Timing-/Error- und
+  Sandbox-Konformitätstests inklusive Schutz vor Missbrauch.
+- Vollständige eigene Viewer-/Simulator-Protokolltests auf
+  identischem Commit/Build; positive und negative Live-Belege
+  einschließlich Rechte-, Datenschutz-, Neustart-, HG- und Lastfällen.
+- Jedes der drei Systeme separat versionieren, deaktivierbar
+  ausliefern und unabhängig freigeben; die spätere Versionsnummer
+  und die erforderlichen Prüffälle werden im eigenen Release-Train
+  festgelegt, nicht rückwirkend für 0.9.4.0.
+
 ---
 
 # 22. Continuous workstreams
@@ -1790,10 +1890,12 @@ Continuously test:
 - land;
 - map;
 - search;
-- Experiences;
-- Pathfinding;
-- Voice;
+- Voice (when the separate Voice train is enabled and approved);
 - uploads.
+
+**Nicht Teil der laufenden Firestorm-Kompatibilitätsabnahme:**
+Experiences 2.0 und Pathfinding 2.0. Ihre künftigen Viewer-/LSL-Tests
+stehen im Abschnitt **„Nach 0.9.4.0 – eigene Viewer-Generation“**.
 
 ## 22.3 LSL parity
 
@@ -1875,6 +1977,11 @@ Potential APIs for:
 ---
 
 # 24. Architecture target
+
+**Zielbild, kein Istzustand und kein Abnahmekriterium für 0.9.4.0.**
+Insbesondere die unten eingezeichneten Experience-/Pathfinding- und
+Voice-Komponenten sind separat geplante Nachfolgefunktionen;
+im aktuellen Standardprofil sind Experience-Viewer-CAPS deaktiviert.
 
 ```text
                           NexVerse Platform
