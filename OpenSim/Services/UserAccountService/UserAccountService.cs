@@ -1144,7 +1144,8 @@ namespace OpenSim.Services.UserAccountService
             AvatarWearable basewearable;
             WearableItem wearable;
 
-            AvatarWearable newbasewearable = new AvatarWearable();
+            // Each wearable slot needs a distinct instance. Reusing one mutable
+            // AvatarWearable aliases multiple slots and corrupts the resulting outfit.
             // copy wearables creating new inventory entries
             for (int i = 0; i < wearables.Length; i++)
             {
@@ -1152,7 +1153,7 @@ namespace OpenSim.Services.UserAccountService
                 if(basewearable == null || basewearable.Count == 0)
                     continue;
 
-                newbasewearable.Clear();
+                AvatarWearable newbasewearable = new AvatarWearable();
                 for(int j = 0; j < basewearable.Count; j++)
                 {
                     wearable = basewearable[j];
