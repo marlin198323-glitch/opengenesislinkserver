@@ -53,6 +53,9 @@ namespace OpenSim.Services.UserAccountService
         private bool m_OglStarterTemplatesEnabled;
         private string m_OglBenjaminTemplate;
         private string m_OglLunaTemplate;
+        private bool m_OglRequirePublishedModels;
+        private string m_OglBenjaminPublishedModel;
+        private string m_OglLunaPublishedModel;
 
         protected IGridService m_GridService;
         protected IAuthenticationService m_AuthenticationService;
@@ -92,6 +95,12 @@ namespace OpenSim.Services.UserAccountService
             m_OglStarterTemplatesEnabled = starterConfig != null && starterConfig.GetBoolean("Enabled", false);
             m_OglBenjaminTemplate = starterConfig?.GetString("BenjaminModel", "Benjamin Resident") ?? "Benjamin Resident";
             m_OglLunaTemplate = starterConfig?.GetString("LunaModel", "Luna Resident") ?? "Luna Resident";
+            // Published model accounts are dedicated, versioned source avatars.
+            // They must not be used for ordinary logins or outfit editing.
+            m_OglRequirePublishedModels = starterConfig == null ||
+                starterConfig.GetBoolean("RequirePublishedModels", true);
+            m_OglBenjaminPublishedModel = starterConfig?.GetString("BenjaminPublishedModel", "") ?? "";
+            m_OglLunaPublishedModel = starterConfig?.GetString("LunaPublishedModel", "") ?? "";
 
             if (m_RootInstance == null)
             {
@@ -639,6 +648,11 @@ namespace OpenSim.Services.UserAccountService
             if (!string.IsNullOrEmpty(model) && model.StartsWith("ogl:", StringComparison.OrdinalIgnoreCase))
             {
                 string resolvedModel = ResolveOglStarterModel(model);
+                if (string.IsNullOrWhiteSpace(resolvedModel))
+                {
+                    m_log.Warn("[OGL AVATAR TEMPLATES]: No published starter model configured");
+                    return null;
+                }
                 string[] names = resolvedModel.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
                 if (names.Length != 2)
                 {
@@ -761,9 +775,9 @@ namespace OpenSim.Services.UserAccountService
             }
 
             if (string.Equals(model, "ogl:benjamin", StringComparison.OrdinalIgnoreCase))
-                return m_OglBenjaminTemplate;
+                return m_OglRequirePublishedModels ? m_OglBenjaminPublishedModel : m_OglBenjaminTemplate;
             if (string.Equals(model, "ogl:luna", StringComparison.OrdinalIgnoreCase))
-                return m_OglLunaTemplate;
+                return m_OglRequirePublishedModels ? m_OglLunaPublishedModel : m_OglLunaTemplate;
 
             m_log.Warn("[OGL AVATAR TEMPLATES]: Unknown starter template identifier");
             return string.Empty;
