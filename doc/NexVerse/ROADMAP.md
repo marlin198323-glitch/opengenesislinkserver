@@ -2075,8 +2075,21 @@ Rules for changes:
 
 > **Status:** Architekturentscheidung / geplant, keine Implementierungs- oder Testfreigabe.
 > **Beginn:** Parallel zur Fertigstellung von Generation 1 (0.9.4.0); Gen-1-Stable bleibt unabhängig.
-> **Zielrepository:** `opengenesislink/oglserver` (separat anzulegen, nicht mit `main` verwechseln).
+> **Zielrepository:** Name und GitHub-Adresse vor Implementierungsbeginn beim Betreiber erfragen; `opengenesislink/oglserver` ist nur ein unverbindlicher Vorschlag.
 > **Testgrid:** `beta.stadt-nexverse.de` (geplant, noch kein Betriebsnachweis).
+
+## G2.-1 Startfreigabe: Repository erfragen und Lizenzstrategie prüfen
+
+**Verbindliche Startbedingung:** Vor Beginn der tatsächlichen Generation-2-Implementierung den Betreiber ausdrücklich nach dem gewünschten Namen und der vollständigen GitHub-Repository-Adresse fragen. `opengenesislink/oglserver` ist ausschließlich ein vorläufiger Vorschlag; kein Repository eigenmächtig anlegen oder voraussetzen.
+
+**Lizenzziel:** Verbesserungen, Bearbeitung und Weitergabe sollen erlaubt bleiben, während Copyleft-Pflichten die Offenheit weitergegebener Änderungen schützen. Eine generelle Untersagung von Forks ist mit anerkannter Open Source nicht vereinbar und darf nicht als Open-Source-Lizenzbedingung versprochen werden.
+
+- [ ] Vor dem ersten Gen-2-Code-Commit Repository-Name, Eigentümer/Organisation und Zugriffsmodell ausdrücklich bestätigen lassen.
+- [ ] Vor Lizenzentscheidung alle übernommenen Gen-1-/OpenSimulator-Dateien, Abhängigkeiten und vorhandenen MPL-2.0-/sonstigen Lizenzpflichten inventarisieren; bestehende Rechte und Hinweise unverändert respektieren.
+- [ ] Für ausschließlich neu geschriebene, rechtlich entsprechend lizenzierbare Komponenten GPLv3 und AGPLv3 als starke Copyleft-Optionen prüfen; AGPLv3 besonders für netzwerkbasierte Dienste bewerten. Keine pauschale Relizenzierung geerbten Codes.
+- [ ] Mit dem Betreiber die konkrete Lizenzkombination nach Kompatibilitätsprüfung festlegen und erst dann LICENSE-, NOTICE- und CONTRIBUTING-Dateien anlegen.
+- [ ] OpenGenesisLINK-Name, Logos und offizielle Kennzeichnung separat über eine Marken-/Namensrichtlinie schützen; Forks dürfen Open-Source-Rechte ausüben, aber nicht irreführend als offizielles Projekt auftreten.
+- [ ] Keine rechtlich widersprüchliche Zusage „Open Source ohne Forks“ in Dokumentation, Lizenz oder UI verwenden.
 
 ## G2.0 Verbindliches Prinzip: Gen 1 vollständig weiterentwickeln, nicht neu anfangen
 
