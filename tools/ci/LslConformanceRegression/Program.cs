@@ -3,7 +3,7 @@ using System.Linq;
 using System.Reflection;
 using OpenSim.Region.ScriptEngine.Shared.Api;
 using OpenSim.Region.ScriptEngine.Shared.Api.Interfaces;
-using OpenSim.Region.ScriptEngine.Shared.LSL_Types;
+using LSLInteger = OpenSim.Region.ScriptEngine.Shared.LSL_Types.LSLInteger;
 using OpenSim.Region.ScriptEngine.Shared.ScriptBase;
 
 internal static class Program
