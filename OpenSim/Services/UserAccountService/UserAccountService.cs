@@ -793,16 +793,29 @@ namespace OpenSim.Services.UserAccountService
             return true;
         }
 
+        private InventoryItemBase ResolveOglStarterItem(UUID owner, UUID itemId)
+        {
+            if (itemId.IsZero())
+                return null;
+
+            InventoryItemBase item = m_InventoryService.GetItem(owner, itemId);
+            // Limit resolution to a single link, as supported by the legacy
+            // avatar copy path. Reject nested or cyclic links.
+            if (item != null && item.AssetType == (int)AssetType.Link)
+            {
+                if (item.AssetID.IsZero() || item.AssetID == itemId)
+                    return null;
+                item = m_InventoryService.GetItem(owner, item.AssetID);
+            }
+            return item != null && item.AssetType != (int)AssetType.Link ? item : null;
+        }
+
         private bool ValidateOglStarterItem(UUID owner, UUID itemId)
         {
             if (itemId.IsZero())
                 return true;
 
-            InventoryItemBase item = m_InventoryService.GetItem(owner, itemId);
-            // Current Outfit links reference the actual item UUID as AssetID.
-            if (item != null && item.AssetType == (int)AssetType.Link)
-                item = item.AssetID.IsZero() ? null :
-                    m_InventoryService.GetItem(owner, item.AssetID);
+            InventoryItemBase item = ResolveOglStarterItem(owner, itemId);
 
             uint required = (uint)(PermissionMask.Copy | PermissionMask.Transfer);
             if (item == null || item.AssetID.IsZero() ||
@@ -1050,15 +1063,8 @@ namespace OpenSim.Services.UserAccountService
                         m_log.DebugFormat("[XXX]: Getting item {0} from avie {1} for {2} {3}",
                             wearable.ItemID, source, i, j);
                         // Get inventory item and copy it
-                        InventoryItemBase item = m_InventoryService.GetItem(source, wearable.ItemID);
+                        InventoryItemBase item = ResolveOglStarterItem(source, wearable.ItemID);
 
-                        if(item != null && item.AssetType == (int)AssetType.Link)
-                        {
-                            if(item.AssetID.IsZero())
-                                item = null;
-                            else
-                              item = m_InventoryService.GetItem(source, item.AssetID);
-                        }
 
                         if (item != null)
                         {
@@ -1115,7 +1121,7 @@ namespace OpenSim.Services.UserAccountService
                 if (!itemID.IsZero())
                 {
                     // Get inventory item and copy it
-                    InventoryItemBase item = m_InventoryService.GetItem(source, itemID);
+                    InventoryItemBase item = ResolveOglStarterItem(source, itemID);
 
                     if (item != null)
                     {
