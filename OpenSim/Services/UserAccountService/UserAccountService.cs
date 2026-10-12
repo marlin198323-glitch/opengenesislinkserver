@@ -830,15 +830,24 @@ namespace OpenSim.Services.UserAccountService
             if (appearance == null || appearance.Wearables == null)
                 return false;
 
+            // Empty outfits cannot be published as starter models.
+            bool hasWearables = false;
             foreach (AvatarWearable wearableSet in appearance.Wearables)
             {
                 if (wearableSet == null)
                     continue;
                 for (int i = 0; i < wearableSet.Count; i++)
                 {
+                    hasWearables = true;
                     if (!ValidateOglStarterItem(owner, wearableSet[i].ItemID))
                         return false;
                 }
+            }
+
+            if (!hasWearables)
+            {
+                m_log.Warn("[OGL AVATAR TEMPLATES]: Published model has no wearables");
+                return false;
             }
 
             List<AvatarAttachment> attachments = appearance.GetAttachments();
