@@ -42,8 +42,9 @@ namespace OpenSim.Server.Handlers.Login
             string proxyIp = settings?.GetString("TrustedTlsProxyAddress", "")?.Trim();
             if (!string.IsNullOrWhiteSpace(proxyIp))
             {
-                if (!IPAddress.TryParse(proxyIp, out m_TrustedTlsProxy))
+                if (!IPAddress.TryParse(proxyIp, out IPAddress parsed))
                     throw new InvalidOperationException("[OglViewerLogin] TrustedTlsProxyAddress must be a literal IP address.");
+                m_TrustedTlsProxy = parsed;
             }
         }
 
