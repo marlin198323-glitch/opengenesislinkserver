@@ -177,6 +177,23 @@ namespace OpenSim.Server.Handlers.Grid
             string gatekeeper = PublicHttpUrl("gatekeeper");
             string website = PublicHttpUrl("website");
 
+            // Advertise the native route ONLY after explicit operator
+            // enablement and an HTTPS public URL has been configured.
+            // A path registered internally is not sufficient for viewers.
+            IConfig oglLogin = m_Config.Configs["OglViewerLogin"];
+            string nativeLoginUrl = null;
+            if (oglLogin != null && oglLogin.GetBoolean("Enabled", false))
+            {
+                string configured = oglLogin.GetString("PublicLoginUrl", "").Trim();
+                if (Uri.TryCreate(configured, UriKind.Absolute, out Uri candidate) &&
+                    candidate.Scheme == Uri.UriSchemeHttps &&
+                    candidate.AbsolutePath == "/ogl/v1/login" &&
+                    string.IsNullOrEmpty(candidate.UserInfo) &&
+                    string.IsNullOrEmpty(candidate.Query) &&
+                    string.IsNullOrEmpty(candidate.Fragment))
+                    nativeLoginUrl = candidate.AbsoluteUri;
+            }
+
             httpResponse.StatusCode = (int)HttpStatusCode.OK;
             httpResponse.RawBuffer = JsonSerializer.SerializeToUtf8Bytes(new
             {
@@ -198,18 +215,18 @@ namespace OpenSim.Server.Handlers.Grid
                 endpoints = new
                 {
                     // URI from existing GridInfo config: the existing
-                    // XML-RPC/LLSD login is still the sole active login.
+                    // XML-RPC/LLSD login always remains supported.
                     legacy_login = login,
                     legacy_grid_info = "/get_grid_info",
                     legacy_grid_info_json = "/json_grid_info",
                     ogl_grid_info = "/ogl/v1/grid-info",
-                    ogl_login = (string)null
+                    ogl_login = nativeLoginUrl
                 },
                 features = new
                 {
                     legacy_login = true,
                     ogl_grid_info_v1 = true,
-                    ogl_native_login = false,
+                    ogl_native_login = nativeLoginUrl != null,
                     ogl_experiences_2 = false,
                     ogl_pathfinding_2 = false,
                     ogl_my_outfits_2 = false
