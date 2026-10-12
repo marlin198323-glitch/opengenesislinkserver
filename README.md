@@ -45,11 +45,17 @@ The roadmap covers the NEXJAST legacy-cleanup milestone and the World API, ident
 
 See **[`doc/NexVerse/RELEASE_TRAIN_0.9.3.10.md`](doc/NexVerse/RELEASE_TRAIN_0.9.3.10.md)** for the revised 0.9.3.10 runtime/stabilization release gates and **[`doc/NexVerse/OGLVOICE_ARCHITECTURE.md`](doc/NexVerse/OGLVOICE_ARCHITECTURE.md)** for the central voice design.
 
-## Previous development milestone: OpenGenesisLINK v0.9.3.5 Dev — Inventory, OAR/IAR, Job Engine und NexBus
+## Aktueller Versionsstand
 
-NexVerse 0.9.3.4 is the completed stable release of the previous product line. The **0.9.3.5 development milestone** introduced Inventory, OAR/IAR, the persistent Job Engine and NexBus; the **0.9.3.8 RC1** validation has since passed and **0.9.3.8 Stable** is released.
+**Aktuelle Stable-Version: [OpenGenesisLINK 0.9.3.10](https://github.com/opengenesislink/opengenesislinkserver/releases/tag/v0.9.3.10)** (veröffentlicht am 12. Oktober 2026). Der vorherige Stable-Stand `v0.9.3.8` bleibt erhalten.
 
-The 0.9.3.5 line retains viewer, Hypergrid, LSL and archive compatibility while moving operational functionality into OpenGenesisLINK-owned APIs, Job Engine workers and control-plane components. The current roadmap progress is published through the World API and kept in sync with `doc/NexVerse/ROADMAP.md` by CI.
+**Nächste geplante Entwicklungslinie: 0.9.4.0 – OpenGenesisLINK Generation 1.** Die Planung ist noch keine veröffentlichte oder bereits gestartete Version. OGL Pathfinding 2.0, OGL My Outfits 2.0 und gegebenenfalls OGL Experiences 2.0 sind auf die eigene Viewer-Generation verschoben.
+
+## Historischer Meilenstein 0.9.3.5 – abgeschlossen
+
+`0.9.3.5 Dev` war eine frühere Entwicklungsphase für Inventory, OAR/IAR, den persistenten Job Engine und NexBus. Auch `0.9.3.8 Stable` wurde danach abgeschlossen. **Diese Versionsnummern bezeichnen keine aktuelle Entwicklung.**
+
+Die damals eingeführten Kompatibilitäts- und Servicekomponenten sind in den späteren OpenGenesisLINK-Versionen aufgegangen. Die vollständige historische Abfolge steht in [VERSIONING.md](VERSIONING.md).
 
 ## NexVerse 0.9.3.1 NEXJAST release foundation
 
