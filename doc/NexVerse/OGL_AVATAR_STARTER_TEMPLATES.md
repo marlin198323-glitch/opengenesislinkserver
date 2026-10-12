@@ -60,6 +60,12 @@ müssen administrativ gegen weitere Bearbeitung und Logins geschützt werden.
 **Wichtig:** Dies ist eine Version-Pinning-Konfiguration, **noch kein**
 automatischer, unveränderlicher Snapshot-Export und kein Admin-Publish-Endpunkt.
 
+## Weitere Registrierungsprüfungen
+
+Leere Vor- oder Nachnamen werden abgewiesen. Ein Modellavatar darf sich
+nicht mit sich selbst als Startervorlage registrieren (UUID- und Namensprüfung).
+Diese Prüfungen ersetzen keine vollständige Portalvalidierung.
+
 ## Aktuelle Grenzen
 
 1. Die Übernahme nutzt derzeit den **Live-Appearance-Zustand** der
