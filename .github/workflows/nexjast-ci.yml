@@ -88,7 +88,6 @@ jobs:
           mkdir -p /tmp/ogl-lsl-parity
           python3 tools/lsl/lsl_matrix.py --verify --output /tmp/ogl-lsl-parity/lsl-matrix.json
           python3 -m unittest discover -s tools/ci -p 'test_lsl_matrix.py' -v
-          dotnet run --configuration Release --project tools/ci/LslConformanceRegression/LslConformanceRegression.csproj
 
       - name: Upload LSL contract inventory
         if: always()
@@ -439,6 +438,10 @@ jobs:
       - name: Build Release
         shell: bash
         run: dotnet build --configuration Release OpenSim.sln
+
+      - name: Runtime LSL core conformance (0.9.3.11)
+        shell: bash
+        run: dotnet run --no-restore --configuration Release --project tools/ci/LslConformanceRegression/LslConformanceRegression.csproj
 
       - name: Regression-test Firestorm My Outfits system folder against real SQLite inventory
         shell: bash
