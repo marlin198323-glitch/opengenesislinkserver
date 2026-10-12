@@ -53,7 +53,7 @@ Registrierungs-Endpunkt ist **noch nicht** implementiert.
    abgelehnt. Ebenso werden fehlende Modellaccounts, Appearance oder
    benötigte Services abgewiesen. Die Portal-API muss diese Ablehnung
    korrekt als Registrierungsfehler behandeln.
-5. GitHub-CI und echte Avatar-Login-/Appearance-Tests stehen aus.
+5. GitHub-CI und echte Avatar-Login-/Appearance-Tests stehen aus; ein Merge auf `main` ersetzt diese Tests nicht.
 
 ## Zusätzliche Sicherheitsgrenze
 
@@ -81,4 +81,4 @@ bis zur Rechteprüfung und echten Integrationstests deaktiviert.
   freigegebenen Template-IDs.
 - Tests für Mesh-Body, Mesh-Head, Kleidung, COF und Erstlogin.
 
-**Keine Änderungen auf Stable/main und keine Zugriffe auf Entwicklerrechner.**
+**Integrationsstand:** Änderungen liegen inzwischen auf `main` und können dort getestet werden. Keine Stable-Freigabe und keine Zugriffe auf Entwicklerrechner.
