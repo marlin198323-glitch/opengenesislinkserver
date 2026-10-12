@@ -787,6 +787,14 @@ namespace OpenSim.Services.UserAccountService
                         {
                             if (String.IsNullOrEmpty(model))
                                 CreateDefaultAppearanceEntries(account.PrincipalID);
+                            else if (model.StartsWith("ogl:", StringComparison.OrdinalIgnoreCase))
+                            {
+                                if (!TryEstablishAppearance(account.PrincipalID, ResolveOglStarterModel(model)))
+                                {
+                                    m_log.Error("[OGL AVATAR TEMPLATES]: Starter appearance initialization failed");
+                                    return null;
+                                }
+                            }
                             else
                                 EstablishAppearance(account.PrincipalID, ResolveOglStarterModel(model));
                         }
@@ -1036,6 +1044,11 @@ namespace OpenSim.Services.UserAccountService
 
         protected void EstablishAppearance(UUID destinationAgent, string model)
         {
+            TryEstablishAppearance(destinationAgent, model);
+        }
+
+        private bool TryEstablishAppearance(UUID destinationAgent, string model)
+        {
             m_log.DebugFormat("[USER ACCOUNT SERVICE]: Establishing new appearance for {0} - {1}",
                               destinationAgent.ToString(), model);
 
@@ -1045,7 +1058,7 @@ namespace OpenSim.Services.UserAccountService
                 m_log.WarnFormat("[USER ACCOUNT SERVICE]: Invalid model name \'{0}\'. Falling back to Ruth for {1}",
                                  model, destinationAgent);
                 CreateDefaultAppearanceEntries(destinationAgent);
-                return;
+                return false;
             }
 
             // Does the source model exist?
@@ -1055,7 +1068,7 @@ namespace OpenSim.Services.UserAccountService
                 m_log.WarnFormat("[USER ACCOUNT SERVICE]: Requested model \'{0}\' not found. Falling back to Ruth for {1}",
                                  model, destinationAgent);
                 CreateDefaultAppearanceEntries(destinationAgent);
-                return;
+                return false;
             }
 
             // Does the source model have an established appearance herself?
@@ -1065,7 +1078,7 @@ namespace OpenSim.Services.UserAccountService
                 m_log.WarnFormat("USER ACCOUNT SERVICE]: Requested model \'{0}\' does not have an established appearance. Falling back to Ruth for {1}",
                                  model, destinationAgent);
                 CreateDefaultAppearanceEntries(destinationAgent);
-                return;
+                return false;
             }
 
             try
@@ -1092,10 +1105,12 @@ namespace OpenSim.Services.UserAccountService
             {
                 m_log.WarnFormat("[USER ACCOUNT SERVICE]: Error transferring appearance for {0} : {1}",
                     destinationAgent, e.Message);
+                return false;
             }
 
             m_log.DebugFormat("[USER ACCOUNT SERVICE]: Finished establishing appearance for {0}",
                 destinationAgent.ToString());
+            return true;
         }
 
         /// <summary>
