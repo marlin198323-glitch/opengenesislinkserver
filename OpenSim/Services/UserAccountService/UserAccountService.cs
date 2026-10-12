@@ -1080,6 +1080,9 @@ namespace OpenSim.Services.UserAccountService
                     !ValidateOglStarterItems(modelAccount.PrincipalID, modelAppearance))
                     throw new InvalidOperationException("Starter outfit changed or is not transferable");
 
+                // Work on a private appearance copy: copying replaces wearable
+                // and attachment inventory IDs and must not mutate the source model.
+                modelAppearance = new AvatarAppearance(modelAppearance);
                 CopyWearablesAndAttachments(destinationAgent, modelAccount.PrincipalID, modelAppearance);
 
                 m_AvatarService.SetAppearance(destinationAgent, modelAppearance);
