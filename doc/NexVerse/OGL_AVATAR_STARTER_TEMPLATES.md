@@ -47,7 +47,9 @@ Registrierungs-Endpunkt ist **noch nicht** implementiert.
 Mit `RequirePublishedModels = true` (Standard) akzeptiert der Server
 OGL-Startervorlagen **nur**, wenn `BenjaminPublishedModel` beziehungsweise
 `LunaPublishedModel` auf einen bestehenden, vollständig vorbereiteten
-Modellaccount mit Vor- und Nachnamen gesetzt ist. Leere Werte werden abgelehnt.
+Modellaccount mit Vor- und Nachnamen gesetzt ist. Leere Werte werden abgelehnt. Auch bei deaktiviertem
+`CreateDefaultAvatarEntries` wird eine Starter-Registrierung vor
+Kontoerstellung abgewiesen.
 
 Beispiel: `BenjaminPublishedModel = "BenjaminV1 Resident"`.
 Für eine neue Outfit-Version wird ein separater Account vorbereitet und
