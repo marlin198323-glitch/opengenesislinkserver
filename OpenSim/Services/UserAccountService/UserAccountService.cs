@@ -1178,7 +1178,8 @@ namespace OpenSim.Services.UserAccountService
                             destinationItem.Folder = destinationFolder.ID;
                             ApplyNextOwnerPermissions(destinationItem);
 
-                            m_InventoryService.AddItem(destinationItem);
+                            if (!m_InventoryService.AddItem(destinationItem))
+                                throw new InvalidOperationException("Unable to copy starter wearable into destination inventory");
                             m_log.DebugFormat("[USER ACCOUNT SERVICE]: Added item {0} to folder {1}", destinationItem.ID, destinationFolder.ID);
 
                             // Wear item
@@ -1235,7 +1236,8 @@ namespace OpenSim.Services.UserAccountService
                         destinationItem.Folder = destinationFolder.ID;
                         ApplyNextOwnerPermissions(destinationItem);
 
-                        m_InventoryService.AddItem(destinationItem);
+                        if (!m_InventoryService.AddItem(destinationItem))
+                            throw new InvalidOperationException("Unable to copy starter attachment into destination inventory");
                         m_log.DebugFormat("[USER ACCOUNT SERVICE]: Added item {0} to folder {1}", destinationItem.ID, destinationFolder.ID);
 
                         // Attach item
