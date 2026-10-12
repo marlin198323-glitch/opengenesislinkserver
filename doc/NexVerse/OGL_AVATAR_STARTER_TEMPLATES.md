@@ -57,8 +57,11 @@ Registrierungs-Endpunkt ist **noch nicht** implementiert.
 
 ## Zusätzliche Sicherheitsgrenze
 
-Die neue Vorabprüfung garantiert **noch nicht**, dass jeder getragene
-Gegenstand kopierbar und übertragbar ist. Die bestehende
+Die neue Vorabprüfung kontrolliert nun, ob alle in der Appearance
+referenzierten Wearables und Attachments vorhanden sind und die
+Current-/Next-Owner-Berechtigungen **Copy + Transfer** besitzen.
+Sie garantiert **noch nicht**, dass verschachtelte Inhalte von
+Objektinventaren ebenfalls freigegeben sind. Die bestehende
 `CopyWearablesAndAttachments`-Routine wird weiterhin verwendet.
 Ein vollständiger atomarer Registrierungs-/Inventar-Workflow und
 Snapshot-Publishing sind nicht implementiert. Die Vorlage bleibt
@@ -66,7 +69,8 @@ bis zur Rechteprüfung und echten Integrationstests deaktiviert.
 
 ## Geplante Phase 2
 
-- Permission-safe Kopierpfad und Validierung der Attachment-Inhalte.
+- Tiefenprüfung verschachtelter Attachment-Inhalte, Link-Ketten und
+  Race-Conditions zwischen Vorabprüfung und tatsächlichem Kopieren.
 - Veröffentlichbare, versionierte Snapshots, getrennt vom Live-Avatar.
 - Authentifizierte API für das Stadtportal mit ausschließlich
   freigegebenen Template-IDs.
