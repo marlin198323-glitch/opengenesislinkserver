@@ -737,7 +737,10 @@ namespace OpenSim.Services.UserAccountService
                                 firstName, lastName);
                             if (!string.IsNullOrEmpty(model) &&
                                 model.StartsWith("ogl:", StringComparison.OrdinalIgnoreCase))
+                            {
+                                CompensateFailedOglStarterRegistration(account.PrincipalID);
                                 return null;
+                            }
                         }
                     }
 
@@ -780,6 +783,7 @@ namespace OpenSim.Services.UserAccountService
                             model.StartsWith("ogl:", StringComparison.OrdinalIgnoreCase))
                         {
                             m_log.Error("[OGL AVATAR TEMPLATES]: Starter inventory initialization failed");
+                            CompensateFailedOglStarterRegistration(account.PrincipalID);
                             return null;
                         }
 
@@ -792,6 +796,7 @@ namespace OpenSim.Services.UserAccountService
                                 if (!TryEstablishAppearance(account.PrincipalID, ResolveOglStarterModel(model), true))
                                 {
                                     m_log.Error("[OGL AVATAR TEMPLATES]: Starter appearance initialization failed");
+                                    CompensateFailedOglStarterRegistration(account.PrincipalID);
                                     return null;
                                 }
                             }
@@ -815,6 +820,25 @@ namespace OpenSim.Services.UserAccountService
             }
 
             return account;
+        }
+
+        // Best-effort compensation for a failed starter registration.
+        // The storage API supports account deletion, but authentication,
+        // inventory and appearance services have no shared transaction.
+        // Never report this as an atomic rollback.
+        private void CompensateFailedOglStarterRegistration(UUID principalID)
+        {
+            try
+            {
+                if (!m_Database.Delete("PrincipalID", principalID.ToString()))
+                    m_log.ErrorFormat("[OGL AVATAR TEMPLATES]: Manual cleanup required for failed registration {0}", principalID);
+                else
+                    m_log.WarnFormat("[OGL AVATAR TEMPLATES]: Removed account record for failed registration {0}; check orphaned authentication and inventory data", principalID);
+            }
+            catch (Exception e)
+            {
+                m_log.ErrorFormat("[OGL AVATAR TEMPLATES]: Account cleanup failed for {0}: {1}", principalID, e.Message);
+            }
         }
 
         /// <summary>
