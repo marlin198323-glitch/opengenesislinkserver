@@ -1014,7 +1014,9 @@ namespace OpenSim.Services.UserAccountService
                 // a model owner could revoke permissions after registration preflight.
                 if (m_OglStarterTemplatesEnabled &&
                     (string.Equals(model, m_OglBenjaminTemplate, StringComparison.Ordinal) ||
-                     string.Equals(model, m_OglLunaTemplate, StringComparison.Ordinal)) &&
+                     string.Equals(model, m_OglLunaTemplate, StringComparison.Ordinal) ||
+                     string.Equals(model, m_OglBenjaminPublishedModel, StringComparison.Ordinal) ||
+                     string.Equals(model, m_OglLunaPublishedModel, StringComparison.Ordinal)) &&
                     !ValidateOglStarterItems(modelAccount.PrincipalID, modelAppearance))
                     throw new InvalidOperationException("Starter outfit changed or is not transferable");
 
