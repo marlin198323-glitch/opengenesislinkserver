@@ -1,7 +1,7 @@
 # OGL Viewer – separate JSON-Grid-Discovery v1
 
 **Status:** erster serverseitiger Protokollbaustein für OpenGenesisLINK
-0.9.3.11/0.9.3.12, **kein eigener OGL-Login** und kein neuer Stable-Release.
+0.9.3.11/0.9.3.12. Ein **separater nativer OGL-JSON-Login ist als Entwicklungsadapter implementiert, im ausgelieferten Robust-Profil aber standardmäßig deaktiviert**. Es gibt noch keinen neuen Stable-Release. Der verbindliche, kontinuierlich gepflegte Vertrag für den eigenen Viewer ist [OGL_VIEWER_DEVELOPMENT.md](OGL_VIEWER_DEVELOPMENT.md).
 
 ## Endpunkt und Kompatibilität
 
@@ -79,11 +79,29 @@ Konfigurationsfelder. Ungültige oder mit eingebetteten
 Zugangsdaten versehene URLs werden ausgelassen (`null`).
 `POST` oder andere Methoden werden mit **405** abgewiesen.
 
-## Native OGL-Login-Architektur – nächste Entwicklungsstufe
+## Nativer OGL-Login – optionaler Entwicklungsadapter
 
-Eine spätere, getrennte `POST /ogl/v1/login`-Route darf erst als
-`ogl_native_login: true` beworben werden, wenn sie tatsächlich
-serverseitig registriert und Ende-zu-Ende getestet wurde.
+Der Server stellt über den bestehenden `LLLoginServiceInConnector` bereits
+`POST /ogl/v1/login` als separaten JSON-Handler bereit. Diese Route
+ist in `Robust.HG.ini` und `Robust.HG.ini.example` unter
+`[OglViewerLogin] Enabled=false` deaktiviert. Sie verlangt für
+Passwörter TLS, oder einen explizit konfigurierten TLS-Terminierungsproxy;
+sie verwendet exakt denselben `ILoginService` wie Firestorm.
+
+In der GridInfo erscheint `features.ogl_native_login=true` nur wenn
+`Enabled=true` **und** eine gültige externe HTTPS-`PublicLoginUrl`
+für den Pfad `/ogl/v1/login` hinterlegt ist. Ohne diese Voraussetzungen
+bleiben `ogl_login=null` und `ogl_native_login=false`.
+
+**Konkrete JSON-Felder, Fehlercodes, Viewer-Aufgaben und Sicherheitsregeln:**
+[OGL_VIEWER_DEVELOPMENT.md](OGL_VIEWER_DEVELOPMENT.md).
+
+### Weiterer Freigabeweg
+
+Der vorhandene Entwicklungsadapter ist noch nicht anhand eines echten
+Avatar-Logins samt Session/CAPS und Simulatorplatzierung live abgenommen.
+Produktives `ogl_native_login=true` ist erst nach expliziter
+Betreiberaktivierung und vollständiger TLS-/Viewer-Integration zulässig.
 
 Sie soll die **bestehende** `ILoginService`-Authentifizierung,
 Sperren und Rechte, Region-Placement, Caps-Erzeugung und
