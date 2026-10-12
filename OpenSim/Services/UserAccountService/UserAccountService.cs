@@ -533,24 +533,6 @@ namespace OpenSim.Services.UserAccountService
                 newPassword = MainConsole.Instance.Prompt("New password", null, null, false);
             else newPassword = cmdparams[5];
 
-            // Reject missing credentials before writing any starter account.
-            if (!string.IsNullOrEmpty(model) &&
-                model.StartsWith("ogl:", StringComparison.OrdinalIgnoreCase) &&
-                (string.IsNullOrWhiteSpace(password) || string.IsNullOrWhiteSpace(email)))
-            {
-                m_log.Warn("[OGL AVATAR TEMPLATES]: Starter registration requires password and email");
-                return null;
-            }
-
-            // Starter registrations require an authentication backend. Otherwise
-            // the legacy path could persist an account without login credentials.
-            if (!string.IsNullOrEmpty(model) &&
-                model.StartsWith("ogl:", StringComparison.OrdinalIgnoreCase) &&
-                m_AuthenticationService == null)
-            {
-                m_log.Warn("[OGL AVATAR TEMPLATES]: Authentication service unavailable");
-                return null;
-            }
             UserAccount account = GetUserAccount(UUID.Zero, firstName, lastName);
             if (account == null)
             {
@@ -666,6 +648,24 @@ namespace OpenSim.Services.UserAccountService
             firstName = firstName.Trim();
             lastName = lastName.Trim();
 
+            // Reject missing credentials before writing any starter account.
+            if (!string.IsNullOrEmpty(model) &&
+                model.StartsWith("ogl:", StringComparison.OrdinalIgnoreCase) &&
+                (string.IsNullOrWhiteSpace(password) || string.IsNullOrWhiteSpace(email)))
+            {
+                m_log.Warn("[OGL AVATAR TEMPLATES]: Starter registration requires password and email");
+                return null;
+            }
+
+            // Starter registrations require an authentication backend. Otherwise
+            // the legacy path could persist an account without login credentials.
+            if (!string.IsNullOrEmpty(model) &&
+                model.StartsWith("ogl:", StringComparison.OrdinalIgnoreCase) &&
+                m_AuthenticationService == null)
+            {
+                m_log.Warn("[OGL AVATAR TEMPLATES]: Authentication service unavailable");
+                return null;
+            }
             // Reject invalid OGL starter requests before creating a user account.
             // The legacy OpenSim model parameter remains backward compatible.
             if (!string.IsNullOrEmpty(model) && model.StartsWith("ogl:", StringComparison.OrdinalIgnoreCase))
