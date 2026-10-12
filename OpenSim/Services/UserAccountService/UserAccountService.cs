@@ -533,6 +533,15 @@ namespace OpenSim.Services.UserAccountService
                 newPassword = MainConsole.Instance.Prompt("New password", null, null, false);
             else newPassword = cmdparams[5];
 
+            // Starter registrations require an authentication backend. Otherwise
+            // the legacy path could persist an account without login credentials.
+            if (!string.IsNullOrEmpty(model) &&
+                model.StartsWith("ogl:", StringComparison.OrdinalIgnoreCase) &&
+                m_AuthenticationService == null)
+            {
+                m_log.Warn("[OGL AVATAR TEMPLATES]: Authentication service unavailable");
+                return null;
+            }
             UserAccount account = GetUserAccount(UUID.Zero, firstName, lastName);
             if (account == null)
             {
@@ -714,8 +723,13 @@ namespace OpenSim.Services.UserAccountService
                     {
                         success = m_AuthenticationService.SetPassword(account.PrincipalID, password);
                         if (!success)
+                        {
                             m_log.WarnFormat("[USER ACCOUNT SERVICE]: Unable to set password for account {0} {1}.",
                                 firstName, lastName);
+                            if (!string.IsNullOrEmpty(model) &&
+                                model.StartsWith("ogl:", StringComparison.OrdinalIgnoreCase))
+                                return null;
+                        }
                     }
 
                     GridRegion home = null;
