@@ -441,7 +441,7 @@ jobs:
 
       - name: Runtime LSL core conformance (0.9.3.11)
         shell: bash
-        run: dotnet run --no-restore --configuration Release --project tools/ci/LslConformanceRegression/LslConformanceRegression.csproj
+        run: dotnet run --configuration Release --project tools/ci/LslConformanceRegression/LslConformanceRegression.csproj
 
       - name: Regression-test Firestorm My Outfits system folder against real SQLite inventory
         shell: bash
