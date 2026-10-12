@@ -2080,13 +2080,16 @@ Rules for changes:
 
 ## G2.-1 Startfreigabe: Repository erfragen und Lizenzstrategie prüfen
 
+**Aktuelle Lizenzpräferenz (13.10.2026):** Eigene **OGL Community License 1.0** mit erlaubtem Eigenbetrieb und privaten Änderungen, aber genehmigungspflichtiger Weitergabe abgeleiteter OGL-Serverdistributionen. Vollständige zweisprachige **Entwürfe zur juristischen Prüfung**, noch nicht auf Gen-1-Dateien angewendet: [Deutsch](licenses/OGL-COMMUNITY-LICENSE-1.0-DRAFT.de.md) · [English](licenses/OGL-COMMUNITY-LICENSE-1.0-DRAFT.en.md). Nicht OSI-Open-Source; Rechte an geerbtem Code bleiben bestehen.
+
+
 **Verbindliche Startbedingung:** Vor Beginn der tatsächlichen Generation-2-Implementierung den Betreiber ausdrücklich nach dem gewünschten Namen und der vollständigen GitHub-Repository-Adresse fragen. `opengenesislink/oglserver` ist ausschließlich ein vorläufiger Vorschlag; kein Repository eigenmächtig anlegen oder voraussetzen.
 
 **Lizenzziel:** Verbesserungen, Bearbeitung und Weitergabe sollen erlaubt bleiben, während Copyleft-Pflichten die Offenheit weitergegebener Änderungen schützen. Eine generelle Untersagung von Forks ist mit anerkannter Open Source nicht vereinbar und darf nicht als Open-Source-Lizenzbedingung versprochen werden.
 
 - [ ] Vor dem ersten Gen-2-Code-Commit Repository-Name, Eigentümer/Organisation und Zugriffsmodell ausdrücklich bestätigen lassen.
 - [ ] Vor Lizenzentscheidung alle übernommenen Gen-1-/OpenSimulator-Dateien, Abhängigkeiten und vorhandenen MPL-2.0-/sonstigen Lizenzpflichten inventarisieren; bestehende Rechte und Hinweise unverändert respektieren.
-- [ ] **Bevorzugter Lizenzkandidat des Betreibers: Elastic License 2.0 (ELv2)** für ausschließlich neue Komponenten, an denen die nötigen Rechte bestehen; die endgültige Lizenzentscheidung erst nach rechtlicher und Kompatibilitätsprüfung treffen. ELv2 ist Source-Available, nicht OSI-Open-Source; sie untersagt Forks und konkurrierende Distributionen nicht generell. Bestehende Gen-1-/OpenSimulator-Lizenzrechte bleiben unberührt.
+- [ ] **Historischer Lizenzkandidat: Elastic License 2.0 (ELv2)** für ausschließlich neue Komponenten, an denen die nötigen Rechte bestehen; die endgültige Lizenzentscheidung erst nach rechtlicher und Kompatibilitätsprüfung treffen. ELv2 ist Source-Available, nicht OSI-Open-Source; sie untersagt Forks und konkurrierende Distributionen nicht generell. Bestehende Gen-1-/OpenSimulator-Lizenzrechte bleiben unberührt.
 - [ ] Mit dem Betreiber die konkrete Lizenzkombination nach Kompatibilitätsprüfung festlegen und erst dann LICENSE-, NOTICE- und CONTRIBUTING-Dateien anlegen.
 - [ ] OpenGenesisLINK-Name, Logos und offizielle Kennzeichnung separat über eine Marken-/Namensrichtlinie schützen; Forks dürfen Open-Source-Rechte ausüben, aber nicht irreführend als offizielles Projekt auftreten.
 - [ ] Keine rechtlich widersprüchliche Zusage „Open Source ohne Forks“ in Dokumentation, Lizenz oder UI verwenden.
