@@ -1201,7 +1201,7 @@ namespace OpenSim.Services.UserAccountService
                         }
                         else
                         {
-                            m_log.WarnFormat("[USER ACCOUNT SERVICE]: Error transferring {0} to folder {1}", wearable.ItemID, destinationFolder.ID);
+                            throw new InvalidOperationException("Starter wearable disappeared during copy");
                         }
                     }
                 }
@@ -1260,7 +1260,7 @@ namespace OpenSim.Services.UserAccountService
                     }
                     else
                     {
-                        m_log.WarnFormat("[USER ACCOUNT SERVICE]: Error transferring {0} to folder {1}", itemID, destinationFolder.ID);
+                        throw new InvalidOperationException("Starter attachment disappeared during copy");
                     }
                 }
             }
