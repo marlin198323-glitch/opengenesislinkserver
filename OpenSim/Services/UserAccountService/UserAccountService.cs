@@ -895,11 +895,11 @@ namespace OpenSim.Services.UserAccountService
             InventoryItemBase item = ResolveOglStarterItem(owner, itemId);
 
             uint required = (uint)(PermissionMask.Copy | PermissionMask.Transfer);
-            if (item == null || item.AssetID.IsZero() ||
+            if (item == null || item.Owner != owner || item.AssetID.IsZero() ||
                 (item.CurrentPermissions & required) != required ||
                 (item.NextPermissions & required) != required)
             {
-                m_log.Warn("[OGL AVATAR TEMPLATES]: Starter item missing or lacks copy/transfer permissions");
+                m_log.Warn("[OGL AVATAR TEMPLATES]: Starter item missing, owner mismatch or lacks copy/transfer permissions");
                 return false;
             }
             return true;
