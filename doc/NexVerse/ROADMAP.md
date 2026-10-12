@@ -2111,13 +2111,26 @@ Rules for changes:
 - [ ] Konsistente Datenbank-Snapshots und inkrementelle Asset-Sicherungen samt Restore-Probetests; kein irreführendes Versprechen, dass allein ein MariaDB-Dump ausreicht.
 - [ ] Speicherverbrauch, Deduplizierungsquote, Asset-Latenz und Wiederherstellungsdauer unter realistischer Last messen.
 
-## G2.4 Erste Meilensteine
+## G2.4 Eigene OGL-Physikengine (verbindliches Gen-2-Ziel)
+
+**Entscheidung:** Generation 2 erhält eine eigenständige, langfristig vollständig integrierte OGL-Physikengine, die die geerbte OpenSimulator-Physik (z. B. BulletSim) nach erfolgreicher Parität und Abnahme ersetzt. Bis dahin bleibt ein austauschbarer Legacy-Adapter als Fallback verfügbar; kein ungeprüfter harter Wechsel.
+
+- [ ] Eigene Physik-Abstraktion mit deterministisch testbaren Schnittstellen für Rigid Bodies, Kollisionen, Raycasts, Constraints, Terrain, Fahrzeuge und Avatar-Controller.
+- [ ] Modularer Simulationskern mit festen Zeitschritten, reproduzierbaren Regressionstests, Threading-Konzept und kontrolliertem Speicherverbrauch.
+- [ ] LSL-/OSSL-Physikverhalten, Skriptereignisse, Sitz-/Fahrzeugverhalten, Linksets und Kollisionen kompatibel abbilden.
+- [ ] Terrain- und Wasserinteraktion sowie spätere OGL HydroEngine über definierte Schnittstellen integrieren; Wassersimulation als eigener Ausbau, nicht als ungeprüfte Basisannahme.
+- [ ] Regionenübergänge und physikalische Zustandsübergabe zwischen Simulatoren absichern.
+- [ ] Physikbackend zunächst per Konfiguration umschaltbar machen: `Legacy` oder `OGLPhysics`; OGLPhysics erst nach dokumentierten Vergleichstests als Standard setzen.
+- [ ] Stabilitäts-, Performance- und Kompatibilitätsnachweise gegen Generation 1: CPU, RAM, Tick-Dauer, Kollisionen, Fahrzeuge, Avatare und LSL.
+- [ ] Eigene Lizenz- und Abhängigkeitsprüfung der Physikimplementierung im Hinblick auf das MPL-2.0-Projektziel.
+
+## G2.5 Erste Meilensteine
 
 - [ ] **G2 M0 — Repository & Architektur:** `oglserver`, Build/CI, Lizenzprüfung, Modulgrenzen, Konfigurationsschema, MariaDB-Migrationsgrundlage.
 - [ ] **G2 M1 — Storage:** OGL AssetStore, MariaDB-Metadaten, UUID/Hash-Mapping, FSAssets-Testimport, Integritäts- und Restore-Tests.
 - [ ] **G2 M2 — Dienste:** OGL Robust auf Port 8100, Webverwaltung, Identity-Adapter, abgesicherte JSON GridInfo.
 - [ ] **G2 M3 — Beta-Grid:** OGL Simulator mit Testregion, Viewer-Grid-Auswahl `beta.stadt-nexverse.de`, Anmeldung mit bestehendem NexVerse-Account.
 - [ ] **G2 M4 — Kompatibilität:** Appearance-/Inventarimport, Legacy-Viewer/Hypergrid in beide Richtungen, OAR/IAR- und LSL-Regressionen.
-- [ ] **G2 M5 — Leistungsnachweis:** Vergleich von RAM, CPU, Region-Tick, Asset-Latenz und Backup-/Restore-Zeiten mit Generation 1.
+- [ ] **G2 M5 — OGL Physics:** Eigenes Physikbackend implementieren, per Konfiguration parallel zum Legacy-Backend testen und erst nach Funktionsparität umstellen.\n- [ ] **G2 M6 — Leistungsnachweis:** Vergleich von RAM, CPU, Region-Tick, Asset-Latenz und Backup-/Restore-Zeiten mit Generation 1.
 
 **Freigaberegel:** Gen 2 bleibt Beta, bis Funktionstests, Sicherheitsprüfungen, Datenmigration, Backup/Restore und Legacy-Kompatibilität nachgewiesen sind. Kein produktiver Gen-1-Datenbestand darf durch Beta-Tests verändert werden.
