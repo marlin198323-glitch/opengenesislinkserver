@@ -771,7 +771,7 @@ namespace OpenSim.Services.UserAccountService
 
         private bool ValidateOglStarterItems(UUID owner, AvatarAppearance appearance)
         {
-            if (appearance == null)
+            if (appearance == null || appearance.Wearables == null)
                 return false;
 
             foreach (AvatarWearable wearableSet in appearance.Wearables)
@@ -813,7 +813,7 @@ namespace OpenSim.Services.UserAccountService
         private bool ValidateOglStarterItem(UUID owner, UUID itemId)
         {
             if (itemId.IsZero())
-                return true;
+                return false;
 
             InventoryItemBase item = ResolveOglStarterItem(owner, itemId);
 
@@ -993,6 +993,13 @@ namespace OpenSim.Services.UserAccountService
 
             try
             {
+                // Recheck immediately before copying to narrow the window in which
+                // a model owner could revoke permissions after registration preflight.
+                if (m_OglStarterTemplatesEnabled &&
+                    (model == m_OglBenjaminTemplate || model == m_OglLunaTemplate) &&
+                    !ValidateOglStarterItems(modelAccount.PrincipalID, modelAppearance))
+                    throw new InvalidOperationException("Starter outfit changed or is not transferable");
+
                 CopyWearablesAndAttachments(destinationAgent, modelAccount.PrincipalID, modelAppearance);
 
                 m_AvatarService.SetAppearance(destinationAgent, modelAppearance);
