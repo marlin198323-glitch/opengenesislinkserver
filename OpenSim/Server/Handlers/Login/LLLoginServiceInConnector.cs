@@ -28,6 +28,8 @@
 using System;
 using System.Collections.Generic;
 using System.Reflection;
+using System.Net;
+using System.Text.Json;
 using log4net;
 using Nini.Config;
 using OpenSim.Server.Base;
@@ -103,6 +105,29 @@ namespace OpenSim.Server.Handlers.Login
             return loginService;
         }
 
+        private void HandleOglLoginUnavailable(IOSHttpRequest request, IOSHttpResponse response)
+        {
+            response.KeepAlive = false;
+            response.ContentType = "application/json; charset=utf-8";
+            response.AddHeader("Cache-Control", "no-store");
+            response.AddHeader("X-Content-Type-Options", "nosniff");
+            if (!string.Equals(request.HttpMethod, "POST", StringComparison.OrdinalIgnoreCase))
+            {
+                response.StatusCode = (int)HttpStatusCode.MethodNotAllowed;
+                response.AddHeader("Allow", "POST");
+                response.RawBuffer = JsonSerializer.SerializeToUtf8Bytes(new { error = "method_not_allowed" });
+                return;
+            }
+            // Do not read or log credentials while the native protocol is disabled.
+            response.StatusCode = (int)HttpStatusCode.ServiceUnavailable;
+            response.RawBuffer = JsonSerializer.SerializeToUtf8Bytes(new
+            {
+                schema = "org.opengenesislink.viewer.login.v1",
+                error = "native_login_not_enabled",
+                message = "Use the existing OpenSim login until native OGL login is enabled."
+            });
+        }
+
         private void InitializeHandlers(IHttpServer server)
         {
             LLLoginHandlers loginHandlers = new LLLoginHandlers(m_LoginService, m_Proxy);
@@ -112,6 +137,9 @@ namespace OpenSim.Server.Handlers.Login
             server.AddXmlRPCHandler("login_to_simulator",loginHandlers.HandleXMLRPCLogin, false);
             server.AddXmlRPCHandler("set_login_level", loginHandlers.HandleXMLRPCSetLoginLevel, false);
             server.SetDefaultLLSDHandler(loginHandlers.HandleLLSDLogin);
+            // Separate, fail-closed native OGL protocol route. It is not advertised
+            // as available until TLS, rate limiting and session tests are complete.
+            server.AddSimpleStreamHandler(new SimpleStreamHandler("/ogl/v1/login", HandleOglLoginUnavailable));
             //server.AddWebSocketHandler("/WebSocket/GridLogin", loginHandlers.HandleWebSocketLoginEvents);
         }
     }
