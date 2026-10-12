@@ -751,6 +751,15 @@ namespace OpenSim.Services.UserAccountService
                                 "[USER ACCOUNT SERVICE]: Created user inventory for {0} {1}", firstName, lastName);
                         }
 
+                        // A starter registration must never continue with an
+                        // uninitialized inventory: the outfit would be lost.
+                        if (!success && !string.IsNullOrEmpty(model) &&
+                            model.StartsWith("ogl:", StringComparison.OrdinalIgnoreCase))
+                        {
+                            m_log.Error("[OGL AVATAR TEMPLATES]: Starter inventory initialization failed");
+                            return null;
+                        }
+
                         if (m_CreateDefaultAvatarEntries)
                         {
                             if (String.IsNullOrEmpty(model))
