@@ -62,7 +62,10 @@ Current-Outfit-Verknüpfung für Wearables **und** Attachments. Verschachtelte
 und zyklische Links werden verworfen. Die neue Vorabprüfung kontrolliert nun, ob alle in der Appearance
 referenzierten Wearables und Attachments vorhanden sind und die
 Current-/Next-Owner-Berechtigungen **Copy + Transfer** besitzen.
-Sie garantiert **noch nicht**, dass verschachtelte Inhalte von
+Eine erneute Validierung unmittelbar vor dem Kopieren reduziert die
+Zeitlücke zwischen Registrierungsvorabprüfung und Übernahme.
+Leere Item-UUIDs werden als ungültig behandelt. Sie garantiert
+**noch nicht**, dass verschachtelte Inhalte von
 Objektinventaren ebenfalls freigegeben sind. Die bestehende
 `CopyWearablesAndAttachments`-Routine wird weiterhin verwendet.
 Ein vollständiger atomarer Registrierungs-/Inventar-Workflow und
