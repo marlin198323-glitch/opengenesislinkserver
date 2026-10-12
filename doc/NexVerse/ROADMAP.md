@@ -2131,6 +2131,7 @@ Rules for changes:
 - [ ] **G2 M2 — Dienste:** OGL Robust auf Port 8100, Webverwaltung, Identity-Adapter, abgesicherte JSON GridInfo.
 - [ ] **G2 M3 — Beta-Grid:** OGL Simulator mit Testregion, Viewer-Grid-Auswahl `beta.stadt-nexverse.de`, Anmeldung mit bestehendem NexVerse-Account.
 - [ ] **G2 M4 — Kompatibilität:** Appearance-/Inventarimport, Legacy-Viewer/Hypergrid in beide Richtungen, OAR/IAR- und LSL-Regressionen.
-- [ ] **G2 M5 — OGL Physics:** Eigenes Physikbackend implementieren, per Konfiguration parallel zum Legacy-Backend testen und erst nach Funktionsparität umstellen.\n- [ ] **G2 M6 — Leistungsnachweis:** Vergleich von RAM, CPU, Region-Tick, Asset-Latenz und Backup-/Restore-Zeiten mit Generation 1.
+- [ ] **G2 M5 — OGL Physics:** Eigenes Physikbackend implementieren, per Konfiguration parallel zum Legacy-Backend testen und erst nach Funktionsparität umstellen.
+- [ ] **G2 M6 — Leistungsnachweis:** Vergleich von RAM, CPU, Region-Tick, Asset-Latenz und Backup-/Restore-Zeiten mit Generation 1.
 
 **Freigaberegel:** Gen 2 bleibt Beta, bis Funktionstests, Sicherheitsprüfungen, Datenmigration, Backup/Restore und Legacy-Kompatibilität nachgewiesen sind. Kein produktiver Gen-1-Datenbestand darf durch Beta-Tests verändert werden.
