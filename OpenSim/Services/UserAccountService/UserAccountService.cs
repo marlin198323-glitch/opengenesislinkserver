@@ -654,6 +654,13 @@ namespace OpenSim.Services.UserAccountService
                     m_log.Warn("[OGL AVATAR TEMPLATES]: Refusing missing or unready model avatar");
                     return null;
                 }
+
+                // Validate every currently worn item before creating the account.
+                // This prevents partial starter inventories caused by missing or
+                // non-transferable source items. Object contents need separate review.
+                if (!ValidateOglStarterItems(templateAccount.PrincipalID,
+                    m_AvatarService.GetAppearance(templateAccount.PrincipalID)))
+                    return null;
             }
             UserAccount account = GetUserAccount(UUID.Zero, firstName, lastName);
             if (null == account)
@@ -760,6 +767,52 @@ namespace OpenSim.Services.UserAccountService
 
             m_log.Warn("[OGL AVATAR TEMPLATES]: Unknown starter template identifier");
             return string.Empty;
+        }
+
+        private bool ValidateOglStarterItems(UUID owner, AvatarAppearance appearance)
+        {
+            if (appearance == null)
+                return false;
+
+            foreach (AvatarWearable wearableSet in appearance.Wearables)
+            {
+                if (wearableSet == null)
+                    continue;
+                for (int i = 0; i < wearableSet.Count; i++)
+                {
+                    if (!ValidateOglStarterItem(owner, wearableSet[i].ItemID))
+                        return false;
+                }
+            }
+
+            foreach (AvatarAttachment attachment in appearance.GetAttachments())
+            {
+                if (!ValidateOglStarterItem(owner, attachment.ItemID))
+                    return false;
+            }
+            return true;
+        }
+
+        private bool ValidateOglStarterItem(UUID owner, UUID itemId)
+        {
+            if (itemId.IsZero())
+                return true;
+
+            InventoryItemBase item = m_InventoryService.GetItem(owner, itemId);
+            // Current Outfit links reference the actual item UUID as AssetID.
+            if (item != null && item.AssetType == (int)AssetType.Link)
+                item = item.AssetID.IsZero() ? null :
+                    m_InventoryService.GetItem(owner, item.AssetID);
+
+            uint required = (uint)(PermissionMask.Copy | PermissionMask.Transfer);
+            if (item == null || item.AssetID.IsZero() ||
+                (item.CurrentPermissions & required) != required ||
+                (item.NextPermissions & required) != required)
+            {
+                m_log.Warn("[OGL AVATAR TEMPLATES]: Starter item missing or lacks copy/transfer permissions");
+                return false;
+            }
+            return true;
         }
 
         protected void CreateDefaultAppearanceEntries(UUID principalID)
