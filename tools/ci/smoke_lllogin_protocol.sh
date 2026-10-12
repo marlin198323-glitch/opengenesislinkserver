@@ -170,4 +170,65 @@ err=json.loads(Path("/tmp/nexverse-ogl-grid-info-post.json").read_text())
 assert err["error"] == "method_not_allowed"
 PY
 
-echo "NexVerse Firestorm-compatible LLLogin XML-RPC + separate OGL JSON GridInfo runtime smoke: OK"
+# Native OGL login is a separate JSON handler on the SAME Robust
+# listener. Production defaults disabled, CI explicitly opts in with
+# localhost as a simulated trusted TLS proxy. No real credentials used.
+OGL_LOGIN="http://127.0.0.1:19092/ogl/v1/login"
+POST_BODY='{"protocol_version":1,"first":"NexVerseCiMissing","last":"Resident","passwd":"not-a-real-password","start":"last"}'
+
+# GET is never login, and requests without verified transport are denied
+# BEFORE their credentials are parsed or given to the login service.
+CODE=$(curl --silent --show-error --max-time 5 --output /tmp/ogl-login-get.json \
+  --write-out '%{http_code}' "$OGL_LOGIN")
+test "$CODE" = "405"
+CODE=$(curl --silent --show-error --max-time 5 --output /tmp/ogl-login-plain.json \
+  --write-out '%{http_code}' -H 'Content-Type: application/json' \
+  --data "$POST_BODY" "$OGL_LOGIN")
+test "$CODE" = "426"
+python3 - <<'PY'
+import json
+from pathlib import Path
+assert json.loads(Path("/tmp/ogl-login-plain.json").read_text())["error"] == "tls_required"
+PY
+
+# An unrelated forwarded header never makes a request secure.
+CODE=$(curl --silent --show-error --max-time 5 --output /tmp/ogl-login-spoof.json \
+  --write-out '%{http_code}' -H 'Content-Type: application/json' \
+  -H 'X-Forwarded-Proto: http' --data "$POST_BODY" "$OGL_LOGIN")
+test "$CODE" = "426"
+
+# This is allowed ONLY because the CI config explicitly trusts localhost as
+# its simulated TLS terminator. Invalid account must fail without leaking
+# an account-enumeration reason, tokens or source passwords.
+CODE=$(curl --silent --show-error --max-time 5 --output /tmp/ogl-login-unknown.json \
+  --write-out '%{http_code}' -H 'Content-Type: application/json' \
+  -H 'X-Forwarded-Proto: https' --data "$POST_BODY" "$OGL_LOGIN")
+test "$CODE" = "401"
+python3 - <<'PY'
+import json
+from pathlib import Path
+doc = json.loads(Path("/tmp/ogl-login-unknown.json").read_text())
+assert doc["protocol_version"] == 1
+assert doc["error"] == "login_failed"
+assert "NexVerseCiMissing" not in str(doc)
+assert "not-a-real-password" not in str(doc)
+PY
+
+# Strict protocol validation and request body size limit.
+CODE=$(curl --silent --show-error --max-time 5 --output /tmp/ogl-login-protocol.json \
+  --write-out '%{http_code}' -H 'Content-Type: application/json' \
+  -H 'X-Forwarded-Proto: https' \
+  --data '{"protocol_version":999,"first":"x","last":"y","passwd":"z"}' "$OGL_LOGIN")
+test "$CODE" = "400"
+python3 - <<'PY'
+import json
+from pathlib import Path
+assert json.loads(Path("/tmp/ogl-login-protocol.json").read_text())["error"] == "unsupported_protocol"
+PY
+
+CODE=$(curl --silent --show-error --max-time 5 --output /tmp/ogl-login-method.json \
+  --write-out '%{http_code}' -H 'Content-Type: text/plain' \
+  -H 'X-Forwarded-Proto: https' --data 'hello' "$OGL_LOGIN")
+test "$CODE" = "415"
+
+echo "NexVerse Firestorm XML-RPC + OGL GridInfo JSON + optional OGL JSON login negative smoke: OK"
