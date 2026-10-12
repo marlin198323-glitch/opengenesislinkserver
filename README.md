@@ -4,6 +4,16 @@
 
 This repository starts from the published **OpenSimulator 0.9.3.0 ("Nessie") Release** source package. It is intentionally maintained as its own repository rather than as a GitHub fork. The long-term objective is an independent OpenGenesisLINK development line whose architecture, services, protocols, modules, tooling and branding may diverge substantially from OpenSimulator.
 
+## Entwicklung des eigenen OpenGenesisLINK Viewers
+
+**Verbindliche, fortlaufend gepflegte technische Übergabe an den eigenen Viewer-Fork:**
+[OGL_VIEWER_DEVELOPMENT.md](doc/NexVerse/OGL_VIEWER_DEVELOPMENT.md).
+Darin stehen sämtliche OGL-spezifischen Server-/Viewer-Protokolle, Implementierungsstatus,
+JSON-Verträge, Sicherheitsanforderungen, Firestorm-Fallbacks und konkreten Viewer-Arbeitsaufträge.
+**Bei jeder Änderung einer eigenen OGL-Viewer-Funktion diese Datei mit aktualisieren.**
+Die eigene OGL-Grid-Discovery existiert; nativer JSON-Login befindet sich im Entwicklungszweig
+und ist im ausgelieferten Robust-Standardprofil zunächst deaktiviert.
+
 ## Upstream baseline
 
 - Upstream project: OpenSimulator
