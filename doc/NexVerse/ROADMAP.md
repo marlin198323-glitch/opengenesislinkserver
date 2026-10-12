@@ -1901,6 +1901,42 @@ stehen im Abschnitt **„Nach 0.9.4.0 – eigene Viewer-Generation“**.
 
 Every new NexVerse subsystem that has LSL surface area must add its LSL behavior and regression tests during implementation.
 
+
+## 22.8 OGL Starter-Avatar-Vorlagen für Stadtportal
+
+**Status: Implementierung begonnen, noch nicht produktionsreif.**
+Die Vorlagen `Benjamin Resident` und `Luna Resident` werden über
+`ogl:benjamin` bzw. `ogl:luna` ausgewählt. Ausschließlich getragene
+Wearables, Körperteile und Attachments (auch Mesh) sollen übernommen werden.
+Der bestehende `CreateUser(..., model)`-Pfad bietet bereits eine
+OpenSimulator-Kopierbasis; OGL-Aliase sind im Featurebranch implementiert.
+
+**Noch verpflichtend:** Berechtigungs-/Assetprüfung, Snapshot-Publishing,
+gesicherte Portal-Registrierungs-API, Rollback/Fehlerbehandlung und echte
+Erstlogin-/COF-/Mesh-Tests. Default ist deaktiviert; keine Stable-Freigabe.
+
+## 22.9 LSL-Vollständigkeit vor Experiences 2.0 / Pathfinding 2.0
+
+**Verbindliches Ziel:** Alle regulären LSL-Funktionen und -Events,
+Konstanten, Berechtigungs- und Timing-Semantiken sollen mit dem
+OpenGenesisLINK-LSL-Interpreter kompatibel und verifiziert sein.
+**Explizit ausgenommen:** die spezifischen Experience- und
+Pathfinding-Funktionen/-Events. Bestehende experimentelle Stubs
+gelten nicht als fertig.
+
+Die Inventarmatrix `tools/lsl/lsl_matrix.py` ist die Ausgangsbasis.
+Jeder Eintrag braucht eine dokumentierte Einstufung und reproduzierbare
+Tests für Signatur, Verhalten, Permissions, Forced Delays, Fehlerfälle
+und gegebenenfalls Inworld-Ausführung. Fehlende oder partielle
+Funktionen werden nach Domänen (Avatar/Attachments, Inventory/Assets,
+Chat/HTTP, Land, Physics, Media, Economy, JSON/Listen, Animation)
+priorisiert und erst nach Nachweis als vollständig markiert.
+
+**Release-Gate:** Keine pauschale Aussage „LSL vollständig“, bevor
+die Matrix alle nicht ausgenommenen Funktionen als verifiziert ausweist,
+CI grün ist und Inworld-Belege vorliegen. Experiences und Pathfinding
+bleiben eigenständige spätere Roadmap-Meilensteine.
+
 ## 22.4 Hypergrid compatibility
 
 Retain HG compatibility unless an explicitly versioned NexVerse federation mechanism replaces or supplements a particular path.

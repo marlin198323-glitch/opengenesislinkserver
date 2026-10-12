@@ -50,6 +50,9 @@ namespace OpenSim.Services.UserAccountService
         /// Should we create default entries (minimum body parts/clothing, avatar wearable entries) for a new avatar?
         /// </summary>
         private bool m_CreateDefaultAvatarEntries;
+        private bool m_OglStarterTemplatesEnabled;
+        private string m_OglBenjaminTemplate;
+        private string m_OglLunaTemplate;
 
         protected IGridService m_GridService;
         protected IAuthenticationService m_AuthenticationService;
@@ -85,6 +88,10 @@ namespace OpenSim.Services.UserAccountService
                 m_AvatarService = LoadPlugin<IAvatarService>(avatarServiceDll, new Object[] { config });
 
             m_CreateDefaultAvatarEntries = userConfig.GetBoolean("CreateDefaultAvatarEntries", false);
+            IConfig starterConfig = config.Configs["OglAvatarTemplates"];
+            m_OglStarterTemplatesEnabled = starterConfig != null && starterConfig.GetBoolean("Enabled", false);
+            m_OglBenjaminTemplate = starterConfig?.GetString("BenjaminModel", "Benjamin Resident") ?? "Benjamin Resident";
+            m_OglLunaTemplate = starterConfig?.GetString("LunaModel", "Luna Resident") ?? "Luna Resident";
 
             if (m_RootInstance == null)
             {
@@ -626,6 +633,35 @@ namespace OpenSim.Services.UserAccountService
         {
             firstName = firstName.Trim();
             lastName = lastName.Trim();
+
+            // Reject invalid OGL starter requests before creating a user account.
+            // The legacy OpenSim model parameter remains backward compatible.
+            if (!string.IsNullOrEmpty(model) && model.StartsWith("ogl:", StringComparison.OrdinalIgnoreCase))
+            {
+                string resolvedModel = ResolveOglStarterModel(model);
+                string[] names = resolvedModel.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+                if (names.Length != 2)
+                {
+                    m_log.Warn("[OGL AVATAR TEMPLATES]: Refusing disabled or unknown template");
+                    return null;
+                }
+
+                UserAccount templateAccount = GetUserAccount(UUID.Zero, names[0], names[1]);
+                if (templateAccount == null || m_AvatarService == null ||
+                    m_InventoryService == null ||
+                    m_AvatarService.GetAppearance(templateAccount.PrincipalID) == null)
+                {
+                    m_log.Warn("[OGL AVATAR TEMPLATES]: Refusing missing or unready model avatar");
+                    return null;
+                }
+
+                // Validate every currently worn item before creating the account.
+                // This prevents partial starter inventories caused by missing or
+                // non-transferable source items. Object contents need separate review.
+                if (!ValidateOglStarterItems(templateAccount.PrincipalID,
+                    m_AvatarService.GetAppearance(templateAccount.PrincipalID)))
+                    return null;
+            }
             UserAccount account = GetUserAccount(UUID.Zero, firstName, lastName);
             if (null == account)
             {
@@ -687,7 +723,7 @@ namespace OpenSim.Services.UserAccountService
                             if (String.IsNullOrEmpty(model))
                                 CreateDefaultAppearanceEntries(account.PrincipalID);
                             else
-                                EstablishAppearance(account.PrincipalID, model);
+                                EstablishAppearance(account.PrincipalID, ResolveOglStarterModel(model));
                         }
                     }
 
@@ -706,6 +742,90 @@ namespace OpenSim.Services.UserAccountService
             }
 
             return account;
+        }
+
+        /// <summary>
+        /// Maps explicit portal template identifiers to existing OpenSimulator model
+        /// avatars. Never interprets an arbitrary portal value as an account name.
+        /// Legacy full-name model arguments retain their existing behavior.
+        /// </summary>
+        private string ResolveOglStarterModel(string model)
+        {
+            if (string.IsNullOrEmpty(model) || !model.StartsWith("ogl:", StringComparison.OrdinalIgnoreCase))
+                return model;
+
+            if (!m_OglStarterTemplatesEnabled)
+            {
+                m_log.Warn("[OGL AVATAR TEMPLATES]: Starter template requested while disabled");
+                return string.Empty;
+            }
+
+            if (string.Equals(model, "ogl:benjamin", StringComparison.OrdinalIgnoreCase))
+                return m_OglBenjaminTemplate;
+            if (string.Equals(model, "ogl:luna", StringComparison.OrdinalIgnoreCase))
+                return m_OglLunaTemplate;
+
+            m_log.Warn("[OGL AVATAR TEMPLATES]: Unknown starter template identifier");
+            return string.Empty;
+        }
+
+        private bool ValidateOglStarterItems(UUID owner, AvatarAppearance appearance)
+        {
+            if (appearance == null || appearance.Wearables == null)
+                return false;
+
+            foreach (AvatarWearable wearableSet in appearance.Wearables)
+            {
+                if (wearableSet == null)
+                    continue;
+                for (int i = 0; i < wearableSet.Count; i++)
+                {
+                    if (!ValidateOglStarterItem(owner, wearableSet[i].ItemID))
+                        return false;
+                }
+            }
+
+            foreach (AvatarAttachment attachment in appearance.GetAttachments())
+            {
+                if (!ValidateOglStarterItem(owner, attachment.ItemID))
+                    return false;
+            }
+            return true;
+        }
+
+        private InventoryItemBase ResolveOglStarterItem(UUID owner, UUID itemId)
+        {
+            if (itemId.IsZero())
+                return null;
+
+            InventoryItemBase item = m_InventoryService.GetItem(owner, itemId);
+            // Limit resolution to a single link, as supported by the legacy
+            // avatar copy path. Reject nested or cyclic links.
+            if (item != null && item.AssetType == (int)AssetType.Link)
+            {
+                if (item.AssetID.IsZero() || item.AssetID == itemId)
+                    return null;
+                item = m_InventoryService.GetItem(owner, item.AssetID);
+            }
+            return item != null && item.AssetType != (int)AssetType.Link ? item : null;
+        }
+
+        private bool ValidateOglStarterItem(UUID owner, UUID itemId)
+        {
+            if (itemId.IsZero())
+                return false;
+
+            InventoryItemBase item = ResolveOglStarterItem(owner, itemId);
+
+            uint required = (uint)(PermissionMask.Copy | PermissionMask.Transfer);
+            if (item == null || item.AssetID.IsZero() ||
+                (item.CurrentPermissions & required) != required ||
+                (item.NextPermissions & required) != required)
+            {
+                m_log.Warn("[OGL AVATAR TEMPLATES]: Starter item missing or lacks copy/transfer permissions");
+                return false;
+            }
+            return true;
         }
 
         protected void CreateDefaultAppearanceEntries(UUID principalID)
@@ -873,6 +993,13 @@ namespace OpenSim.Services.UserAccountService
 
             try
             {
+                // Recheck immediately before copying to narrow the window in which
+                // a model owner could revoke permissions after registration preflight.
+                if (m_OglStarterTemplatesEnabled &&
+                    (model == m_OglBenjaminTemplate || model == m_OglLunaTemplate) &&
+                    !ValidateOglStarterItems(modelAccount.PrincipalID, modelAppearance))
+                    throw new InvalidOperationException("Starter outfit changed or is not transferable");
+
                 CopyWearablesAndAttachments(destinationAgent, modelAccount.PrincipalID, modelAppearance);
 
                 m_AvatarService.SetAppearance(destinationAgent, modelAppearance);
@@ -943,15 +1070,8 @@ namespace OpenSim.Services.UserAccountService
                         m_log.DebugFormat("[XXX]: Getting item {0} from avie {1} for {2} {3}",
                             wearable.ItemID, source, i, j);
                         // Get inventory item and copy it
-                        InventoryItemBase item = m_InventoryService.GetItem(source, wearable.ItemID);
+                        InventoryItemBase item = ResolveOglStarterItem(source, wearable.ItemID);
 
-                        if(item != null && item.AssetType == (int)AssetType.Link)
-                        {
-                            if(item.AssetID.IsZero())
-                                item = null;
-                            else
-                              item = m_InventoryService.GetItem(source, item.AssetID);
-                        }
 
                         if (item != null)
                         {
@@ -1008,7 +1128,7 @@ namespace OpenSim.Services.UserAccountService
                 if (!itemID.IsZero())
                 {
                     // Get inventory item and copy it
-                    InventoryItemBase item = m_InventoryService.GetItem(source, itemID);
+                    InventoryItemBase item = ResolveOglStarterItem(source, itemID);
 
                     if (item != null)
                     {
