@@ -57,7 +57,9 @@ Registrierungs-Endpunkt ist **noch nicht** implementiert.
 
 ## Zusätzliche Sicherheitsgrenze
 
-Die neue Vorabprüfung kontrolliert nun, ob alle in der Appearance
+Die gemeinsame Inventarauflösung unterstützt direkte Einträge und genau eine
+Current-Outfit-Verknüpfung für Wearables **und** Attachments. Verschachtelte
+und zyklische Links werden verworfen. Die neue Vorabprüfung kontrolliert nun, ob alle in der Appearance
 referenzierten Wearables und Attachments vorhanden sind und die
 Current-/Next-Owner-Berechtigungen **Copy + Transfer** besitzen.
 Sie garantiert **noch nicht**, dass verschachtelte Inhalte von
