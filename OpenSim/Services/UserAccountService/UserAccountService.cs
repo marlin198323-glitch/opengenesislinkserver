@@ -1055,7 +1055,7 @@ namespace OpenSim.Services.UserAccountService
             if (string.IsNullOrWhiteSpace(model))
                 return false;
 
-            string[] modelSpecifiers = model.Split();
+            string[] modelSpecifiers = model.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
             if (modelSpecifiers.Length != 2)
             {
                 m_log.WarnFormat("[USER ACCOUNT SERVICE]: Invalid model name \'{0}\'. Falling back to Ruth for {1}",
