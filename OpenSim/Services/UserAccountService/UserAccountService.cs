@@ -633,6 +633,28 @@ namespace OpenSim.Services.UserAccountService
         {
             firstName = firstName.Trim();
             lastName = lastName.Trim();
+
+            // Reject invalid OGL starter requests before creating a user account.
+            // The legacy OpenSim model parameter remains backward compatible.
+            if (!string.IsNullOrEmpty(model) && model.StartsWith("ogl:", StringComparison.OrdinalIgnoreCase))
+            {
+                string resolvedModel = ResolveOglStarterModel(model);
+                string[] names = resolvedModel.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+                if (names.Length != 2)
+                {
+                    m_log.Warn("[OGL AVATAR TEMPLATES]: Refusing disabled or unknown template");
+                    return null;
+                }
+
+                UserAccount templateAccount = GetUserAccount(UUID.Zero, names[0], names[1]);
+                if (templateAccount == null || m_AvatarService == null ||
+                    m_InventoryService == null ||
+                    m_AvatarService.GetAppearance(templateAccount.PrincipalID) == null)
+                {
+                    m_log.Warn("[OGL AVATAR TEMPLATES]: Refusing missing or unready model avatar");
+                    return null;
+                }
+            }
             UserAccount account = GetUserAccount(UUID.Zero, firstName, lastName);
             if (null == account)
             {
