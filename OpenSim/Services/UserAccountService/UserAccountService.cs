@@ -1085,7 +1085,8 @@ namespace OpenSim.Services.UserAccountService
                 modelAppearance = new AvatarAppearance(modelAppearance);
                 CopyWearablesAndAttachments(destinationAgent, modelAccount.PrincipalID, modelAppearance);
 
-                m_AvatarService.SetAppearance(destinationAgent, modelAppearance);
+                if (!m_AvatarService.SetAppearance(destinationAgent, modelAppearance))
+                    throw new InvalidOperationException("Unable to persist starter avatar appearance");
             }
             catch (Exception e)
             {
