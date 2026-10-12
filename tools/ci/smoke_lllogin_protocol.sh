@@ -111,4 +111,63 @@ grep -F 'NexVerseCiMissing Resident' "$LOG"
 grep -F 'Firestorm-Release CI' "$LOG"
 grep -F 'reason: user not found' "$LOG"
 
-echo "NexVerse Firestorm-compatible LLLogin XML-RPC runtime smoke: OK"
+# The OGL viewer has its own versioned JSON discovery on the SAME
+# public listener as the legacy XML-RPC/LLSD login. Neither endpoint
+# may override the other, and the JSON discovery must never echo
+# arbitrary config keys or advertise a nonexistent native login.
+OGL_JSON="/tmp/nexverse-ogl-grid-info.json"
+OGL_HEADERS="/tmp/nexverse-ogl-grid-info.headers"
+curl --fail --silent --show-error --max-time 5 \
+  --dump-header "$OGL_HEADERS" \
+  "http://127.0.0.1:19092/ogl/v1/grid-info" > "$OGL_JSON"
+grep -i 'content-type: application/json' "$OGL_HEADERS"
+python3 - <<'PY'
+import json
+from pathlib import Path
+doc = json.loads(Path("/tmp/nexverse-ogl-grid-info.json").read_text())
+assert doc["schema"] == "org.opengenesislink.viewer.grid-info.v1", doc
+assert doc["protocol_version"] == 1
+assert doc["server"]["product"] == "OpenGenesisLINK"
+assert doc["grid"]["name"] == "OGL CI Grid"
+assert doc["grid"]["nick"] == "OGLCI"
+assert doc["endpoints"]["legacy_login"] == "http://127.0.0.1:19092/"
+assert doc["endpoints"]["ogl_grid_info"] == "/ogl/v1/grid-info"
+assert doc["endpoints"]["ogl_login"] is None
+assert doc["features"]["legacy_login"] is True
+assert doc["features"]["ogl_native_login"] is False
+assert doc["features"]["ogl_experiences_2"] is False
+assert doc["features"]["ogl_pathfinding_2"] is False
+assert doc["security"]["viewer_identity_verified_by_discovery"] is False
+assert "internal_test_secret" not in str(doc)
+assert "must-never-appear-in-ogl-discovery" not in str(doc)
+print("OpenGenesisLINK OGL GridInfo JSON discovery: PASS")
+PY
+
+LEGACY_XML="/tmp/nexverse-legacy-grid-info.xml"
+LEGACY_JSON="/tmp/nexverse-legacy-grid-info.json"
+curl --fail --silent --show-error --max-time 5 \
+  "http://127.0.0.1:19092/get_grid_info" > "$LEGACY_XML"
+grep -F '<gridinfo>' "$LEGACY_XML"
+curl --fail --silent --show-error --max-time 5 \
+  "http://127.0.0.1:19092/json_grid_info" > "$LEGACY_JSON"
+python3 - <<'PY'
+import json
+from pathlib import Path
+legacy = json.loads(Path("/tmp/nexverse-legacy-grid-info.json").read_text())
+assert legacy["gridname"] == "OGL CI Grid"
+assert legacy["login"] == "http://127.0.0.1:19092/"
+print("OpenSim legacy GridInfo paths preserved: PASS")
+PY
+
+POST_CODE=$(curl --silent --show-error --output /tmp/nexverse-ogl-grid-info-post.json \
+  --write-out '%{http_code}' --max-time 5 \
+  -X POST "http://127.0.0.1:19092/ogl/v1/grid-info")
+test "$POST_CODE" = "405"
+python3 - <<'PY'
+import json
+from pathlib import Path
+err=json.loads(Path("/tmp/nexverse-ogl-grid-info-post.json").read_text())
+assert err["error"] == "method_not_allowed"
+PY
+
+echo "NexVerse Firestorm-compatible LLLogin XML-RPC + separate OGL JSON GridInfo runtime smoke: OK"

@@ -34,6 +34,21 @@ The simulator must be able to reach `hg.stadt-nexverse.de:8003`. Restrict TCP 80
 
 Viewer/GridInfo endpoints identify NexVerse and use `http://stadt-nexverse.de/` for the public portal links. Login and Gatekeeper are served by `http://hg.stadt-nexverse.de/`.
 
+## Separate OGL-Viewer-GridInfo (JSON)
+
+Zusätzlich zu den klassischen Firestorm-/OpenSim-Endpunkten
+`/get_grid_info`, `/json_grid_info` und `login_to_simulator`
+antwortet derselbe **Robust PublicPort 80** auf
+`GET /ogl/v1/grid-info` mit einer versionierten JSON-Discovery.
+
+Die API dient dem künftigen eigenen Viewer zur Erkennung von
+Gridname, Legacy-Login-Adresse und unterstützten Features. Sie ist
+**keine** Anmeldung, prüft keine Vieweridentität und kündigt den
+noch nicht gebauten OGL-Login deshalb als nicht verfügbar an.
+Eine spätere native OGL-Anmeldung darf nur über TLS betrieben werden.
+
+Vollständiger Vertrag: [OGL_VIEWER_DISCOVERY.md](OGL_VIEWER_DISCOVERY.md).
+
 ## Linux port 80
 
 TCP port 80 is a privileged port on Linux. If Robust runs as a non-root systemd user, grant only the bind capability (for example with systemd `AmbientCapabilities=CAP_NET_BIND_SERVICE`) instead of running the whole service as root.

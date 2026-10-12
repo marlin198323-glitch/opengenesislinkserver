@@ -31,6 +31,7 @@ using System.Collections.Generic;
 using System.Net;
 using System.Reflection;
 using System.Security;
+using System.Text.Json;
 using log4net;
 using Nini.Config;
 using Nwc.XmlRpc;
@@ -139,6 +140,112 @@ namespace OpenSim.Server.Handlers.Grid
             {
                 _log.WarnFormat("[GRID INFO SERVICE]: {0}: {1}", k, _info[k]);
             }
+        }
+
+        /// <summary>
+        /// Versioned discovery for the future OpenGenesisLINK viewer.
+        /// This endpoint does NOT authenticate a viewer or establish a
+        /// login session. Firestorm's original grid-info and XML-RPC/LLSD
+        /// paths are left untouched.
+        /// </summary>
+        public void OglViewerGridInfoMethod(IOSHttpRequest httpRequest, IOSHttpResponse httpResponse)
+        {
+            httpResponse.KeepAlive = false;
+            httpResponse.ContentType = "application/json; charset=utf-8";
+            httpResponse.AddHeader("Cache-Control", "public, max-age=60");
+            httpResponse.AddHeader("X-Content-Type-Options", "nosniff");
+
+            if (!string.Equals(httpRequest.HttpMethod, "GET", StringComparison.OrdinalIgnoreCase))
+            {
+                httpResponse.AddHeader("Allow", "GET");
+                httpResponse.StatusCode = (int)HttpStatusCode.MethodNotAllowed;
+                httpResponse.RawBuffer = JsonSerializer.SerializeToUtf8Bytes(new
+                {
+                    error = "method_not_allowed",
+                    message = "Use GET for OGL viewer grid discovery."
+                });
+                return;
+            }
+
+            // Critically, never serialize the entire [GridInfoService] section:
+            // admins may have placed custom values (including secrets) there.
+            // Only explicit, vetted public fields may leave this endpoint.
+            string name = PublicLabel("gridname", "OpenGenesisLINK");
+            string nick = PublicLabel("gridnick", "OGL");
+            string login = PublicHttpUrl("login");
+            string home = PublicHttpUrl("home");
+            string gatekeeper = PublicHttpUrl("gatekeeper");
+            string website = PublicHttpUrl("website");
+
+            httpResponse.StatusCode = (int)HttpStatusCode.OK;
+            httpResponse.RawBuffer = JsonSerializer.SerializeToUtf8Bytes(new
+            {
+                schema = "org.opengenesislink.viewer.grid-info.v1",
+                protocol_version = 1,
+                server = new
+                {
+                    product = "OpenGenesisLINK",
+                    version = VersionInfo.Version.Trim()
+                },
+                grid = new
+                {
+                    name,
+                    nick,
+                    home_uri = home,
+                    gatekeeper_uri = gatekeeper,
+                    website
+                },
+                endpoints = new
+                {
+                    // URI from existing GridInfo config: the existing
+                    // XML-RPC/LLSD login is still the sole active login.
+                    legacy_login = login,
+                    legacy_grid_info = "/get_grid_info",
+                    legacy_grid_info_json = "/json_grid_info",
+                    ogl_grid_info = "/ogl/v1/grid-info",
+                    ogl_login = (string)null
+                },
+                features = new
+                {
+                    legacy_login = true,
+                    ogl_grid_info_v1 = true,
+                    ogl_native_login = false,
+                    ogl_experiences_2 = false,
+                    ogl_pathfinding_2 = false,
+                    ogl_my_outfits_2 = false
+                },
+                security = new
+                {
+                    discovery_is_public = true,
+                    tls_required_for_credentials = true,
+                    viewer_identity_verified_by_discovery = false
+                }
+            });
+        }
+
+        private string PublicLabel(string key, string fallback)
+        {
+            if (!_info.TryGetValue(key, out string value) ||
+                string.IsNullOrWhiteSpace(value))
+                return fallback;
+
+            string clean = value.Trim();
+            // Limit untrusted operator fields returned to clients.
+            return clean.Length <= 128 ? clean : clean.Substring(0, 128);
+        }
+
+        private string PublicHttpUrl(string key)
+        {
+            if (!_info.TryGetValue(key, out string value) ||
+                string.IsNullOrWhiteSpace(value))
+                return null;
+
+            if (!Uri.TryCreate(value.Trim(), UriKind.Absolute, out Uri parsed) ||
+                (parsed.Scheme != Uri.UriSchemeHttp && parsed.Scheme != Uri.UriSchemeHttps) ||
+                !string.IsNullOrEmpty(parsed.UserInfo))
+                return null;
+
+            return parsed.AbsoluteUri;
         }
 
         public XmlRpcResponse XmlRpcGridInfoMethod(XmlRpcRequest request, IPEndPoint remoteClient)
