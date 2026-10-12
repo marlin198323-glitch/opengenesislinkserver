@@ -1127,9 +1127,13 @@ namespace OpenSim.Services.UserAccountService
                 destinationFolder.Name     = "Clothing";
                 destinationFolder.Owner    = destination;
                 destinationFolder.Type     = (short)AssetType.Clothing;
-                destinationFolder.ParentID = m_InventoryService.GetRootFolder(destination).ID;
+                InventoryFolderBase rootFolder = m_InventoryService.GetRootFolder(destination);
+                if (rootFolder == null)
+                    throw new InvalidOperationException("Cannot locate destination inventory root folder");
+                destinationFolder.ParentID = rootFolder.ID;
                 destinationFolder.Version  = 1;
-                m_InventoryService.AddFolder(destinationFolder);     // store base record
+                if (!m_InventoryService.AddFolder(destinationFolder))
+                    throw new InvalidOperationException("Unable to create destination clothing folder");
                 m_log.ErrorFormat("[USER ACCOUNT SERVICE]: Created folder for destination {0} Clothing", source);
             }
 
