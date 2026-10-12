@@ -785,9 +785,12 @@ namespace OpenSim.Services.UserAccountService
                 }
             }
 
-            foreach (AvatarAttachment attachment in appearance.GetAttachments())
+            List<AvatarAttachment> attachments = appearance.GetAttachments();
+            if (attachments == null)
+                return false;
+            foreach (AvatarAttachment attachment in attachments)
             {
-                if (!ValidateOglStarterItem(owner, attachment.ItemID))
+                if (attachment == null || !ValidateOglStarterItem(owner, attachment.ItemID))
                     return false;
             }
             return true;
@@ -996,7 +999,8 @@ namespace OpenSim.Services.UserAccountService
                 // Recheck immediately before copying to narrow the window in which
                 // a model owner could revoke permissions after registration preflight.
                 if (m_OglStarterTemplatesEnabled &&
-                    (model == m_OglBenjaminTemplate || model == m_OglLunaTemplate) &&
+                    (string.Equals(model, m_OglBenjaminTemplate, StringComparison.Ordinal) ||
+                     string.Equals(model, m_OglLunaTemplate, StringComparison.Ordinal)) &&
                     !ValidateOglStarterItems(modelAccount.PrincipalID, modelAppearance))
                     throw new InvalidOperationException("Starter outfit changed or is not transferable");
 
