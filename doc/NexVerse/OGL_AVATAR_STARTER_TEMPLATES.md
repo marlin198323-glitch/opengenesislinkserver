@@ -49,10 +49,20 @@ Registrierungs-Endpunkt ist **noch nicht** implementiert.
    gewährleistet diese Prüfung noch nicht.
 3. Das Stadtportal ist noch nicht angeschlossen. Das Repository enthält
    nur den serverseitigen Modellparameter-Integrationspunkt.
-4. Unbekannte oder deaktivierte `ogl:`-IDs führen derzeit über den
-   vorhandenen OpenSim-Fallback zu Standard-Appearance; die
-   Portal-API sollte solche Werte vor Kontoerstellung ablehnen.
+4. Unbekannte oder deaktivierte `ogl:`-IDs werden nun **vor der Kontoerstellung**
+   abgelehnt. Ebenso werden fehlende Modellaccounts, Appearance oder
+   benötigte Services abgewiesen. Die Portal-API muss diese Ablehnung
+   korrekt als Registrierungsfehler behandeln.
 5. GitHub-CI und echte Avatar-Login-/Appearance-Tests stehen aus.
+
+## Zusätzliche Sicherheitsgrenze
+
+Die neue Vorabprüfung garantiert **noch nicht**, dass jeder getragene
+Gegenstand kopierbar und übertragbar ist. Die bestehende
+`CopyWearablesAndAttachments`-Routine wird weiterhin verwendet.
+Ein vollständiger atomarer Registrierungs-/Inventar-Workflow und
+Snapshot-Publishing sind nicht implementiert. Die Vorlage bleibt
+bis zur Rechteprüfung und echten Integrationstests deaktiviert.
 
 ## Geplante Phase 2
 
