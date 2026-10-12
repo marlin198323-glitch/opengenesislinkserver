@@ -1126,7 +1126,7 @@ namespace OpenSim.Services.UserAccountService
                 destinationFolder.ID       = UUID.Random();
                 destinationFolder.Name     = "Clothing";
                 destinationFolder.Owner    = destination;
-                destinationFolder.Type     = (short)AssetType.Clothing;
+                destinationFolder.Type     = (short)FolderType.Clothing;
                 InventoryFolderBase rootFolder = m_InventoryService.GetRootFolder(destination);
                 if (rootFolder == null)
                     throw new InvalidOperationException("Cannot locate destination inventory root folder");
@@ -1134,7 +1134,7 @@ namespace OpenSim.Services.UserAccountService
                 destinationFolder.Version  = 1;
                 if (!m_InventoryService.AddFolder(destinationFolder))
                     throw new InvalidOperationException("Unable to create destination clothing folder");
-                m_log.ErrorFormat("[USER ACCOUNT SERVICE]: Created folder for destination {0} Clothing", source);
+                m_log.InfoFormat("[USER ACCOUNT SERVICE]: Created clothing folder for destination {0}", destination);
             }
 
             if (currentOutfitFolder == null)
