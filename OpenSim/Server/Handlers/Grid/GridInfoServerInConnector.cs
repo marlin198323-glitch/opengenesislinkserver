@@ -50,6 +50,10 @@ namespace OpenSim.Server.Handlers.Grid
                                                                handlers.RestGetGridInfoMethod));
             server.AddSimpleStreamHandler(new SimpleStreamHandler("/json_grid_info",
                                                           handlers.JsonGetGridInfoMethod));
+            // OGL Viewer discovers a versioned JSON protocol on the same
+            // public listener (e.g. :80). No changes to existing viewer login.
+            server.AddSimpleStreamHandler(new SimpleStreamHandler("/ogl/v1/grid-info",
+                                                          handlers.OglViewerGridInfoMethod));
             server.AddXmlRPCHandler("get_grid_info", handlers.XmlRpcGridInfoMethod, false);
         }
     }
