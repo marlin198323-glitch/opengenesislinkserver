@@ -2078,6 +2078,19 @@ Rules for changes:
 > **Zielrepository:** `opengenesislink/oglserver` (separat anzulegen, nicht mit `main` verwechseln).
 > **Testgrid:** `beta.stadt-nexverse.de` (geplant, noch kein Betriebsnachweis).
 
+## G2.0 Verbindliches Prinzip: Gen 1 vollständig weiterentwickeln, nicht neu anfangen
+
+**Architekturentscheidung:** Generation 2 ist eine evolutionäre Modernisierung der vorhandenen OpenGenesisLINK-Generation-1-Codebasis und ihrer Daten. Kein pauschaler Rewrite und kein Verlust bereits entwickelter Funktionen oder Inhalte. Die Eigenständigkeit von Generation 2 entsteht durch schrittweise Entkopplung und gezielten Austausch von Implementierungen.
+
+- [ ] Vollständige Bestandsaufnahme aller Gen-1-Module, APIs, LSL-/OSSL-Erweiterungen, Viewer-/CAPS-Protokolle, Dienste, Regionen und Datenmodelle; für jedes Element eine Entscheidung **direkt übernehmen / adaptieren / gezielt ersetzen** dokumentieren.
+- [ ] Bestehende Meshes, Texturen, Materialien, Animationen, Sounds, Objekte, Linksets, Landdaten, Avatar-Appearance und Inventare ohne erzwungenen Neu-Upload migrieren; Asset-UUIDs und zulässige Berechtigungs-/Referenzinformationen bewahren.
+- [ ] Gen-1-Assets aus Datenbank und/oder FSAssets in den SHA-256-basierten OGL AssetStore importieren, Hash- und UUID-Zuordnungen validieren und Vollständigkeit nachweisen.
+- [ ] OAR/IAR-Import und -Export sowie vorhandene LSL-Skripte und OGL-Erweiterungen mit Regressionstests absichern; inkompatible Fälle explizit dokumentieren und beheben.
+- [ ] Migration wiederholbar, protokolliert, unterbrechungs- und wiederaufnahmesicher sowie mit Backup, Test-Restore und Rückfallstrategie gestalten.
+- [ ] Gen 1 während der Migration weiter betreiben; Gen 2 zunächst mit isolierten Kopien testen und produktive Daten nicht unkontrolliert verändern.
+- [ ] Bestehende Dienste und Quellmodule soweit lizenzrechtlich zulässig übernehmen und refaktorieren; MPL-2.0-Ziel mit den tatsächlichen Lizenzbedingungen jeder übernommenen Datei abgleichen.
+- [ ] Keine Gen-2-Stable-Freigabe ohne dokumentierte Funktions- und Datenparität für die verbindlich unterstützten Gen-1-Funktionen.
+
 ## G2.1 Plattform und Kompatibilität
 
 - [ ] Eigenständige modulare .NET-basierte Serverplattform mit `OGLRobust`, `OGLSimulator`, Service-SDK und versionierten APIs.
