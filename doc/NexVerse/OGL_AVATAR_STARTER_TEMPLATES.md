@@ -31,6 +31,9 @@ CreateDefaultAvatarEntries = true
 Enabled = false
 BenjaminModel = "Benjamin Resident"
 LunaModel = "Luna Resident"
+RequirePublishedModels = true
+BenjaminPublishedModel = ""
+LunaPublishedModel = ""
 ```
 
 Nach expliziter Freigabe kann `Enabled = true` gesetzt werden.
@@ -38,6 +41,22 @@ Die Portal-Registrierung muss den Modellparameter `ogl:benjamin` oder
 `ogl:luna` über einen **authentifizierten serverseitigen**
 Registrierungs-Endpunkt an `CreateUser` übergeben. Ein öffentlicher
 Registrierungs-Endpunkt ist **noch nicht** implementiert.
+
+## Versionierte Modellaccounts (vorbereiteter Publish-Workflow)
+
+Mit `RequirePublishedModels = true` (Standard) akzeptiert der Server
+OGL-Startervorlagen **nur**, wenn `BenjaminPublishedModel` beziehungsweise
+`LunaPublishedModel` auf einen bestehenden, vollständig vorbereiteten
+Modellaccount mit Vor- und Nachnamen gesetzt ist. Leere Werte werden abgelehnt.
+
+Beispiel: `BenjaminPublishedModel = "BenjaminV1 Resident"`.
+Für eine neue Outfit-Version wird ein separater Account vorbereitet und
+nach manueller Freigabe der Konfigurationswert geändert. Der Live-Avatar
+`Benjamin Resident` bleibt davon getrennt. Die veröffentlichten Accounts
+müssen administrativ gegen weitere Bearbeitung und Logins geschützt werden.
+
+**Wichtig:** Dies ist eine Version-Pinning-Konfiguration, **noch kein**
+automatischer, unveränderlicher Snapshot-Export und kein Admin-Publish-Endpunkt.
 
 ## Aktuelle Grenzen
 
