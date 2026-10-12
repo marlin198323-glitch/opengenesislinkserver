@@ -2091,6 +2091,20 @@ Rules for changes:
 - [ ] Bestehende Dienste und Quellmodule soweit lizenzrechtlich zulässig übernehmen und refaktorieren; MPL-2.0-Ziel mit den tatsächlichen Lizenzbedingungen jeder übernommenen Datei abgleichen.
 - [ ] Keine Gen-2-Stable-Freigabe ohne dokumentierte Funktions- und Datenparität für die verbindlich unterstützten Gen-1-Funktionen.
 
+## G2.0.1 Vollständige Übernahme bebauter Regionen
+
+**Verbindliches Migrationsziel:** Bestehende Gen-1-Regionen werden einschließlich ihrer bebauten Welt übernommen. Kein erneutes manuelles Errichten von Städten, Gebäuden oder platzierten Objekten. Migration umfasst nicht nur Asset-Dateien, sondern die persistente Region und ihre Referenzen.
+
+- [ ] Regionenkonfiguration, Koordinaten, Größe (auch Varregionen), Terrain/Höhenkarten, Wasserstände, Parzellen, Estate-Zuordnung und Regionsflags übertragen.
+- [ ] Alle rezzed Prims, Meshes, Sculpties, Linksets, Objekte, Positionen, Rotationen, Größen, Materialien/PBR, Texturen und Objektinventare einschließlich Skripten übertragen.
+- [ ] Asset-UUIDs, Besitz-/Gruppen-/Creator-Identitäten, Rechte, Objekt- und Landreferenzen erhalten; nicht stillschweigend UUIDs ersetzen.
+- [ ] Persistente Skriptdaten, Linkset Data und unterstützte Laufzeitzustände nach Möglichkeit migrieren; nicht übertragbare volatile Zustände (z. B. offene HTTP-Sessions/Timer) dokumentieren und kontrolliert neu initialisieren.
+- [ ] Migrationspipeline mit Gen-1-Datenbank-/OAR-Export, Asset-Abgleich, Gen-2-Import, referenzieller Integritätsprüfung und wiederholbarem Dry Run bauen.
+- [ ] Vorher-/Nachher-Vergleich pro Region: Objekt-/Prim-/Mesh-Zahlen, Asset-Referenzen, Parzellen, Terrain-Checksummen, Inventare, Eigentümer und ausgewählte visuelle Stichproben.
+- [ ] Backup, Wiederherstellung, schreibgeschützter Testimport und Rollback vor produktiver Umschaltung verpflichtend machen.
+- [ ] Neue Physik auf bebauten Regionen separat auf Kollisionen, Fahrzeuge, Sitzpositionen, LSL und Regionsübergänge testen; Legacy-Backend bis zur Abnahme verfügbar halten.
+- [ ] Keine Gen-2-Stable-Freigabe, solange kritische bestehende Regioninhalte verloren gehen oder ohne dokumentierte Ausnahme unbrauchbar werden.
+
 ## G2.1 Plattform und Kompatibilität
 
 - [ ] Eigenständige modulare .NET-basierte Serverplattform mit `OGLRobust`, `OGLSimulator`, Service-SDK und versionierten APIs.
