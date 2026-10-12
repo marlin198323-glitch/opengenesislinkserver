@@ -70,10 +70,12 @@ vor Kontoanlage abgelehnt. Schlägt das Setzen des Passworts fehl,
 liefert sie einen Fehler zurück, ohne weitere Initialisierung.
 Schlägt die Inventarinitialisierung fehl, liefert der Starter-Registrierungsweg
 nun einen Fehler zurück. **Achtung:** Da die Kontoanlage im bestehenden
-OpenSimulator-Ablauf davor erfolgt, ist das kein atomarer Rollback: Ein
-bereits gespeicherter Account kann bestehen bleiben. Dies muss vor der
-Abnahme durch eine transaktionale Lösung oder explizite Bereinigung
-behoben werden.
+OpenSimulator-Ablauf davor erfolgt, ist das kein atomarer Rollback: Der Dienst versucht bei Passwort-, Inventar- oder Appearance-Fehlern nun,
+den zuvor angelegten Account-Datensatz über die Account-Datenbank zu löschen.
+Diese **Best-Effort-Kompensation ist keine Transaktion**: Authentifizierungsdaten,
+Inventar, Avatar-Appearance und GridUser-Daten können zurückbleiben. Scheitert
+die Löschung, wird ein Fehler mit der betroffenen UUID protokolliert. Vor
+der Abnahme ist ein vollständiger, überprüfbarer Cleanup-Pfad erforderlich.
 
 ## Aktuelle Grenzen
 
@@ -105,7 +107,9 @@ Leere Item-UUIDs werden als ungültig behandelt. Sie garantiert
 Objektinventaren ebenfalls freigegeben sind. Die bestehende
 `CopyWearablesAndAttachments`-Routine wird weiterhin verwendet.
 Ein vollständiger atomarer Registrierungs-/Inventar-Workflow und
-Snapshot-Publishing sind nicht implementiert. Die Vorlage bleibt
+Snapshot-Publishing sind nicht implementiert. Fehlgeschlagene Starterregistrierungen
+versuchen lediglich die Account-Zeile zu entfernen; die übrigen Service-Daten
+werden noch nicht transaktional zurückgerollt. Die Vorlage bleibt
 bis zur Rechteprüfung und echten Integrationstests deaktiviert.
 
 ## Geplante Phase 2
