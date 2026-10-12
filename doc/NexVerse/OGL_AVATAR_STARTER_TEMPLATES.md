@@ -1,0 +1,65 @@
+# OpenGenesisLINK – Starter-Avatar-Vorlagen (Phase 1)
+
+## Ziel
+
+Das Stadtportal soll bei der Registrierung einen Starter-Avatar auswählen lassen:
+
+| Portal-ID | Modellavatar |
+| --- | --- |
+| `ogl:benjamin` | Benjamin Resident |
+| `ogl:luna` | Luna Resident |
+
+Es werden **nur die aktuell getragenen Wearables, Bodyparts und Attachments**
+(einschließlich getragener Mesh-Objekte) übernommen, nicht das vollständige
+Inventar des Modellavatars.
+
+## Implementierter Integrationspunkt
+
+`OpenSim/Services/UserAccountService/UserAccountService.cs` verarbeitet
+`CreateUser(..., model)` bereits mit `EstablishAppearance` und
+`CopyWearablesAndAttachments`. Die OGL-Erweiterung löst die expliziten
+Portal-IDs zu den Modellavataren auf. Der bestehende OpenSim-Mechanismus
+kopiert Inventar-Einträge, legt Current-Outfit-Links an und setzt die Appearance.
+
+Die Funktion ist bewusst **standardmäßig ausgeschaltet**.
+
+```ini
+[UserAccountService]
+CreateDefaultAvatarEntries = true
+
+[OglAvatarTemplates]
+Enabled = false
+BenjaminModel = "Benjamin Resident"
+LunaModel = "Luna Resident"
+```
+
+Nach expliziter Freigabe kann `Enabled = true` gesetzt werden.
+Die Portal-Registrierung muss den Modellparameter `ogl:benjamin` oder
+`ogl:luna` über einen **authentifizierten serverseitigen**
+Registrierungs-Endpunkt an `CreateUser` übergeben. Ein öffentlicher
+Registrierungs-Endpunkt ist **noch nicht** implementiert.
+
+## Aktuelle Grenzen
+
+1. Die Übernahme nutzt derzeit den **Live-Appearance-Zustand** der
+   Modellavatare. Unveränderliche Snapshots und Admin-Publish fehlen noch.
+2. Der vorhandene OpenSimulator-Kopierpfad muss vor Freigabe auf
+   Transfer-/Copy-Rechte, Objektinhalte und verlinkte Attachments geprüft
+   und gegebenenfalls gehärtet werden. Die OGL-Alias-Funktion allein
+   gewährleistet diese Prüfung noch nicht.
+3. Das Stadtportal ist noch nicht angeschlossen. Das Repository enthält
+   nur den serverseitigen Modellparameter-Integrationspunkt.
+4. Unbekannte oder deaktivierte `ogl:`-IDs führen derzeit über den
+   vorhandenen OpenSim-Fallback zu Standard-Appearance; die
+   Portal-API sollte solche Werte vor Kontoerstellung ablehnen.
+5. GitHub-CI und echte Avatar-Login-/Appearance-Tests stehen aus.
+
+## Geplante Phase 2
+
+- Permission-safe Kopierpfad und Validierung der Attachment-Inhalte.
+- Veröffentlichbare, versionierte Snapshots, getrennt vom Live-Avatar.
+- Authentifizierte API für das Stadtportal mit ausschließlich
+  freigegebenen Template-IDs.
+- Tests für Mesh-Body, Mesh-Head, Kleidung, COF und Erstlogin.
+
+**Keine Änderungen auf Stable/main und keine Zugriffe auf Entwicklerrechner.**
