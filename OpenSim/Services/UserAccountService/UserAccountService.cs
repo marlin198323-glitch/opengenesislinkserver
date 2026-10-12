@@ -1114,12 +1114,13 @@ namespace OpenSim.Services.UserAccountService
             InventoryFolderBase destinationFolder = m_InventoryService.GetFolderForType(destination, FolderType.Clothing);
 
             if (destinationFolder == null)
-                throw new Exception("Cannot locate new clothing folder(s)");
+                throw new InvalidOperationException("Cannot locate destination clothing folder");
 
             // Get Current Outfit folder
             InventoryFolderBase currentOutfitFolder = m_InventoryService.GetFolderForType(destination, FolderType.CurrentOutfit);
 
-            // wrong destination folder type?  create new
+            // Repair an incorrectly typed clothing folder without modifying
+            // the existing folder's metadata in place.
             if (destinationFolder.Type != (short)FolderType.Clothing)
             {
                 destinationFolder = new InventoryFolderBase();
