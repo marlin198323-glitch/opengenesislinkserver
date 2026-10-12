@@ -19,10 +19,10 @@ CONSTS = BASE / "Runtime/LSL_Constants.cs"
 EVENTS = Path("OpenSim/Region/ScriptEngine/YEngine/MMRScriptEventCode.cs")
 CATEGORIES = ("FULL", "PARTIAL", "STUB", "MISSING", "INTENTIONALLY_UNSUPPORTED")
 DEFERRED = re.compile(r"(Experience|KeyValue|Pathfind|Character)", re.IGNORECASE)
-DECL = re.compile(r"^\\s*([A-Za-z_][\\w.<>]*)\\s+(ll[A-Za-z0-9_]+)\\s*\\(([^)]*)\\)\\s*;", re.M)
-METHOD = re.compile(r"^\\s*public\\s+(?:(?:virtual|static|override|new|unsafe)\\s+)*([A-Za-z_][\\w.<>]*)\\s+(ll[A-Za-z0-9_]+)\\s*\\(([^)]*)\\)", re.M)
-CONST = re.compile(r"^\\s*public\\s+(?:(?:static\\s+readonly|const)\\s+)([\\w.<>]+)\\s+(\\w+)\\s*=\\s*([^;]+);", re.M)
-EVT = re.compile(r"^\\s*([a-z][\\w]*)\\s*=\\s*(\\d+),", re.M)
+DECL = re.compile(r"^\s*([A-Za-z_][\w.<>]*)\s+(ll[A-Za-z0-9_]+)\s*\(([^)]*)\)\s*;", re.M)
+METHOD = re.compile(r"^\s*public\s+(?:(?:virtual|static|override|new|unsafe)\s+)*([A-Za-z_][\w.<>]*)\s+(ll[A-Za-z0-9_]+)\s*\(([^)]*)\)", re.M)
+CONST = re.compile(r"^\s*public\s+(?:(?:static\s+readonly|const)\s+)([\w.<>]+)\s+(\w+)\s*=\s*([^;]+);", re.M)
+EVT = re.compile(r"^\s*([a-z][\w]*)\s*=\s*(\d+),", re.M)
 
 
 def signature(result_type, args):
@@ -110,7 +110,7 @@ def main():
     missing = [f["name"] for f in matrix["functions"] if f["support_level"] == "MISSING"]
     if args.verify and missing:
         raise SystemExit("Missing LSL bindings: " + ", ".join(missing))
-    payload = json.dumps(matrix, ensure_ascii=False, indent=2, sort_keys=True) + "\\n"
+    payload = json.dumps(matrix, ensure_ascii=False, indent=2, sort_keys=True) + "\n"
     if args.output == "-":
         print(payload, end="")
     else:
