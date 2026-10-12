@@ -675,6 +675,12 @@ namespace OpenSim.Services.UserAccountService
                 if (!ValidateOglStarterItems(templateAccount.PrincipalID,
                     m_AvatarService.GetAppearance(templateAccount.PrincipalID)))
                     return null;
+
+                if (!m_CreateDefaultAvatarEntries)
+                {
+                    m_log.Warn("[OGL AVATAR TEMPLATES]: Default avatar inventory creation is disabled");
+                    return null;
+                }
             }
             UserAccount account = GetUserAccount(UUID.Zero, firstName, lastName);
             if (null == account)
