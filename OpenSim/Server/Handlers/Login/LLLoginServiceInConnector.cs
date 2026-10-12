@@ -26,9 +26,7 @@
  */
 
 using System;
-using System.Collections.Generic;
 using System.Collections.Concurrent;
-using System.IO;
 using System.Text;
 using OpenMetaverse;
 using OpenMetaverse.StructuredData;
@@ -54,6 +52,8 @@ namespace OpenSim.Server.Handlers.Login
         private BasicDosProtectorOptions m_DosProtectionOptions;
         private bool m_OglNativeLoginEnabled;
         private readonly ConcurrentDictionary<string, DateTime> m_OglLastAttempt = new ConcurrentDictionary<string, DateTime>();
+        private int m_OglRateLimitSweep;
+        private const int OglMaxTrackedClients = 4096;
 
         public LLLoginServiceInConnector(IConfigSource config, IHttpServer server, IScene scene) :
                 base(config, server, String.Empty)
@@ -158,6 +158,19 @@ namespace OpenSim.Server.Handlers.Login
                 WriteOglError(response, "rate_limited");
                 return;
             }
+            // Bound memory usage and periodically evict expired entries.
+            if (System.Threading.Interlocked.Increment(ref m_OglRateLimitSweep) % 128 == 0)
+            {
+                foreach (var entry in m_OglLastAttempt)
+                    if ((now - entry.Value).TotalMinutes > 2)
+                        m_OglLastAttempt.TryRemove(entry.Key, out _);
+            }
+            if (!m_OglLastAttempt.ContainsKey(ip) && m_OglLastAttempt.Count >= OglMaxTrackedClients)
+            {
+                response.StatusCode = 503;
+                WriteOglError(response, "temporarily_unavailable");
+                return;
+            }
             m_OglLastAttempt[ip] = now;
             try
             {
@@ -180,6 +193,13 @@ namespace OpenSim.Server.Handlers.Login
                     {
                         response.StatusCode = 400;
                         WriteOglError(response, "invalid_request");
+                        return;
+                    }
+                    if (root.TryGetProperty("protocol_version", out JsonElement protocol) &&
+                        (protocol.ValueKind != JsonValueKind.Number || !protocol.TryGetInt32(out int protocolVersion) || protocolVersion != 1))
+                    {
+                        response.StatusCode = 400;
+                        WriteOglError(response, "unsupported_protocol_version");
                         return;
                     }
                     string start = OptionalString(root, "start", "last");
@@ -206,9 +226,11 @@ namespace OpenSim.Server.Handlers.Login
                 response.StatusCode = 400;
                 WriteOglError(response, "invalid_json");
             }
-            catch (Exception e)
+            catch (Exception)
             {
-                m_log.Error("[OGL LOGIN]: Native login failed", e);
+                // Never log exception details here: downstream authentication
+                // exceptions may contain credentials or session material.
+                m_log.Warn("[OGL LOGIN]: Native login request failed");
                 response.StatusCode = 500;
                 WriteOglError(response, "internal_error");
             }
