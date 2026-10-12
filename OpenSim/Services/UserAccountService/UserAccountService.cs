@@ -817,6 +817,11 @@ namespace OpenSim.Services.UserAccountService
             else
             {
                 m_log.ErrorFormat("[USER ACCOUNT SERVICE]: A user with the name {0} {1} already exists!", firstName, lastName);
+                // A portal registration must never treat an existing account as
+                // a newly created one or expose its principal identifier.
+                if (!string.IsNullOrEmpty(model) &&
+                    model.StartsWith("ogl:", StringComparison.OrdinalIgnoreCase))
+                    return null;
             }
 
             return account;
