@@ -12,7 +12,7 @@ Current development deployment base (confirm against the active `[NexVerseWorldA
 
 The endpoint above reflects the historically documented direct HTTP/port-80 deployment, **not a guarantee of live reachability, HTTPS or TLS protection**. Secure authenticated API traffic using an HTTPS reverse proxy or a comparably protected trusted network. Do not transmit bearer tokens, passwords or service API keys across plain public HTTP. The World API uses its own `/api/v1` namespace, whereas OAuth/OIDC endpoints include `/oauth/...` and `/.well-known/openid-configuration`. Paths in OpenAPI may depend on `EnablePrivilegedEndpoints`, configured services and simulator-side CAPS.
 
-## Aktueller Dokumentationsvertrag (0.9.3.10 Dev, 11.10.2026)
+## Aktueller Dokumentationsvertrag (0.9.3.10 Stable, 12.10.2026)
 
 Die **drei dynamisch generierten ChatGPT-MD-Anweisungen** und die **OpenAPI 3.1** werden vom Robust-Prozess geliefert. Verwende fuer einen konkreten Grid-Betrieb die Antworten derselben laufenden Version und nicht eine alte aus Git ausgecheckte Datei. Dieser Repository-Stand dokumentiert den **Quellcode**, nicht das automatische Deployment von /opt/robust und /opt/developer.
 
