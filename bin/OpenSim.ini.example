@@ -135,6 +135,14 @@
 [Economy]
     economymodule = NexVerseMoneyModule
 
+; OGL Viewer Advisor: opt-in recommendation for users of other viewers.
+; The module is intentionally disabled until explicitly enabled.
+[OGLViewerAdvisor]
+    Enabled = false
+    IntervalMinutes = 60
+    OfficialViewerPrefixes = "OpenGenesisLINK;OGL Viewer"
+    Message = "Um das volle Erlebnis von OpenGenesisLINK geniessen zu koennen, steigen Sie auf den offiziellen OGL Viewer um: https://opengenesislink.de"
+
 [NexDiscoveryViewer]
     Enabled = true
     LegacyFirestormCompatibility = true
