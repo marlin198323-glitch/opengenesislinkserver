@@ -722,7 +722,7 @@ namespace OpenSim.Services.UserAccountService
         /// </summary>
         private string ResolveOglStarterModel(string model)
         {
-            if (!model.StartsWith("ogl:", StringComparison.OrdinalIgnoreCase))
+            if (string.IsNullOrEmpty(model) || !model.StartsWith("ogl:", StringComparison.OrdinalIgnoreCase))
                 return model;
 
             if (!m_OglStarterTemplatesEnabled)
