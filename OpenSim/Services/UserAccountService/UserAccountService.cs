@@ -1133,6 +1133,9 @@ namespace OpenSim.Services.UserAccountService
                 m_log.ErrorFormat("[USER ACCOUNT SERVICE]: Created folder for destination {0} Clothing", source);
             }
 
+            if (currentOutfitFolder == null)
+                throw new InvalidOperationException("Cannot locate Current Outfit folder");
+
             // Wearables
             AvatarWearable basewearable;
             WearableItem wearable;
@@ -1280,7 +1283,8 @@ namespace OpenSim.Services.UserAccountService
                 NextPermissions = (uint)PermissionMask.Copy
             };
 
-            m_InventoryService.AddItem(itembase);
+            if (!m_InventoryService.AddItem(itembase))
+                throw new InvalidOperationException("Unable to create Current Outfit link");
         }
 
         /// <summary>
