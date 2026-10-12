@@ -2086,7 +2086,7 @@ Rules for changes:
 
 - [ ] Vor dem ersten Gen-2-Code-Commit Repository-Name, Eigentümer/Organisation und Zugriffsmodell ausdrücklich bestätigen lassen.
 - [ ] Vor Lizenzentscheidung alle übernommenen Gen-1-/OpenSimulator-Dateien, Abhängigkeiten und vorhandenen MPL-2.0-/sonstigen Lizenzpflichten inventarisieren; bestehende Rechte und Hinweise unverändert respektieren.
-- [ ] Für ausschließlich neu geschriebene, rechtlich entsprechend lizenzierbare Komponenten GPLv3 und AGPLv3 als starke Copyleft-Optionen prüfen; AGPLv3 besonders für netzwerkbasierte Dienste bewerten. Keine pauschale Relizenzierung geerbten Codes.
+- [ ] **Bevorzugter Lizenzkandidat des Betreibers: Elastic License 2.0 (ELv2)** für ausschließlich neue Komponenten, an denen die nötigen Rechte bestehen; die endgültige Lizenzentscheidung erst nach rechtlicher und Kompatibilitätsprüfung treffen. ELv2 ist Source-Available, nicht OSI-Open-Source; sie untersagt Forks und konkurrierende Distributionen nicht generell. Bestehende Gen-1-/OpenSimulator-Lizenzrechte bleiben unberührt.
 - [ ] Mit dem Betreiber die konkrete Lizenzkombination nach Kompatibilitätsprüfung festlegen und erst dann LICENSE-, NOTICE- und CONTRIBUTING-Dateien anlegen.
 - [ ] OpenGenesisLINK-Name, Logos und offizielle Kennzeichnung separat über eine Marken-/Namensrichtlinie schützen; Forks dürfen Open-Source-Rechte ausüben, aber nicht irreführend als offizielles Projekt auftreten.
 - [ ] Keine rechtlich widersprüchliche Zusage „Open Source ohne Forks“ in Dokumentation, Lizenz oder UI verwenden.
