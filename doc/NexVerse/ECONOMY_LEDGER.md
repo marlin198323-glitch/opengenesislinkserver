@@ -147,12 +147,21 @@ dass Guthaben oder Rechte eines lokalen Avatars vermischt werden.
   Economy-/Commerce-Policy; fehlende oder widerspruechliche Identitaet
   verweigert die Zahlung. Beim Verlassen der Region sind Ausgaben
   von diesem Gast ohne erneut gepruefte Live-Session gesperrt.
-- **Aktivierung:** Unter `[NexEconomyViewer]` in der tatsaechlich
-  geladenen Simulator-INI `AllowHypergridGuests = true` setzen,
-  **erst nach Test** mit mindestens zwei verschiedenen Home-Grids.
-  Standard: `false`. Der vorhandene `NEXVERSE_ECONOMY_API_KEY`
-  benoetigt weiterhin die bisherigen minimalen `economy:read` und
-  `economy:transfer`-Scopes. Kein HG-Economy-Key im Viewer.
+- **Standardkonfiguration ab 12.10.2026 (nach `v0.9.3.10`-Tag):**
+  `bin/OpenSim.ini` und `bin/OpenSim.ini.example` enthalten unter
+  `[NexEconomyViewer]` nun `AllowHypergridGuests = true`. Dadurch
+  duerfen **serverseitig authentifizierte** HG-Besucher lokale NV$-Wallets
+  anlegen und die NexVerse-Wirtschaft nutzen, nicht aber die Waehrung
+  ihres Heimatgrids transferieren. Ein neues Konto beginnt bei **0 NV$**.
+  Fuer einen produktiven Rollout mit zwei verschiedenen Home-Grids
+  Identitaeten, Kontozuordnung, Abbuchungsrechte und Transfers testen.
+  Ueber `AllowHypergridGuests = false` kann der Betreiber dies weiter
+  gezielt deaktivieren. **Ohne Konfigurationseintrag** bleibt die sichere
+  Code-Fallback-Vorgabe `false`.
+  Der vorhandene `NEXVERSE_ECONOMY_API_KEY` benoetigt weiterhin die
+  minimalen `economy:read`- und `economy:transfer`-Scopes; kein
+  HG-Economy-Key im Viewer. Bereits laufende Simulatorprozesse muessen
+  ihre effektiv geladene INI erneut einlesen (Neustart).
 
 **Explizit NICHT enthalten:** Transfer von Fremdgrid-Waehrungen,
 Hypergrid-weite Echtgeld-Zahlungen, grenzueberschreitender Wallet-Zugriff

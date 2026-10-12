@@ -140,7 +140,7 @@ assert 'WorldApiBaseUrl = "https://world.stadt-nexverse.de"' in viewer_config
 assert "ConnectionString" not in viewer_config
 assert "CurrencyPurchasePortalUrl" in viewer_config
 assert "BalanceRefreshSeconds = 5" in viewer_config
-assert "AllowHypergridGuests = false" in viewer_config
+assert "AllowHypergridGuests = true" in viewer_config
 
 print("NV$ World API and Viewer adapter contract: OK")
 
@@ -160,8 +160,9 @@ register_pos = viewer.find("scene.RegisterModuleInterface<IMoneyModule>")
 balance_hook_pos = viewer.find("client.OnMoneyBalanceRequest +=")
 assert register_pos >= 0 and balance_hook_pos >= 0
 
-# HG wallet onboarding is opt-in and derived only from the trusted
-# scene agent circuit. It must never rely on a viewer-supplied home URL.
+# HG wallet onboarding is explicitly enabled in shipped simulator templates,
+# but each wallet still requires an authenticated, verified HG circuit.
+# It must never rely on a viewer-supplied home URL.
 hg_identity = Path("NexVerse/Core/Economy/NexHypergridWalletIdentity.cs").read_text()
 hg_service = Path("NexVerse/Core/Economy/NexEconomyService.cs").read_text()
 hg_tests = Path("tools/ci/NexEconomyPolicyRegression/Program.cs").read_text()
@@ -185,7 +186,10 @@ for marker in ("GetAgentCircuitData(avatarId)",
                "TryResolveWallet(buyer, true", "TryResolveWallet(seller, false",
                "HG NV$ debits require a live verified session"):
     assert marker in viewer, "HG user wallet not safely mapped: " + marker
-assert "AllowHypergridGuests = false" in Path("bin/OpenSim.ini").read_text()
+assert "AllowHypergridGuests = true" in Path("bin/OpenSim.ini").read_text()
+assert "AllowHypergridGuests = true" in Path("bin/OpenSim.ini.example").read_text()
+# Missing option still defaults to denied in the code; explicit INI opts in.
+assert 'economy.GetBoolean("AllowHypergridGuests", false)' in viewer
 for marker in ("HG origin isolation/canonicalization failed",
                "HG transfer ledger balance mismatch",
                "HG account allowed overdraft"):
