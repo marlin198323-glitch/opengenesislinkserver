@@ -204,6 +204,9 @@ namespace NexVerse.Core.Security
                      string.Equals(
                          scope,
                          NexScopes.PortalRegister,
+                         StringComparison.OrdinalIgnoreCase) ||
+                     string.Equals(
+                         scope,
                          NexScopes.ExperiencesViewerPermissions,
                          StringComparison.OrdinalIgnoreCase) ||
                      string.Equals(
