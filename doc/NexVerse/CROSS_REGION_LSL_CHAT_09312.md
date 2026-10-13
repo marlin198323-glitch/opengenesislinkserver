@@ -79,6 +79,28 @@ erzeugen; bei fehlendem NexBus funktioniert der lokale Fall weiterhin.
   zwei Würfeln mit `llListen`, Grenzabstand 5 m und Out-of-Range-Test
   bei >20 m nötig.
 
+## Automatisierter Zwei-Regionen-Laufzeittest
+
+`tools/ci/CrossRegionListenRuntimeRegression` initialisiert zwei echte
+OpenSimulator-`Scene`-Instanzen in einem Prozess, mit einem gemeinsamen
+`ChatModule`, unabhängigen `WorldCommModule`-Instanzen, Avatar-
+`TestClient` und zwei Script-Listenern auf der Nachbarregion.
+
+Es werden unter anderem die korrekte Weiterleitung von öffentlichem
+`Beep` und `/7 Beep`, exakt ein `listen`-Ereignis je Würfel, der
+Nachrichtenfilter, die 20-Meter-Grenze und die 10-Meter-`Whisper`-
+Reichweite tatsächlich ausgeführt und geprüft.
+
+Der Test läuft **nach** dem CI-Release-Build und verwendet die gerade
+kompilierten Server-Assemblies. Veraltete Test-Mocks wurden für das
+aktuelle `IClientAPI`, `IXInventoryData` und .NET 8 aktualisiert.
+Die beiden anderen, hier nicht benötigten Legacy-Mocks sind aus
+diesem isolierten Testprojekt ausgeschlossen.
+
+**Abgrenzung:** Dieser PASS deckt nur benachbarte Regionen im selben
+Simulatorprozess ab. NexBus-Transport über zwei reale Simulatorprozesse,
+Viewer-Verhalten und Live-Skripte bleiben separate CHAT01/CHAT02-Gates.
+
 ## CHAT01/CHAT02: Reproduzierbarer Inworld-Test
 
 Benutze `tools/diagnostics/ogl_cross_region_chat_smoke.lsl`.

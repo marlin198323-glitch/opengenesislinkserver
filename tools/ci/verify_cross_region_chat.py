@@ -60,4 +60,20 @@ doc=read("doc/NexVerse/CROSS_REGION_LSL_CHAT_09312.md")
 for marker in ("CHAT01/CHAT02:", "ogl_cross_region_chat_smoke.lsl",
                "zwei unabhängigen OpenSim-Prozessen", "NexBus deaktiviert"):
     assert marker in doc, "missing live acceptance step: " + marker
+runtime=read("tools/ci/CrossRegionListenRuntimeRegression/Program.cs")
+runtime_project=read("tools/ci/CrossRegionListenRuntimeRegression/CrossRegionListenRuntimeRegression.csproj")
+workflow=read(".github/workflows/nexjast-ci.yml")
+for marker in (
+    "SceneHelpers.SetupSceneModules(new Scene[] { west, east }, config, chat)",
+    "receiver.Listen(scriptA,",
+    "receiver.Listen(scriptB,",
+    "client.Chat(0, ChatTypeEnum.Say, \"Beep\")",
+    "client.Chat(7, ChatTypeEnum.Say, \"Beep\")",
+    "client.Chat(0, ChatTypeEnum.Whisper, \"Beep\")",
+    "beyond 20m: no listen delivery",
+    "both cubes heard private channel exactly once",
+):
+    assert marker in runtime, "missing executed llListen regression: " + marker
+assert "OpenSim.Tests.Common" in runtime_project
+assert "Runtime regression cross-region llListen delivery" in workflow
 print("OGL cross-region chat wiring and fail-closed NexBus configuration: OK")
