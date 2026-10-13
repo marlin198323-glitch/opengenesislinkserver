@@ -466,10 +466,43 @@ namespace OpenSim.Services.Connectors
                     });
 
             bool result = CheckReturn(ret);
-            if (result)
+            if (result && item.ThumbnailID != UUID.Zero)
             {
-                m_ItemCache.AddOrUpdate(item.ID, item, CACHE_EXPIRATION_SECONDS);
+                // A successful UPDATEITEM acknowledgement is not proof that
+                // Robust persisted a Firestorm thumbnail. GetItem() is cached
+                // and may return our locally mutated item without a network
+                // read. Verify the authoritative, uncached GETITEM response.
+                try
+                {
+                    Dictionary<string, object> fresh = MakeRequest(
+                        $"METHOD=GETITEM&ID={item.ID}&PRINCIPAL={item.Owner}");
+                    if (!CheckReturn(fresh) ||
+                        !fresh.TryGetValue("item", out object encoded) ||
+                        encoded is not Dictionary<string, object> wire ||
+                        !wire.TryGetValue("ThumbnailID", out object stored) ||
+                        !UUID.TryParse(stored?.ToString(), out UUID storedId) ||
+                        storedId != item.ThumbnailID)
+                    {
+                        m_log.WarnFormat(
+                            "[XINVENTORY SERVICES CONNECTOR]: Thumbnail {0} not confirmed by central inventory for item {1}; inspect Robust deployment and migrations",
+                            item.ThumbnailID, item.ID);
+                        result = false;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    m_log.Warn("[XINVENTORY SERVICES CONNECTOR]: Thumbnail verification failed: " +
+                        ex.GetType().Name);
+                    result = false;
+                }
             }
+
+            // Never cache an unverified thumbnail association. The caller
+            // will fail the upload instead of returning state=complete.
+            if (result)
+                m_ItemCache.AddOrUpdate(item.ID, item, CACHE_EXPIRATION_SECONDS);
+            else
+                m_ItemCache.Remove(item.ID);
 
             return result;
         }

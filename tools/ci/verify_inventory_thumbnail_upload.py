@@ -73,6 +73,22 @@ for path in [
     http=(root/path).read_text()
     assert http.count('"ThumbnailID"') >= 4, f"missing remote inventory roundtrip: {path}"
     assert "ThumbnailID" in http
+
+# A simulated viewer success must never rely on a cached item after
+# UPDATEITEM. Verify Robust via a distinct GETITEM request before the
+# connector caches the thumbnail or returns a successful update.
+remote=(root/"OpenSim/Services/Connectors/Inventory/XInventoryServicesConnector.cs").read_text()
+item_update=remote.split("public bool UpdateItem(InventoryItemBase item)",1)[1].split("public bool MoveItems(",1)[0]
+for marker in (
+    "item.ThumbnailID != UUID.Zero",
+    'METHOD=GETITEM&ID={item.ID}&PRINCIPAL={item.Owner}',
+    'wire.TryGetValue("ThumbnailID", out object stored)',
+    "storedId != item.ThumbnailID",
+    "m_ItemCache.Remove(item.ID)",
+):
+    assert marker in item_update, f"missing authoritative item thumbnail check: {marker}"
+assert item_update.index("METHOD=GETITEM") < item_update.index("m_ItemCache.AddOrUpdate(")
+assert "linked = scene.InventoryService.UpdateItem(existing)" in mod
 # Test the actual SQLite migration on an existing (populated) inventory
 # schema, not just the spelling of its columns.
 import sqlite3
