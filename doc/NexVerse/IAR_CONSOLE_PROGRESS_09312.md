@@ -36,3 +36,28 @@ This does not yet protect unrelated direct programmatic `DearchiveInventory` cal
 - `python3 tools/ci/verify_portal_registration_iar_preflight.py` checks existing registration and preflight wiring.
 - `dotnet run --project tools/ci/OglIarPreflightRegression/OglIarPreflightRegression.csproj` exercises 11 legitimate/adversarial TAR/GZip fixtures.
 - Live console import/export with large representative inventories and a complete server build are required before stable release.
+
+## Managed IAR stream format correction (0.9.3.12 Dev)
+
+The legacy file-path archiver creates/reads **GZip-compressed TAR**
+automatically. Its **Stream overloads** are different: their input/output
+streams must already be decompressed/compressed by the caller.
+
+Earlier `OglIarOperationManager.StartExport` passed a raw `FileStream`
+to `ArchiveInventory(Stream)`, emitting uncompressed TAR with a `.iar`
+extension. `StartImport` passed a raw GZip file to
+`DearchiveInventory(Stream)`, so the TAR reader saw compressed bytes
+instead of a valid TAR header.
+
+The managed manager now wraps export in `GZipStream(..., CompressionLevel.Optimal)`
+and import in `GZipStream(..., CompressionMode.Decompress)`. The import
+still invokes the bounded `OglIarInspector.Inspect(path)` **before** any
+mutating archiver call. The existing IAR CI structural guard now rejects
+regressions to raw managed streams.
+
+**Still to verify live:** managed API export → successful preflight →
+import into a separate test inventory, including asset payloads,
+permissions, cancelled/failed archives, correctly finalized gzip output,
+and true end-to-end operation progress. This change is not a Stable
+acceptance claim. Other direct entry points, TOCTOU and import quotas
+remain additional security gates.
