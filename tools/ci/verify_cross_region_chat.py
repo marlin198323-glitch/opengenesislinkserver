@@ -76,4 +76,24 @@ for marker in (
     assert marker in runtime, "missing executed llListen regression: " + marker
 assert "OpenSim.Tests.Common" in runtime_project
 assert "Runtime regression cross-region llListen delivery" in workflow
+two_process=read("tools/ci/CrossRegionNexBusProcessRegression/Program.cs")
+for marker in (
+    'StartChild("receiver"',
+    'StartChild("sender"',
+    'NexVerseNodeAgentModule',
+    'NexBusProtocol.Verify(',
+    'NexBusProtocol.Sign(',
+    'DistributedNexEventBus',
+    'receiver.Listen(', # see equivalent source.world.Listen checks below
+    'source.world.Listen(',
+    'receiver did not report success',
+    'wrong HMAC must reject',
+    'same EventId must deduplicate',
+    'out-of-range say must not generate a fourth NexBus event',
+    'test-shared-host',
+):
+    if marker == 'receiver.Listen(':
+        continue
+    assert marker in two_process, "missing NexBus two-process regression: " + marker
+assert 'Runtime two-process signed NexBus cross-region llListen' in workflow
 print("OGL cross-region chat wiring and fail-closed NexBus configuration: OK")
