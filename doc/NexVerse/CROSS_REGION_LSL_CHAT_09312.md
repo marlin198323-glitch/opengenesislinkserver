@@ -78,3 +78,44 @@ erzeugen; bei fehlendem NexBus funktioniert der lokale Fall weiterhin.
 - Vor einer Stable-Freigabe ist ein Live-Test mit zwei Simulatoren,
   zwei Würfeln mit `llListen`, Grenzabstand 5 m und Out-of-Range-Test
   bei >20 m nötig.
+
+## CHAT01/CHAT02: Reproduzierbarer Inworld-Test
+
+Benutze `tools/diagnostics/ogl_cross_region_chat_smoke.lsl`.
+Der Test ist bewusst ein einfaches `llListen`-Skript; auf den
+Regionen darf keine spezielle OGL-LSL-Funktion erforderlich sein.
+
+1. Zwei Würfel mit dem Skript auf **Region A** aufstellen, unmittelbar
+   an einer Grenze zu **Region B**. In beiden Hover-Texten muss
+   `Public: 0 | /7: 0` stehen. Positionen notieren.
+2. Ein Avatar stellt sich auf **Region A** 5 m vor die Würfel:
+   `Beep` und `/7 Beep` in den Chat eingeben. Beide Würfel
+   müssen pro Befehl genau einen Treffer zählen (Kontrollfall).
+3. Avatar wechselt auf **Region B**, bleibt 5 m in Weltkoordinaten
+   von den Würfeln entfernt und wiederholt beide Befehle.
+   Beide Würfel müssen rot werden; Zähler dürfen je Befehl
+   jeweils nur um eins steigen (**CHAT01**).
+4. Avatar bewegt sich weiter als **20 m** von beiden Würfeln
+   weg; `Beep` und `/7 Beep` wiederholen.
+   Beide Zähler müssen unverändert bleiben (**CHAT02**).
+5. Wiederhole die Schritte 1–4 mit den Regionen auf
+   **zwei unabhängigen OpenSim-Prozessen** mit gültigem
+   `NexVerseNodeAgent`/`NexBus`; prüfe gleichen Commit-SHA
+   und `CrossRegionChatMessaging=true` auf beiden Servern.
+6. Negativtest mit **NexBus deaktiviert** bei getrennten
+   Prozessen: Übergreifende Weiterleitung darf nicht stattfinden.
+   Auf einem gemeinsamen Simulatorprozess muss sie weiterhin
+   funktionieren.
+7. Wiederhole einen positiven Fall an einer Nord-/Südgrenze;
+   anschließend bei einer VarRegion-Grenze, sofern verfügbar.
+
+Die Zahlen in den Hover-Texten sind das maßgebliche Signal,
+weil `llOwnerSay` je nach Eigentümerposition/Viewer-Zustand
+nicht auf beiden Regionen sichtbar sein muss. Bei Fehlern die
+exakten Region-Koordinaten, IDs, Prozess-/Build-SHAs, Kanal,
+Nachrichtenzeitpunkte, Skriptzustände und Serverlogs sichern.
+In Chat-/Log-Screenshots persönliche IDs gegebenenfalls schwärzen.
+
+**Status dieser Anleitung:** Nur Testprozedur. Kein Live-PASS,
+solange die obigen Schritte auf dem Ziel-Grid nicht tatsächlich
+durchgeführt und dokumentiert sind.
