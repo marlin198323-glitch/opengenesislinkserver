@@ -41,7 +41,7 @@ using PermissionMask = OpenSim.Framework.PermissionMask;
 
 namespace OpenSim.Services.UserAccountService
 {
-    public class UserAccountService : UserAccountServiceBase, IUserAccountService
+    public class UserAccountService : UserAccountServiceBase, IUserAccountService, IOglStarterAccountRegistration
     {
         private static readonly ILog m_log = LogManager.GetLogger(MethodBase.GetCurrentMethod().DeclaringType);
         private static UserAccountService m_RootInstance;
@@ -638,6 +638,20 @@ namespace OpenSim.Services.UserAccountService
         /// <param name="password"></param>
         /// <param name="email"></param>
         /// <param name="model"></param>
+        // Only the trusted server-side portal route may choose the OGL
+        // template identifier. This does not accept arbitrary model names.
+        public UserAccount CreateOglStarterAccount(
+            UUID principalID, string firstName, string lastName,
+            string password, string email, string modelId)
+        {
+            if (!string.Equals(modelId, "ogl:benjamin", StringComparison.Ordinal) &&
+                !string.Equals(modelId, "ogl:luna", StringComparison.Ordinal))
+                return null;
+
+            return CreateUser(
+                UUID.Zero, principalID, firstName, lastName, password, email, modelId);
+        }
+
         public UserAccount CreateUser(UUID scopeID, UUID principalID, string firstName, string lastName, string password, string email, string model = "")
         {
             if (string.IsNullOrWhiteSpace(firstName) || string.IsNullOrWhiteSpace(lastName))
