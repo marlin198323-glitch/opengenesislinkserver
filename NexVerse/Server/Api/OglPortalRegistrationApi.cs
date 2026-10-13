@@ -119,7 +119,7 @@ namespace NexVerse.Server.Api
 
                 string first = Value(root, "first_name");
                 string last = Value(root, "last_name");
-                string pass = Value(root, "password");
+                string pass = Value(root, "password", trim: false);
                 string email = Value(root, "email");
                 string gender = Value(root, "gender");
 
@@ -212,12 +212,13 @@ namespace NexVerse.Server.Api
             }
         }
 
-        private static string Value(JsonElement root, string key)
+        private static string Value(JsonElement root, string key, bool trim = true)
         {
             if (!root.TryGetProperty(key, out JsonElement value) ||
                 value.ValueKind != JsonValueKind.String)
                 return null;
-            return value.GetString()?.Trim();
+            string raw = value.GetString();
+            return trim ? raw?.Trim() : raw;
         }
 
         private static bool IsValidName(string name)
