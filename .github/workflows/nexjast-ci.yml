@@ -98,6 +98,10 @@ jobs:
           if-no-files-found: ignore
           retention-days: 30
 
+      - name: Verify native OGL region dimensions LSL extension
+        shell: bash
+        run: python3 tools/ci/verify_ogl_region_dimensions.py
+
       - name: Verify OSSL policy coverage
         shell: bash
         run: python3 tools/ci/verify_ossl_policy.py
