@@ -46,4 +46,18 @@ for config,value in [
  ("bin/OpenSimDefaults.ini","false")
 ]:
  assert "CrossRegionChatMessaging = " + value in read(config), config
+smoke=read("tools/diagnostics/ogl_cross_region_chat_smoke.lsl")
+for marker in (
+    "llListen(PUBLIC_CHANNEL,",
+    "llListen(PRIVATE_CHANNEL,",
+    "TRIGGER = \"Beep\"",
+    "llSetColor(<1.0, 0.0, 0.0>, ALL_SIDES);",
+    "PublicHits=",
+    "PrivateHits=",
+):
+    assert marker in smoke, "cross-region inworld smoke marker missing: " + marker
+doc=read("doc/NexVerse/CROSS_REGION_LSL_CHAT_09312.md")
+for marker in ("CHAT01/CHAT02:", "ogl_cross_region_chat_smoke.lsl",
+               "zwei unabhängigen OpenSim-Prozessen", "NexBus deaktiviert"):
+    assert marker in doc, "missing live acceptance step: " + marker
 print("OGL cross-region chat wiring and fail-closed NexBus configuration: OK")
