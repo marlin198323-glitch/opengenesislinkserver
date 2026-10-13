@@ -19,6 +19,8 @@ namespace NexVerse.Core.Security
         public const string OfflineAccess = "offline_access";
         public const string UsersRead = "users:read";
         public const string UsersWrite = "users:write";
+        // Dedicated machine-only portal registration scope.
+        public const string UsersRegister = "users:register";
         public const string InventoryRead = "inventory:read";
         public const string InventoryWrite = "inventory:write";
         public const string FriendsManage = "friends:manage";
