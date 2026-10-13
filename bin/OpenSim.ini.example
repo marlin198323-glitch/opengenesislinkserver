@@ -13,6 +13,7 @@
     RequestTimeoutMilliseconds = 2000
     DeduplicationWindow = 10000
     CrossRegionObjectMessaging = true
+    CrossRegionChatMessaging = true
     AllowCrossOwnerObjectMessages = true
     EstateScriptMessaging = true
     ObjectMessagesPerSecond = 20

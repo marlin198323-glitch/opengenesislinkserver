@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <Nullable>disable</Nullable>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="Program.cs" />
+    <Compile Include="../../../OpenSim/Region/Framework/Scenes/CrossRegionChatGeometry.cs" Link="CrossRegionChatGeometry.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <Reference Include="OpenSim.Framework"><HintPath>../../../bin/OpenSim.Framework.dll</HintPath></Reference>
+    <Reference Include="OpenMetaverse">
+      <HintPath>../../../bin/OpenMetaverse.dll</HintPath>
+    </Reference>
+    <Reference Include="OpenMetaverseTypes">
+      <HintPath>../../../bin/OpenMetaverseTypes.dll</HintPath>
+    </Reference>
+  </ItemGroup>
+</Project>

@@ -167,6 +167,10 @@ namespace OpenSim.Region.CoreModules.Avatar.Chat
             // redistribute to interested subscribers
             Scene scene = (Scene)c.Scene;
             scene.EventManager.TriggerOnChatFromClient(sender, c);
+            // Object llListen events are scoped to their own scene. Send the
+            // original avatar chat to neighbouring scenes hosted by this
+            // simulator, without rebroadcasting it to viewer clients.
+            ForwardToLocalNeighbourListeners(scene, c);
 
             // early return if not on public or debug channel
             if (c.Channel != 0 && c.Channel != DEBUG_CHANNEL) return;
@@ -186,6 +190,50 @@ namespace OpenSim.Region.CoreModules.Avatar.Chat
             else
             {
                 DeliverChatToAvatars(ChatSourceType.Agent, c);
+            }
+        }
+
+        protected virtual void ForwardToLocalNeighbourListeners(Scene source, OSChatMessage c)
+        {
+            if (source == null || c?.Sender == null || string.IsNullOrEmpty(c.Message))
+                return;
+
+            float range = CrossRegionChatGeometry.ChatRange(
+                c.Type, m_whisperdistance, m_saydistance, m_shoutdistance);
+            if (range <= 0)
+                return;
+
+            ScenePresence speaker = source.GetScenePresence(c.Sender.AgentId);
+            if (speaker == null || speaker.IsChildAgent || speaker.IsDeleted)
+                return;
+
+            Vector3 sourcePosition = speaker.AbsolutePosition;
+            float worldX = source.RegionInfo.WorldLocX + sourcePosition.X;
+            float worldY = source.RegionInfo.WorldLocY + sourcePosition.Y;
+
+            Scene[] destinations;
+            lock (m_syncy)
+                destinations = m_scenes.ToArray();
+
+            foreach (Scene destination in destinations)
+            {
+                if (destination == source ||
+                    !CrossRegionChatGeometry.CanReachRegion(
+                        worldX, worldY, destination.RegionInfo.WorldLocX,
+                        destination.RegionInfo.WorldLocY, destination.RegionInfo.RegionSizeX,
+                        destination.RegionInfo.RegionSizeY, range))
+                    continue;
+
+                IWorldComm listener = destination.RequestModuleInterface<IWorldComm>();
+                if (listener == null || listener.ListenerCount == 0)
+                    continue;
+
+                Vector3 localPosition = new Vector3(
+                    worldX - destination.RegionInfo.WorldLocX,
+                    worldY - destination.RegionInfo.WorldLocY,
+                    sourcePosition.Z);
+                listener.DeliverMessage(c.Type, c.Channel, speaker.Name,
+                    c.Sender.AgentId, c.Message, localPosition);
             }
         }
 
