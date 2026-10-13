@@ -19,6 +19,8 @@ namespace NexVerse.Core.Security
         public const string OfflineAccess = "offline_access";
         public const string UsersRead = "users:read";
         public const string UsersWrite = "users:write";
+        // Dedicated backend registration key for Stadtportal.
+        public const string PortalRegister = "portal:avatars:register";
         public const string InventoryRead = "inventory:read";
         public const string InventoryWrite = "inventory:write";
         public const string FriendsManage = "friends:manage";
@@ -73,6 +75,7 @@ namespace NexVerse.Core.Security
                 {
                     NexScopes.UsersRead,
                     NexScopes.UsersWrite,
+                    NexScopes.PortalRegister,
                     NexScopes.ProfileRead,
                     NexScopes.ProfileWrite,
                     NexScopes.RelationshipsRead,
@@ -200,6 +203,7 @@ namespace NexVerse.Core.Security
                          StringComparison.OrdinalIgnoreCase) ||
                      string.Equals(
                          scope,
+                         NexScopes.PortalRegister,
                          NexScopes.ExperiencesViewerPermissions,
                          StringComparison.OrdinalIgnoreCase) ||
                      string.Equals(
