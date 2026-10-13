@@ -351,3 +351,25 @@ konkreten Fall einzeln pruefen.
 ## Produktionsstatus
 
 Serverseitige Thumbnail-Funktionen und Datenbankmigrationen sind im Repository implementiert. Der dokumentierte NexVerse-/Firestorm-7.2.4-Livetest belegt Upload und Persistenz, aber **keine** zuverlaessige automatische Aktualisierung bereits zwischengespeicherter Outfit-Ordner-Thumbnails. Die Abweichung ist als bekannte Viewer-Kompatibilitaetseinschraenkung akzeptiert. Andere produktive Rollout-, Backup- und Stable-Pruefungen sind separat zu erbringen.
+
+## 0.9.3.12: Uncached item thumbnail persistence check (Dev)
+
+The legacy `XInventoryServicesConnector.UpdateItem` previously returned success
+and cached the submitted `InventoryItemBase` immediately after `UPDATEITEM`.
+Consequently, `GetItem` could return the same cached `ThumbnailID` even if
+an older Robust instance acknowledged but failed to persist the new field.
+
+When `ThumbnailID != UUID.Zero`, the connector now performs a separate,
+uncached `GETITEM` HTTP request and checks the centrally returned thumbnail
+UUID. Missing/mismatched fields or readback errors reject the update and
+invalidate the local item cache. The Firestorm uploader therefore cannot
+issue `state=complete` on an unverified item thumbnail. Zero-thumbnail
+updates retain the existing legacy behavior (the authoritative service
+preserves the prior preview).
+
+This complements the existing folder readback and SQLite regression. It does
+not prove viewer cache behavior, cross-simulator consistency, or a full relog
+on an actual grid. INV01 remains a known limitation/open live-acceptance gate
+until a real Firestorm session verifies item and folder previews after logout,
+relogin, rename, and legacy inventory update, with matched simulator/Robust
+binaries and the inventory database migration applied.
