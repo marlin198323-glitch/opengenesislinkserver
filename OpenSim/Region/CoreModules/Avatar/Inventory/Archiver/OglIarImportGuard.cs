@@ -130,7 +130,7 @@ namespace OpenSim.Region.CoreModules.Avatar.Inventory.Archiver
                     if (!directory && (size <= 0 || size > perItemLimit))
                         throw new InvalidDataException("IAR-Eintrag ueberschreitet das erlaubte Groessenlimit.");
 
-                    if (archiveControl)
+                    if (archiveControl || inventoryEntry)
                     {
                         byte[] xmlBytes = new byte[checked((int)size)];
                         ReadExactly(xmlBytes, xmlBytes.Length);
@@ -142,7 +142,8 @@ namespace OpenSim.Region.CoreModules.Avatar.Inventory.Archiver
                         };
                         using XmlReader xml = XmlReader.Create(new MemoryStream(xmlBytes), settings);
                         xml.MoveToContent();
-                        if (!string.Equals(xml.LocalName, "archive", StringComparison.OrdinalIgnoreCase))
+                        if (archiveControl &&
+                            !string.Equals(xml.LocalName, "archive", StringComparison.OrdinalIgnoreCase))
                             throw new InvalidDataException("IAR-Steuerdatei hat eine ungueltige XML-Wurzel.");
                         while (xml.Read()) { }
                     }
