@@ -763,6 +763,7 @@
     <Compile Include="Avatar\Inventory\Archiver\InventoryArchiverException.cs">
       <SubType>Code</SubType>
     </Compile>
+    <Compile Include="Avatar\Inventory\Archiver\OglIarImportGuard.cs" />
     <Compile Include="Avatar\Inventory\Archiver\InventoryArchiverModule.cs">
       <SubType>Code</SubType>
     </Compile>
