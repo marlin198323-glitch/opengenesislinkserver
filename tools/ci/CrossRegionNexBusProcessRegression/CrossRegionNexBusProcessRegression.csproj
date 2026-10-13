@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <AssemblyName>OpenSim.Tests.Common</AssemblyName>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <Nullable>disable</Nullable>
+    <NoWarn>CS0067;CS0436;MSB3277</NoWarn>
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="Program.cs" />
+    <Compile Include="../../../OpenSim/Tests/Common/**/*.cs"
+      Exclude="../../../OpenSim/Tests/Common/**/obj/**;../../../OpenSim/Tests/Common/**/bin/**;../../../OpenSim/Tests/Common/Mock/TestEventQueueGetModule.cs;../../../OpenSim/Tests/Common/Mock/MockScriptEngine.cs" />
+    <Content Include="../../../bin/data/avataranimations.xml" Link="data/avataranimations.xml" CopyToOutputDirectory="PreserveNewest" />
+    <LocalAssemblies Include="../../../bin/*.dll" />
+    <Reference Include="@(LocalAssemblies->'%(FullPath)')">
+      <Private>true</Private>
+    </Reference>
+  </ItemGroup>
+</Project>

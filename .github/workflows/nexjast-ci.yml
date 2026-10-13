@@ -463,6 +463,10 @@ jobs:
         shell: bash
         run: dotnet run --configuration Release --project tools/ci/CrossRegionListenRuntimeRegression/CrossRegionListenRuntimeRegression.csproj
 
+      - name: Runtime two-process signed NexBus cross-region llListen
+        shell: bash
+        run: dotnet run --configuration Release --project tools/ci/CrossRegionNexBusProcessRegression/CrossRegionNexBusProcessRegression.csproj
+
       - name: Runtime LSL core conformance (0.9.3.11)
         shell: bash
         run: dotnet run --configuration Release --project tools/ci/LslConformanceRegression/LslConformanceRegression.csproj

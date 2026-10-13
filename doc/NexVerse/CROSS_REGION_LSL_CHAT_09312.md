@@ -101,6 +101,35 @@ diesem isolierten Testprojekt ausgeschlossen.
 Simulatorprozess ab. NexBus-Transport über zwei reale Simulatorprozesse,
 Viewer-Verhalten und Live-Skripte bleiben separate CHAT01/CHAT02-Gates.
 
+## Automatisierter Zweiprozess-NexBus-Test
+
+`dotnet run --configuration Release --project tools/ci/CrossRegionNexBusProcessRegression`
+startet **zwei unabhängige .NET-Prozesse** mit je einer echten
+OpenSimulator-`Scene` und einer eigenen `NexVerseNodeAgentModule`-
+Instanz. Der Sender nutzt reale `TestClient.Chat`-Ereignisse.
+Die Übertragung erfolgt mit dem produktiven `SimulatorNexEventTransport`
+via HTTP und `X-NexBus-Signature` (HMAC-SHA256) zum zweiten Prozess.
+Das Empfangsprogramm prüft die Signatur, deserialisiert das produktive
+`NexBusProtocol` und ruft den echten `DistributedNexEventBus.Receive` auf,
+der wiederum den produktiven NodeAgent-Handler mit den Script-Listenern
+der Nachbarregion verbindet. Die Registrierung der privaten Callback-
+Subscription erfolgt ohne `MainServer` per Reflection; der Test
+startet daher keine Robust-Control-Endpoints und keine Produktivservices.
+
+Der Test verifiziert `Beep` auf Kanal 0 und /7, `llWhisper` nur innerhalb
+von 10 m, genau einmalige Zustellung trotz erneutem Event-ID-Replay,
+Ablehnung ungültiger HMAC-Signaturen sowie die Entfernungsprüfung.
+Lokale TCP/HTTP-Ports werden dynamisch vergeben und nur über Loopback
+erreichbar gemacht; Prozess-PIDs und Exit-Codes werden geprüft.
+Beide NodeAgents benutzen absichtlich denselben `NodeId` (typischer
+Fall bei mehreren Prozessen auf demselben Host). Der Sender prüft,
+dass ein Avatar >20 m von der Regionsgrenze entfernt **kein viertes
+NexBus-Ereignis** erzeugt.
+
+Er testet **nicht** den zentralen NexBus-Hub, die vollständigen
+Simulator-/Robust-Startprozesse oder echte Firestorm-Viewer-Pakete. Diese
+Unterschiede und der separate Live-Abnahmetest bleiben dokumentiert.
+
 ## CHAT01/CHAT02: Reproduzierbarer Inworld-Test
 
 Benutze `tools/diagnostics/ogl_cross_region_chat_smoke.lsl`.
