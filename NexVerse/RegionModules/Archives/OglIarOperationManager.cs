@@ -72,7 +72,7 @@ namespace NexVerse.RegionModules.Archives
             Directory.CreateDirectory(m_Storage.RootDirectory);
             OglIarOperation operation = Create(requestId, OglIarOperationKind.Export, user, inventoryPath, path, false);
             operation.State = OglIarOperationState.Running;
-            // InventoryArchiveWriteRequest(Stream) writes TAR to its supplied
+            // The underlying archiver Stream export writes TAR to its supplied
             // stream. Compress here so the managed export produces a genuine
             // .iar (GZip/TAR), just like the filename-based legacy exporter.
             GZipStream output = new(File.Create(path), CompressionLevel.Optimal);
@@ -114,7 +114,7 @@ namespace NexVerse.RegionModules.Archives
             }
 
             operation.State = OglIarOperationState.Running;
-            // InventoryArchiveReadRequest(Stream) expects an already decompressed
+            // The underlying archiver Stream import expects an already decompressed
             // TAR stream. The path constructor performs GZip decompression itself,
             // but this managed API uses the Stream overload.
             GZipStream input = new(File.OpenRead(path), CompressionMode.Decompress);
