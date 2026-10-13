@@ -160,7 +160,7 @@ namespace OpenSim.Region.CoreModules.Scripting.WorldComm
                 return;
 
             m_scene.UnregisterModuleInterface<IWorldComm>(this);
-            m_scene.EventManager.OnChatBroadcast -= DeliverClientMessage;
+            m_scene.EventManager.OnChatFromClient -= DeliverClientMessage;
             m_scene.EventManager.OnChatBroadcast -= DeliverClientMessage;
         }
 
@@ -700,7 +700,7 @@ namespace OpenSim.Region.CoreModules.Scripting.WorldComm
 
                     SceneObjectPart sPart = m_scene.GetSceneObjectPart(li.HostID);
                     if (sPart == null)
-                        return;
+                        continue;
 
                     if (maxDistanceSQ > Vector3.DistanceSquared(sPart.AbsolutePosition, position))
                     {

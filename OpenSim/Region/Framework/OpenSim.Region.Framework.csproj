@@ -120,6 +120,7 @@
     <Compile Include="Properties\AssemblyInfo.cs">
       <SubType>Code</SubType>
     </Compile>
+    <Compile Include="Scenes\CrossRegionChatGeometry.cs" />
     <Compile Include="Scenes\EventManager.cs">
       <SubType>Code</SubType>
     </Compile>

@@ -57,6 +57,12 @@ namespace NexVerse.RegionModules.NodeAgent
         private int m_HeartbeatSeconds = 30;
         private bool m_ObjectMessagingEnabled;
         private bool m_EstateScriptMessagingEnabled = true;
+        private bool m_CrossRegionChatMessaging;
+        private int m_ChatWhisperDistance = 10;
+        private int m_ChatSayDistance = 20;
+        private int m_ChatShoutDistance = 100;
+        private readonly ConcurrentDictionary<UUID, ObjectMessageRateState> m_ChatOutboundRates = new();
+        private readonly ConcurrentDictionary<UUID, ObjectMessageRateState> m_ChatInboundRates = new();
         private bool m_AllowCrossOwnerObjectMessages;
         private int m_ObjectMessagesPerSecond = 20;
         private int m_ObjectMessageMaxAgeSeconds = 30;
@@ -72,6 +78,7 @@ namespace NexVerse.RegionModules.NodeAgent
         private IDisposable m_IarControlSubscription;
         private IDisposable m_ObjectMessageSubscription;
         private IDisposable m_EstateScriptMessageSubscription;
+        private IDisposable m_CrossRegionChatSubscription;
         private volatile bool m_MaintenanceMode;
         private volatile bool m_Draining;
         private DateTimeOffset m_StartedAt;
@@ -123,6 +130,12 @@ namespace NexVerse.RegionModules.NodeAgent
                 config.GetBoolean(
                     "EstateScriptMessaging",
                     true);
+            m_CrossRegionChatMessaging = config.GetBoolean(
+                "CrossRegionChatMessaging", false);
+            IConfig chatConfig = source.Configs["Chat"];
+            m_ChatWhisperDistance = chatConfig?.GetInt("whisper_distance", 10) ?? 10;
+            m_ChatSayDistance = chatConfig?.GetInt("say_distance", 20) ?? 20;
+            m_ChatShoutDistance = chatConfig?.GetInt("shout_distance", 100) ?? 100;
             m_AllowCrossOwnerObjectMessages =
                 config.GetBoolean(
                     "AllowCrossOwnerObjectMessages",
@@ -176,6 +189,8 @@ namespace NexVerse.RegionModules.NodeAgent
             scene.RegisterModuleInterface<INexVerseEventBusModule>(this);
             scene.RegisterModuleInterface<ICrossRegionObjectMessageRouter>(this);
             scene.RegisterModuleInterface<IEstateScriptMessageRouter>(this);
+            if (m_CrossRegionChatMessaging)
+                scene.EventManager.OnChatFromClient += PublishNeighbourAvatarChat;
         }
 
         public void RegionLoaded(Scene scene)
@@ -192,6 +207,8 @@ namespace NexVerse.RegionModules.NodeAgent
                 return;
 
             PublishRegionEvent("region.offline", scene);
+            if (m_CrossRegionChatMessaging)
+                scene.EventManager.OnChatFromClient -= PublishNeighbourAvatarChat;
             scene.UnregisterModuleInterface<IEstateScriptMessageRouter>(this);
             scene.UnregisterModuleInterface<ICrossRegionObjectMessageRouter>(this);
             scene.UnregisterModuleInterface<INexVerseEventBusModule>(this);
@@ -237,6 +254,10 @@ namespace NexVerse.RegionModules.NodeAgent
                         "object.message.requested",
                         HandleObjectMessage);
             }
+
+            if (m_CrossRegionChatMessaging)
+                m_CrossRegionChatSubscription = m_Bus.Subscribe(
+                    "chat.neighbor.requested", HandleNeighbourAvatarChat);
 
             if (m_EstateScriptMessagingEnabled)
             {
@@ -290,6 +311,12 @@ namespace NexVerse.RegionModules.NodeAgent
             m_ObjectMessageSubscription = null;
             m_EstateScriptMessageSubscription?.Dispose();
             m_EstateScriptMessageSubscription = null;
+            m_CrossRegionChatSubscription?.Dispose();
+            m_CrossRegionChatSubscription = null;
+            foreach (Scene scene in m_Scenes.Values)
+                scene.EventManager.OnChatFromClient -= PublishNeighbourAvatarChat;
+            m_ChatOutboundRates.Clear();
+            m_ChatInboundRates.Clear();
             m_ObjectMessageOutboundRates.Clear();
             m_ObjectMessageInboundRates.Clear();
             m_HeartbeatTimer?.Dispose();
@@ -315,6 +342,121 @@ namespace NexVerse.RegionModules.NodeAgent
                 return;
 
             m_Bus.Publish(nexEvent);
+        }
+
+        // Signed NexBus messages carry the original viewer's world position.
+        // Do not use ordinary viewer chat broadcasts here: these would be
+        // shown twice by child-agent viewers and do not reach llListen.
+        private void PublishNeighbourAvatarChat(object sender, OSChatMessage chat)
+        {
+            if (!m_Enabled || !m_CrossRegionChatMessaging || m_Bus == null ||
+                chat?.Sender == null || string.IsNullOrEmpty(chat.Message) ||
+                chat.Channel == DebugChannel)
+                return;
+
+            float range = CrossRegionChatGeometry.ChatRange(
+                chat.Type, m_ChatWhisperDistance, m_ChatSayDistance, m_ChatShoutDistance);
+            if (range <= 0 || chat.Scene is not Scene source ||
+                !m_Scenes.ContainsKey(source.RegionInfo.RegionID))
+                return;
+
+            ScenePresence avatar = source.GetScenePresence(chat.Sender.AgentId);
+            if (avatar == null || avatar.IsChildAgent || avatar.IsDeleted)
+                return;
+
+            Vector3 position = avatar.AbsolutePosition;
+            if (!float.IsFinite(position.X) || !float.IsFinite(position.Y) ||
+                !float.IsFinite(position.Z))
+                return;
+
+            // Skip network broadcast when no other region can be within range.
+            if (position.X >= range && position.Y >= range &&
+                position.X <= source.RegionInfo.RegionSizeX - range &&
+                position.Y <= source.RegionInfo.RegionSizeY - range)
+                return;
+
+            if (!TryTakeObjectMessageRateSlot(m_ChatOutboundRates, avatar.UUID))
+                return;
+
+            string message = chat.Message.Length > 1023 ? chat.Message[..1023] : chat.Message;
+            Dictionary<string, string> data = new()
+            {
+                ["source_node_id"] = m_NodeId,
+                ["source_region_id"] = source.RegionInfo.RegionID.ToString(),
+                ["source_avatar_id"] = avatar.UUID.ToString(),
+                ["source_name"] = avatar.Name,
+                ["world_x"] = (source.RegionInfo.WorldLocX + position.X).ToString(
+                    "R", System.Globalization.CultureInfo.InvariantCulture),
+                ["world_y"] = (source.RegionInfo.WorldLocY + position.Y).ToString(
+                    "R", System.Globalization.CultureInfo.InvariantCulture),
+                ["world_z"] = position.Z.ToString(
+                    "R", System.Globalization.CultureInfo.InvariantCulture),
+                ["channel"] = chat.Channel.ToString(
+                    System.Globalization.CultureInfo.InvariantCulture),
+                ["chat_type"] = ((int)chat.Type).ToString(
+                    System.Globalization.CultureInfo.InvariantCulture),
+                ["message"] = message
+            };
+            Publish(new NexEvent("chat.neighbor.requested", "nexverse.simulator", data));
+        }
+
+        private static bool TryChatFloat(NexEvent ev, string key, out float value)
+        {
+            value = 0;
+            return TryCommandData(ev, key, out string raw) &&
+                float.TryParse(raw, System.Globalization.NumberStyles.Float,
+                    System.Globalization.CultureInfo.InvariantCulture, out value) &&
+                float.IsFinite(value);
+        }
+
+        private void HandleNeighbourAvatarChat(NexEvent ev)
+        {
+            if (!m_Enabled || !m_CrossRegionChatMessaging ||
+                ev == null || Math.Abs((DateTimeOffset.UtcNow - ev.Timestamp).TotalSeconds) > 5 ||
+                !string.Equals(ev.Source, "nexverse.simulator", StringComparison.Ordinal) ||
+                !TryCommandData(ev, "source_node_id", out string sourceNode) ||
+                // A second simulator on the same machine may share the
+                // default NodeId; source-region ownership prevents loops.
+                !TryCommandData(ev, "source_region_id", out string rawRegion) ||
+                !UUID.TryParse(rawRegion, out UUID sourceRegion) ||
+                sourceRegion.IsZero() || m_Scenes.ContainsKey(sourceRegion) ||
+                !TryCommandData(ev, "source_avatar_id", out string rawAvatar) ||
+                !UUID.TryParse(rawAvatar, out UUID sourceAvatar) ||
+                sourceAvatar.IsZero() ||
+                !TryCommandData(ev, "source_name", out string sourceName) ||
+                (ev.Data == null || !ev.Data.TryGetValue("message", out string message) ||
+                    message == null || message.Length == 0 || message.Length > 1023) ||
+                !TryCommandInt(ev, "chat_type", out int rawType) ||
+                !TryCommandInt(ev, "channel", out int channel) ||
+                channel == DebugChannel ||
+                !TryChatFloat(ev, "world_x", out float worldX) ||
+                !TryChatFloat(ev, "world_y", out float worldY) ||
+                !TryChatFloat(ev, "world_z", out float worldZ))
+                return;
+
+            ChatTypeEnum type = (ChatTypeEnum)rawType;
+            float range = CrossRegionChatGeometry.ChatRange(
+                type, m_ChatWhisperDistance, m_ChatSayDistance, m_ChatShoutDistance);
+            if (range <= 0 || !TryTakeObjectMessageRateSlot(m_ChatInboundRates, sourceAvatar))
+                return;
+
+            foreach (Scene target in m_Scenes.Values)
+            {
+                if (!CrossRegionChatGeometry.CanReachRegion(
+                        worldX, worldY, target.RegionInfo.WorldLocX, target.RegionInfo.WorldLocY,
+                        target.RegionInfo.RegionSizeX, target.RegionInfo.RegionSizeY, range))
+                    continue;
+
+                IWorldComm worldComm = target.RequestModuleInterface<IWorldComm>();
+                if (worldComm == null || worldComm.ListenerCount == 0)
+                    continue;
+
+                Vector3 localPos = new(
+                    worldX - target.RegionInfo.WorldLocX,
+                    worldY - target.RegionInfo.WorldLocY, worldZ);
+                worldComm.DeliverMessage(type, channel, sourceName, sourceAvatar,
+                    message, localPos);
+            }
         }
 
         public bool TryRoute(
