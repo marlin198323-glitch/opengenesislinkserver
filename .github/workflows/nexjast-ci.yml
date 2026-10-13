@@ -144,6 +144,10 @@ jobs:
         shell: bash
         run: python3 tools/ci/verify_iar_management.py
 
+      - name: Verify IAR console progress and legacy preflight wiring
+        shell: bash
+        run: python3 tools/ci/verify_iar_progress.py
+
       - name: Verify OpenGenesisLINK IAR World API
         shell: bash
         run: python3 tools/ci/verify_iar_world_api.py

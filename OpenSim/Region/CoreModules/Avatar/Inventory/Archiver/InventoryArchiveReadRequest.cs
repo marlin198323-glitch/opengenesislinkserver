@@ -82,6 +82,8 @@ namespace OpenSim.Region.CoreModules.Avatar.Inventory.Archiver
         /// The stream from which the inventory archive will be loaded.
         /// </value>
         private Stream m_loadStream;
+        public int ExpectedEntries { get; set; }
+        private int m_entriesProcessed;
 
         /// <summary>
         /// Has the control file been loaded for this archive?
@@ -205,6 +207,7 @@ namespace OpenSim.Region.CoreModules.Avatar.Inventory.Archiver
                 }
 
                 m_rootDestinationFolder = folderCandidates[0];
+                m_module?.TriggerInventoryArchiveProgress(m_id, "import", 0, ExpectedEntries);
                 archive = new TarArchiveReader(m_loadStream);
                 byte[] data;
                 TarArchiveReader.TarEntryType entryType;
@@ -223,8 +226,11 @@ namespace OpenSim.Region.CoreModules.Avatar.Inventory.Archiver
                     {
                         LoadInventoryFile(filePath, entryType, data);
                     }
+                    ++m_entriesProcessed;
+                    m_module?.TriggerInventoryArchiveProgress(m_id, "import", m_entriesProcessed, ExpectedEntries);
                 }
 
+                m_module?.TriggerInventoryArchiveProgress(m_id, "finalizing", 0, 0);
                 archive.Close();
                 LoadInventoryLinks();
 

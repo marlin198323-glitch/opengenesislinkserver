@@ -12,7 +12,7 @@ using OpenSim.Region.Framework.Scenes;
 namespace NexVerse.RegionModules.Archives
 {
     [Extension(Path = "/OpenSim/RegionModules", NodeName = "RegionModule", Id = "OglIarManagementModule")]
-    public sealed class OglIarManagementModule : ISharedRegionModule
+    public sealed class OglIarManagementModule : ISharedRegionModule, IInventoryArchiveInspector
     {
         private static readonly ILog m_Log =
             LogManager.GetLogger(typeof(OglIarManagementModule));
@@ -35,7 +35,20 @@ namespace NexVerse.RegionModules.Archives
             m_MaximumArchiveBytes = checked(maxMiB * 1024L * 1024L);
         }
 
-        public void AddRegion(Scene scene) { }
+        // Register inspection even when managed archival jobs are disabled.
+        // This protects the legacy "load iar" command independently of the API.
+        public void AddRegion(Scene scene)
+        {
+            scene?.RegisterModuleInterface<IInventoryArchiveInspector>(this);
+        }
+
+        public bool TryInspect(string archivePath, out int entryCount, out string rejectionReason)
+        {
+            OglIarInspection inspection = OglIarInspector.Inspect(archivePath);
+            entryCount = inspection.Valid ? inspection.Entries : 0;
+            rejectionReason = inspection.Valid ? string.Empty : inspection.Error;
+            return inspection.Valid;
+        }
 
         public void RegionLoaded(Scene scene)
         {
@@ -80,6 +93,7 @@ namespace NexVerse.RegionModules.Archives
 
         public void RemoveRegion(Scene scene)
         {
+            scene?.UnregisterModuleInterface<IInventoryArchiveInspector>(this);
             if (scene != null && m_Managers.TryRemove(scene.RegionInfo.RegionID, out OglIarOperationManager manager))
             {
                 scene.UnregisterModuleInterface<IOglIarOperations>(manager);

@@ -103,12 +103,19 @@ Archiver-Imports. Das schützt den regulären World-API-
 und Region-Managementpfad gegen Archivmüll,
 übermäßige Dekompression und offensichtlich falsche Strukturen.
 
-**Grenze:** Diese Prüfung validiert noch nicht sämtliche
-LSL-/Asset-Semantik und gilt bislang für die **verwaltete**
-IAR-Pipeline. Der klassische Konsolenbefehl
-`load iar` und andere direkte Archiver-Einstiege müssen noch
-auf dieselbe Prüflogik gebracht werden, damit wirklich
-alle möglichen IAR-Importpfade geschützt sind.
+**Update für 0.9.3.12:** Der klassische Konsolenbefehl
+`load iar` verwendet jetzt dieselbe validierende Vorprüfung
+über `IInventoryArchiveInspector`. Bei fehlendem Prüfdienst oder
+ungültigen Archiven wird der Import vor jeder Inventar-/Asset-
+Änderung verweigert. Die Vorprüfung ermittelt gleichzeitig die
+Gesamtzahl der Archiveinträge für die Fortschrittsanzeige.
+Der geschützte Konsolenpfad akzeptiert lokale IAR-Dateien,
+keine Remote-URIs.
+
+**Grenze:** Die Prüfung validiert weiterhin nicht sämtliche
+LSL-/Asset-Semantik. Andere direkte Archiver-Einstiege, die
+nicht über den verwalteten Manager oder `load iar` laufen,
+müssen noch auf dieselbe Prüflogik gebracht werden.
 Parallelimporte, Quotas pro Betreiber/Nutzer,
 Dateiänderung zwischen Inspektion und Import (TOCTOU)
 und Asset-Inhaltsprüfung benötigen weitere Härtung.
