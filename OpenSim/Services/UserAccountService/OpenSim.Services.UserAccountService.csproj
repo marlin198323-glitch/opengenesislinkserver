@@ -75,6 +75,11 @@
       <HintPath>/opt/robust/bin/OpenMetaverse.dll</HintPath>
       <Private>False</Private>
     </Reference>
+    <Reference Include="OpenMetaverse.StructuredData">
+      <Name>OpenMetaverse.StructuredData</Name>
+      <HintPath>/opt/robust/bin/OpenMetaverse.StructuredData.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
     <Reference Include="OpenMetaverseTypes" >
       <Name>OpenMetaverseTypes</Name>
       <HintPath>/opt/robust/bin/OpenMetaverseTypes.dll</HintPath>
