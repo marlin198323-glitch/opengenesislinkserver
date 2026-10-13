@@ -499,6 +499,18 @@ namespace NexVerse.Server.Api
                     gridUsers,
                     grid);
 
+                // Dedicated Stadtportal backend endpoint; never expose an API
+                // key to browser JavaScript. Disabled until reviewed/published
+                // Benjamin/Luna templates and TLS reverse proxy are deployed.
+                OglPortalRegistrationApi portalRegistration = new OglPortalRegistrationApi(
+                    authenticator,
+                    userAccounts,
+                    apiConfig.GetBoolean("PortalAvatarRegistrationEnabled", false));
+                server.AddSimpleStreamHandler(new SimpleStreamHandler(
+                    "/api/v1/portal/avatars/register",
+                    apiGate.Wrap(portalRegistration.Handle),
+                    "OpenGenesisLINK Stadtportal avatar registration"));
+
                 NexUserApiRouter userRouter = new NexUserApiRouter(
                     userService,
                     authenticator,
