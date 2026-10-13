@@ -4,6 +4,7 @@ using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
+using System.IO.Compression;
 using OpenMetaverse;
 using OpenSim.Region.Framework.Interfaces;
 using OpenSim.Region.Framework.Scenes;
@@ -71,7 +72,10 @@ namespace NexVerse.RegionModules.Archives
             Directory.CreateDirectory(m_Storage.RootDirectory);
             OglIarOperation operation = Create(requestId, OglIarOperationKind.Export, user, inventoryPath, path, false);
             operation.State = OglIarOperationState.Running;
-            FileStream output = File.Create(path);
+            // The underlying archiver Stream export writes TAR to its supplied
+            // stream. Compress here so the managed export produces a genuine
+            // .iar (GZip/TAR), just like the filename-based legacy exporter.
+            GZipStream output = new(File.Create(path), CompressionLevel.Optimal);
             try
             {
                 if (!m_Archiver.ArchiveInventory(requestId, user, inventoryPath, output, options ?? new Dictionary<string, object>()))
@@ -110,7 +114,10 @@ namespace NexVerse.RegionModules.Archives
             }
 
             operation.State = OglIarOperationState.Running;
-            FileStream input = File.OpenRead(path);
+            // The underlying archiver Stream import expects an already decompressed
+            // TAR stream. The path constructor performs GZip decompression itself,
+            // but this managed API uses the Stream overload.
+            GZipStream input = new(File.OpenRead(path), CompressionMode.Decompress);
             try
             {
                 Dictionary<string, object> options = new()
