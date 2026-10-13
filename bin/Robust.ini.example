@@ -631,6 +631,9 @@
 
 [NexVerseWorldApi]
     Enabled = true
+    ; Only the Stadtportal BACKEND with a dedicated users:register API key
+    ; may register avatars. Enable after publishing Benjamin/Luna models.
+    PortalAvatarRegistrationEnabled = false
     PublicBaseUrl = "http://world.stadt-nexverse.de"
 
     ; Keep privileged endpoints disabled while the public API is served over plain HTTP.
