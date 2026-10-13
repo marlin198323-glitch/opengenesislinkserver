@@ -388,6 +388,17 @@ namespace OpenSim.Region.Framework.Scenes
                 m_heldTouches.Remove((agentId, localId));
         }
 
+        private void EndHeldTouch(HeldTouch touch)
+        {
+            lock (m_heldTouchLock)
+            {
+                var key = (touch.Client.AgentId, touch.LocalId);
+                if (m_heldTouches.TryGetValue(key, out HeldTouch current)
+                    && ReferenceEquals(current, touch))
+                    m_heldTouches.Remove(key);
+            }
+        }
+
         private void EndHeldTouchesForAgent(UUID agentId)
         {
             lock (m_heldTouchLock)
@@ -444,16 +455,19 @@ namespace OpenSim.Region.Framework.Scenes
                 return;
 
             long now = Environment.TickCount64;
-            List<(HeldTouch Touch, long NextAt)> due = new();
+            List<(HeldTouch Touch, long NextAt)> due = null;
             lock (m_heldTouchLock)
             {
-                List<(UUID, uint)> expired = new();
+                if (m_heldTouches.Count == 0)
+                    return;
+
+                List<(UUID, uint)> expired = null;
                 foreach (var pair in m_heldTouches)
                 {
                     HeldTouch touch = pair.Value;
                     if (now - touch.StartedAt >= HeldTouchSafetyTimeoutMs)
                     {
-                        expired.Add(pair.Key);
+                        (expired ??= new()).Add(pair.Key);
                         continue;
                     }
 
@@ -462,12 +476,18 @@ namespace OpenSim.Region.Framework.Scenes
                         // Keep cadence without issuing bursts after slow frames.
                         long intervals = (now - touch.NextAt) / HeldTouchIntervalMs + 1;
                         touch.NextAt += intervals * HeldTouchIntervalMs;
-                        due.Add((touch, touch.NextAt));
+                        (due ??= new()).Add((touch, touch.NextAt));
                     }
                 }
-                foreach (var key in expired)
-                    m_heldTouches.Remove(key);
+                if (expired is not null)
+                {
+                    foreach (var key in expired)
+                        m_heldTouches.Remove(key);
+                }
             }
+
+            if (due is null)
+                return;
 
             foreach (var pending in due)
             {
@@ -478,7 +498,7 @@ namespace OpenSim.Region.Framework.Scenes
                     || presence.IsInTransit || !ReferenceEquals(presence.ControllingClient, touch.Client)
                     || part is null || part.UUID != touch.PartId || !HasTouchHandler(part))
                 {
-                    EndHeldTouch(touch.Client.AgentId, touch.LocalId);
+                    EndHeldTouch(touch);
                     continue;
                 }
 
