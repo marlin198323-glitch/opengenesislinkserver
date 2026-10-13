@@ -205,6 +205,8 @@ namespace OpenSim.Region.ScriptEngine.Shared.Api.Interfaces
           LSL_List llGetPrimitiveParams(LSL_List rules);
        LSL_Integer llGetRegionAgentCount();
         LSL_Vector llGetRegionCorner();
+        // OGL extension: actual scene dimensions including configured vertical extent.
+        LSL_Vector oglGetRegionDimensions();
        LSL_Integer llGetRegionFlags();
          LSL_Float llGetRegionFPS();
         LSL_String llGetRegionName();
