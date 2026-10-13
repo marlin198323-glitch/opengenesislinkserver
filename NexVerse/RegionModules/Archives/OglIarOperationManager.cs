@@ -4,6 +4,7 @@ using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
+using System.IO.Compression;
 using OpenMetaverse;
 using OpenSim.Region.Framework.Interfaces;
 using OpenSim.Region.Framework.Scenes;
@@ -110,7 +111,10 @@ namespace NexVerse.RegionModules.Archives
             }
 
             operation.State = OglIarOperationState.Running;
-            FileStream input = File.OpenRead(path);
+            // InventoryArchiveReadRequest(Stream) expects an already decompressed
+            // TAR stream. The path constructor performs GZip decompression itself,
+            // but this managed API uses the Stream overload.
+            GZipStream input = new(File.OpenRead(path), CompressionMode.Decompress);
             try
             {
                 Dictionary<string, object> options = new()
