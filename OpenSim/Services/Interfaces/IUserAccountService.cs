@@ -304,6 +304,18 @@ namespace OpenSim.Services.Interfaces
         }
     }
 
+    /// <summary>
+    /// Optional local, trusted portal registration capability. Never expose this
+    /// directly to unauthenticated clients or to remote user-account connectors.
+    /// The implementation checks OGL starter-model policy before any writes.
+    /// </summary>
+    public interface IOglStarterAccountRegistration
+    {
+        UserAccount CreateOglStarterAccount(
+            UUID principalID, string firstName, string lastName,
+            string password, string email, string modelId);
+    }
+
     public interface IUserAccountService
     {
         UserAccount GetUserAccount(UUID scopeID, UUID userID);
