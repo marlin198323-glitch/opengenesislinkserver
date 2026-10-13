@@ -1,5 +1,6 @@
 # OpenGenesisLINK Roadmap
 
+> **0.9.3.12 RC1-/Stable-Gates:** [Operator-Abnahmematrix](09312_RC1_STABLE_ACCEPTANCE.md) – Entwicklungsstand, kein RC- oder Stable-Tag.
 > **Aktuelle Stable-Version:** **[OpenGenesisLINK v0.9.3.10](https://github.com/opengenesislink/opengenesislinkserver/releases/tag/v0.9.3.10)** (veröffentlicht am 12.10.2026)
 > **Status:** Stabilisierungsrelease abgeschlossen; [Betreiberfreigabe und dokumentierte Abweichungen](09310_OPERATOR_RELEASE_DECISION.md)
 > **Vorheriger Stable-Stand:** v0.9.3.8 (historisch, veröffentlicht am 08.10.2026)
