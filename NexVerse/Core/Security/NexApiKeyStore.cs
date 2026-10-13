@@ -88,6 +88,7 @@ namespace NexVerse.Core.Security
                 {
                     NexScopes.UsersRead,
                     NexScopes.UsersWrite,
+                    NexScopes.UsersRegister,
                     NexScopes.InventoryRead,
                     NexScopes.InventoryWrite,
                     NexScopes.FriendsManage,

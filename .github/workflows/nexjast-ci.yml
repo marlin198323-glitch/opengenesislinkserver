@@ -134,6 +134,12 @@ jobs:
         shell: bash
         run: python3 tools/ci/verify_oar_world_api.py
 
+      - name: Verify Stadtportal avatar registration and IAR anti-flood policy
+        shell: bash
+        run: |
+          python3 tools/ci/verify_portal_registration_iar_preflight.py
+          dotnet run --configuration Release --project tools/ci/OglIarPreflightRegression/OglIarPreflightRegression.csproj
+
       - name: Verify OpenGenesisLINK IAR management foundation
         shell: bash
         run: python3 tools/ci/verify_iar_management.py

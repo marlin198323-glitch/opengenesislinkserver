@@ -442,6 +442,7 @@
       <ReferencePath>../../../bin/</ReferencePath>
       <Reference name="OpenMetaverseTypes"/>
       <Reference name="OpenMetaverse"/>
+      <Reference name="OpenMetaverse.StructuredData"/>
       <Reference name="OpenSim.Framework"/>
       <Reference name="OpenSim.Framework.Console"/>
       <Reference name="OpenSim.Framework.Servers.HttpServer"/>

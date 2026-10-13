@@ -304,6 +304,19 @@ namespace OpenSim.Services.Interfaces
         }
     }
 
+    /// <summary>
+    /// Narrow backend-only entry point for a portal registration service.
+    /// Not a public anonymous network API; caller must enforce rate limiting,
+    /// API-key authentication and input validation before invoking.
+    /// The implementation must use the existing account + inventory +
+    /// authentication + published-starter-model pipeline.
+    /// </summary>
+    public interface IOglPortalAccountProvisioner
+    {
+        UserAccount CreatePortalAvatar(string firstName, string lastName,
+            string password, string email, string modelAlias);
+    }
+
     public interface IUserAccountService
     {
         UserAccount GetUserAccount(UUID scopeID, UUID userID);
