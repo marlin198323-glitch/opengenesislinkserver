@@ -19,6 +19,19 @@ missing=[n for t,n in required if n not in t]
 if missing: raise SystemExit("IAR management foundation missing: "+", ".join(missing))
 if "InventoryArchiveWriteRequest" in ops or "InventoryArchiveReadRequest" in ops:
     raise SystemExit("OGL IAR manager must not duplicate original archiver internals")
+
+# The archiver's Stream overloads accept raw TAR bytes, unlike their
+# filename overloads which wrap GZip themselves. The manager must wrap
+# its file streams at BOTH boundaries or .iar archives become unreadable.
+read_request = Path("OpenSim/Region/CoreModules/Avatar/Inventory/Archiver/InventoryArchiveReadRequest.cs").read_text()
+write_request = Path("OpenSim/Region/CoreModules/Avatar/Inventory/Archiver/InventoryArchiveWriteRequest.cs").read_text()
+assert "archive = new TarArchiveReader(m_loadStream);" in read_request
+assert "m_archiveWriter = new TarArchiveWriter(m_saveStream);" in write_request
+assert "using System.IO.Compression;" in ops
+assert "GZipStream output = new(File.Create(path), CompressionLevel.Optimal);" in ops
+assert "GZipStream input = new(File.OpenRead(path), CompressionMode.Decompress);" in ops
+assert "FileStream input = File.OpenRead(path);" not in ops
+assert ops.index("GZipStream input =") < ops.index("m_Archiver.DearchiveInventory(")
 print("OpenGenesisLINK IAR management foundation: OK")
 
 register_pos=archiver.find("scene.RegisterModuleInterface<IInventoryArchiverModule>(this);")
