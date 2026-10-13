@@ -42,9 +42,16 @@ namespace OpenSim.Tests.Common
 {
     public class TestClient : IClientAPI, IClientCore
     {
+        // Keep the test transport synchronized with the viewer geometry
+        // properties added to the production IClientAPI.
+        public float FOV { get; set; }
+        public int viewHeight { get; set; }
+        public int viewWidth { get; set; }
+        public ViewerFlags ViewerFlags { get; private set; }
+
         private static readonly ILog m_log = LogManager.GetLogger(MethodBase.GetCurrentMethod().DeclaringType);
 
-        EventWaitHandle wh = new EventWaitHandle (false, EventResetMode.AutoReset, "Crossing");
+        EventWaitHandle wh = new EventWaitHandle(false, EventResetMode.AutoReset);
 
         private Scene m_scene;
 
