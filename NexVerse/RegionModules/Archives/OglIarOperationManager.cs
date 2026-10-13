@@ -47,6 +47,7 @@ namespace NexVerse.RegionModules.Archives
     public sealed class OglIarOperationManager : IOglIarOperations, IDisposable
     {
         private readonly IInventoryArchiverModule m_Archiver;
+        private readonly IInventoryArchiverProgress m_ProgressSource;
         private readonly OglIarStoragePolicy m_Storage;
         private readonly ConcurrentDictionary<UUID, OglIarOperation> m_Operations = new();
 
@@ -57,6 +58,9 @@ namespace NexVerse.RegionModules.Archives
                 ?? throw new InvalidOperationException("IAR-Archiver ist nicht verfuegbar.");
             m_Archiver.OnInventoryArchiveSaved += HandleSaved;
             m_Archiver.OnInventoryArchiveLoaded += HandleLoaded;
+            m_ProgressSource = m_Archiver as IInventoryArchiverProgress;
+            if (m_ProgressSource != null)
+                m_ProgressSource.OnInventoryArchiveProgress += HandleProgress;
         }
 
         public event Action<OglIarOperation> OperationChanged;
@@ -98,6 +102,8 @@ namespace NexVerse.RegionModules.Archives
             if (dryRun)
             {
                 operation.State = OglIarOperationState.Completed;
+                operation.ProgressPercent = 100;
+                operation.ProgressPhase = "completed";
                 operation.FinishedAt = DateTimeOffset.UtcNow;
                 OperationChanged?.Invoke(operation);
                 return operation;
@@ -107,7 +113,11 @@ namespace NexVerse.RegionModules.Archives
             FileStream input = File.OpenRead(path);
             try
             {
-                Dictionary<string, object> options = new() { ["merge"] = merge };
+                Dictionary<string, object> options = new()
+                {
+                    ["merge"] = merge,
+                    ["iar_total_entries"] = inspection.Entries
+                };
                 if (!m_Archiver.DearchiveInventory(requestId, user, inventoryPath, input, options))
                 {
                     input.Dispose();
@@ -224,20 +234,45 @@ namespace NexVerse.RegionModules.Archives
             Complete(operation);
         }
 
+        private void HandleProgress(UUID id, string phase, int processed, int total)
+        {
+            if (!m_Operations.TryGetValue(id, out OglIarOperation operation) ||
+                operation.State != OglIarOperationState.Running)
+                return;
+
+            int percent = 5;
+            if (phase == "inventory-complete") percent = 40;
+            else if (phase == "assets") percent = 40 + (total > 0 ? (int)Math.Min(55L, (long)processed * 55L / total) : 0);
+            else if (phase == "import") percent = 5 + (total > 0 ? (int)Math.Min(90L, (long)processed * 90L / total) : 0);
+            else if (phase == "finalizing") percent = 98;
+            else if (phase == "inventory") percent = 5;
+            percent = Math.Max(operation.ProgressPercent, Math.Min(99, percent));
+            string oldPhase = operation.ProgressPhase;
+            int oldBucket = operation.ProgressPercent / 5;
+            operation.ProgressPhase = phase;
+            operation.ProgressPercent = percent;
+            if (oldPhase != phase || oldBucket != percent / 5)
+                OperationChanged?.Invoke(operation);
+        }
+
         private void Complete(OglIarOperation operation)
         {
-            operation.State = OglIarOperationState.Completed; operation.FinishedAt = DateTimeOffset.UtcNow; OperationChanged?.Invoke(operation);
+            operation.State = OglIarOperationState.Completed; operation.ProgressPercent = 100;
+            operation.ProgressPhase = "completed"; operation.FinishedAt = DateTimeOffset.UtcNow; OperationChanged?.Invoke(operation);
         }
 
         private void Fail(OglIarOperation operation, string error)
         {
-            operation.State = OglIarOperationState.Failed; operation.Error = error ?? "Unbekannter IAR-Fehler."; operation.FinishedAt = DateTimeOffset.UtcNow; OperationChanged?.Invoke(operation);
+            operation.State = OglIarOperationState.Failed; operation.ProgressPhase = "failed";
+            operation.Error = error ?? "Unbekannter IAR-Fehler."; operation.FinishedAt = DateTimeOffset.UtcNow; OperationChanged?.Invoke(operation);
         }
 
         public void Dispose()
         {
             m_Archiver.OnInventoryArchiveSaved -= HandleSaved;
             m_Archiver.OnInventoryArchiveLoaded -= HandleLoaded;
+            if (m_ProgressSource != null)
+                m_ProgressSource.OnInventoryArchiveProgress -= HandleProgress;
         }
     }
 }

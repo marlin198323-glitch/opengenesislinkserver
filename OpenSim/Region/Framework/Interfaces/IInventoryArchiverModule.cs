@@ -61,6 +61,19 @@ namespace OpenSim.Region.Framework.Interfaces
         UUID id, bool succeeded, UserAccount userInfo, string invPath, Stream loadStream, Exception reportedException, int loadCount);
 
 
+    /// <summary>Optional live progress feed, without changing the legacy archiver contract.</summary>
+    /// <summary>Read-only, bounded IAR preflight available to the legacy console importer.</summary>
+    public interface IInventoryArchiveInspector
+    {
+        bool TryInspect(string archivePath, out int entryCount, out string rejectionReason);
+    }
+
+    public interface IInventoryArchiverProgress
+    {
+        // A zero total indicates that the total number of entries is not known yet.
+        event Action<UUID, string, int, int> OnInventoryArchiveProgress;
+    }
+
     public interface IInventoryArchiverModule
     {
         /// <summary>

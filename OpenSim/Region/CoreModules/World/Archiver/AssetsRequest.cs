@@ -100,13 +100,15 @@ namespace OpenSim.Region.CoreModules.World.Archiver
         protected AssetsArchiver m_assetsArchiver;
 
         protected Dictionary<string, object> m_options;
+        private readonly Action<int, int> m_progressCallback;
+        private int m_assetsProcessed;
 
         protected internal AssetsRequest(
             AssetsArchiver assetsArchiver, IDictionary<UUID, sbyte> uuids,
             int previousErrorsCount,
             IAssetService assetService, IUserAccountService userService,
             UUID scope, Dictionary<string, object> options,
-            AssetsRequestCallback assetsRequestCallback)
+            AssetsRequestCallback assetsRequestCallback, Action<int, int> progressCallback = null)
         {
             m_assetsArchiver = assetsArchiver;
             m_uuids = uuids;
@@ -117,6 +119,7 @@ namespace OpenSim.Region.CoreModules.World.Archiver
             m_scopeID = scope;
             m_options = options;
             m_repliesRequired = uuids.Count;
+            m_progressCallback = progressCallback;
         }
 
         protected internal void Execute()
@@ -173,6 +176,12 @@ namespace OpenSim.Region.CoreModules.World.Archiver
                 catch (Exception e)
                 {
                     m_log.ErrorFormat("[ARCHIVER]: Execute failed with {0}", e);
+                }
+                finally
+                {
+                    // Includes missing/damaged assets so the progress denominator is accurate.
+                    try { m_progressCallback?.Invoke(++m_assetsProcessed, m_repliesRequired); }
+                    catch (Exception e) { m_log.Warn("[ARCHIVER]: Asset progress callback failed.", e); }
                 }
             }
 

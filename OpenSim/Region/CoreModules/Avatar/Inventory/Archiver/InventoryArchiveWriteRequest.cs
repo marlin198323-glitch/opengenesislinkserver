@@ -146,6 +146,7 @@ namespace OpenSim.Region.CoreModules.Avatar.Inventory.Archiver
 
             try
             {
+                m_module?.TriggerInventoryArchiveProgress(m_id, "finalizing", 0, 0);
                 m_archiveWriter.Close();
             }
             catch (Exception e)
@@ -218,6 +219,7 @@ namespace OpenSim.Region.CoreModules.Avatar.Inventory.Archiver
 
             // Count inventory items (different to asset count)
             CountItems++;
+            m_module?.TriggerInventoryArchiveProgress(m_id, "inventory", CountItems, 0);
             
             // Don't chase down link asset items as they actually point to their target item IDs rather than an asset
             if (SaveAssets && itemAssetType != AssetType.Link && itemAssetType != AssetType.LinkFolder)
@@ -415,6 +417,7 @@ namespace OpenSim.Region.CoreModules.Avatar.Inventory.Archiver
                     throw e;
                 }
 
+                m_module?.TriggerInventoryArchiveProgress(m_id, "inventory", 0, 0);
                 m_archiveWriter = new TarArchiveWriter(m_saveStream);
 
                 m_log.InfoFormat("[INVENTORY ARCHIVER]: Adding control file to archive.");
@@ -444,6 +447,8 @@ namespace OpenSim.Region.CoreModules.Avatar.Inventory.Archiver
                     SaveInvItem(inventoryItem, ArchiveConstants.INVENTORY_PATH, options, userAccountService);
                 }
 
+                m_module?.TriggerInventoryArchiveProgress(m_id, "inventory-complete", CountItems, Math.Max(CountItems, 1));
+
                 // Don't put all this profile information into the archive right now.
                 //SaveUsers();
 
@@ -458,13 +463,16 @@ namespace OpenSim.Region.CoreModules.Avatar.Inventory.Archiver
                     if(errors > 0)
                         m_log.DebugFormat("[INVENTORY ARCHIVER]: {0} of these have problems or are not assets and will be ignored", errors);
 
+                    int assetTotal = m_assetGatherer.GatheredUuids.Count;
+                    m_module?.TriggerInventoryArchiveProgress(m_id, "assets", 0, Math.Max(1, assetTotal));
                     AssetsRequest ar = new AssetsRequest(
                             new AssetsArchiver(m_archiveWriter),
                             m_assetGatherer.GatheredUuids, m_assetGatherer.FailedUUIDs.Count,
                             m_scene.AssetService,
                             m_scene.UserAccountService, m_scene.RegionInfo.ScopeID,
-                            options, ReceivedAllAssets);
-                   ar.Execute();
+                            options, ReceivedAllAssets,
+                            (processed, total) => m_module?.TriggerInventoryArchiveProgress(m_id, "assets", processed, total));
+                    ar.Execute();
                 }
                 else
                 {
