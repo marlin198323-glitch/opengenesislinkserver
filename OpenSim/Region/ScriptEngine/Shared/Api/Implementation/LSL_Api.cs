@@ -6244,6 +6244,18 @@ namespace OpenSim.Region.ScriptEngine.Shared.Api
             return new LSL_Vector(World.RegionInfo.WorldLocX, World.RegionInfo.WorldLocY, 0);
         }
 
+        /// <summary>
+        /// Returns the configured X, Y and Z dimensions of the current scene in metres.
+        /// OpenGenesisLINK extension; independent of the OSSL permission switch.
+        /// </summary>
+        public LSL_Vector oglGetRegionDimensions()
+        {
+            RegionInfo region = World.RegionInfo;
+            return new LSL_Vector((double)region.RegionSizeX,
+                                  (double)region.RegionSizeY,
+                                  (double)region.RegionSizeZ);
+        }
+
         public LSL_String llGetEnv(LSL_String name)
         {
             string sname = name;

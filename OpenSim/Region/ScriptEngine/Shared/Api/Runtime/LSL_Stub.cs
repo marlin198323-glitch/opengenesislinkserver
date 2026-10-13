@@ -934,6 +934,12 @@ namespace OpenSim.Region.ScriptEngine.Shared.ScriptBase
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public LSL_Vector oglGetRegionDimensions()
+        {
+            return m_LSL_Functions.oglGetRegionDimensions();
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public LSL_Integer llGetRegionFlags()
         {
             return m_LSL_Functions.llGetRegionFlags();
