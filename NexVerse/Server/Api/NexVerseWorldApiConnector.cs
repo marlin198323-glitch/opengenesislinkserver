@@ -519,6 +519,23 @@ namespace NexVerse.Server.Api
                     adminMinimumLevel,
                     new PersistentNexSecurityStore(apiConfig.GetString("SecurityStorePath", "data/nexverse-security.json")));
 
+                // Opt-in Stadtportal registration with a dedicated service API
+                // key. The browser must never receive this server credential.
+                IConfig portalRegistration = config.Configs["NexPortalRegistration"];
+                NexPortalRegistrationApi portalRegistrationApi =
+                    new NexPortalRegistrationApi(
+                        authenticator,
+                        userAccounts,
+                        auditSink,
+                        portalRegistration?.GetBoolean("Enabled", false) == true,
+                        portalRegistration?.GetBoolean("TrustedTlsProxy", false) == true,
+                        portalRegistration?.GetString("TrustedProxyIp", "127.0.0.1") ?? "127.0.0.1");
+                server.AddSimpleStreamHandler(
+                    new SimpleStreamHandler(
+                        "/api/v1/portal/avatars/register",
+                        apiGate.Wrap(portalRegistrationApi.Handle),
+                        "OpenGenesisLINK Stadtportal Avatar Registration"));
+
                 NexEconomyApi economyApi =
                     new NexEconomyApi(
                         authenticator,
