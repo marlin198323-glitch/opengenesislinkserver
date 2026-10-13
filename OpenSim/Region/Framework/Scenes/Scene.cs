@@ -1514,6 +1514,7 @@ namespace OpenSim.Region.Framework.Scenes
 
             // Stop updating the scene objects and agents.
             m_shuttingDown = true;
+            ClearHeldTouches();
 
             // Wait here, or the kick messages won't actually get to the agents before the scene terminates.
             // We also need to wait to avoid a race condition with the scene update loop which might not yet
@@ -2028,6 +2029,7 @@ namespace OpenSim.Region.Framework.Scenes
         /// </summary>
         private void UpdateEvents()
         {
+            ProcessHeldTouches();
             m_eventManager.TriggerOnFrame();
         }
 
@@ -3740,6 +3742,7 @@ namespace OpenSim.Region.Framework.Scenes
 
         public void RemoveClient(UUID agentID, bool closeChildAgents)
         {
+            EndHeldTouchesForAgent(agentID);
             AgentCircuitData acd = m_authenticateHandler.GetAgentCircuitData(agentID);
 
             // Shouldn't be necessary since RemoveClient() is currently only called by IClientAPI.Close() which

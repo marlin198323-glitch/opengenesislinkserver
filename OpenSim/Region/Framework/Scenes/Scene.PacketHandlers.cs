@@ -314,6 +314,210 @@ namespace OpenSim.Region.Framework.Scenes
             m_eventManager.TriggerLandBuy(this, args);
         }
 
+
+        // OGL: viewers are not required to send GrabUpdate while the mouse stays
+        // still. LSL touch() must keep firing until DeGrab, independently of
+        // cursor movement. Held touches are per scene and per avatar.
+        private const long HeldTouchIntervalMs = 100;
+        private const long HeldTouchSafetyTimeoutMs = 5 * 60 * 1000;
+        private readonly object m_heldTouchLock = new();
+        private readonly Dictionary<(UUID, uint), HeldTouch> m_heldTouches = new();
+
+        private sealed class HeldTouch
+        {
+            public uint LocalId;
+            public UUID PartId;
+            public IClientAPI Client;
+            public Vector3 Offset;
+            public SurfaceTouchEventArgs Surface;
+            public long StartedAt;
+            public long NextAt;
+        }
+
+        private void BeginHeldTouch(SceneObjectPart part, Vector3 offset, IClientAPI client, SurfaceTouchEventArgs surface)
+        {
+            if (part.IsDeleted || part.ParentGroup is null || part.ParentGroup.IsDeleted)
+                return;
+
+            long now = Environment.TickCount64;
+            lock (m_heldTouchLock)
+            {
+                // One pointer gesture per avatar. Also discard a stale grab
+                // if a viewer lost a previous DeGrab packet.
+                List<(UUID, uint)> oldKeys = new();
+                foreach (var pair in m_heldTouches)
+                {
+                    if (pair.Key.Item1 == client.AgentId)
+                        oldKeys.Add(pair.Key);
+                }
+                foreach (var key in oldKeys)
+                    m_heldTouches.Remove(key);
+
+                m_heldTouches[(client.AgentId, part.LocalId)] = new HeldTouch
+                {
+                    LocalId = part.LocalId,
+                    PartId = part.UUID,
+                    Client = client,
+                    Offset = offset,
+                    Surface = surface,
+                    StartedAt = now,
+                    NextAt = now + HeldTouchIntervalMs
+                };
+            }
+        }
+
+        private void RefreshHeldTouch(SceneObjectPart part, Vector3 offset, IClientAPI client, SurfaceTouchEventArgs surface)
+        {
+            lock (m_heldTouchLock)
+            {
+                if (m_heldTouches.TryGetValue((client.AgentId, part.LocalId), out HeldTouch touch)
+                    && touch.PartId == part.UUID && ReferenceEquals(touch.Client, client))
+                {
+                    touch.Offset = offset;
+                    touch.Surface = surface;
+                    // The real viewer update already produces a touch() event.
+                    // Restart the fallback interval to avoid duplicate events.
+                    touch.NextAt = Environment.TickCount64 + HeldTouchIntervalMs;
+                }
+            }
+        }
+
+        private void EndHeldTouch(UUID agentId, uint localId)
+        {
+            lock (m_heldTouchLock)
+                m_heldTouches.Remove((agentId, localId));
+        }
+
+        private void EndHeldTouch(HeldTouch touch)
+        {
+            lock (m_heldTouchLock)
+            {
+                var key = (touch.Client.AgentId, touch.LocalId);
+                if (m_heldTouches.TryGetValue(key, out HeldTouch current)
+                    && ReferenceEquals(current, touch))
+                    m_heldTouches.Remove(key);
+            }
+        }
+
+        private void EndHeldTouchesForAgent(UUID agentId)
+        {
+            lock (m_heldTouchLock)
+            {
+                List<(UUID, uint)> keys = new();
+                foreach (var pair in m_heldTouches)
+                {
+                    if (pair.Key.Item1 == agentId)
+                        keys.Add(pair.Key);
+                }
+                foreach (var key in keys)
+                    m_heldTouches.Remove(key);
+            }
+        }
+
+        private void ClearHeldTouches()
+        {
+            lock (m_heldTouchLock)
+                m_heldTouches.Clear();
+        }
+
+        private static bool HasTouchHandler(SceneObjectPart part)
+        {
+            SceneObjectGroup group = part.ParentGroup;
+            return !part.IsDeleted && group is not null && !group.IsDeleted
+                && ((part.ScriptEvents & scriptEvents.touch) != 0
+                    || (part != group.RootPart && (group.RootPart.ScriptEvents & scriptEvents.touch) != 0));
+        }
+
+        private void FireTouchEvent(SceneObjectPart part, Vector3 offset, IClientAPI client, SurfaceTouchEventArgs surface)
+        {
+            SceneObjectGroup group = part.ParentGroup;
+            if (group is null || group.IsDeleted)
+                return;
+
+            uint localId = part.LocalId;
+            if ((part.ScriptEvents & scriptEvents.touch) != 0)
+            {
+                EventManager.TriggerObjectGrabbing(localId, 0, offset, client, surface);
+                if (!part.PassTouches)
+                    return;
+            }
+
+            uint rootId = group.RootPart.LocalId;
+            if (localId != rootId && (group.RootPart.ScriptEvents & scriptEvents.touch) != 0)
+                EventManager.TriggerObjectGrabbing(rootId, localId, offset, client, surface);
+        }
+
+        // Called on the region heartbeat, not on an additional timer thread.
+        // Never hold the dictionary lock while invoking script callbacks.
+        private void ProcessHeldTouches()
+        {
+            if (m_shuttingDown)
+                return;
+
+            long now = Environment.TickCount64;
+            List<(HeldTouch Touch, long NextAt)> due = null;
+            lock (m_heldTouchLock)
+            {
+                if (m_heldTouches.Count == 0)
+                    return;
+
+                List<(UUID, uint)> expired = null;
+                foreach (var pair in m_heldTouches)
+                {
+                    HeldTouch touch = pair.Value;
+                    if (now - touch.StartedAt >= HeldTouchSafetyTimeoutMs)
+                    {
+                        (expired ??= new()).Add(pair.Key);
+                        continue;
+                    }
+
+                    if (now >= touch.NextAt)
+                    {
+                        // Keep cadence without issuing bursts after slow frames.
+                        long intervals = (now - touch.NextAt) / HeldTouchIntervalMs + 1;
+                        touch.NextAt += intervals * HeldTouchIntervalMs;
+                        (due ??= new()).Add((touch, touch.NextAt));
+                    }
+                }
+                if (expired is not null)
+                {
+                    foreach (var key in expired)
+                        m_heldTouches.Remove(key);
+                }
+            }
+
+            if (due is null)
+                return;
+
+            foreach (var pending in due)
+            {
+                HeldTouch touch = pending.Touch;
+                ScenePresence presence = GetScenePresence(touch.Client.AgentId);
+                SceneObjectPart part = GetSceneObjectPart(touch.LocalId);
+                if (presence is null || presence.IsDeleted || presence.IsChildAgent
+                    || presence.IsInTransit || !ReferenceEquals(presence.ControllingClient, touch.Client)
+                    || part is null || part.UUID != touch.PartId || !HasTouchHandler(part))
+                {
+                    EndHeldTouch(touch);
+                    continue;
+                }
+
+                Vector3 offset;
+                SurfaceTouchEventArgs surface;
+                lock (m_heldTouchLock)
+                {
+                    if (!m_heldTouches.TryGetValue((touch.Client.AgentId, touch.LocalId), out HeldTouch current)
+                        || !ReferenceEquals(current, touch) || current.NextAt != pending.NextAt)
+                        continue;
+
+                    offset = touch.Offset;
+                    surface = touch.Surface;
+                }
+
+                FireTouchEvent(part, offset, touch.Client, surface);
+            }
+        }
+
         public virtual void ProcessObjectGrab(uint localID, Vector3 offsetPos, IClientAPI remoteClient, List<SurfaceTouchEventArgs> surfaceArgs)
         {
             SceneObjectPart part = GetSceneObjectPart(localID);
@@ -330,6 +534,7 @@ namespace OpenSim.Region.Framework.Scenes
             // Currently only grab/touch for the single prim
             // the client handles rez correctly
             obj.ObjectGrabHandler(localID, offsetPos, remoteClient);
+            BeginHeldTouch(part, offsetPos, remoteClient, surfaceArg);
 
             uint partLocalId = part.LocalId;
             // If the touched prim handles touches, deliver it
@@ -377,26 +582,13 @@ namespace OpenSim.Region.Framework.Scenes
                 surfaceArg = surfaceArgs[0];
 
             Vector3 grabOffset = pos - part.AbsolutePosition;
-            // If the touched prim handles touches, deliver it
-            uint partLocalId = part.LocalId;
-            if ((part.ScriptEvents & scriptEvents.touch) != 0)
-            {
-                EventManager.TriggerObjectGrabbing(partLocalId, 0, grabOffset, remoteClient, surfaceArg);
-                if(!part.PassTouches)
-                    return;
-            }
-
-            uint rootLocalId = group.RootPart.LocalId;
-            // Deliver to the root prim if the touched prim doesn't handle touches
-            // or if we're meant to pass on touches anyway.
-            if (partLocalId != rootLocalId && (group.RootPart.ScriptEvents & scriptEvents.touch) != 0)
-            {
-                EventManager.TriggerObjectGrabbing(rootLocalId, partLocalId, grabOffset, remoteClient, surfaceArg);
-            }
+            RefreshHeldTouch(part, grabOffset, remoteClient, surfaceArg);
+            FireTouchEvent(part, grabOffset, remoteClient, surfaceArg);
         }
 
         public virtual void ProcessObjectDeGrab(uint localID, IClientAPI remoteClient, List<SurfaceTouchEventArgs> surfaceArgs)
         {
+            EndHeldTouch(remoteClient.AgentId, localID);
             SceneObjectPart part = GetSceneObjectPart(localID);
             if (part == null)
                 return;
