@@ -41,7 +41,7 @@ using PermissionMask = OpenSim.Framework.PermissionMask;
 
 namespace OpenSim.Services.UserAccountService
 {
-    public class UserAccountService : UserAccountServiceBase, IUserAccountService
+    public class UserAccountService : UserAccountServiceBase, IUserAccountService, IOglPortalAccountProvisioner
     {
         private static readonly ILog m_log = LogManager.GetLogger(MethodBase.GetCurrentMethod().DeclaringType);
         private static UserAccountService m_RootInstance;
@@ -638,6 +638,14 @@ namespace OpenSim.Services.UserAccountService
         /// <param name="password"></param>
         /// <param name="email"></param>
         /// <param name="model"></param>
+        public UserAccount CreatePortalAvatar(string firstName, string lastName,
+            string password, string email, string modelAlias)
+        {
+            if (modelAlias != "ogl:benjamin" && modelAlias != "ogl:luna")
+                return null;
+            return CreateUser(UUID.Zero, UUID.Random(), firstName, lastName, password, email, modelAlias);
+        }
+
         public UserAccount CreateUser(UUID scopeID, UUID principalID, string firstName, string lastName, string password, string email, string model = "")
         {
             if (string.IsNullOrWhiteSpace(firstName) || string.IsNullOrWhiteSpace(lastName))
