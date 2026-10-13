@@ -294,6 +294,15 @@ namespace OpenSim.Region.CoreModules.Avatar.Inventory.Archiver
             if (userInfo == null || loadStream == null || m_scenes.Count == 0)
                 return false;
 
+            // Reject the full archive BEFORE InventoryArchiveReadRequest.Execute()
+            // can write any inventory rows or FSAssets. This also covers the
+            // World API's server-authorized import via this shared archiver.
+            if (!OglIarImportGuard.TryValidate(loadStream, out string iarReject))
+            {
+                m_log.WarnFormat("[IAR PREFLIGHT]: import rejected: {0}", iarReject);
+                return false;
+            }
+
             bool merge = options != null && options.ContainsKey("merge") && (bool)options["merge"];
             try
             {
@@ -374,6 +383,12 @@ namespace OpenSim.Region.CoreModules.Avatar.Inventory.Archiver
                         InventoryArchiveReadRequest request;
                         bool merge = (options.ContainsKey("merge") ? (bool)options["merge"] : false);
 
+                        if (!OglIarImportGuard.TryValidate(loadStream, out string iarReject))
+                        {
+                            m_log.WarnFormat("[IAR PREFLIGHT]: import rejected: {0}", iarReject);
+                            return false;
+                        }
+
                         try
                         {
                             request = new InventoryArchiveReadRequest(id, this, m_aScene.InventoryService, m_aScene.AssetService, m_aScene.UserAccountService, userInfo, invPath, loadStream, merge);
@@ -421,6 +436,23 @@ namespace OpenSim.Region.CoreModules.Avatar.Inventory.Archiver
 //                    {
                         InventoryArchiveReadRequest request;
                         bool merge = (options.ContainsKey("merge") ? (bool)options["merge"] : false);
+
+                        // The console's classic "load iar" route must obey
+                        // exactly the same preflight as the managed API.
+                        try
+                        {
+                            using FileStream preflightFile = File.OpenRead(loadPath);
+                            if (!OglIarImportGuard.TryValidate(preflightFile, out string iarReject))
+                            {
+                                m_log.WarnFormat("[IAR PREFLIGHT]: import rejected: {0}", iarReject);
+                                return false;
+                            }
+                        }
+                        catch (IOException e)
+                        {
+                            m_log.WarnFormat("[IAR PREFLIGHT]: cannot open archive: {0}", e.Message);
+                            return false;
+                        }
 
                         try
                         {
