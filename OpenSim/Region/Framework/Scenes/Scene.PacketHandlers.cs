@@ -336,7 +336,7 @@ namespace OpenSim.Region.Framework.Scenes
 
         private void BeginHeldTouch(SceneObjectPart part, Vector3 offset, IClientAPI client, SurfaceTouchEventArgs surface)
         {
-            if (part.ParentGroup is null || part.ParentGroup.IsDeleted)
+            if (part.IsDeleted || part.ParentGroup is null || part.ParentGroup.IsDeleted)
                 return;
 
             long now = Environment.TickCount64;
@@ -423,7 +423,7 @@ namespace OpenSim.Region.Framework.Scenes
         private static bool HasTouchHandler(SceneObjectPart part)
         {
             SceneObjectGroup group = part.ParentGroup;
-            return group is not null && !group.IsDeleted
+            return !part.IsDeleted && group is not null && !group.IsDeleted
                 && ((part.ScriptEvents & scriptEvents.touch) != 0
                     || (part != group.RootPart && (group.RootPart.ScriptEvents & scriptEvents.touch) != 0));
         }
