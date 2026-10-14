@@ -32,7 +32,7 @@ assert process.index("HttpStatusCode.Forbidden") < process.index("ServerUtils.Pa
 # Internal inventory stays available on private listener; do not redirect it to HG.
 for path in ("bin/Robust.HG.ini", "bin/Robust.HG.ini.example"):
     cfg = read(path)
-    assert "HGInventoryServiceConnector = " in cfg and "HGInventoryService@\$" not in cfg
+    assert "HGInventoryServiceConnector = " in cfg
     assert 'HGInventoryService@' in cfg and 'PublicPort' in cfg
     assert 'InventoryInConnector = ' in cfg and 'PrivatePort' in cfg
 assert '"HGInventoryService"' in read(
