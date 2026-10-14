@@ -20,3 +20,7 @@ data/
 # Local NexVerse runtime secrets (never commit)
 bin/nexverse.local.env
 .secrets/
+
+# Runtime-created Mono.Addins registry and map tile cache (never version)
+bin/addin-db-*/
+bin/maptiles/
