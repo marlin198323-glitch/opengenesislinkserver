@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Check feature-policy routing never accepts чужde foreign node updates."""
+"""Check feature-policy routing ignores foreign-node updates and preserves own-node validation."""
 from pathlib import Path
 
 root = Path(__file__).resolve().parents[2]
