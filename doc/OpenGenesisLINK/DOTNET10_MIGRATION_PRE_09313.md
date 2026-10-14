@@ -51,8 +51,25 @@ into the new cache after migration. The persistent asset database / fsassets
 is not changed by this step. CI tests round trips, invalid IDs, corrupt
 lengths, truncation, and trailing garbage.
 
-**Remaining blockers:** `Util.SerializeToFile` / `DeserializeFromFile`,
-`KeyframeMotion`, and YEngine script-state serialization still contain
+### Persisted keyframe motion
+
+`KeyframeMotion` writes and reads a **new** bounded typed `O G K M` v1
+encoding rather than invoking `BinaryFormatter` on region database or OAR
+payloads. A regression exercises active motion frames, nullable keyframe
+rotation/position data, iteration counters, exact roundtrip bytes, malformed
+headers, truncation, trailing payload and oversized input.
+
+**Operational blocker: existing MySQL/SQLite `KeyframeMotion` columns and
+older OAR files may contain legacy BinaryFormatter blobs.** The new reader
+refuses to interpret them and currently returns `null` (motion unavailable).
+Back up those records and supply an offline, trusted migration/conversion path
+before any live deployment. Do not deserialize attacker-provided OAR data
+with an unsafe legacy serializer as a shortcut. Do not merge this change
+into production until representative existing regions and OARs have passed
+a data-preservation trial, including rollback.
+
+**Remaining blockers:** `Util.SerializeToFile` /
+`DeserializeFromFile` and YEngine script-state migration still contain
 legacy BinaryFormatter calls. Some tests may pass without exercising those
 paths; do not treat a green build alone as production readiness.
 
