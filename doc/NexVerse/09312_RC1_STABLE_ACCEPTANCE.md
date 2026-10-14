@@ -1,10 +1,12 @@
 # OpenGenesisLINK 0.9.3.12 – RC1-/Stable-Freigabematrix
 
-**Stand: 13. Oktober 2026. Status: DEVELOPMENT, nicht RC1, nicht Stable.**
-Aktuelle veröffentlichte Stable: `v0.9.3.10`. Das aktuelle `main`
-enthält bereits 0.9.3.12-Entwicklungsarbeit, trägt in
-`OpenSim/Framework/VersionInfo.cs` aber noch `0.9.3.10 Release`.
-**Grüne CI allein ist keine Freigabe** und löst keine Versionsumstellung aus.
+**Stand der ursprünglichen Matrix: 13. Oktober 2026 (damals Development).**
+**Update 14. Oktober 2026:** Auf ausdrücklichen Betreiberwunsch wird die
+Versionskennung von 0.9.3.12 auf `Flavour.Release` umgestellt. Dies ist
+eine bewusste Vorziehung des Versionslabels, **keine Behauptung**, dass alle
+22 Nachweise vorliegen. Bis zur gesonderten Freigabe eines GitHub-Tags bleibt
+`v0.9.3.10` die zuletzt verifizierte und getaggte Stable-Veröffentlichung.
+**Grüne CI allein ist kein Nachweis einer vollständigen Betriebsabnahme.**
 
 Diese Matrix ergänzt `LSL_PARITY_09311_09312.md`, die IAR- und
 Regionschat-Protokolle und die historischen 0.9.3.10-Freigabedokumente.
