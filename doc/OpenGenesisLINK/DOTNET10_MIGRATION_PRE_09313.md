@@ -77,13 +77,34 @@ No internal source callers were found. Third-party modules still using
 these methods need an explicit typed serializer; the public method
 signatures remain only to produce an actionable failure message.
 
-**Remaining blockers:** YEngine script-state migration still has
-`BinaryFormatter` calls for serializing/reading generic CLR graphs
-and exceptions. Until it has a narrow typed replacement with data
-migration and negative tests, script-state persistence/crossing is
-not supported safely by the .NET 10 preview.
-Some tests may pass without exercising these paths; do not treat
-a green build alone as production readiness.
+### YEngine serialized script state (new typed exception format)
+
+YEngine no longer uses `BinaryFormatter` in `XMRInstAbstract`.
+`ScriptStateExceptionCodec` reconstructs only explicitly supported CLR
+exception types, with bounded message lengths and no reflection.
+Script-thrown exceptions have a new typed marker retaining the thrown
+value through the native `SendObjValue` graph format. Unrecognized
+CLR graph types fail closed rather than invoking arbitrary deserialization.
+Legacy `Ser.SYSERIAL` / `Ser.THROWNEX` blocks are explicitly rejected.
+
+**Important data-compatibility blocker:** Existing saved scripts and in-flight
+script crossings can contain old `BinaryFormatter`-serialized exception
+frames. These frames will **not** load on the .NET 10 preview; attempts
+must not silently discard the script state. Operators must back up script
+state and provide a controlled, isolated migration or reinitialization
+procedure, with ownership permissions and user-facing notices.
+Only explicitly listed CLR exceptions roundtrip at this stage;
+unknown application exceptions fail instead of being serialized.
+The new codec is covered by positive and malformed-payload tests,
+but those tests do not prove arbitrary persisted script snapshots work.
+
+**Remaining production blockers:** Real OAR/region migrations and the
+untrusted YEngine graph/array limits still need a security review.
+`String2SysType` currently has a general-purpose `Type.GetType`
+fallback for script arrays, which also deserves restriction to allowed
+types before exposing untrusted saved scripts. Full on-grid bridge/physics/
+crossing tests and an operator-tested rollback remain prerequisites.
+A green CI build alone is **not** production approval.
 
 ## Additional release gates
 
