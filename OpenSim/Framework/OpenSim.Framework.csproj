@@ -61,6 +61,7 @@
     <PlatformTarget>AnyCPU</PlatformTarget>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="AssetUploadLevelPolicy.cs" />
     <Compile Include="OfflineImMailRelayToken.cs">
       <SubType>Code</SubType>
     </Compile>
