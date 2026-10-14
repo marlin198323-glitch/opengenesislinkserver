@@ -175,6 +175,21 @@ main:before {content:"";position:fixed;inset:0;pointer-events:none;opacity:.17;z
 @media(max-width:850px){.shell{grid-template-columns:1fr;}nav{position:relative;height:auto;display:flex;flex-wrap:wrap;align-items:center;padding:15px;gap:5px;}nav .brand{width:100%;}.navsection-label{width:100%;margin:12px 8px 2px}.navbtn{width:auto;}.navmeta{display:none}main{padding:18px}.ogl-live-strip{flex-wrap:wrap}.ogl-live-strip .live-version{margin-left:0;width:100%}.hero{padding:27px 20px}}
 @media(prefers-reduced-motion:reduce){.hero:before,.livepulse{animation:none!important}}
 
+
+.navbtn[data-page=diagnostics]:before{content:"⚙";}
+.ogl-diagnostic-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-top:23px;}
+.ogl-diagnostic-result{padding:18px;border:1px solid rgba(121,177,235,.22);background:rgba(9,22,42,.67);border-radius:13px;min-height:102px;}
+.ogl-diagnostic-result strong{font-size:14px;display:block;margin-bottom:11px;color:#ecf8ff;}
+.ogl-diagnostic-result small{color:#9bb6d0;font-size:12px;line-height:1.5;display:block;overflow-wrap:anywhere;}
+.ogl-diagnostic-result.good{border-color:rgba(82,210,164,.32);box-shadow:inset 3px 0 rgba(82,230,187,.65);}
+.ogl-diagnostic-result.bad{border-color:rgba(255,135,158,.32);box-shadow:inset 3px 0 rgba(255,135,158,.7);}
+.ogl-diagnostic-result.optional{border-color:rgba(253,203,113,.3);box-shadow:inset 3px 0 rgba(253,203,113,.65);}
+.ogl-triage-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:13px;margin-top:18px;}
+.ogl-triage-tile{border:1px solid rgba(127,185,235,.2);background:rgba(8,20,38,.7);border-radius:13px;padding:17px 18px;}
+.ogl-triage-tile strong{color:#aff1ff;}
+.ogl-triage-tile p{font-size:12px;color:#a4b8d4;line-height:1.6;}
+.ogl-triage-tile code{overflow-wrap:anywhere;}
+
 </style>
 </head>
 <body>
@@ -184,6 +199,7 @@ main:before {content:"";position:fixed;inset:0;pointer-events:none;opacity:.17;z
 <div class="navsection-label">CONTROL CENTER</div>
 <button class="navbtn active" data-page="overview">Übersicht</button>
 <button class="navbtn" data-page="statistics">Statistik</button>
+<button class="navbtn" data-page="diagnostics">Systemdiagnose</button>
 <button class="navbtn" data-page="grid">Grid-Planer</button>
 <button class="navbtn" data-page="nodes">Simulatoren</button>
 <button class="navbtn" data-page="changes">Was ist neu?</button>
@@ -229,6 +245,21 @@ main:before {content:"";position:fixed;inset:0;pointer-events:none;opacity:.17;z
 </div>
 </section>
 
+
+<section class="page" id="page-diagnostics">
+<div class="hero"><div><div class="eyebrow">OGL CONTROL PLANE / DIAGNOSTICS</div><h1>Systemdiagnose</h1><p>Prüfe die tatsächlich erreichbaren World-API-Dienste dieses OGL-Servers. Kein Demo-Status, keine Datenbankänderungen.</p></div><div class="pill"><span class="dot" id="diagDot"></span><span id="diagSummary">Noch nicht geprüft</span></div></div>
+<div class="section"><h2>Live-Selbsttest</h2><p class="sectionlead">Diese Prüfung liest ausschließlich den aktuellen Health-/Versions-/OpenAPI-Zustand, die ChatGPT-Anweisung und den optionalen Node-Lizenzdienst. Keine schreibenden Aktionen.</p>
+<button class="action" type="button" id="diagnosticsRefresh">Prüfung jetzt starten</button>
+<div class="ogl-diagnostic-grid" id="diagnosticsResults">
+<div class="ogl-diagnostic-result">Wähle „Prüfung jetzt starten“, um Live-Endpunkte zu testen.</div>
+</div>
+</div>
+<div class="section"><h2>Robust &amp; Simulator – Log-Diagnosen</h2><p class="sectionlead">Beschädigte JPEG2000-Texturen, ungültige XML-RPC-Anfragen und Hypergrid-IM-Zustellversuche werden serverseitig protokolliert. Dieser Browser kann keine ungefilterten Serverlogs lesen.</p>
+<div class="ogl-triage-grid"><div class="ogl-triage-tile"><strong>JPEG2000 / World Map</strong><p>LunaTexture zeigt defekte Textur-UUIDs und betroffene Prims:</p><code>nex texture status</code><p><code>nex texture inspect &lt;UUID&gt;</code></p></div>
+<div class="ogl-triage-tile"><strong>Hypergrid IM</strong><p>Offline-/Location-Lookups werden weiterhin ausgeführt; identische fehlgeschlagene Debugmeldungen werden höchstens einmal je UUID in 60 Sekunden ausgegeben.</p></div>
+<div class="ogl-triage-tile"><strong>XML-RPC</strong><p>Ungültige XML-RPC-Requests werden mit HTTP 400 abgewiesen. Einzelne fremde Requests sind kein Nachweis eines Serverfehlers.</p></div></div>
+</div>
+</section>
 
 <section class="page" id="page-statistics">
 <div class="hero">
@@ -1795,6 +1826,50 @@ async function secretCopy() {
   }
 }
 
+
+async function runOglDiagnostics(){
+  const list=$('diagnosticsResults');
+  list.replaceChildren();
+  $('diagSummary').textContent='Prüfe Live-Dienste …';
+  $('diagDot').className='dot';
+  $('diagnosticsRefresh').disabled=true;
+  const checks=[
+    {label:'API Health',path:'/api/v1/health',expected:'application/json'},
+    {label:'Serverversion',path:'/api/v1/version',expected:'application/json'},
+    {label:'OpenAPI 3.1',path:'/api/v1/openapi.json',expected:'application/json'},
+    {label:'ChatGPT-Anweisung',path:'/api/v1/chatgpt-instructions.md',expected:'text/markdown'},
+    {label:'OGL Feature Control (optional)',path:'/api/v1/feature-control/nodes',expected:'application/json',optional:true},
+  ];
+  let passed=0,optional=0;
+  for(const item of checks){
+    let kind='bad',desc='Nicht erreichbar';
+    try{
+      const headers={'Accept':item.expected};
+      if(item.optional && adminAuthToken())headers.Authorization='Bearer '+adminAuthToken();
+      const response=await fetch(item.path,{method:'GET',headers,cache:'no-store'});
+      if(response.ok){
+        passed++;kind='good';
+        if(item.path.endsWith('/version')){
+          const result=await response.json();desc=String(result.server_version||'Version unbekannt');
+        }else if(item.path.endsWith('/health')){
+          const result=await response.json();desc=String(result.status||'Antwort erhalten');
+        }else desc='HTTP '+response.status+' – verfügbar';
+      }else if(item.optional && response.status===404){
+        optional++;kind='optional';desc='Nicht aktiviert – optionales Modul fehlt';
+      }else if(item.optional && (response.status===401||response.status===403)){
+        optional++;kind='optional';desc='Aktiv, aber separate API-Berechtigung erforderlich (HTTP '+response.status+')';
+      }else{desc='HTTP '+response.status;}
+    }catch(error){desc='Netzwerkfehler: '+String(error.message||error);}
+    const box=document.createElement('div');box.className='ogl-diagnostic-result '+kind;
+    const label=document.createElement('strong');label.textContent=item.label;
+    const message=document.createElement('small');message.textContent=desc;
+    box.append(label,message);list.append(box);
+  }
+  $('diagSummary').textContent=passed+' / '+checks.length+' Dienste erreichbar'+(optional?' · '+optional+' optional/eingeschränkt':'');
+  $('diagDot').className='dot '+(passed>=4?'good':'bad');
+  $('diagnosticsRefresh').disabled=false;
+}
+document.getElementById('diagnosticsRefresh').addEventListener('click',runOglDiagnostics);
 async function init(){
   try{
     const results=await Promise.all([
