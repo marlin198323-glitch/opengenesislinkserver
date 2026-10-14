@@ -25,4 +25,15 @@ assert "dotnet-version: '8.0.x'" not in ci
 assert "tools/build/retarget_net10.py" in (root/"runprebuild.sh").read_text()
 assert "retarget_net10.py" in (root/"runprebuild.bat").read_text()
 assert "rollForward" in (root/"bin/prebuild.runtimeconfig.json").read_text()
+# Previously unsafe generic and world-cache deserializers must stay retired.
+for path in (
+    "OpenSim/Framework/Util.cs",
+    "OpenSim/Region/Framework/Scenes/KeyframeMotion.cs",
+    "OpenSim/Region/CoreModules/Asset/FlotsamAssetCache.cs",
+):
+    body=(root/path).read_text(encoding="utf-8-sig")
+    assert "new BinaryFormatter(" not in body, f"Unsafe formatter restored in {path}"
+assert "AssetDiskCacheCodec.Read(stream, id)" in (root/"OpenSim/Region/CoreModules/Asset/FlotsamAssetCache.cs").read_text()
+assert "DeserializeState(data)" in (root/"OpenSim/Region/Framework/Scenes/KeyframeMotion.cs").read_text()
+assert "throw new NotSupportedException(" in (root/"OpenSim/Framework/Util.cs").read_text()
 print(f"OGL .NET 10 target: OK ({len(projects)} project files)")
