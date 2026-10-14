@@ -2522,33 +2522,22 @@ namespace OpenSim.Framework
             }
         }
 
+        [Obsolete("BinaryFormatter is unsafe and unsupported on .NET 10. Use an explicit, versioned typed serializer instead.")]
         public static void SerializeToFile(string filename, Object obj)
         {
-            var formatter = new BinaryFormatter();
-            try
-            {
-                using Stream stream = new FileStream(filename, FileMode.Create,FileAccess.Write, FileShare.None);
-                formatter.Serialize(stream, obj);
-            }
-            catch (Exception e)
-            {
-                m_log.Error(e.ToString());
-            }
+            // No in-tree callers remain. Refuse unsafe generic persistence
+            // rather than interpreting an arbitrary object graph.
+            throw new NotSupportedException(
+                "Generic BinaryFormatter persistence was disabled; migrate to a trusted typed codec.");
         }
 
+        [Obsolete("BinaryFormatter is unsafe and unsupported on .NET 10. Use an explicit, versioned typed serializer instead.")]
         public static Object DeserializeFromFile(string filename)
         {
-            try
-            {
-                using Stream stream = new FileStream(filename, FileMode.Open,FileAccess.Read, FileShare.None);
-                var formatter = new BinaryFormatter();
-                return formatter.Deserialize(stream);
-            }
-            catch (Exception e)
-            {
-                m_log.Error(e.ToString());
-            }
-            return null;
+            // In particular, never deserialize unknown files via reflection
+            // or fall back to BinaryFormatter on corrupt/legacy data.
+            throw new NotSupportedException(
+                "Generic BinaryFormatter persistence was disabled; migrate to a trusted typed codec.");
         }
 
         public static string Compress(string text)
