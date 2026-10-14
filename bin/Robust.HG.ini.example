@@ -726,6 +726,12 @@
     ; Public access terminates TLS at the trusted reverse proxy for world.stadt-nexverse.de.
     EnablePrivilegedEndpoints = true
     AdminMinimumUserLevel = 200
+    ; The OGL Control Center requires verified HTTPS for its protected panel.
+    ; Loopback proxies (127.0.0.1, ::1) are trusted automatically if they
+    ; send X-Forwarded-Proto: https. For a separate proxy/sidecar, explicitly
+    ; allowlist ONLY its actual backend source IP(s), separated by commas.
+    ; Never list arbitrary clients or a subnet here.
+    AdminDocsTrustedProxyAddresses = ""
     TokenLifetimeSeconds = 1800
 
     ; Maximum runtime for one provider-side ANALYZE statement. The Job Engine
