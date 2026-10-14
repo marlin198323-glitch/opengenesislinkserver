@@ -1475,8 +1475,10 @@ namespace OpenSim.Region.ScriptEngine.Yengine
             DELEGATE,
             SDTCLOBJ,
             SYSCHAR,
-            SYSERIAL,
-            THROWNEX
+            SYSERIAL, // Legacy BinaryFormatter: strictly rejected
+            THROWNEX, // Legacy BinaryFormatter: strictly rejected
+            SYSERIALSAFE, // Versioned allowlisted exception codec
+            THROWNEXSAFE // Typed script exception + thrown value
         }
 
         /**
@@ -1705,28 +1707,24 @@ namespace OpenSim.Region.ScriptEngine.Yengine
                 mow.Write((byte)Ser.SDTCLOBJ);
                 XMRSDTypeClObjgraph.Capture(this.SendObjValue);
             }
-            else if(graph is ScriptThrownException ScriptThrownExceptiongraph)
+            else if(graph is ScriptThrownException scriptThrown)
             {
-                MemoryStream memoryStream = new MemoryStream();
-                System.Runtime.Serialization.Formatters.Binary.BinaryFormatter bformatter =
-                        new System.Runtime.Serialization.Formatters.Binary.BinaryFormatter();
-                bformatter.Serialize(memoryStream, graph);
-                byte[] rawBytes = memoryStream.ToArray();
-                mow.Write((byte)Ser.THROWNEX);
-                mow.Write((int)rawBytes.Length);
-                mow.Write(rawBytes);
-                SendObjValue(ScriptThrownExceptiongraph.thrown);
+                mow.Write((byte)Ser.THROWNEXSAFE);
+                ScriptStateExceptionCodec.WriteBoundedText(mow, scriptThrown.Message);
+                SendObjValue(scriptThrown.thrown);
+            }
+            else if(graph is Exception exception)
+            {
+                mow.Write((byte)Ser.SYSERIALSAFE);
+                ScriptStateExceptionCodec.Write(mow, exception);
             }
             else
             {
-                MemoryStream memoryStream = new MemoryStream();
-                System.Runtime.Serialization.Formatters.Binary.BinaryFormatter bformatter =
-                        new System.Runtime.Serialization.Formatters.Binary.BinaryFormatter();
-                bformatter.Serialize(memoryStream, graph);
-                byte[] rawBytes = memoryStream.ToArray();
-                mow.Write((byte)Ser.SYSERIAL);
-                mow.Write(rawBytes.Length);
-                mow.Write(rawBytes);
+                // This is intentionally fail-closed. An unknown CLR object
+                // must never be resurrected from untrusted script state.
+                throw new NotSupportedException(
+                    "YEngine state cannot safely serialize CLR object " +
+                    graph.GetType().FullName);
             }
         }
 
@@ -1978,28 +1976,26 @@ namespace OpenSim.Region.ScriptEngine.Yengine
                     return clobj;
 
                 case Ser.SYSERIAL:
+                case Ser.THROWNEX:
+                    throw new InvalidDataException(
+                        "Legacy BinaryFormatter YEngine state is not supported: " +
+                        "migrate trusted script snapshots offline");
+
+                case Ser.SYSERIALSAFE:
                 {
-                    int rawLength = mir.ReadInt32();
-                    byte[] rawBytes = mir.ReadBytes(rawLength);
-                    MemoryStream memoryStream = new MemoryStream(rawBytes);
-                    System.Runtime.Serialization.Formatters.Binary.BinaryFormatter bformatter =
-                            new System.Runtime.Serialization.Formatters.Binary.BinaryFormatter();
-                    object graph = bformatter.Deserialize(memoryStream);
-                    this.migrateInObjects.Add(ident, graph);
-                    return graph;
+                    Exception exception = ScriptStateExceptionCodec.Read(mir);
+                    this.migrateInObjects.Add(ident, exception);
+                    return exception;
                 }
 
-                case Ser.THROWNEX:
+                case Ser.THROWNEXSAFE:
                 {
-                    int rawLength = mir.ReadInt32();
-                    byte[] rawBytes = mir.ReadBytes(rawLength);
-                    MemoryStream memoryStream = new MemoryStream(rawBytes);
-                    System.Runtime.Serialization.Formatters.Binary.BinaryFormatter bformatter =
-                            new System.Runtime.Serialization.Formatters.Binary.BinaryFormatter();
-                    object graph = bformatter.Deserialize(memoryStream);
-                    this.migrateInObjects.Add(ident, graph);
-                    ((ScriptThrownException)graph).thrown = RecvObjValue();
-                    return graph;
+                    string message = ScriptStateExceptionCodec.ReadLimitedString(mir);
+                    ScriptThrownException exception =
+                        (ScriptThrownException)ScriptThrownException.Wrap(message);
+                    this.migrateInObjects.Add(ident, exception);
+                    exception.thrown = RecvObjValue();
+                    return exception;
                 }
 
                 default:
