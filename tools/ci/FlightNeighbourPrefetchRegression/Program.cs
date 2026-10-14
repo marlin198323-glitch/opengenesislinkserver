@@ -11,7 +11,7 @@ internal static class Program
         if (!result) throw new Exception("Fast region crossing prefetch: " + label);
     }
     private static bool Pref(bool fly, float x, float y, float vx, float vy,
-        int sizeX = 256, int sizeY = 256) =>
+        uint sizeX = 256, uint sizeY = 256) =>
         FlightNeighbourPrefetchPolicy.NeedsPrefetch(fly,
             new Vector3(x, y, 22), new Vector3(vx, vy, 0), sizeX, sizeY);
 
