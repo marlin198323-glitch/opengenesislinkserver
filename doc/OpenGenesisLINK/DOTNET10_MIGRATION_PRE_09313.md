@@ -26,7 +26,7 @@ The codebase still uses the unsafe BinaryFormatter API, including:
 - `OpenSim/Framework/Util.cs`
 - `OpenSim/Region/Framework/Scenes/KeyframeMotion.cs`
 - `OpenSim/Region/ScriptEngine/YEngine/XMRInstAbstract.cs`
-- `OpenSim/Region/CoreModules/Asset/FlotsamAssetCache.cs`
+- `OpenSim/Region/CoreModules/Asset/FlotsamAssetCache.cs` **(resolved in this branch: replaced with bounded, typed v1 cache serializer; old cache entries are disposable and will be re-fetched from the authoritative Asset Service)**
 
 BinaryFormatter stopped being supported as a regular runtime serializer
 from .NET 9 onward. An old runtimeconfig switch is **not** a
@@ -37,6 +37,24 @@ with constrained, versioned, type-safe encodings and explicitly
 document compatibility/migration of existing cache and persisted
 objects. Block production rollout until affected workflows pass
 targeted serialization and malicious-payload tests.
+
+
+### Flotsam disk cache migration
+
+`AssetDiskCacheCodec` uses a versioned, length-bounded, fixed-schema binary
+cache representation with no runtime class construction from the payload.
+Legacy BinaryFormatter cache files are not deserialized: the cache reader
+rejects the header and Flotsam deletes/re-fetches them. This is expected to
+cause temporary extra Asset Service traffic on first requests. Back up the
+cache if diagnostics are important; do not copy old cached serialized blobs
+into the new cache after migration. The persistent asset database / fsassets
+is not changed by this step. CI tests round trips, invalid IDs, corrupt
+lengths, truncation, and trailing garbage.
+
+**Remaining blockers:** `Util.SerializeToFile` / `DeserializeFromFile`,
+`KeyframeMotion`, and YEngine script-state serialization still contain
+legacy BinaryFormatter calls. Some tests may pass without exercising those
+paths; do not treat a green build alone as production readiness.
 
 ## Additional release gates
 
