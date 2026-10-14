@@ -247,7 +247,7 @@
     ; Simulator erhält NUR den öffentlichen ES256-Prüfschlüssel.
     ; Alternativ OGL_FEATURE_PUBLIC_KEY_PEM in der Prozessumgebung setzen.
     PublicKeyPath = "config-include/ogl-feature-public.pem"
-    ; NodeID muss zu [NexVerseNodeAgent] NodeId passen.
+    ; NodeID muss zur NodeAgent-NodeId passen.
     ; Zusätzlich NexVerseNodeAgent Enabled=true mit authentifiziertem
     ; NexBus und erreichbarem Robust-Peer konfigurieren.
 
