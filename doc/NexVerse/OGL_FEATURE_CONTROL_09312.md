@@ -67,8 +67,30 @@ Der **private** PEM-Schlüssel wird ausschließlich auf Robust unter
 Simulator-Nodes erhalten **nur** den öffentlichen PEM-Schlüssel unter
 `PublicKeyPath` (oder `OGL_FEATURE_PUBLIC_KEY_PEM`).
 Der private Schlüssel darf niemals in den Simulator-Deployments oder
-Git-Repositories liegen. Die NexBus-SharedKeys bleiben davon unabhängig. Lass die Funktion
-bei noch nicht eingerichteten Grids auf `Enabled=false`.
+Git-Repositories liegen. Die NexBus-SharedKeys bleiben davon unabhängig.
+
+**Ab 0.9.3.12: Aktivierung ist in den mitgelieferten OGL-Konfigurationen
+Standard (`Enabled = true`).** Vor dem ersten Start oder Neustart mit diesen
+Konfigurationen müssen die Schlüssel eingerichtet sein: Robust benötigt den
+privaten ES256-Schlüssel, jede Simulator-Node den passenden öffentlichen Schlüssel,
+eine eindeutige `NexVerseNodeAgent.NodeId` und eine funktionierende authentifizierte
+NexBus-Verbindung. Für jede Node müssen die gewünschten OAR-/IAR-Operationen
+administrativ freigegeben werden. Sonst gilt bewusst **fail-closed**:
+Robust startet die World API ohne privaten Schlüssel nicht, und auf Simulatoren
+ohne aktuelle signierte Node-Policy sind alle Archivoperationen gesperrt.
+
+**Bestehende Installationen:** `git pull` und Neubau ersetzen bestehende
+lokale `.ini`-Dateien nicht zwingend, vor allem wenn sie außerhalb des
+Repositorys gepflegt werden. Lokal genutzte Robust-/OpenSim-Konfigurationen und
+Schlüssel müssen daher separat abgeglichen werden. Die Freischaltung in GitHub
+ist **keine** Freischaltung eines bereits laufenden Servers.
+
+**OGL-Entwicklungsregel:** Neue, als produktionsbereit deklarierte Funktionen
+werden im gleichen Change in den ausgelieferten aktiven Konfigurationen und
+Vorlagen aktiviert, durch CI geprüft und in der Bedienoberfläche sichtbar gemacht.
+Sicherheitskritische Features benötigen weiterhin dokumentierte Abhängigkeiten,
+Rollout-Prüfung und klar kommuniziertes fail-closed-Verhalten; keine geheimen
+Schlüssel im Repository und keine stillschweigende Umgehung der Richtlinien.
 
 **Ablauf:** Robust erkennt Simulatoren aus der NexBus-NodeRegistry,
 speichert Freigaben atomar als JSON pro NodeID und publiziert signierte
