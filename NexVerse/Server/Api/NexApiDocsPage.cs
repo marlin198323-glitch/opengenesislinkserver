@@ -57,7 +57,7 @@ namespace NexVerse.Server.Api
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>NexVerse Welt-API-Kontrollzentrum</title>
+<title>OpenGenesisLINK – World API Control Center</title>
 <style>
 :root{color-scheme:dark;--bg:#071019;--panel:#0f1a26;--panel2:#142335;--line:#24384d;--text:#e9f1f8;--muted:#8fa5b8;--accent:#66c7ff;--accent2:#8be0c2;--good:#62d49b;--warn:#ffd166;--danger:#ff7d7d;--shadow:0 18px 55px rgba(0,0,0,.28)}
 *{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;background:radial-gradient(circle at 85% 0,#112b3d 0,transparent 34%),var(--bg);color:var(--text);font:14px/1.5 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
@@ -90,12 +90,60 @@ input,textarea,select{width:100%;background:#08131e;color:var(--text);border:1px
 .planner-controls{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}.planner-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}.planner-actions .action{flex:0 0 auto}.gridlegend{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0}.legenditem{display:inline-flex;gap:6px;align-items:center;color:var(--muted);font-size:12px}.legendswatch{width:13px;height:13px;border-radius:3px;border:1px solid var(--line)}.gridboardwrap{overflow:auto;max-height:680px;border:1px solid var(--line);border-radius:10px;background:#06101a;padding:12px}.gridboard{--cell:30px;display:grid;gap:2px;width:max-content;min-width:100%}.gridcell{width:var(--cell);height:var(--cell);min-width:var(--cell);padding:0;border:1px solid #22384b;border-radius:3px;background:#0c1a26;color:transparent;position:relative}.gridcell:hover{outline:2px solid var(--accent);z-index:2}.gridcell.free{background:#123326}.gridcell.occupied{background:#1d4c6a}.gridcell.reserved{background:#5a461c}.gridcell.conflict{background:#6a2323}.gridcell.selected{outline:2px solid #fff;z-index:3}.gridcell.preview-ok{box-shadow:inset 0 0 0 2px var(--good)}.gridcell.preview-bad{box-shadow:inset 0 0 0 2px var(--danger)}.gridcell.dimmed{opacity:.22}.gridcell[data-region-name]:after{content:'';position:absolute;inset:35%;border-radius:50%;background:rgba(255,255,255,.72)}.gridinfo{display:grid;grid-template-columns:1fr 1fr;gap:12px}.gridinfo pre{margin:0;min-height:150px}.gridcoord{font-family:ui-monospace,SFMono-Regular,Menlo,monospace}.planner-note{padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:#0a1520;color:var(--muted);font-size:12px}.noderow{cursor:pointer}.noderow:hover{background:var(--panel2)}.node-state-online{color:var(--good)}.node-state-stale{color:var(--warn)}.node-state-offline{color:var(--danger)}
 @media(max-width:1100px){.cards,.roadmap-summary{grid-template-columns:repeat(2,1fr)}.changegrid{grid-template-columns:1fr}.explorer{grid-template-columns:1fr}.endpointlist{max-height:420px;overflow:auto}.planner-controls{grid-template-columns:repeat(2,1fr)}}
 @media(max-width:760px){.portalgrid{grid-template-columns:1fr}.shell{display:block}nav{position:static;height:auto;border-right:0;border-bottom:1px solid var(--line)}.navmeta{display:none}.navbtn{display:inline-block;width:auto}.brand{padding-bottom:12px}main{padding:22px 14px}.hero{display:block}.hero .pill{margin-top:14px}.cards,.roadmap-summary{grid-template-columns:1fr}.grid2,.version,.gridinfo{grid-template-columns:1fr}.planner-controls{grid-template-columns:1fr 1fr}.milestonehead{display:block}.milestonehead .status{margin-top:8px}}
+
+/* OpenGenesisLINK OGL Control Center */
+:root{--bg:#060b16;--panel:#121f35;--panel2:#182c47;--line:rgba(128,187,243,.24);--text:#eff8ff;--muted:#9bb0cd;--accent:#75e7fa;--accent2:#ad92fb;--good:#55e6b7;--warn:#ffcb7f;--danger:#ff8199;--shadow:0 26px 90px rgba(0,0,0,.34);color-scheme:dark}
+body{background:#060b16;color:var(--text);font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;position:relative}
+body:before{content:"";position:fixed;inset:-28%;z-index:-2;pointer-events:none;background:radial-gradient(ellipse 35% 29% at 23% 21%,rgba(44,178,232,.17),transparent 92%),radial-gradient(ellipse 30% 34% at 82% 55%,rgba(107,70,222,.17),transparent 91%),radial-gradient(ellipse 33% 25% at 48% 92%,rgba(17,178,169,.07),transparent 92%);animation:ogl-aurora 23s ease-in-out infinite alternate}
+body:after{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;opacity:.26;background-image:linear-gradient(rgba(124,157,204,.12) 1px,transparent 1px),linear-gradient(90deg,rgba(124,157,204,.12) 1px,transparent 1px);background-size:66px 66px;mask-image:linear-gradient(110deg,transparent 2%,black 48%,transparent 94%)}
+@keyframes ogl-aurora{to{transform:translate3d(3.4%,-2.8%,0) rotate(5deg)}}
+.shell{grid-template-columns:270px 1fr}
+nav{padding:29px 18px;background:linear-gradient(177deg,rgba(15,26,47,.97),rgba(6,13,27,.99));border-right:1px solid rgba(113,175,236,.22);box-shadow:18px 0 70px rgba(0,0,0,.14);z-index:3}
+nav:before{content:"";position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,transparent,rgba(113,236,255,.9),rgba(177,133,255,.8),transparent);box-shadow:0 0 25px #59bdfa54}
+.brand{padding:0 8px 27px;margin-bottom:17px;position:relative;border-bottom:1px solid rgba(123,174,228,.16);display:grid;grid-template-columns:45px minmax(0,1fr);column-gap:11px;align-items:center}
+.brand .ogl-logo{grid-row:span 2;height:45px;width:45px;border-radius:13px;border:1px solid #69dafa88;box-shadow:0 0 30px #4de7fe23,inset 0 0 20px #4da4e02d;background:linear-gradient(133deg,#15334a,#312049);color:#c7f8ff;font-size:17px;font-weight:900;letter-spacing:-1px;display:grid;place-items:center}
+.brand strong{font-size:16px;letter-spacing:.005em;line-height:1.3;align-self:end;white-space:nowrap}
+.brand span{font-size:9px;font-weight:750;letter-spacing:.13em;color:#89abc9;align-self:start;margin-top:3px}
+.navbtn{border-radius:11px;padding:12px 13px;display:flex;gap:12px;align-items:center;font-size:12px;letter-spacing:.01em;border:1px solid transparent;margin:5px 0;transition:.23s;background:transparent;color:#98aecb}
+.navbtn:before{content:"⌁";display:inline-grid;place-items:center;flex:0 0 23px;height:24px;border-radius:7px;background:rgba(100,140,204,.08);color:#88b3df;font-size:18px}
+.navbtn[data-page=overview]:before{content:"◈"}.navbtn[data-page=statistics]:before{content:"▥"}.navbtn[data-page=grid]:before{content:"⊞"}.navbtn[data-page=nodes]:before{content:"⬡"}.navbtn[data-page=changes]:before{content:"✦"}.navbtn[data-page=versions]:before{content:"⌘"}.navbtn[data-page=roadmap]:before{content:"↗"}.navbtn[data-page=chatgpt]:before{content:"◇"}.navbtn[data-page=adminlogin]:before{content:"♙"}.navbtn[data-page=secrets]:before{content:"⚿"}.navbtn[data-page=explorer]:before{content:"◎"}
+.navbtn:hover{transform:translateX(3px);border-color:rgba(96,194,255,.23);background:rgba(42,73,120,.17);color:#e5f7ff}
+.navbtn.active{border:1px solid rgba(92,218,254,.37);color:#dff7ff;background:linear-gradient(100deg,rgba(30,110,158,.3),rgba(105,71,167,.13));box-shadow:inset 3px 0 #57deff,0 0 21px rgba(88,199,247,.05)}
+.navbtn.active:before{background:rgba(61,181,224,.2);color:#86f1ff}
+.navmeta{font-size:10px;line-height:1.6;color:#8ba3c3;left:25px;right:20px;border-top:1px solid rgba(117,165,220,.17);padding-top:15px}
+main{padding:36px clamp(24px,3.6vw,69px)}.page{max-width:1550px}
+.hero{position:relative;overflow:hidden;border-radius:19px;border:1px solid rgba(99,192,248,.22);padding:28px 31px;margin-bottom:27px;min-height:155px;align-items:center;background:linear-gradient(114deg,rgba(17,52,82,.89),rgba(28,31,66,.93) 53%,rgba(13,28,48,.91));box-shadow:0 20px 65px rgba(0,0,0,.2),inset 0 1px rgba(176,234,255,.1)}
+.hero:before{content:"";position:absolute;right:-65px;top:-210px;width:470px;height:470px;border:1px solid rgba(96,214,255,.21);border-radius:50%;box-shadow:0 0 0 45px rgba(71,158,232,.035),0 0 0 103px rgba(71,158,232,.029),inset 0 0 55px rgba(72,157,255,.065);pointer-events:none}
+.hero:after{content:"";position:absolute;left:0;right:0;top:0;height:2px;background:linear-gradient(90deg,rgba(80,242,255,.85),rgba(160,119,255,.5),transparent)}
+.eyebrow{font-size:11px;letter-spacing:.18em;color:#83e7ff}
+.hero h1{font-weight:780;letter-spacing:-.047em;font-size:clamp(26px,3vw,42px);margin:9px 0}
+.hero h1 em{font-style:normal;background:linear-gradient(95deg,#86eeff,#d6b6ff);color:transparent;background-clip:text}
+.hero p{color:#b0c1d7;line-height:1.7;font-size:13px}
+.pill{background:rgba(14,27,48,.68);border:1px solid rgba(130,189,244,.25);padding:9px 13px;box-shadow:inset 0 1px rgba(255,255,255,.03);backdrop-filter:blur(12px)}
+.dot.good{box-shadow:0 0 11px #44e7ac80}.dot.bad{box-shadow:0 0 11px #ff6a9380}
+.cards{gap:16px}
+.card,.section,.change{position:relative;border:1px solid rgba(113,165,226,.2);border-radius:15px;background:linear-gradient(147deg,rgba(24,40,64,.91),rgba(13,23,42,.95));box-shadow:0 14px 45px rgba(0,0,0,.18),inset 0 1px rgba(197,236,255,.028);backdrop-filter:blur(13px)}
+.card:before,.section:before{content:"";position:absolute;inset:-1px;border-radius:inherit;padding:1px;background:linear-gradient(145deg,rgba(101,214,252,.28),transparent 33%,transparent 75%,rgba(151,104,249,.2));mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);mask-composite:exclude;pointer-events:none}
+.card{padding:20px;transition:transform .24s,border-color .24s}.card:hover{transform:translateY(-3px);border-color:rgba(98,209,254,.46);box-shadow:0 17px 54px rgba(0,0,0,.29),0 0 30px rgba(99,165,250,.07)}
+.card .label{font-size:11px;letter-spacing:.11em;text-transform:uppercase;color:#97aecb}.card .value{font-size:23px;letter-spacing:-.03em;margin:12px 0 4px}.card .sub{color:#9aabc3}
+.section{padding:24px 26px;margin-bottom:20px}.section h2{font-size:20px;letter-spacing:-.025em;margin-bottom:8px}.sectionlead{font-size:13px;line-height:1.7;color:#97adc8}
+.change{background:rgba(11,23,43,.76);border-radius:13px;transition:border-color .2s,transform .2s}.change:hover{transform:translateY(-2px);border-color:rgba(90,220,247,.35)}
+input,select,textarea{background:rgba(6,16,33,.89)!important;color:#e9f7ff!important;border:1px solid rgba(123,168,223,.27)!important;border-radius:10px!important;box-shadow:inset 0 1px 4px rgba(0,0,0,.12)}
+input:focus,select:focus,textarea:focus{outline:2px solid rgba(99,217,255,.43)!important;outline-offset:1px}
+button.action,.actionlink,.filter{background:linear-gradient(107deg,rgba(33,81,125,.77),rgba(53,41,112,.65));border:1px solid rgba(105,177,238,.35)!important;color:#e5f7ff!important;border-radius:10px;transition:.2s}
+button.action:hover,.actionlink:hover,.filter:hover{border-color:rgba(114,224,252,.68)!important;box-shadow:0 0 23px rgba(62,156,236,.13);filter:brightness(1.15)}
+a{color:#83dcff}a:hover{color:#bcb0ff}
+::-webkit-scrollbar{height:9px;width:9px}::-webkit-scrollbar-thumb{background:#314761;border-radius:7px}::-webkit-scrollbar-track{background:#0b1729}
+@media(max-width:1100px){.shell{grid-template-columns:233px 1fr}nav{padding:20px 12px}.brand{padding:0 6px 20px}.brand strong{font-size:14px}.brand span{font-size:8px}main{padding:26px 23px}}
+@media(max-width:760px){.shell{display:block}nav{position:relative;height:auto;display:flex;flex-wrap:wrap;align-items:center;gap:4px;padding:15px;overflow:visible}.brand{width:100%;border:0;margin:0;padding:0 6px 12px}.navbtn{width:auto;margin:1px;font-size:11px;padding:8px 9px;gap:5px}.navbtn:before{height:21px;width:19px;font-size:14px}.navmeta{display:none}main{padding:22px 15px}.hero{padding:23px 18px;display:block}.hero .pill{margin-top:16px}.section{padding:19px 15px}}
+@media(prefers-reduced-motion:reduce){body:before{animation:none}.navbtn,.card,.change{transition:none}}
+
 </style>
 </head>
 <body>
 <div class="shell">
 <nav>
-<div class="brand"><strong>NexVerse API</strong><span>Welt-API-Kontrollzentrum</span></div>
+<div class="brand"><div class="ogl-logo" aria-hidden="true">OGL</div><strong>OpenGenesisLINK</strong><span>WORLD API · CONTROL CENTER</span></div>
 <button class="navbtn active" data-page="overview">Übersicht</button>
 <button class="navbtn" data-page="statistics">Statistik</button>
 <button class="navbtn" data-page="grid">Grid-Planer</button>
@@ -104,7 +152,7 @@ input,textarea,select{width:100%;background:#08131e;color:var(--text);border:1px
 <button class="navbtn" data-page="versions">Versionen</button>
 <button class="navbtn" data-page="roadmap">Entwicklungsplan</button>
 <button class="navbtn" data-page="chatgpt">ChatGPT / Portale</button>
-<button class="navbtn" data-page="adminlogin">Admin-Anmeldung</button>
+<button class="navbtn" data-page="adminlogin">Administrator</button>
 <button class="navbtn" data-page="secrets">Schlüssel &amp; Einrichtung</button>
 <button class="navbtn" data-page="explorer">API-Endpunkte</button>
 <div class="navmeta" id="navmeta">Live-Daten werden geladen…</div>
@@ -112,7 +160,7 @@ input,textarea,select{width:100%;background:#08131e;color:var(--text);border:1px
 <main>
 <section class="page active" id="page-overview">
 <div class="hero">
-<div><div class="eyebrow">NexVerse Welt-API</div><h1>API-Status auf einen Blick</h1><p>Live-Übersicht über Serverversion, API-Vertrag, aktuelle Erweiterungen und verfügbare Endpunkte.</p></div>
+<div><div class="eyebrow">OpenGenesisLINK / WORLD API</div><h1>Deine Welt. <em>Deine Kontrolle.</em></h1><p>Live-Übersicht über Serverversion, API-Vertrag, aktuelle Erweiterungen und verfügbare Endpunkte.</p></div>
 <div class="pill"><span class="dot" id="healthDot"></span><span id="healthText">Prüfe API-Status…</span></div>
 </div>
 <div class="cards">
@@ -142,7 +190,7 @@ input,textarea,select{width:100%;background:#08131e;color:var(--text);border:1px
 
 <section class="page" id="page-statistics">
 <div class="hero">
-<div><div class="eyebrow">Live-Statistik</div><h1>Grid-Statistik</h1><p>Aktuelle Einwohner-, Aktivitäts-, Anwesenheits- und Hypergrid-Kennzahlen direkt aus den laufenden NexVerse-Diensten.</p></div>
+<div><div class="eyebrow">Live-Statistik</div><h1>Grid-Statistik</h1><p>Aktuelle Einwohner-, Aktivitäts-, Anwesenheits- und Hypergrid-Kennzahlen direkt aus den laufenden OGL-Diensten.</p></div>
 <div class="pill"><span class="dot" id="statsDot"></span><span id="statsStatus">Noch nicht geladen</span></div>
 </div>
 <div class="section">
@@ -183,7 +231,7 @@ input,textarea,select{width:100%;background:#08131e;color:var(--text);border:1px
 
 <section class="page" id="page-grid">
 <div class="hero">
-<div><div class="eyebrow">Region Control Plane</div><h1>Interaktiver Grid-Planer</h1><p>Rasteransicht der NexVerse-Welt auf 256-Meter-Basis. Belegte, freie, reservierte und widersprüchliche Zellen werden direkt aus der World API gelesen.</p></div>
+<div><div class="eyebrow">Region Control Plane</div><h1>Interaktiver Grid-Planer</h1><p>Rasteransicht des angeschlossenen Grids auf 256-Meter-Basis. Belegte, freie, reservierte und widersprüchliche Zellen werden direkt aus der World API gelesen.</p></div>
 <div class="pill"><span class="dot" id="gridDot"></span><span id="gridStatus">Noch nicht geladen</span></div>
 </div>
 <div class="section">
@@ -275,7 +323,7 @@ input,textarea,select{width:100%;background:#08131e;color:var(--text);border:1px
 <div class="planner-controls">
 <div><label class="label2">Estate-ID</label><input id="estateManageId" type="number" min="1" step="1" placeholder="bei Create leer lassen"></div>
 <div><label class="label2">Name</label><input id="estateManageName" maxlength="64" placeholder="Estate-Name"></div>
-<div><label class="label2">Owner UUID</label><input id="estateManageOwner" placeholder="lokaler NexVerse-Account"></div>
+<div><label class="label2">Owner UUID</label><input id="estateManageOwner" placeholder="lokaler Grid-Account"></div>
 <div><label class="label2">Parent-Estate-ID</label><input id="estateManageParent" type="number" min="0" step="1" value="1"></div>
 <div><label class="label2">Manager UUIDs</label><input id="estateManageManagers" placeholder="Komma oder Leerzeichen getrennt"></div>
 <div><label class="label2">Erlaubte Residents</label><input id="estateManageAllowed" placeholder="UUIDs, Komma oder Leerzeichen getrennt"></div>
@@ -307,7 +355,7 @@ input,textarea,select{width:100%;background:#08131e;color:var(--text);border:1px
 
 <section class="page" id="page-nodes">
 <div class="hero">
-<div><div class="eyebrow">Simulator Control Plane</div><h1>Simulator-Nodes</h1><p>Live-Zustand der durch den NexVerse NodeAgent beobachteten Simulatorprozesse und ihrer aktuell gemeldeten Regionen.</p></div>
+<div><div class="eyebrow">Simulator Control Plane</div><h1>Simulator-Nodes</h1><p>Live-Zustand der durch den OGL NodeAgent beobachteten Simulatorprozesse und ihrer aktuell gemeldeten Regionen.</p></div>
 <div class="pill"><span class="dot" id="nodesDot"></span><span id="nodesStatus">Noch nicht geladen</span></div>
 </div>
 <div class="section">
@@ -375,7 +423,7 @@ Archivprüfungen bleiben auch für freigegebene Importe aktiv.</div>
 </section>
 
 <section class="page" id="page-roadmap">
-<div class="hero"><div><div class="eyebrow">Projektstatus</div><h1>NexVerse-Entwicklungsplan</h1><p>Meilenstein-Status auf Basis des veröffentlichten Entwicklungsplans und konkreter Implementierungsnachweise. Prozentwerte werden nur angezeigt, wenn der Meilenstein tatsächlich eine gepflegte Checkbox-Checkliste besitzt.</p></div></div>
+<div class="hero"><div><div class="eyebrow">Projektstatus</div><h1>OpenGenesisLINK Entwicklungsplan</h1><p>Meilenstein-Status auf Basis des veröffentlichten Entwicklungsplans und konkreter Implementierungsnachweise. Prozentwerte werden nur angezeigt, wenn der Meilenstein tatsächlich eine gepflegte Checkbox-Checkliste besitzt.</p></div></div>
 <div class="roadmap-summary">
 <div class="card"><div class="label">Aktueller Meilenstein</div><div class="value" id="roadmapCurrent">–</div><div class="sub" id="roadmapCodename">–</div></div>
 <div class="card"><div class="label">Aktiv</div><div class="value" id="roadmapActiveCount">–</div><div class="sub">aktueller Produkt-Meilenstein</div></div>
@@ -448,8 +496,8 @@ Archivprüfungen bleiben auch für freigegebene Importe aktiv.</div>
 <section class="page" id="page-adminlogin">
 <div class="hero">
 <div><div class="eyebrow">Geschützter Verwaltungszugang</div>
-<h1>Als NexVerse-Administrator anmelden</h1>
-<p>Dieses Control Center erlaubt die Anmeldung ausschließlich für lokale NexVerse-Benutzer mit <code>UserLevel >= 200</code> und <code>admin:*</code>. Andere Einwohner können die öffentliche API-Dokumentation weiter lesen, erhalten jedoch keine Administratorsitzung.</p></div>
+<h1>Als OGL-Administrator anmelden</h1>
+<p>Dieses Control Center erlaubt die Anmeldung ausschließlich für lokale Grid-Benutzer mit <code>UserLevel >= 200</code> und <code>admin:*</code>. Andere Einwohner können die öffentliche API-Dokumentation weiter lesen, erhalten jedoch keine Administratorsitzung.</p></div>
 <div class="pill"><span class="dot" id="adminLoginDot"></span><span id="adminLoginState">Nicht angemeldet</span></div>
 </div>
 <div class="section">
@@ -464,7 +512,7 @@ Archivprüfungen bleiben auch für freigegebene Importe aktiv.</div>
 <button class="action" id="adminLoginSubmit">Als Administrator anmelden</button>
 <button class="action" id="adminLoginLogout" disabled>Abmelden</button>
 </div>
-<p class="authnote" id="adminLoginMessage" role="status">Der Login verwendet ausschließlich den geschützten NexVerse-Endpunkt <code>POST /api/v1/auth/admin/session</code>. Das Access-Token wird nur im Arbeitsspeicher dieser Seite gehalten, nicht als Cookie oder im Browserspeicher abgelegt.</p>
+<p class="authnote" id="adminLoginMessage" role="status">Der Login verwendet ausschließlich den geschützten OGL-World-API-Endpunkt <code>POST /api/v1/auth/admin/session</code>. Das Access-Token wird nur im Arbeitsspeicher dieser Seite gehalten, nicht als Cookie oder im Browserspeicher abgelegt.</p>
 </div>
 </section>
 
@@ -589,6 +637,7 @@ function adminLogout(){
   secretClear();
   adminUpdateStatus('Abgemeldet',null);
   showPage('adminlogin');
+  if(window.parent!==window)window.parent.postMessage({type:'ogl-logout'},window.parent.location.origin);
 }
 async function adminLogin(){
   if(!window.isSecureContext){adminUpdateStatus('Administrator-Login ist nur über HTTPS erlaubt.',false);return}
@@ -1624,14 +1673,14 @@ async function secretGenerate() {
     if(!window.isSecureContext)throw new Error('Schlüssel nur über HTTPS generieren.');
     const token=await secretAdminToken();
     const plan=[
-      {wanted:wantEconomy,name:'NexVerse Simulator Economy',
+      {wanted:wantEconomy,name:'OGL Simulator Economy',
        scopes:['economy:read','economy:transfer'],env:'NEXVERSE_ECONOMY_API_KEY'},
-      {wanted:wantExperiences,name:'NexVerse Simulator Experiences',
+      {wanted:wantExperiences,name:'OGL Simulator Experiences',
        scopes:['experiences:script'],env:'NEXVERSE_EXPERIENCES_API_KEY'},
-      {wanted:wantPermissions,name:'NexVerse Simulator Experience Permissions',
+      {wanted:wantPermissions,name:'OGL Simulator Experience Permissions',
        scopes:['experiences:viewer:permissions'],
        env:'NEXVERSE_EXPERIENCES_VIEWER_PERMISSIONS_API_KEY'},
-      {wanted:wantManage,name:'NexVerse Simulator Experience Management',
+      {wanted:wantManage,name:'OGL Simulator Experience Management',
        scopes:['experiences:viewer:manage'],
        env:'NEXVERSE_EXPERIENCES_VIEWER_MANAGE_API_KEY'}
     ].filter(item=>item.wanted);
@@ -1709,7 +1758,7 @@ async function init(){
     $('healthText').textContent=health.status==='ok'?'API online':'API Status: '+(health.status||'unbekannt');$('healthDot').className='dot '+(health.status==='ok'?'good':'bad');
     $('serverVersion').textContent=version.server_version||'–';$('milestone').textContent='Meilenstein '+(version.milestone||'–')+(version.milestone_title?' · '+version.milestone_title:'');$('apiVersion').textContent=version.api_version||spec.info?.version||'–';
     $('endpointCount').textContent=Object.keys(spec.paths||{}).length;$('operationCount').textContent=entries.length+' Operationen';
-    $('navmeta').textContent=(version.server_version||'NexVerse')+' · '+(version.api_version||'API')+' · '+languageLabel(version.language||spec['x_nexverse_language']||'de-DE');
+    $('navmeta').textContent=(version.server_version||'OpenGenesisLINK')+' · '+(version.api_version||'API')+' · '+languageLabel(version.language||spec['x_nexverse_language']||'de-DE');
     if(changes.length){$('lastChangeDate').textContent=changes[0].date||'–';$('lastChangeTitle').textContent=changes[0].title||''}
     const overview=$('overviewChanges');overview.replaceChildren();changes.slice(0,4).forEach(x=>overview.append(makeChange(x)));if(!changes.length)overview.innerHTML='<div class="empty">Noch keine Versionshinweise veröffentlicht.</div>';
     renderChangeFilters();renderChanges('all');renderVersions();renderRoadmap();renderEndpointList();
@@ -1741,6 +1790,17 @@ $('loadNodes').addEventListener('click',loadNodes);$('clearNodesCredentials').ad
 $('gridWest').addEventListener('click',()=>panGrid(-1,0));$('gridEast').addEventListener('click',()=>panGrid(1,0));$('gridSouth').addEventListener('click',()=>panGrid(0,-1));$('gridNorth').addEventListener('click',()=>panGrid(0,1));
 $('validateGridPlacement').addEventListener('click',validateGridPlacement);$('gridRegionSizeX').addEventListener('change',()=>{if(gridSelected)validateGridPlacement()});$('gridRegionSizeY').addEventListener('change',()=>{if(gridSelected)validateGridPlacement()});
 $('gridCellPixels').addEventListener('input',()=>{$('gridBoard').style.setProperty('--cell',$('gridCellPixels').value+'px')});$('gridFilter').addEventListener('change',applyGridFilter);
+
+window.addEventListener('message',event=>{
+  if(event.origin!==window.parent.location.origin || event.source!==window.parent ||
+     !event.data || event.data.type!=='ogl-auth')return;
+  const access=event.data.access_token,expiry=Number(event.data.expires_at);
+  if(typeof access!=='string'||access.length<24||!Number.isFinite(expiry)||expiry<=Date.now())return;
+  adminSessionToken=access;
+  adminSessionExpiry=expiry;
+  adminUpdateStatus('OpenGenesisLINK · Administrator angemeldet',true);
+  showPage('overview');
+});
 init();
 </script>
 </body>

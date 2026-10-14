@@ -83,6 +83,10 @@ jobs:
             exit 1
           fi
 
+      - name: Verify OpenGenesisLINK protected admin Control Center
+        shell: bash
+        run: python3 tools/ci/verify_ogl_docs_admin_ui.py
+
       - name: Verify runtime secrets are not committed
         shell: bash
         run: python3 tools/ci/verify_no_plaintext_runtime_secrets.py
@@ -1096,48 +1100,59 @@ jobs:
           fi
 
           curl --silent --fail --max-time 2 http://127.0.0.1:19090/api/v1/docs > /tmp/nexverse-api-docs.html
-          grep -F 'NexVerse Welt-API-Kontrollzentrum' /tmp/nexverse-api-docs.html
-          grep -F 'Was ist neu?' /tmp/nexverse-api-docs.html
-          grep -F 'NexVerse-Entwicklungsplan' /tmp/nexverse-api-docs.html
-          grep -F 'Was ist neu?' /tmp/nexverse-api-docs.html
-          grep -F 'NexVerse-Entwicklungsplan' /tmp/nexverse-api-docs.html
-          grep -F 'x_nexverse_changelog' /tmp/nexverse-api-docs.html
-          grep -F 'x_nexverse_roadmap' /tmp/nexverse-api-docs.html
-          grep -F '/api/v1/openapi.json' /tmp/nexverse-api-docs.html
-          grep -F 'ChatGPT / Portale' /tmp/nexverse-api-docs.html
-          grep -F '/api/v1/chatgpt-instructions.md' /tmp/nexverse-api-docs.html
-          grep -F '/api/v1/chatgpt-buergerportal.md' /tmp/nexverse-api-docs.html
-          grep -F '/api/v1/chatgpt-admin.md' /tmp/nexverse-api-docs.html
-          grep -F 'data-audience-target="citizen"' /tmp/nexverse-api-docs.html
-          grep -F 'data-endpoint-audience="admin"' /tmp/nexverse-api-docs.html
-          grep -F 'Interaktiver Grid-Planer' /tmp/nexverse-api-docs.html
-          grep -F '/api/v1/grid/layout' /tmp/nexverse-api-docs.html
-          grep -F '/api/v1/grid/validate-placement' /tmp/nexverse-api-docs.html
-          grep -F 'regions:read' /tmp/nexverse-api-docs.html
-          grep -F 'Simulator-Nodes' /tmp/nexverse-api-docs.html
-          grep -F '/api/v1/nodes' /tmp/nexverse-api-docs.html
-          grep -F 'simulators:read' /tmp/nexverse-api-docs.html
-          grep -F 'Region erstellen' /tmp/nexverse-api-docs.html
-          grep -F 'createGridRegion' /tmp/nexverse-api-docs.html
-          grep -F 'moveGridRegion' /tmp/nexverse-api-docs.html
-          grep -F 'gridRegionSearch' /tmp/nexverse-api-docs.html
-          grep -F 'jumpGridRegion' /tmp/nexverse-api-docs.html
-          grep -F 'startGridRegion' /tmp/nexverse-api-docs.html
-          grep -F 'stopGridRegion' /tmp/nexverse-api-docs.html
-          grep -F 'restartGridRegion' /tmp/nexverse-api-docs.html
-          grep -F 'loadGridEstates' /tmp/nexverse-api-docs.html
-          grep -F 'gridEstateOptions' /tmp/nexverse-api-docs.html
-          grep -F 'loadEstateManagement' /tmp/nexverse-api-docs.html
-          grep -F 'createEstateManagement' /tmp/nexverse-api-docs.html
-          grep -F 'updateEstateManagement' /tmp/nexverse-api-docs.html
-          grep -F 'assignEstateRegion' /tmp/nexverse-api-docs.html
-          grep -F 'estates:read' /tmp/nexverse-api-docs.html
-          grep -F 'estates:manage' /tmp/nexverse-api-docs.html
-          grep -F '/api/v1/estates' /tmp/nexverse-api-docs.html
-          grep -F '/api/v1/regions/' /tmp/nexverse-api-docs.html
-          grep -F '/lifecycle' /tmp/nexverse-api-docs.html
-          grep -F '/api/v1/region-operations/' /tmp/nexverse-api-docs.html
-          if grep -F 'localStorage' /tmp/nexverse-api-docs.html; then
+          grep -F 'OpenGenesisLINK – Control Center' /tmp/nexverse-api-docs.html
+          # Full Control Center HTML must never be returned without a
+          # server-verified local administrator token, regardless of UI scripts.
+          DOCS_STATUS="$(curl --silent --output /tmp/ogl-docs-denied.txt --write-out '%{http_code}' --max-time 3 http://127.0.0.1:19090/api/v1/docs/panel)"
+          test "$DOCS_STATUS" = 401
+          if grep -F 'id="page-explorer"' /tmp/ogl-docs-denied.txt; then
+            echo "::error::Protected OGL admin HTML was exposed anonymously"
+            exit 1
+          fi
+          # The full dashboard is protected and cannot be downloaded anonymously.
+          # Verify retained explorer/grid functions in its compiled HTML source.
+          DOCS_SOURCE=../NexVerse/Server/Api/NexApiDocsPage.cs
+          grep -F 'Was ist neu?' $DOCS_SOURCE
+          grep -F 'OpenGenesisLINK Entwicklungsplan' $DOCS_SOURCE
+          grep -F 'Was ist neu?' $DOCS_SOURCE
+          grep -F 'OpenGenesisLINK Entwicklungsplan' $DOCS_SOURCE
+          grep -F 'x_nexverse_changelog' $DOCS_SOURCE
+          grep -F 'x_nexverse_roadmap' $DOCS_SOURCE
+          grep -F '/api/v1/openapi.json' $DOCS_SOURCE
+          grep -F 'ChatGPT / Portale' $DOCS_SOURCE
+          grep -F '/api/v1/chatgpt-instructions.md' $DOCS_SOURCE
+          grep -F '/api/v1/chatgpt-buergerportal.md' $DOCS_SOURCE
+          grep -F '/api/v1/chatgpt-admin.md' $DOCS_SOURCE
+          grep -F 'data-audience-target="citizen"' $DOCS_SOURCE
+          grep -F 'data-endpoint-audience="admin"' $DOCS_SOURCE
+          grep -F 'Interaktiver Grid-Planer' $DOCS_SOURCE
+          grep -F '/api/v1/grid/layout' $DOCS_SOURCE
+          grep -F '/api/v1/grid/validate-placement' $DOCS_SOURCE
+          grep -F 'regions:read' $DOCS_SOURCE
+          grep -F 'Simulator-Nodes' $DOCS_SOURCE
+          grep -F '/api/v1/nodes' $DOCS_SOURCE
+          grep -F 'simulators:read' $DOCS_SOURCE
+          grep -F 'Region erstellen' $DOCS_SOURCE
+          grep -F 'createGridRegion' $DOCS_SOURCE
+          grep -F 'moveGridRegion' $DOCS_SOURCE
+          grep -F 'gridRegionSearch' $DOCS_SOURCE
+          grep -F 'jumpGridRegion' $DOCS_SOURCE
+          grep -F 'startGridRegion' $DOCS_SOURCE
+          grep -F 'stopGridRegion' $DOCS_SOURCE
+          grep -F 'restartGridRegion' $DOCS_SOURCE
+          grep -F 'loadGridEstates' $DOCS_SOURCE
+          grep -F 'gridEstateOptions' $DOCS_SOURCE
+          grep -F 'loadEstateManagement' $DOCS_SOURCE
+          grep -F 'createEstateManagement' $DOCS_SOURCE
+          grep -F 'updateEstateManagement' $DOCS_SOURCE
+          grep -F 'assignEstateRegion' $DOCS_SOURCE
+          grep -F 'estates:read' $DOCS_SOURCE
+          grep -F 'estates:manage' $DOCS_SOURCE
+          grep -F '/api/v1/estates' $DOCS_SOURCE
+          grep -F '/api/v1/regions/' $DOCS_SOURCE
+          grep -F '/lifecycle' $DOCS_SOURCE
+          grep -F '/api/v1/region-operations/' $DOCS_SOURCE
+          if grep -F 'localStorage' /tmp/nexverse-api-docs.html || grep -F 'localStorage' "$DOCS_SOURCE"; then
             echo "::error::API Control Center must not persist credentials in localStorage."
             exit 1
           fi

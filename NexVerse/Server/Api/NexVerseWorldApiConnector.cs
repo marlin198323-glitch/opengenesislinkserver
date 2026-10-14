@@ -206,12 +206,19 @@ namespace NexVerse.Server.Api
                 apiConfig.GetBoolean("TrustForwardedFor", false));
 
             NexVerseWorldApiHandlers handlers = new NexVerseWorldApiHandlers(publicBaseUrl, eventBus, publicAuditSink);
-            NexApiDocsPage docsPage = new NexApiDocsPage();
             NexChatGptInstructionDownloads chatGptInstructions =
                 new NexChatGptInstructionDownloads(publicBaseUrl);
+            // Keep the login shell reachable even without privileged endpoints.
+            // The panel fails closed until a real GridUser authenticator is configured.
+            OglApiDocsAccess oglDocs = new OglApiDocsAccess();
+            server.AddSimpleStreamHandler(new SimpleStreamHandler(
+                "/api/v1/docs", apiGate.Wrap(oglDocs.HandleLogin),
+                "OpenGenesisLINK Control Center Login"));
+            server.AddSimpleStreamHandler(new SimpleStreamHandler(
+                "/api/v1/docs/panel", apiGate.Wrap(oglDocs.HandlePanel),
+                "OpenGenesisLINK protected administration panel"));
 
             server.AddSimpleStreamHandler(new SimpleStreamHandler("/api/v1", apiGate.Wrap(handlers.Root), "NexVerse World API"));
-            server.AddSimpleStreamHandler(new SimpleStreamHandler("/api/v1/docs", apiGate.Wrap(docsPage.Handle), "NexVerse World API Explorer"));
             server.AddSimpleStreamHandler(new SimpleStreamHandler("/api/v1/chatgpt-instructions.md", apiGate.Wrap(chatGptInstructions.HandleAll), "NexVerse ChatGPT API Instructions"));
             server.AddSimpleStreamHandler(new SimpleStreamHandler("/api/v1/chatgpt-buergerportal.md", apiGate.Wrap(chatGptInstructions.HandleCitizen), "NexVerse ChatGPT Citizen Portal Instructions"));
             server.AddSimpleStreamHandler(new SimpleStreamHandler("/api/v1/chatgpt-admin.md", apiGate.Wrap(chatGptInstructions.HandleAdmin), "NexVerse ChatGPT Admin Instructions"));
@@ -491,6 +498,11 @@ namespace NexVerse.Server.Api
                     oauthStore,
                     apiKeyStore,
                     adminMinimumLevel);
+
+                // Attach the existing, server-side native admin authenticator
+                // once privileged services are available. No duplicate routing.
+                oglDocs.ConfigureAdministratorAccess(
+                    authenticator, adminMinimumLevel);
 
                 OglFeatureControlApi featureControl = null;
                 IConfig featureConfig = config.Configs["OGLFeatureControl"];
