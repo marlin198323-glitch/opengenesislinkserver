@@ -30,7 +30,18 @@ internal static class Program
             Assert(OglArchiveFeatureGate.Allowed(OglArchiveFeatureGate.All),
                 "Legacy mode must preserve original archive commands");
 
+            Assert(OglArchiveFeatureGate.ResolveNodeId(null, "host-01") == "host-01",
+                "missing NodeId must use machine fallback");
+            Assert(OglArchiveFeatureGate.ResolveNodeId("  ", "host-01") == "host-01",
+                "empty NodeId must use machine fallback");
+            Assert(OglArchiveFeatureGate.ResolveNodeId(" mainland-02 ", "host-01") == "mainland-02",
+                "explicit NodeId must be trimmed and retained");
+
             OglArchiveFeatureGate.Configure(true, node, publicKey);
+            Assert(OglArchiveFeatureGate.IsForConfiguredNode(node),
+                "own-node feature policies must be selected");
+            Assert(!OglArchiveFeatureGate.IsForConfiguredNode("foreign-node"),
+                "foreign-node broadcasts must be ignored before Apply");
             Assert(!OglArchiveFeatureGate.Allowed(1), "enabled mode requires an explicit policy");
             string signed = OglArchiveFeatureGate.Sign(valid, node, 10, expiry, 1 | 8);
             Assert(!OglArchiveFeatureGate.Apply(node, 10, expiry, 1 | 8,
@@ -38,6 +49,9 @@ internal static class Program
                 "invalid signing secret should never grant access");
             Assert(!OglArchiveFeatureGate.Apply("foreign-node", 10, expiry, 1 | 8, signed),
                 "a policy for another simulator must not work");
+            Assert(!OglArchiveFeatureGate.IsForConfiguredNode("foreign-node") &&
+                   !OglArchiveFeatureGate.Allowed(1),
+                "foreign policy does not grant any rights");
             Assert(!OglArchiveFeatureGate.Apply(node, 10, expiry, 17,
                 OglArchiveFeatureGate.Sign(valid, node, 10, expiry, 17)),
                 "unsupported permission flag rejected");
