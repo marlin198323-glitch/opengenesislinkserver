@@ -74,7 +74,16 @@ namespace OpenSim.Region.ScriptEngine.Yengine
             };
         }
 
-        private static string ReadLimitedString(BinaryReader reader)
+        public static void WriteBoundedText(BinaryWriter writer, string value)
+        {
+            if (writer == null) throw new ArgumentNullException(nameof(writer));
+            value ??= "";
+            if (value.Length > MaxTextLength)
+                throw new InvalidDataException("Oversized YEngine exception text");
+            writer.Write(value);
+        }
+
+        public static string ReadLimitedString(BinaryReader reader)
         {
             // Read7BitEncodedInt is not exposed publicly in all targets.
             // Limit encoding length by reading individual prefix bytes, then
