@@ -87,6 +87,10 @@ jobs:
         shell: bash
         run: python3 tools/ci/verify_ogl_docs_admin_ui.py
 
+      - name: Verify OpenGenesisLINK 0.9.3.12 dashboard and diagnostic updates
+        shell: bash
+        run: python3 tools/ci/verify_ogl_worldapi_09312_ux.py
+
       - name: Verify runtime secrets are not committed
         shell: bash
         run: python3 tools/ci/verify_no_plaintext_runtime_secrets.py
@@ -927,27 +931,25 @@ jobs:
           assert "/api/v1/docs" in doc["paths"]
           assert doc["x_nexverse_language"] == "de-DE"
           assert doc["x_nexverse_version_history"][0]["api_version"] == "v1"
-          assert doc["x_nexverse_version_history"][0]["server_line"] == "0.9.3.10"
-          assert doc["x_nexverse_version_history"][0]["status"] == "release"
-          assert doc["x_nexverse_version_history"][1]["server_line"] == "0.9.3.8"
-          assert doc["x_nexverse_version_history"][1]["status"] == "release"
-          assert doc["x_nexverse_version_history"][2]["server_line"] == "0.9.3.7"
-          assert doc["x_nexverse_version_history"][2]["status"] == "completed"
-          assert doc["x_nexverse_version_history"][3]["server_line"] == "0.9.3.6"
-          assert doc["x_nexverse_version_history"][3]["status"] == "completed"
-          assert doc["x_nexverse_version_history"][4]["server_line"] == "0.9.3.5"
-          assert doc["x_nexverse_version_history"][4]["status"] == "completed"
-          assert doc["x_nexverse_version_history"][5]["server_line"] == "0.9.3.4"
-          assert doc["x_nexverse_version_history"][5]["status"] == "release"
+          history = doc["x_nexverse_version_history"]
+          assert [item["server_line"] for item in history[:7]] == [
+              "0.9.3.12", "0.9.3.10", "0.9.3.8", "0.9.3.7",
+              "0.9.3.6", "0.9.3.5", "0.9.3.4",
+          ]
+          assert [item["status"] for item in history[:7]] == [
+              "release", "release", "release", "completed", "completed", "completed", "release",
+          ]
           assert doc["x_nexverse_changelog"]
-          assert doc["x_nexverse_changelog"][0]["version"] == "0.9.3.3"
+          assert doc["x_nexverse_changelog"][0]["version"] == "0.9.3.12"
           assert "0.9.3.1 Dev" not in json.dumps(doc, ensure_ascii=False)
           assert "Resident and Hypergrid statistics dashboard" not in json.dumps(doc, ensure_ascii=False)
           assert "Legacy Cleanup and Platform Foundation" not in json.dumps(doc, ensure_ascii=False)
-          display_change = doc["x_nexverse_changelog"][0]
+          display_change = next(
+              item for item in doc["x_nexverse_changelog"]
+              if item["title"] == "Persistente Display-Name-Grundlage"
+          )
           assert display_change["status"] == "implemented"
           assert display_change["category"] == "identity"
-          assert display_change["title"] == "Persistente Display-Name-Grundlage"
           assert "/api/v1/users/{principalId}" in display_change["endpoints"]
           dev_start = next(item for item in doc["x_nexverse_changelog"] if item["title"] == "NexVerse 0.9.3.3 Dev gestartet")
           assert dev_start["status"] == "development"
@@ -974,6 +976,7 @@ jobs:
           assert milestones["0.9.3.8"]["status"] == "released"
           assert milestones["0.9.3.9"]["status"] == "deferred"
           assert milestones["0.9.3.10"]["status"] == "released"
+          assert milestones["0.9.3.12"]["status"] == "released"
           assert "Pathfinding 2.0" in milestones["0.9.3.10"]["summary"]
           assert "My Outfits 2.0" in milestones["0.9.3.10"]["summary"]
 
@@ -1158,7 +1161,7 @@ jobs:
           fi
 
           curl --silent --fail --max-time 2 http://127.0.0.1:19090/api/v1/chatgpt-instructions.md > /tmp/nexverse-chatgpt.md
-          grep -F 'NexVerse World API - ChatGPT Gesamtanweisung' /tmp/nexverse-chatgpt.md
+          grep -F 'OpenGenesisLINK World API - ChatGPT Gesamtanweisung' /tmp/nexverse-chatgpt.md
           grep -F 'Buergerportal / Einwohner-Selbstbedienung' /tmp/nexverse-chatgpt.md
           grep -F '## Adminbereich' /tmp/nexverse-chatgpt.md
           grep -F '/api/v1/openapi.json' /tmp/nexverse-chatgpt.md

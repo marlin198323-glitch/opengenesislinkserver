@@ -138,19 +138,74 @@ a{color:#83dcff}a:hover{color:#bcb0ff}
 @media(max-width:760px){.shell{display:block}nav{position:relative;height:auto;display:flex;flex-wrap:wrap;align-items:center;gap:4px;padding:15px;overflow:visible}.brand{width:100%;border:0;margin:0;padding:0 6px 12px}.navbtn{width:auto;margin:1px;font-size:11px;padding:8px 9px;gap:5px}.navbtn:before{height:21px;width:19px;font-size:14px}.navmeta{display:none}main{padding:22px 15px}.hero{padding:23px 18px;display:block}.hero .pill{margin-top:16px}.section{padding:19px 15px}}
 @media(prefers-reduced-motion:reduce){body:before{animation:none}.navbtn,.card,.change{transition:none}}
 
+
+/* OGL CONTROL CENTER 2026 | Visible redesign, no external dependencies */
+:root { --ogl-ice:#8af4ff; --ogl-violet:#bfa1ff; }
+body { background:#050915; }
+.shell { grid-template-columns:282px minmax(0,1fr); }
+nav { box-shadow:24px 0 86px rgba(0,0,0,.25);background:linear-gradient(155deg,rgba(7,15,32,.99),rgba(20,20,46,.98));border-right:1px solid rgba(115,220,255,.27); }
+nav .brand { background:linear-gradient(130deg,rgba(17,59,86,.56),rgba(75,39,103,.3));border-radius:18px;padding:13px;margin:0 0 20px;border:1px solid rgba(113,206,250,.2);box-shadow:inset 0 1px rgba(182,237,255,.15),0 18px 30px rgba(0,0,0,.15)}
+.navsection-label { margin:19px 14px 7px; font-size:10px; letter-spacing:.21em;color:rgba(145,190,224,.72);font-weight:800; }
+nav .navbtn { margin:5px 2px; border-radius:12px; padding:12px; }
+nav .navbtn.active {background:linear-gradient(95deg,rgba(25,118,165,.45),rgba(89,65,184,.22));box-shadow:inset 3px 0 #8cf5ff,0 0 30px rgba(55,185,234,.12);}
+main { padding:31px clamp(24px,4vw,74px);background:radial-gradient(ellipse at 85% -15%,rgba(74,39,180,.12),transparent 60%); }
+main:before {content:"";position:fixed;inset:0;pointer-events:none;opacity:.17;z-index:-1;background:repeating-linear-gradient(0deg,transparent,transparent 63px,rgba(122,185,255,.11) 64px),repeating-linear-gradient(90deg,transparent,transparent 63px,rgba(122,185,255,.11) 64px);}
+.hero { min-height:220px; padding:42px clamp(25px,4vw,59px);overflow:hidden;border:1px solid rgba(136,235,255,.38);border-radius:22px;background:linear-gradient(115deg,rgba(17,57,89,.97),rgba(35,34,83,.96) 58%,rgba(7,25,45,.96));box-shadow:0 32px 82px rgba(0,0,0,.3),0 0 42px rgba(95,154,245,.07),inset 0 1px rgba(255,255,255,.1); }
+.hero:before{width:580px;height:580px;right:-95px;top:-310px;animation:ogl-orbit 25s linear infinite;border:1px solid rgba(131,237,255,.4);box-shadow:0 0 0 51px rgba(79,160,225,.05),0 0 0 117px rgba(99,89,228,.06),0 0 0 179px rgba(76,167,230,.025);}
+.hero:after {height:3px;background:linear-gradient(90deg,rgba(93,238,255,.95),rgba(184,115,255,.95),transparent 86%);box-shadow:0 0 32px rgba(77,187,255,.5);}
+@keyframes ogl-orbit {to{transform:rotate(360deg)}}
+.hero h1 {font-size:clamp(33px,3.5vw,57px);letter-spacing:-.052em;max-width:800px;line-height:1.08;}
+.hero p {max-width:630px;font-size:14px;color:#b9cce4;}
+.hero .eyebrow {letter-spacing:.25em;font-size:11px;text-shadow:0 0 20px rgba(64,220,255,.65);}
+.hero .pill {border:1px solid rgba(148,227,250,.35);padding:11px 18px;background:rgba(11,28,54,.72);backdrop-filter:blur(12px);}
+.ogl-live-strip{display:flex;align-items:center;gap:11px;min-height:47px;margin:19px 0 27px;padding:9px 18px;border-radius:12px;background:linear-gradient(95deg,rgba(16,56,70,.8),rgba(28,31,70,.8));border:1px solid rgba(88,216,233,.19);font-size:11px;letter-spacing:.08em;color:#a6c7da;}
+.ogl-live-strip strong{color:#a8ffe1;letter-spacing:.15em;}
+.ogl-live-strip .live-version{margin-left:auto;letter-spacing:0;color:#c4d9f2;}
+.livepulse{height:9px;width:9px;border-radius:50%;background:#5de7b8;box-shadow:0 0 0 5px rgba(41,202,143,.12),0 0 14px #56e1b2;animation:ogl-pulse 2.6s ease-in-out infinite;}
+@keyframes ogl-pulse{50%{box-shadow:0 0 0 9px rgba(41,202,143,.04),0 0 20px #56e1b2;}}
+.ogl-section-head{display:flex;justify-content:space-between;align-items:baseline;gap:12px;margin:27px 2px 13px;font-size:18px;font-weight:800;letter-spacing:-.02em;}
+.ogl-section-head small{font-size:10px;color:#83abc9;letter-spacing:.19em;font-weight:700}
+.card {min-height:141px;border-radius:18px;padding:26px 22px;background:linear-gradient(140deg,rgba(24,43,72,.92),rgba(13,25,45,.93));border:1px solid rgba(135,207,255,.24);box-shadow:0 18px 45px rgba(0,0,0,.18);}
+.card .value{font-size:clamp(22px,2vw,32px);color:#ecfbff;letter-spacing:-.05em;white-space:normal;overflow-wrap:anywhere;}
+.card .label{color:#a1c1dc;letter-spacing:.16em;font-size:10px;}
+.card:hover{transform:translateY(-5px);border-color:#78dffd;}
+.section{border-radius:18px;background:linear-gradient(144deg,rgba(22,38,65,.93),rgba(11,22,41,.97));border-color:rgba(122,198,252,.25);padding:27px;}
+.section h2{font-size:22px;}
+.filter {padding:10px 14px;}
+@media(max-width:850px){.shell{grid-template-columns:1fr;}nav{position:relative;height:auto;display:flex;flex-wrap:wrap;align-items:center;padding:15px;gap:5px;}nav .brand{width:100%;}.navsection-label{width:100%;margin:12px 8px 2px}.navbtn{width:auto;}.navmeta{display:none}main{padding:18px}.ogl-live-strip{flex-wrap:wrap}.ogl-live-strip .live-version{margin-left:0;width:100%}.hero{padding:27px 20px}}
+@media(prefers-reduced-motion:reduce){.hero:before,.livepulse{animation:none!important}}
+
+
+.navbtn[data-page=diagnostics]:before{content:"⚙";}
+.ogl-diagnostic-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-top:23px;}
+.ogl-diagnostic-result{padding:18px;border:1px solid rgba(121,177,235,.22);background:rgba(9,22,42,.67);border-radius:13px;min-height:102px;}
+.ogl-diagnostic-result strong{font-size:14px;display:block;margin-bottom:11px;color:#ecf8ff;}
+.ogl-diagnostic-result small{color:#9bb6d0;font-size:12px;line-height:1.5;display:block;overflow-wrap:anywhere;}
+.ogl-diagnostic-result.good{border-color:rgba(82,210,164,.32);box-shadow:inset 3px 0 rgba(82,230,187,.65);}
+.ogl-diagnostic-result.bad{border-color:rgba(255,135,158,.32);box-shadow:inset 3px 0 rgba(255,135,158,.7);}
+.ogl-diagnostic-result.optional{border-color:rgba(253,203,113,.3);box-shadow:inset 3px 0 rgba(253,203,113,.65);}
+.ogl-triage-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:13px;margin-top:18px;}
+.ogl-triage-tile{border:1px solid rgba(127,185,235,.2);background:rgba(8,20,38,.7);border-radius:13px;padding:17px 18px;}
+.ogl-triage-tile strong{color:#aff1ff;}
+.ogl-triage-tile p{font-size:12px;color:#a4b8d4;line-height:1.6;}
+.ogl-triage-tile code{overflow-wrap:anywhere;}
+
 </style>
 </head>
 <body>
 <div class="shell">
 <nav>
 <div class="brand"><div class="ogl-logo" aria-hidden="true">OGL</div><strong>OpenGenesisLINK</strong><span>WORLD API · CONTROL CENTER</span></div>
+<div class="navsection-label">CONTROL CENTER</div>
 <button class="navbtn active" data-page="overview">Übersicht</button>
 <button class="navbtn" data-page="statistics">Statistik</button>
+<button class="navbtn" data-page="diagnostics">Systemdiagnose</button>
 <button class="navbtn" data-page="grid">Grid-Planer</button>
 <button class="navbtn" data-page="nodes">Simulatoren</button>
 <button class="navbtn" data-page="changes">Was ist neu?</button>
 <button class="navbtn" data-page="versions">Versionen</button>
 <button class="navbtn" data-page="roadmap">Entwicklungsplan</button>
+<div class="navsection-label">INTEGRATIONEN</div>
 <button class="navbtn" data-page="chatgpt">ChatGPT / Portale</button>
 <button class="navbtn" data-page="adminlogin">Administrator</button>
 <button class="navbtn" data-page="secrets">Schlüssel &amp; Einrichtung</button>
@@ -163,6 +218,8 @@ a{color:#83dcff}a:hover{color:#bcb0ff}
 <div><div class="eyebrow">OpenGenesisLINK / WORLD API</div><h1>Deine Welt. <em>Deine Kontrolle.</em></h1><p>Live-Übersicht über Serverversion, API-Vertrag, aktuelle Erweiterungen und verfügbare Endpunkte.</p></div>
 <div class="pill"><span class="dot" id="healthDot"></span><span id="healthText">Prüfe API-Status…</span></div>
 </div>
+<div class="ogl-live-strip"><span class="livepulse"></span><strong>OGL LIVE</strong><span>SERVER &amp; WORLD API</span><span class="live-version" id="oglActiveRelease">OpenGenesisLINK · Status wird geladen</span></div>
+<div class="ogl-section-head"><span>Systemstatus</span><small>AKTUELLE SERVERDATEN</small></div>
 <div class="cards">
 <div class="card"><div class="label">Server</div><div class="value" id="serverVersion">–</div><div class="sub" id="milestone">Meilenstein –</div></div>
 <div class="card"><div class="label">API</div><div class="value" id="apiVersion">–</div><div class="sub">Aktueller OpenAPI-3.1-Vertrag</div></div>
@@ -173,6 +230,7 @@ a{color:#83dcff}a:hover{color:#bcb0ff}
 <h2>Neu in der aktuellen Version</h2><p class="sectionlead">Die Einträge werden direkt aus <code>x_nexverse_changelog</code> im laufenden OpenAPI-Dokument gelesen und deutsch dargestellt.</p>
 <div class="changegrid" id="overviewChanges"></div>
 </div>
+<div class="ogl-section-head"><span>Arbeitsbereiche</span><small>VERWALTUNG &amp; ENTWICKLUNG</small></div>
 <div class="section">
 <h2>Schnellzugriff</h2><p class="sectionlead">Die wichtigsten technischen Oberflächen des laufenden Servers.</p>
 <div class="filters">
@@ -187,6 +245,21 @@ a{color:#83dcff}a:hover{color:#bcb0ff}
 </div>
 </section>
 
+
+<section class="page" id="page-diagnostics">
+<div class="hero"><div><div class="eyebrow">OGL CONTROL PLANE / DIAGNOSTICS</div><h1>Systemdiagnose</h1><p>Prüfe die tatsächlich erreichbaren World-API-Dienste dieses OGL-Servers. Kein Demo-Status, keine Datenbankänderungen.</p></div><div class="pill"><span class="dot" id="diagDot"></span><span id="diagSummary">Noch nicht geprüft</span></div></div>
+<div class="section"><h2>Live-Selbsttest</h2><p class="sectionlead">Diese Prüfung liest ausschließlich den aktuellen Health-/Versions-/OpenAPI-Zustand, die ChatGPT-Anweisung und den optionalen Node-Lizenzdienst. Keine schreibenden Aktionen.</p>
+<button class="action" type="button" id="diagnosticsRefresh">Prüfung jetzt starten</button>
+<div class="ogl-diagnostic-grid" id="diagnosticsResults">
+<div class="ogl-diagnostic-result">Wähle „Prüfung jetzt starten“, um Live-Endpunkte zu testen.</div>
+</div>
+</div>
+<div class="section"><h2>Robust &amp; Simulator – Log-Diagnosen</h2><p class="sectionlead">Beschädigte JPEG2000-Texturen, ungültige XML-RPC-Anfragen und Hypergrid-IM-Zustellversuche werden serverseitig protokolliert. Dieser Browser kann keine ungefilterten Serverlogs lesen.</p>
+<div class="ogl-triage-grid"><div class="ogl-triage-tile"><strong>JPEG2000 / World Map</strong><p>LunaTexture zeigt defekte Textur-UUIDs und betroffene Prims:</p><code>nex texture status</code><p><code>nex texture inspect &lt;UUID&gt;</code></p></div>
+<div class="ogl-triage-tile"><strong>Hypergrid IM</strong><p>Offline-/Location-Lookups werden weiterhin ausgeführt; identische fehlgeschlagene Debugmeldungen werden höchstens einmal je UUID in 60 Sekunden ausgegeben.</p></div>
+<div class="ogl-triage-tile"><strong>XML-RPC</strong><p>Ungültige XML-RPC-Requests werden mit HTTP 400 abgewiesen. Einzelne fremde Requests sind kein Nachweis eines Serverfehlers.</p></div></div>
+</div>
+</section>
 
 <section class="page" id="page-statistics">
 <div class="hero">
@@ -1052,7 +1125,17 @@ async function loadFeatureLicenses(){
   try{
     const response=await fetch('/api/v1/feature-control/nodes',{
       method:'GET',headers:nodeHeaders(),cache:'no-store',credentials:'same-origin'});
-    const data=await response.json();
+    const data=await response.json().catch(()=>({}));
+    if(response.status===404 && (data.error==='not_found'||!data.error)){
+      oglLicenseNodes=[];
+      $('licenseNode').replaceChildren();
+      status.textContent='Lizenzmodul nicht aktiviert. Für signierte OAR/IAR-Node-Freigaben [OGLFeatureControl] Enabled = true und einen gültigen ES256-Schlüssel auf Robust konfigurieren. Ohne aktiviertes Modul ist dieser Bereich nicht verfügbar.';
+      return;
+    }
+    if(response.status===401||response.status===403){
+      status.textContent='Lizenzdienst vorhanden, aber Zugriff verweigert. Die Freigabe benötigt einen API-Zugang mit simulators:read und GridUser UserLevel 200 oder höher.';
+      return;
+    }
     if(!response.ok)throw Error(data.message||data.error||('HTTP '+response.status));
     oglLicenseNodes=data.nodes||[];
     const selection=$('licenseNode'),previous=selection.value;
@@ -1743,6 +1826,50 @@ async function secretCopy() {
   }
 }
 
+
+async function runOglDiagnostics(){
+  const list=$('diagnosticsResults');
+  list.replaceChildren();
+  $('diagSummary').textContent='Prüfe Live-Dienste …';
+  $('diagDot').className='dot';
+  $('diagnosticsRefresh').disabled=true;
+  const checks=[
+    {label:'API Health',path:'/api/v1/health',expected:'application/json'},
+    {label:'Serverversion',path:'/api/v1/version',expected:'application/json'},
+    {label:'OpenAPI 3.1',path:'/api/v1/openapi.json',expected:'application/json'},
+    {label:'ChatGPT-Anweisung',path:'/api/v1/chatgpt-instructions.md',expected:'text/markdown'},
+    {label:'OGL Feature Control (optional)',path:'/api/v1/feature-control/nodes',expected:'application/json',optional:true},
+  ];
+  let passed=0,optional=0;
+  for(const item of checks){
+    let kind='bad',desc='Nicht erreichbar';
+    try{
+      const headers={'Accept':item.expected};
+      if(item.optional && adminAuthToken())headers.Authorization='Bearer '+adminAuthToken();
+      const response=await fetch(item.path,{method:'GET',headers,cache:'no-store'});
+      if(response.ok){
+        passed++;kind='good';
+        if(item.path.endsWith('/version')){
+          const result=await response.json();desc=String(result.server_version||'Version unbekannt');
+        }else if(item.path.endsWith('/health')){
+          const result=await response.json();desc=String(result.status||'Antwort erhalten');
+        }else desc='HTTP '+response.status+' – verfügbar';
+      }else if(item.optional && response.status===404){
+        optional++;kind='optional';desc='Nicht aktiviert – optionales Modul fehlt';
+      }else if(item.optional && (response.status===401||response.status===403)){
+        optional++;kind='optional';desc='Aktiv, aber separate API-Berechtigung erforderlich (HTTP '+response.status+')';
+      }else{desc='HTTP '+response.status;}
+    }catch(error){desc='Netzwerkfehler: '+String(error.message||error);}
+    const box=document.createElement('div');box.className='ogl-diagnostic-result '+kind;
+    const label=document.createElement('strong');label.textContent=item.label;
+    const message=document.createElement('small');message.textContent=desc;
+    box.append(label,message);list.append(box);
+  }
+  $('diagSummary').textContent=passed+' / '+checks.length+' Dienste erreichbar'+(optional?' · '+optional+' optional/eingeschränkt':'');
+  $('diagDot').className='dot '+(passed>=4?'good':'bad');
+  $('diagnosticsRefresh').disabled=false;
+}
+document.getElementById('diagnosticsRefresh').addEventListener('click',runOglDiagnostics);
 async function init(){
   try{
     const results=await Promise.all([
@@ -1756,7 +1883,7 @@ async function init(){
     $('citizenEndpointCount').textContent=entries.filter(x=>(x.op['x-nexverse-audience']||[]).includes('citizen')).length;
     $('adminEndpointCount').textContent=entries.filter(x=>(x.op['x-nexverse-audience']||[]).includes('admin')).length;
     $('healthText').textContent=health.status==='ok'?'API online':'API Status: '+(health.status||'unbekannt');$('healthDot').className='dot '+(health.status==='ok'?'good':'bad');
-    $('serverVersion').textContent=version.server_version||'–';$('milestone').textContent='Meilenstein '+(version.milestone||'–')+(version.milestone_title?' · '+version.milestone_title:'');$('apiVersion').textContent=version.api_version||spec.info?.version||'–';
+    $('serverVersion').textContent=version.server_version||'–';$('oglActiveRelease').textContent=(version.server_version||'OpenGenesisLINK')+' · '+(version.milestone_title||'World API');$('milestone').textContent='Meilenstein '+(version.milestone||'–')+(version.milestone_title?' · '+version.milestone_title:'');$('apiVersion').textContent=version.api_version||spec.info?.version||'–';
     $('endpointCount').textContent=Object.keys(spec.paths||{}).length;$('operationCount').textContent=entries.length+' Operationen';
     $('navmeta').textContent=(version.server_version||'OpenGenesisLINK')+' · '+(version.api_version||'API')+' · '+languageLabel(version.language||spec['x_nexverse_language']||'de-DE');
     if(changes.length){$('lastChangeDate').textContent=changes[0].date||'–';$('lastChangeTitle').textContent=changes[0].title||''}

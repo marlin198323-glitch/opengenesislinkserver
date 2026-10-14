@@ -22,13 +22,13 @@ namespace NexVerse.Server.Api
         }
 
         public void HandleAll(IOSHttpRequest request, IOSHttpResponse response) =>
-            WriteMarkdown(request, response, "nexverse-chatgpt-anweisung.md", BuildAll());
+            WriteMarkdown(request, response, "opengenesislink-chatgpt-anweisung.md", BuildAll());
 
         public void HandleCitizen(IOSHttpRequest request, IOSHttpResponse response) =>
-            WriteMarkdown(request, response, "nexverse-chatgpt-buergerportal.md", BuildCitizen());
+            WriteMarkdown(request, response, "opengenesislink-chatgpt-buergerportal.md", BuildCitizen());
 
         public void HandleAdmin(IOSHttpRequest request, IOSHttpResponse response) =>
-            WriteMarkdown(request, response, "nexverse-chatgpt-adminbereich.md", BuildAdmin());
+            WriteMarkdown(request, response, "opengenesislink-chatgpt-adminbereich.md", BuildAdmin());
 
         private static void WriteMarkdown(
             IOSHttpRequest request,
@@ -59,7 +59,7 @@ namespace NexVerse.Server.Api
         private string BuildAll()
         {
             StringBuilder md = NewDocument(
-                "NexVerse World API - ChatGPT Gesamtanweisung",
+                "OpenGenesisLINK World API - ChatGPT Gesamtanweisung",
                 "Zentrale Arbeitsanweisung fuer ChatGPT/API-Agenten. Einwohner-Selbstbedienung, administrative Funktionen und Dienstintegrationen muessen strikt getrennt bleiben.");
 
             AppendGlobalRules(md);
@@ -86,7 +86,7 @@ namespace NexVerse.Server.Api
         private string BuildCitizen()
         {
             StringBuilder md = NewDocument(
-                "NexVerse World API - ChatGPT Anweisung Buergerportal",
+                "OpenGenesisLINK World API - ChatGPT Anweisung Buergerportal",
                 "Diese Anweisung gilt fuer Einwohner-Selbstbedienung. ChatGPT darf keine administrativen Rechte annehmen oder aus Einwohnerrechten ableiten.");
 
             AppendGlobalRules(md);
@@ -104,7 +104,7 @@ namespace NexVerse.Server.Api
         private string BuildAdmin()
         {
             StringBuilder md = NewDocument(
-                "NexVerse World API - ChatGPT Anweisung Adminbereich",
+                "OpenGenesisLINK World API - ChatGPT Anweisung Adminbereich",
                 "Diese Anweisung gilt fuer ausdruecklich autorisierte administrative Arbeiten. Adminrechte duerfen niemals aus einer normalen Einwohneranmeldung abgeleitet werden.");
 
             AppendGlobalRules(md);
@@ -127,7 +127,17 @@ namespace NexVerse.Server.Api
             md.AppendLine();
             md.AppendLine(purpose);
             md.AppendLine();
-            md.AppendLine("## Laufende NexVerse-Endpunkte");
+            md.AppendLine("## Produkt und Grid strikt unterscheiden");
+            md.AppendLine();
+            md.AppendLine("- OpenGenesisLINK (OGL) ist die Server-Software und World API; Stadt-NexVerse bzw. NexVerse ist lediglich ein Betreiber-Grid.");
+            md.AppendLine("- API und Anleitung gelten fuer alle OGL-Grids: niemals Stadt-NexVerse fest als Produkt oder Grid-Adresse voraussetzen.");
+            md.AppendLine("- Legacy-Vertraege wie [NexVerseWorldApi], X-NexVerse-Api-Key und x-nexverse-* bleiben fuer Kompatibilitaet unveraendert.");
+            md.AppendLine("- Version im aktiven Dienst: " + OpenSim.VersionInfo.Version.Trim() + "; API-Stand und Feature-Aktivierung direkt per Health, Version, Capabilities und OpenAPI verifizieren.");
+            md.AppendLine("- OGL Control Center unter /api/v1/docs: Passwort-Login mit lokalem GridUser, UserLevel ab 200, signiertem Session-Token. Der Browser-Zugang verleiht NICHT automatisch Scopes fuer jeden administrativen API-Endpunkt.");
+            md.AppendLine("- /api/v1/feature-control/nodes ist nur verfuegbar, wenn [OGLFeatureControl] Enabled und Signierschluessel eingerichtet sind; HTTP 404 bedeutet dann fehlendes optionales Modul, nicht automatisch falsche Lizenz.");
+            md.AppendLine("- Hypergrid-IM, Map-Bild-/JPEG2000-Decoding und fremde XML-RPC-Anfragen koennen externe Fehlerquellen sein: erst Daten, Quelle und Korrelation ermitteln; keine permanenten Sicherheitsfilter entfernen.");
+            md.AppendLine();
+            md.AppendLine("## Laufende OpenGenesisLINK-Endpunkte");
             md.AppendLine();
             md.AppendLine("- API-Basis: " + m_ApiBaseUrl);
             md.AppendLine("- API-Dokumentation: " + m_ApiBaseUrl + "/docs");
@@ -156,7 +166,7 @@ namespace NexVerse.Server.Api
             md.AppendLine("- Zugriff auf fremde Konten, fremdes Inventar oder administrative Ressourcen nur mit dokumentierter Admin-Autorisierung.");
             md.AppendLine("- Fuer zustandsaendernde Operationen den dokumentierten Idempotency-Key verwenden, wenn der Endpunkt dies verlangt.");
             md.AppendLine("- Request- und Response-Felder aus dem OpenAPI-Schema lesen und nicht erraten. Bei unvollstaendigen Teil-Schemas die Operation nicht blind durch ausgedachte Felder ergaenzen.");
-            md.AppendLine("- API-v1 und Protokollversion sind nicht identisch mit der Serverrelease-Version. OpenGenesisLINK 0.9.3.10 ist Entwicklung, nicht Stable; 0.9.3.8 bleibt letzte Stable.");
+            md.AppendLine("- API-v1, Protokoll- und Serverversion sind getrennte Angaben. Aktuelle OGL-Serverversion: " + OpenSim.VersionInfo.Version.Trim() + ". Immer die tatsaechliche Laufzeitantwort GET /api/v1/version pruefen; daraus allein keinen GitHub-Tag ableiten.");
             md.AppendLine("- Ein Eintrag im OpenAPI-Katalog beweist nicht, dass ein optionales Modul im laufenden Robust freigeschaltet oder eine viewer-spezifische Funktion live abgenommen ist.");
             md.AppendLine("- HTTP 401 bedeutet fehlende oder ungueltige Authentifizierung; HTTP 403 bedeutet fehlende Berechtigung. Keinen privilegierten Alternativpfad zum Umgehen ausprobieren.");
             md.AppendLine("- HTTP 429 respektieren und Rate-Limits beachten.");
@@ -260,7 +270,7 @@ namespace NexVerse.Server.Api
             md.AppendLine("- NexExperiences besitzt drei strikt getrennte Dienst-Scopes: experiences:script, experiences:viewer:permissions und experiences:viewer:manage; die beiden letzteren sind privilegiert, nur fuer vertrauenswuerdige Simulatoren. Ein Manage-Scope ist nicht automatisch ein Bewohner-Identitaetsnachweis.");
             md.AppendLine("- Der neue POST/PUT /experiences/viewer/manage erfordert eigenes experiences:viewer:manage API-Key-Material; Avatar-UUID und Ownership stammen aus der gueltigen Simulator-CAP, nicht aus frei gewaehltem Nutzerinput.");
             md.AppendLine("- Eigentums- und Actor-Regeln beachten: Service-Clients mit experiences:manage duerfen keine beliebigen Bewohner-IDs impersonieren; administrative Delegation erfordert admin:*.");
-            md.AppendLine("- OGLVoice und Havok-kompatibles Firestorm-NavMesh sind in 0.9.3.10 kein als Stable freigegebenes Feature.");
+            md.AppendLine("- OGLVoice, neue NavMesh-/HydroEngine-Systeme und native Viewer-Funktionen gelten ohne eigene Abnahme nicht als freigegeben, auch wenn Endpunkte dokumentiert sind.");
             md.AppendLine();
             md.AppendLine("### Economy-Administration");
             md.AppendLine("- Reversals: /economy/transactions/{transactionId}/reverse.");
