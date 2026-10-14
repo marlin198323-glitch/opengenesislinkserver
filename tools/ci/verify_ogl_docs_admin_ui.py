@@ -25,6 +25,12 @@ must(access,
     'authorization.StartsWith("Bearer "', 'IsSecureTransport(request)',
     'X-NexVerse-Api-Key', 'WWW-Authenticate', 'HttpStatusCode.Unauthorized',
     'm_Docs.Handle(request, response)', 'Cache-Control', 'no-store, private',
+    'AdminDocsTrustedProxyAddresses', 'NormalizeAddress(peer)',
+    'IPAddress.IsLoopback(peer)', 'X-Forwarded-Proto',
+    'm_TrustedProxies.Contains(', 'HttpStatusCode.UpgradeRequired',
+    'https_not_verified', 'admin_token_required', 'admin_session_invalid',
+    'admin_permission_required', 'admin_api_disabled',
+    'X-OGL-Docs-Error',
     'frame-ancestors \'none\'', 'OpenGenesisLINK',
     '/api/v1/auth/admin/session', '/api/v1/docs/panel',
     "form.elements.namedItem('password').value=''",
@@ -50,4 +56,8 @@ must(user,
 assert user.index('user.UserLevel < Math.Max(200, m_AdminMinimumLevel)') < user.index('m_Tokens.Issue(')
 # Hard boundary: both routes must use the shared request gate.
 assert api.count('apiGate.Wrap(oglDocs.Handle') == 2
-print("OGL protected Control Center UI / >=200 server gate / OGL branding: OK")
+assert access.index('admin_token_required') < access.index('https_not_verified')
+# Anonymous requests remain 401; only token-bearing requests see TLS diagnostics.
+assert 'X-Forwarded-For' not in access
+assert 'HttpStatusCode.Forbidden' in access
+print("OGL protected admin panel / trusted HTTPS proxy / diagnostics: OK")

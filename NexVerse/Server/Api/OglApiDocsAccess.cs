@@ -17,27 +17,47 @@ namespace NexVerse.Server.Api
     /// </summary>
     internal sealed class OglApiDocsAccess
     {
+        private static readonly log4net.ILog m_Log =
+            log4net.LogManager.GetLogger(typeof(OglApiDocsAccess));
+
         private readonly NexApiDocsPage m_Docs = new();
+        private readonly System.Collections.Generic.HashSet<string> m_TrustedProxies =
+            new(StringComparer.OrdinalIgnoreCase);
         private volatile NexApiAuthenticator m_Authenticator;
         private int m_MinimumLevel = 200;
 
-        // Login route remains available while privileged endpoints are disabled.
-        // In that mode the panel fails closed with HTTP 401.
-        public OglApiDocsAccess() { }
+        // Loopback TLS-terminating proxies are trusted by default. Non-loopback
+        // proxy IPs must be explicitly allowlisted by the administrator; never
+        // trust client-provided IP headers to establish this peer identity.
+        public OglApiDocsAccess(string trustedProxyAddresses = "")
+        {
+            foreach (string raw in (trustedProxyAddresses ?? string.Empty).Split(
+                ',', StringSplitOptions.RemoveEmptyEntries))
+            {
+                string address = raw.Trim();
+                if (!IPAddress.TryParse(address, out IPAddress parsed))
+                    throw new ArgumentException(
+                        "Ungültige IP-Adresse in AdminDocsTrustedProxyAddresses.",
+                        nameof(trustedProxyAddresses));
+                m_TrustedProxies.Add(NormalizeAddress(parsed));
+            }
+        }
 
         public void ConfigureAdministratorAccess(
             NexApiAuthenticator authenticator, int minimumLevel)
         {
             m_MinimumLevel = Math.Max(200, minimumLevel);
-            m_Authenticator = authenticator ?? throw new ArgumentNullException(nameof(authenticator));
+            m_Authenticator = authenticator ??
+                throw new ArgumentNullException(nameof(authenticator));
         }
 
         public void HandleLogin(IOSHttpRequest request, IOSHttpResponse response)
         {
             CommonHeaders(response);
-            if (request == null || !string.Equals(request.HttpMethod, "GET", StringComparison.OrdinalIgnoreCase))
+            if (request == null ||
+                !string.Equals(request.HttpMethod, "GET", StringComparison.OrdinalIgnoreCase))
             {
-                Reject(response, HttpStatusCode.MethodNotAllowed);
+                Reject(response, HttpStatusCode.MethodNotAllowed, "method_not_allowed");
                 return;
             }
 
@@ -54,24 +74,58 @@ namespace NexVerse.Server.Api
         public void HandlePanel(IOSHttpRequest request, IOSHttpResponse response)
         {
             CommonHeaders(response);
-            if (request == null || !string.Equals(request.HttpMethod, "GET", StringComparison.OrdinalIgnoreCase))
+            if (request == null ||
+                !string.Equals(request.HttpMethod, "GET", StringComparison.OrdinalIgnoreCase))
             {
-                Reject(response, HttpStatusCode.MethodNotAllowed);
+                Reject(response, HttpStatusCode.MethodNotAllowed, "method_not_allowed");
                 return;
             }
 
-            // Never accept machine API keys, service principals, resident tokens
-            // or a display-only JavaScript check as a substitute for GridUser auth.
+            // Anonymous requests remain 401 even when the backend uses plain
+            // HTTP. Transport diagnostics are revealed only to a bearer holder.
             string authorization = request.Headers?["Authorization"] ?? string.Empty;
             if (!authorization.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase) ||
-                !string.IsNullOrWhiteSpace(request.Headers?["X-NexVerse-Api-Key"]) ||
-                !IsSecureTransport(request) ||
-                m_Authenticator == null ||
-                !m_Authenticator.TryAuthenticate(
+                !string.IsNullOrWhiteSpace(request.Headers?["X-NexVerse-Api-Key"]))
+            {
+                Reject(response, HttpStatusCode.Unauthorized, "admin_token_required");
+                return;
+            }
+
+            if (m_Authenticator == null)
+            {
+                Reject(response, HttpStatusCode.ServiceUnavailable, "admin_api_disabled");
+                return;
+            }
+
+            // The client has an HTTPS connection to the front proxy but the
+            // backend may use HTTP. A trusted proxy must attest the outer TLS
+            // scheme. A missing header previously yielded a misleading 401
+            // even for a successfully authenticated level-200 GridUser.
+            if (!IsSecureTransport(request))
+            {
+                m_Log.Warn("[OGL-DOCS]: Adminpanel verweigert: Backend konnte HTTPS nicht " +
+                    "bestätigen. Reverse-Proxy X-Forwarded-Proto und " +
+                    "AdminDocsTrustedProxyAddresses prüfen.");
+                Reject(response, HttpStatusCode.UpgradeRequired, "https_not_verified");
+                return;
+            }
+
+            if (!m_Authenticator.TryAuthenticate(
                     request, NexScopes.AdminAll,
                     out NexPrincipal principal, out UserAccount account,
-                    out int _, out string _) ||
-                !principal.IsAuthenticated ||
+                    out int authStatus, out string _))
+            {
+                // Do not leak the reason for failed token validation. Deny
+                // everything except a genuinely authenticated local GridUser.
+                Reject(response,
+                    authStatus == (int)HttpStatusCode.Forbidden
+                        ? HttpStatusCode.Forbidden
+                        : HttpStatusCode.Unauthorized,
+                    "admin_session_invalid");
+                return;
+            }
+
+            if (!principal.IsAuthenticated ||
                 account == null ||
                 !account.LoginAllowed ||
                 account.UserLevel < m_MinimumLevel ||
@@ -79,9 +133,7 @@ namespace NexVerse.Server.Api
                 !string.Equals(principal.Subject, account.PrincipalID.ToString(),
                     StringComparison.OrdinalIgnoreCase))
             {
-                // Uniform response also prevents account enumeration.
-                response.AddHeader("WWW-Authenticate", "Bearer");
-                Reject(response, HttpStatusCode.Unauthorized);
+                Reject(response, HttpStatusCode.Forbidden, "admin_permission_required");
                 return;
             }
 
@@ -89,13 +141,28 @@ namespace NexVerse.Server.Api
             response.AddHeader("X-Frame-Options", "SAMEORIGIN");
         }
 
-        private static bool IsSecureTransport(IOSHttpRequest request)
+        private static string NormalizeAddress(IPAddress address) =>
+            address.IsIPv4MappedToIPv6
+                ? address.MapToIPv4().ToString()
+                : address.ToString();
+
+        private bool IsSecureTransport(IOSHttpRequest request)
         {
-            return request.IsSecured ||
-                (request.RemoteIPEndPoint != null &&
-                 IPAddress.IsLoopback(request.RemoteIPEndPoint.Address) &&
-                 string.Equals(request.Headers?["X-Forwarded-Proto"], "https",
-                     StringComparison.OrdinalIgnoreCase));
+            if (request.IsSecured)
+                return true;
+
+            IPAddress peer = request.RemoteIPEndPoint?.Address;
+            if (peer == null)
+                return false;
+
+            bool trusted = IPAddress.IsLoopback(peer) ||
+                (peer.IsIPv4MappedToIPv6 && IPAddress.IsLoopback(peer.MapToIPv4())) ||
+                m_TrustedProxies.Contains(NormalizeAddress(peer));
+            // Exact scheme only: no comma-separated values or forwarded chain
+            // which an untrusted client could prepend.
+            return trusted &&
+                string.Equals(request.Headers?["X-Forwarded-Proto"]?.Trim(),
+                    "https", StringComparison.OrdinalIgnoreCase);
         }
 
         private static void CommonHeaders(IOSHttpResponse response)
@@ -107,14 +174,18 @@ namespace NexVerse.Server.Api
             response.AddHeader("Referrer-Policy", "no-referrer");
         }
 
-        private static void Reject(IOSHttpResponse response, HttpStatusCode status)
+        private static void Reject(
+            IOSHttpResponse response, HttpStatusCode status, string code)
         {
             response.StatusCode = (int)status;
             response.ContentType = "text/plain; charset=utf-8";
+            response.AddHeader("X-OGL-Docs-Error", code);
+            if (status == HttpStatusCode.Unauthorized)
+                response.AddHeader("WWW-Authenticate", "Bearer");
             response.RawBuffer = Encoding.UTF8.GetBytes(
                 status == HttpStatusCode.MethodNotAllowed
                     ? "GET erforderlich."
-                    : "Nicht autorisiert.");
+                    : "OpenGenesisLINK: Adminpanel nicht verfügbar.");
         }
 
         private const string s_LoginPage = """
@@ -195,7 +266,16 @@ form.addEventListener('submit',async event=>{
     expires=Date.now()+Math.max(0,Number(data.expires_in||0)-30)*1000;
     if(!expires||expires<=Date.now())throw Error('Die Administratorsitzung ist bereits abgelaufen.');
     const panel=await fetch('/api/v1/docs/panel',{headers:{'Authorization':'Bearer '+token,'Accept':'text/html'},cache:'no-store',credentials:'same-origin'});
-    if(!panel.ok)throw Error('Zugang zum Control Center verweigert (HTTP '+panel.status+').');
+    if(!panel.ok){
+      const errorCode=panel.headers.get('X-OGL-Docs-Error')||'';
+      const messages={
+        https_not_verified:'HTTPS-Verbindung am OGL-Backend nicht bestätigt. Reverse-Proxy-Konfiguration prüfen.',
+        admin_api_disabled:'Der Administrator-Dienst ist nicht aktiviert.',
+        admin_token_required:'Das Sitzungstoken wurde nicht übermittelt.',
+        admin_session_invalid:'Die Administrator-Sitzung ist ungültig oder abgelaufen.',
+        admin_permission_required:'GridUser-Berechtigung erforderlich: UserLevel mindestens 200 und admin:*.'};
+      throw Error(messages[errorCode]||('Zugang zum Control Center verweigert (HTTP '+panel.status+').'));
+    }
     const html=await panel.text();
     frame.onload=()=>{
       if(token && Date.now()<expires)
