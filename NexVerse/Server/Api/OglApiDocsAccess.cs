@@ -156,6 +156,7 @@ namespace NexVerse.Server.Api
                 return false;
 
             bool trusted = IPAddress.IsLoopback(peer) ||
+                (peer.IsIPv4MappedToIPv6 && IPAddress.IsLoopback(peer.MapToIPv4())) ||
                 m_TrustedProxies.Contains(NormalizeAddress(peer));
             // Exact scheme only: no comma-separated values or forwarded chain
             // which an untrusted client could prepend.
