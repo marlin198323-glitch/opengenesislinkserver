@@ -1911,8 +1911,13 @@ namespace OpenSim.Region.ScriptEngine.Yengine
 
                 case Ser.SYSARRAY:
                 {
-                    Type eletype = String2SysType(mir.ReadString());
+                    string typeName = ScriptStateExceptionCodec.ReadLimitedString(mir);
                     int length = mir.ReadInt32();
+                    // Script state may originate from OARs and foreign regions.
+                    // Reject an attacker-sized array before allocating storage.
+                    if (length < 0 || length > 65536)
+                        throw new InvalidDataException("YEngine state array length exceeds limit");
+                    Type eletype = String2SysType(typeName);
                     Array array = Array.CreateInstance(eletype, length);
                     this.migrateInObjects.Add(ident, array);
                     for(int i = 0; i < length; i++)
