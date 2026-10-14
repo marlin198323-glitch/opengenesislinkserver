@@ -17,7 +17,8 @@ Die klassische OpenGenesisLINK-Simulatorkonsole zeigt beim IAR-Export und
 
 **Live-Anzeige:** Beim aktiven IAR-Vorgang wird der Status in der
 interaktiven **lokalen Simulator-Konsole** direkt neben dem Prompt
-aktualisiert. Das geschieht etwa bei jeder Prozentänderung, ohne tausende
+aktualisiert (kompakter 10-Segmente-Balken und Prozentzahl).
+Das geschieht etwa bei jeder Prozentänderung, ohne tausende
 neue Logzeilen zu erzeugen. Der eingegebene Befehl und der Cursor bleiben
 erhalten. In sehr schmalen Terminalfenstern wird die Anzeige gekürzt oder
 ausgeblendet. Die Logzeilen bleiben unabhängig davon alle fünf Prozent

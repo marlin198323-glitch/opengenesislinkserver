@@ -301,8 +301,11 @@ namespace OpenSim.Region.CoreModules.Avatar.Inventory.Archiver
             string counters = job.Total > 0
                 ? " " + job.Processed + "/" + job.Total + (job.Phase == "assets" ? " Assets" : " Eintr.")
                 : " " + job.Processed + " bearbeitet";
-            return "IAR " + job.Action + " " + job.Percent + "% " +
-                GermanIarPhase(job.Phase) + counters;
+            int completed = Math.Clamp(job.Percent / 10, 0, 10);
+            string miniBar = "[" + new string('#', completed) +
+                new string('-', 10 - completed) + "]";
+            return "IAR " + job.Action + " " + miniBar + " " +
+                job.Percent + "% " + GermanIarPhase(job.Phase) + counters;
         }
 
         private void RefreshIarPrompt()

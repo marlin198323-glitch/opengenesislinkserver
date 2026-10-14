@@ -365,12 +365,20 @@ namespace OpenSim.Framework.Console
 
         public override void UnlockOutput()
         {
-            if (m_cursorYPosition != -1)
+            try
             {
-                m_cursorYPosition = System.Console.CursorTop;
-                Show();
+                if (m_cursorYPosition != -1)
+                {
+                    m_cursorYPosition = System.Console.CursorTop;
+                    Show();
+                }
             }
-            Monitor.Exit(m_commandLine);
+            finally
+            {
+                // Even a terminal resize/disconnect must not leave the
+                // shared console output lock held by a progress callback.
+                Monitor.Exit(m_commandLine);
+            }
         }
 
         private void WriteColorText(ConsoleColor color, string sender)
