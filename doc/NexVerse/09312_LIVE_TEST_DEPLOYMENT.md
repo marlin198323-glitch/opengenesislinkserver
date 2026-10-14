@@ -1,15 +1,16 @@
-# OpenGenesisLINK 0.9.3.12 Dev – kontrollierter Live-Test
+# OpenGenesisLINK 0.9.3.12 Stable – kontrolliertes Upgrade
 
-**Stand: 14.10.2026.** Dies ist eine **Entwicklungs-/Testversion** (`Flavour.Dev`), **kein RC1**, **keine Stable-Veröffentlichung**.
+**Stand: 14.10.2026.** Die Server-Versionskennung wurde auf **0.9.3.12 Release** umgestellt. Dies ersetzt weder die technische Prüfung des echten Produktivdeployments noch die dokumentierten RC1-/Stable-Abnahmen. Ein formeller GitHub-Stable-Tag ist separat auszustellen.
 
 ## Versionskennung
 
 - `OpenSim/Framework/VersionInfo.cs`: `VersionNumber = "0.9.3.12"`,
-  `AssemblyVersionNumber = "0.9.3.12"`, `VERSION_FLAVOUR = Flavour.Dev`.
+  `AssemblyVersionNumber = "0.9.3.12"`, `VERSION_FLAVOUR = Flavour.Release`.
 - `NexVerse/Core/NexVersePlatform.cs`: API-Milestone `0.9.3.12`.
-- CI testet die sichtbare World-API-Version `OpenGenesisLINK 0.9.3.12 Dev`.
-- Diese Kennung dient dem Live-Test; die RC1-Freigabematrix und das
-  spätere signierte `v0.9.3.12-rc1` bleiben separat.
+- CI testet die sichtbare World-API-Version `OpenGenesisLINK 0.9.3.12`.
+- Die Kennung ist auf Betreiberwunsch auf Release gesetzt; die in der
+  RC1-Freigabematrix geforderten Nachweise bleiben bis zur tatsächlichen
+  Dokumentation separat offen.
 
 ## Vor dem Umschalten – zwingender Live-Preflight
 
@@ -64,7 +65,9 @@ Binaries ausgetauscht werden.
 
 ## Status
 
-Versionskennzeichnung/CI-Umstellung: Entwicklungsbranch
-`release/09312-live-dev`. Ein Merge nach `main` bedeutet nur,
-dass der 0.9.3.12-Dev-Quellstand verfügbar ist. **Kein automatischer
-Produktiv-Rollout, keine automatische Version-Freigabe.**
+Versionskennzeichnung/CI-Umstellung: Branch
+`release/09312-stable-version`. Ein Merge nach `main` stellt die
+Stable-Versionskennung im Quellcode bereit, führt aber **keinen automatischen
+Produktiv-Rollout oder die Veröffentlichung eines Release-Tags** durch.
+Die Betreiber-Evidence und die noch offenen Sicherheitsnachweise sind
+im Freigabedokument weiterhin explizit erfasst.
