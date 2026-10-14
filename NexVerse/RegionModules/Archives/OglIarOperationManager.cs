@@ -68,6 +68,9 @@ namespace NexVerse.RegionModules.Archives
 
         public OglIarOperation StartExport(UUID requestId, UserAccount user, string inventoryPath, string archiveFileName, Dictionary<string, object> options = null)
         {
+            OpenSim.Framework.OglArchiveFeatureGate.Require(
+                OpenSim.Framework.OglArchiveFeatureGate.IarExport);
+
             string path = m_Storage.ResolveArchivePath(archiveFileName);
             Directory.CreateDirectory(m_Storage.RootDirectory);
             OglIarOperation operation = Create(requestId, OglIarOperationKind.Export, user, inventoryPath, path, false);
@@ -95,6 +98,9 @@ namespace NexVerse.RegionModules.Archives
 
         public OglIarOperation StartImport(UUID requestId, UserAccount user, string inventoryPath, string archiveFileName, bool merge, bool dryRun)
         {
+            OpenSim.Framework.OglArchiveFeatureGate.Require(
+                OpenSim.Framework.OglArchiveFeatureGate.IarImport);
+
             string path = m_Storage.ResolveArchivePath(archiveFileName);
             if (!m_Storage.AcceptsExistingArchive(path, out string reason))
                 throw new InvalidOperationException(reason);

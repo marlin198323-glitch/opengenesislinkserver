@@ -181,6 +181,10 @@ namespace NexVerse.Server.Api
                     ("get", "Vom NexVerse NodeAgent beobachtete Simulator-Nodes auflisten", "simulators:read", "200")),
                 ["/api/v1/nodes/{nodeId}"] = AuthenticatedOperations(
                     ("get", "Simulator-Node mit Gesundheits- und Regionszustand lesen", "simulators:read", "200")),
+                ["/api/v1/feature-control/nodes"] = AuthenticatedOperations(
+                    ("get", "Simulator-Funktionsfreigaben auflisten", "simulators:read", "200")),
+                ["/api/v1/feature-control/nodes/{nodeId}"] = AuthenticatedOperations(
+                    ("patch", "Signierte Archivfreigabe je NodeID vergeben oder widerrufen", "simulators:manage", "200")),
                 ["/api/v1/estates"] = AuthenticatedOperations(
                     ("get", "Estate-Metadaten für Verwaltung und Regionszuordnung durchsuchen", "estates:read", "200"),
                     ("post", "Estate mit Owner, Listen und Policies erstellen", "estates:manage", "201")),

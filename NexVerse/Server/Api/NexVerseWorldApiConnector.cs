@@ -492,6 +492,29 @@ namespace NexVerse.Server.Api
                     apiKeyStore,
                     adminMinimumLevel);
 
+                OglFeatureControlApi featureControl = null;
+                IConfig featureConfig = config.Configs["OGLFeatureControl"];
+                if (featureConfig?.GetBoolean("Enabled", false) == true)
+                {
+                    string privateKey = Environment.GetEnvironmentVariable("OGL_FEATURE_PRIVATE_KEY_PEM");
+                    if (string.IsNullOrWhiteSpace(privateKey))
+                    {
+                        string keyPath = featureConfig.GetString("PrivateKeyPath", "");
+                        if (string.IsNullOrWhiteSpace(keyPath) || !System.IO.File.Exists(keyPath))
+                            throw new InvalidOperationException(
+                                "[OGL FEATURE CONTROL] Privater ES256-Schlüssel für Robust fehlt.");
+                        privateKey = System.IO.File.ReadAllText(keyPath);
+                    }
+                    featureControl = new OglFeatureControlApi(
+                        featureConfig.GetString("StorePath", "data/ogl-feature-control.json"),
+                        privateKey, authenticator, nodeRegistry, eventBus);
+                    OglFeatureControlApi registered = featureControl;
+                    AppDomain.CurrentDomain.ProcessExit += (_, __) => registered.Dispose();
+                    server.AddSimpleStreamHandler(new SimpleStreamHandler(
+                        "/api/v1/feature-control", apiGate.Wrap(featureControl.Handle),
+                        "OpenGenesisLINK Feature Control"), true);
+                }
+
                 OpenSimNexUserService userService = new OpenSimNexUserService(
                     userAccounts,
                     authentication,
@@ -762,7 +785,7 @@ namespace NexVerse.Server.Api
                         "NexVerse Inventory API"),
                     true);
 
-                OglOarApi oarApi = new OglOarApi(authenticator, nodeRegistry, eventBus, jobBridge);
+                OglOarApi oarApi = new OglOarApi(authenticator, nodeRegistry, eventBus, jobBridge, featureControl);
                 server.AddSimpleStreamHandler(
                     new SimpleStreamHandler(
                         "/api/v1/oar",
@@ -770,7 +793,7 @@ namespace NexVerse.Server.Api
                         "OpenGenesisLINK OAR API"),
                     true);
 
-                OglIarApi iarApi = new OglIarApi(authenticator, nodeRegistry, userAccounts, eventBus, jobBridge);
+                OglIarApi iarApi = new OglIarApi(authenticator, nodeRegistry, userAccounts, eventBus, jobBridge, featureControl);
                 server.AddSimpleStreamHandler(
                     new SimpleStreamHandler(
                         "/api/v1/iar",

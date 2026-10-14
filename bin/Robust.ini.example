@@ -756,3 +756,17 @@
 
 [MuteListService]
 	LocalServiceModule = "OpenSim.Services.MuteListService.dll:MuteListService"
+
+
+; ================================================================
+; OpenGenesisLINK Feature Control 1.0 - Archivfreigaben (opt-in)
+; ================================================================
+[OGLFeatureControl]
+    ; Legacy-Verhalten: false. Erst nach Einrichtung von Robust + Nodes
+    ; und erfolgreicher Wiederherstellungsprobe auf true setzen.
+    Enabled = false
+    ; Privater ES256-Signaturschlüssel NUR auf Robust, nicht in Git.
+    ; Alternativ OGL_FEATURE_PRIVATE_KEY_PEM in der Prozessumgebung setzen.
+    PrivateKeyPath = "config-include/ogl-feature-private.pem"
+    ; Lokaler Persistenzpfad des Robust-Lizenzspeichers.
+    StorePath = "data/ogl-feature-control.json"

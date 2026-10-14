@@ -332,6 +332,33 @@ input,textarea,select{width:100%;background:#08131e;color:var(--text);border:1px
 <div class="section">
 <h2>Node-Details</h2><pre id="nodeDetail">Noch kein Node ausgewählt.</pre>
 </div>
+<div class="section">
+<h2><span class="icon">✦</span> OGL Feature Control · Simulator-Lizenzen</h2>
+<p class="sectionlead">Grid-Inhaber vergeben hier die Archivfreigaben der per NexBus registrierten Simulatoren.
+Die Richtlinie wird automatisch signiert und zur NodeID übertragen. Nur für World-API-Administratoren mit
+<code>simulators:manage</code> und <code>UserLevel ≥ 200</code>. Ohne Freigabe gilt bei aktivierter
+<code>[OGLFeatureControl]</code>-Pflicht eine Sperre.</p>
+<div class="planner-controls">
+<div><label class="label2">Simulator-NodeID</label><select id="licenseNode" style="width:100%;padding:11px"><option value="">Simulatoren laden …</option></select></div>
+<div><label class="label2">Lizenzkennung (optional, wird nur als Prüfsumme gespeichert)</label>
+<input id="licenseKey" type="password" autocomplete="off" placeholder="Bestehende Kennung unverändert lassen"></div>
+</div>
+<div class="planner-controls">
+<label><input id="licenseOarImport" type="checkbox"> OAR importieren</label>
+<label><input id="licenseOarExport" type="checkbox"> OAR exportieren</label>
+<label><input id="licenseIarImport" type="checkbox"> IAR importieren</label>
+<label><input id="licenseIarExport" type="checkbox"> IAR exportieren</label>
+</div>
+<div class="planner-actions">
+<button class="action" id="loadFeatureLicenses">Freigaben laden</button>
+<button class="action" id="saveFeatureLicense">Richtlinie speichern &amp; übertragen</button>
+<button class="action" id="revokeFeatureLicense">Alle vier Funktionen sperren</button>
+</div>
+<div class="authnote">Die Funktion benötigt eine gültige Simulator-Richtlinienkonfiguration in Robust und NodeAgent.
+Sperren greifen beim nächsten erfolgreichen NexBus-Ereignis; spätestens mit Ablauf des kurzlebigen Tokens.
+Archivprüfungen bleiben auch für freigegebene Importe aktiv.</div>
+<pre id="licenseStatus">Noch keine Lizenzinformationen geladen.</pre>
+</div>
 </section>
 
 <section class="page" id="page-changes">
@@ -954,6 +981,63 @@ async function loadNodes(){
   }catch(err){
     setNodesStatus('Node-Registry nicht erreichbar','bad');$('nodeDetail').textContent=String(err);
   }
+}
+
+let oglLicenseNodes=[];
+function selectedLicense(){
+  const node=$('licenseNode').value;
+  return oglLicenseNodes.find(x=>x.node_id===node);
+}
+function showFeatureLicense(){
+  const entry=selectedLicense();
+  for(const [key,field] of [['oar_import','licenseOarImport'],['oar_export','licenseOarExport'],
+        ['iar_import','licenseIarImport'],['iar_export','licenseIarExport']])
+    $(field).checked=!!entry?.[key];
+  $('licenseKey').value='';
+  $('licenseStatus').textContent=entry?
+    'Node: '+entry.node_id+' · '+entry.state+' · Revision '+entry.revision+
+    (entry.assigned?' · Richtlinie gespeichert':' · noch keine Richtlinie'): 'Kein Simulator gewählt.';
+}
+async function loadFeatureLicenses(){
+  const status=$('licenseStatus');status.textContent='Lade Freigaben …';
+  try{
+    const response=await fetch('/api/v1/feature-control/nodes',{
+      method:'GET',headers:nodeHeaders(),cache:'no-store',credentials:'same-origin'});
+    const data=await response.json();
+    if(!response.ok)throw Error(data.message||data.error||('HTTP '+response.status));
+    oglLicenseNodes=data.nodes||[];
+    const selection=$('licenseNode'),previous=selection.value;
+    selection.replaceChildren();
+    oglLicenseNodes.forEach(node=>{
+      const option=document.createElement('option');option.value=node.node_id;
+      option.textContent=node.node_id+' · '+node.state;selection.append(option);
+    });
+    if(oglLicenseNodes.some(x=>x.node_id===previous))selection.value=previous;
+    showFeatureLicense();
+    if(!oglLicenseNodes.length)status.textContent='Noch keine Simulator-Nodes registriert.';
+  }catch(error){status.textContent='Lizenzdienst nicht verfügbar: '+String(error)}
+}
+async function saveFeatureLicense(revoke=false){
+  const node=$('licenseNode').value,status=$('licenseStatus');
+  if(!node){status.textContent='Zuerst eine NodeID auswählen.';return;}
+  if(revoke && !confirm('Alle Archivfunktionen für '+node+' sperren?'))return;
+  const body={
+    oar_import:!revoke&&$('licenseOarImport').checked,
+    oar_export:!revoke&&$('licenseOarExport').checked,
+    iar_import:!revoke&&$('licenseIarImport').checked,
+    iar_export:!revoke&&$('licenseIarExport').checked
+  };
+  if($('licenseKey').value.trim()&&!revoke)body.license_key=$('licenseKey').value.trim();
+  status.textContent='Speichere Richtlinie für '+node+' …';
+  try{
+    const headers={...nodeHeaders(),'Content-Type':'application/json'};
+    const response=await fetch('/api/v1/feature-control/nodes/'+encodeURIComponent(node),{
+      method:'PATCH',headers,credentials:'same-origin',body:JSON.stringify(body)});
+    const data=await response.json();
+    if(!response.ok)throw Error(data.message||data.error||('HTTP '+response.status));
+    await loadFeatureLicenses();
+    status.textContent='Richtlinie für '+node+' aktualisiert und per NexBus übertragen.';
+  }catch(error){status.textContent='Freigabe abgelehnt: '+String(error)}
 }
 
 function gridHeaders(){
@@ -1649,6 +1733,10 @@ $('searchGridRegions').addEventListener('click',searchGridRegions);$('jumpGridRe
 $('loadGridNodes').addEventListener('click',loadGridManagedNodes);$('loadGridEstates').addEventListener('click',loadGridEstates);$('createGridRegion').addEventListener('click',createGridRegion);$('moveGridRegion').addEventListener('click',moveGridRegion);
 $('startGridRegion').addEventListener('click',()=>runGridLifecycle('start'));$('stopGridRegion').addEventListener('click',()=>runGridLifecycle('stop'));$('restartGridRegion').addEventListener('click',()=>runGridLifecycle('restart'));
 $('loadEstateManagement').addEventListener('click',loadEstateManagement);$('createEstateManagement').addEventListener('click',createEstateManagement);$('updateEstateManagement').addEventListener('click',updateEstateManagement);$('assignEstateRegion').addEventListener('click',assignEstateRegion);
+$('licenseNode').addEventListener('change',showFeatureLicense);
+$('loadFeatureLicenses').addEventListener('click',loadFeatureLicenses);
+$('saveFeatureLicense').addEventListener('click',()=>saveFeatureLicense(false));
+$('revokeFeatureLicense').addEventListener('click',()=>saveFeatureLicense(true));
 $('loadNodes').addEventListener('click',loadNodes);$('clearNodesCredentials').addEventListener('click',()=>{$('nodesBearer').value='';$('nodesApiKey').value=''});
 $('gridWest').addEventListener('click',()=>panGrid(-1,0));$('gridEast').addEventListener('click',()=>panGrid(1,0));$('gridSouth').addEventListener('click',()=>panGrid(0,-1));$('gridNorth').addEventListener('click',()=>panGrid(0,1));
 $('validateGridPlacement').addEventListener('click',validateGridPlacement);$('gridRegionSizeX').addEventListener('change',()=>{if(gridSelected)validateGridPlacement()});$('gridRegionSizeY').addEventListener('change',()=>{if(gridSelected)validateGridPlacement()});

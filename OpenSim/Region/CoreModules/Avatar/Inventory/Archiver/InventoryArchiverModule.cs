@@ -289,6 +289,8 @@ namespace OpenSim.Region.CoreModules.Avatar.Inventory.Archiver
         public bool ArchiveInventory(
              UUID id, string firstName, string lastName, string invPath, string pass, Stream saveStream)
         {
+            OglArchiveFeatureGate.Require(OglArchiveFeatureGate.IarExport);
+
             return ArchiveInventory(id, firstName, lastName, invPath, pass, saveStream, new Dictionary<string, object>());
         }
 
@@ -296,6 +298,8 @@ namespace OpenSim.Region.CoreModules.Avatar.Inventory.Archiver
             UUID id, string firstName, string lastName, string invPath, string pass, Stream saveStream,
             Dictionary<string, object> options)
         {
+            OglArchiveFeatureGate.Require(OglArchiveFeatureGate.IarExport);
+
             if (m_scenes.Count > 0)
             {
                 UserAccount userInfo = GetUserInfo(firstName, lastName, pass);
@@ -336,6 +340,8 @@ namespace OpenSim.Region.CoreModules.Avatar.Inventory.Archiver
         public bool ArchiveInventory(
             UUID id, UserAccount userInfo, string invPath, Stream saveStream, Dictionary<string, object> options)
         {
+            OglArchiveFeatureGate.Require(OglArchiveFeatureGate.IarExport);
+
             if (userInfo == null || saveStream == null || m_scenes.Count == 0)
                 return false;
 
@@ -355,6 +361,8 @@ namespace OpenSim.Region.CoreModules.Avatar.Inventory.Archiver
         public bool DearchiveInventory(
             UUID id, UserAccount userInfo, string invPath, Stream loadStream, Dictionary<string, object> options)
         {
+            OglArchiveFeatureGate.Require(OglArchiveFeatureGate.IarImport);
+
             if (userInfo == null || loadStream == null || m_scenes.Count == 0)
                 return false;
 
@@ -379,6 +387,8 @@ namespace OpenSim.Region.CoreModules.Avatar.Inventory.Archiver
             UUID id, string firstName, string lastName, string invPath, string pass, string savePath,
             Dictionary<string, object> options)
         {
+            OglArchiveFeatureGate.Require(OglArchiveFeatureGate.IarExport);
+
 //            if (!ConsoleUtil.CheckFileDoesNotExist(MainConsole.Instance, savePath))
 //                return false;
 
@@ -421,6 +431,8 @@ namespace OpenSim.Region.CoreModules.Avatar.Inventory.Archiver
 
         public bool DearchiveInventory(UUID id, string firstName, string lastName, string invPath, string pass, Stream loadStream)
         {
+            OglArchiveFeatureGate.Require(OglArchiveFeatureGate.IarImport);
+
             return DearchiveInventory(id, firstName, lastName, invPath, pass, loadStream, new Dictionary<string, object>());
         }
 
@@ -428,6 +440,8 @@ namespace OpenSim.Region.CoreModules.Avatar.Inventory.Archiver
             UUID id, string firstName, string lastName, string invPath, string pass, Stream loadStream,
             Dictionary<string, object> options)
         {
+            OglArchiveFeatureGate.Require(OglArchiveFeatureGate.IarImport);
+
             if (m_scenes.Count > 0)
             {
                 UserAccount userInfo = GetUserInfo(firstName, lastName, pass);
@@ -477,6 +491,8 @@ namespace OpenSim.Region.CoreModules.Avatar.Inventory.Archiver
              UUID id, string firstName, string lastName, string invPath, string pass, string loadPath,
              Dictionary<string, object> options)
         {
+            OglArchiveFeatureGate.Require(OglArchiveFeatureGate.IarImport);
+
             if (m_scenes.Count > 0)
             {
                 UserAccount userInfo = GetUserInfo(firstName, lastName, pass);
@@ -533,6 +549,12 @@ namespace OpenSim.Region.CoreModules.Avatar.Inventory.Archiver
         /// <param name="cmdparams"></param>
         protected void HandleLoadInvConsoleCommand(string module, string[] cmdparams)
         {
+            if (!OglArchiveFeatureGate.Allowed(OglArchiveFeatureGate.IarImport))
+            {
+                m_log.Warn(OglArchiveFeatureGate.DeniedMessage(OglArchiveFeatureGate.IarImport));
+                return;
+            }
+
             try
             {
                 UUID id = UUID.Random();
@@ -601,6 +623,12 @@ namespace OpenSim.Region.CoreModules.Avatar.Inventory.Archiver
         /// <param name="cmdparams"></param>
         protected void HandleSaveInvConsoleCommand(string module, string[] cmdparams)
         {
+            if (!OglArchiveFeatureGate.Allowed(OglArchiveFeatureGate.IarExport))
+            {
+                m_log.Warn(OglArchiveFeatureGate.DeniedMessage(OglArchiveFeatureGate.IarExport));
+                return;
+            }
+
             UUID id = UUID.Random();
 
             Dictionary<string, object> options = new Dictionary<string, object>();

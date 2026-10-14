@@ -100,6 +100,8 @@ namespace OpenSim.Region.CoreModules.World.Archiver
         /// <param name="cmdparams"></param>
         public void HandleLoadOarConsoleCommand(string module, string[] cmdparams)
         {
+            OglArchiveFeatureGate.Require(OglArchiveFeatureGate.OarImport);
+
             bool mergeOar = false;
             bool mergeReplaceObjects = false;
             bool skipAssets = false;
@@ -264,6 +266,8 @@ namespace OpenSim.Region.CoreModules.World.Archiver
         /// <param name="cmdparams"></param>
         public void HandleSaveOarConsoleCommand(string module, string[] cmdparams)
         {
+            OglArchiveFeatureGate.Require(OglArchiveFeatureGate.OarExport);
+
             Dictionary<string, object> options = new Dictionary<string, object>();
 
             OptionSet ops = new OptionSet();
@@ -296,11 +300,15 @@ namespace OpenSim.Region.CoreModules.World.Archiver
 
         public void ArchiveRegion(string savePath, Dictionary<string, object> options)
         {
+            OglArchiveFeatureGate.Require(OglArchiveFeatureGate.OarExport);
+
             ArchiveRegion(savePath, Guid.Empty, options);
         }
 
         public void ArchiveRegion(string savePath, Guid requestId, Dictionary<string, object> options)
         {
+            OglArchiveFeatureGate.Require(OglArchiveFeatureGate.OarExport);
+
             m_log.InfoFormat(
                 "[ARCHIVER]: Writing archive for region {0} to {1}", Scene.RegionInfo.RegionName, savePath);
 
@@ -309,27 +317,37 @@ namespace OpenSim.Region.CoreModules.World.Archiver
 
         public void ArchiveRegion(Stream saveStream)
         {
+            OglArchiveFeatureGate.Require(OglArchiveFeatureGate.OarExport);
+
             ArchiveRegion(saveStream, Guid.Empty);
         }
 
         public void ArchiveRegion(Stream saveStream, Guid requestId)
         {
+            OglArchiveFeatureGate.Require(OglArchiveFeatureGate.OarExport);
+
             ArchiveRegion(saveStream, requestId, new Dictionary<string, object>());
         }
 
         public void ArchiveRegion(Stream saveStream, Guid requestId, Dictionary<string, object> options)
         {
+            OglArchiveFeatureGate.Require(OglArchiveFeatureGate.OarExport);
+
             new ArchiveWriteRequest(Scene, saveStream, requestId).ArchiveRegion(options);
         }
 
         public void DearchiveRegion(string loadPath)
         {
+            OglArchiveFeatureGate.Require(OglArchiveFeatureGate.OarImport);
+
             Dictionary<string, object> archiveOptions = new Dictionary<string, object>();
             DearchiveRegion(loadPath, Guid.Empty, archiveOptions);
         }
 
         public void DearchiveRegion(string loadPath, Guid requestId, Dictionary<string, object> options)
         {
+            OglArchiveFeatureGate.Require(OglArchiveFeatureGate.OarImport);
+
             m_log.InfoFormat(
                 "[ARCHIVER]: Loading archive to region {0} from {1}", Scene.RegionInfo.RegionName, loadPath);
 
@@ -338,11 +356,15 @@ namespace OpenSim.Region.CoreModules.World.Archiver
 
         public void DearchiveRegion(Stream loadStream)
         {
+            OglArchiveFeatureGate.Require(OglArchiveFeatureGate.OarImport);
+
             Dictionary<string, object> archiveOptions = new Dictionary<string, object>();
             DearchiveRegion(loadStream, Guid.Empty, archiveOptions);
         }
         public void DearchiveRegion(Stream loadStream, Guid requestId, Dictionary<string, object> options)
         {
+            OglArchiveFeatureGate.Require(OglArchiveFeatureGate.OarImport);
+
             new ArchiveReadRequest(Scene, loadStream, requestId, options).DearchiveRegion();
         }
     }
