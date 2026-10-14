@@ -87,6 +87,10 @@ jobs:
         shell: bash
         run: python3 tools/ci/verify_ogl_docs_admin_ui.py
 
+      - name: Verify OpenGenesisLINK 0.9.3.12 dashboard and diagnostic updates
+        shell: bash
+        run: python3 tools/ci/verify_ogl_worldapi_09312_ux.py
+
       - name: Verify runtime secrets are not committed
         shell: bash
         run: python3 tools/ci/verify_no_plaintext_runtime_secrets.py
