@@ -11,6 +11,10 @@
       <HintPath>../../../bin/OpenMetaverse.dll</HintPath>
       <Private>True</Private>
     </Reference>
+    <Reference Include="OpenMetaverseTypes">
+      <HintPath>../../../bin/OpenMetaverseTypes.dll</HintPath>
+      <Private>True</Private>
+    </Reference>
     <ProjectReference Include="../../../OpenSim/Region/Framework/OpenSim.Region.Framework.csproj" />
   </ItemGroup>
 </Project>
