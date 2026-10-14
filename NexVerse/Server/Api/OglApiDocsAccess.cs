@@ -28,7 +28,7 @@ namespace NexVerse.Server.Api
 
         // Loopback TLS-terminating proxies are trusted by default. Non-loopback
         // proxy IPs must be explicitly allowlisted by the administrator; never
-        // trust client-controlled X-Forwarded-For to establish this peer identity.
+        // trust client-provided IP headers to establish this peer identity.
         public OglApiDocsAccess(string trustedProxyAddresses = "")
         {
             foreach (string raw in (trustedProxyAddresses ?? string.Empty).Split(
