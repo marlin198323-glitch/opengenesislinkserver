@@ -34,7 +34,9 @@ expect(generator, "Current ChatGPT instructions",
        "opengenesislink-chatgpt-anweisung.md",
        "OpenSim.VersionInfo.Version.Trim()",
        "Stadt-NexVerse bzw. NexVerse ist lediglich ein Betreiber-Grid",
-       "X-NexVerse-Api-Key")
+       "X-NexVerse-Api-Key",
+       "Entwicklungsregel: fertiggestellte OpenGenesisLINK-Funktionen",
+       "Nicht stillschweigend deaktiviert ausliefern.")
 assert "0.9.3.10 ist Entwicklung, nicht Stable" not in generator
 assert "0.9.3.8 bleibt letzte Stable" not in generator
 expect(api, "Current 0.9.3.12 OpenAPI version history",
