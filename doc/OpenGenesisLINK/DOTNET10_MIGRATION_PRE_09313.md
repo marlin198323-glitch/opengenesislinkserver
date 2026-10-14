@@ -68,10 +68,22 @@ with an unsafe legacy serializer as a shortcut. Do not merge this change
 into production until representative existing regions and OARs have passed
 a data-preservation trial, including rollback.
 
-**Remaining blockers:** `Util.SerializeToFile` /
-`DeserializeFromFile` and YEngine script-state migration still contain
-legacy BinaryFormatter calls. Some tests may pass without exercising those
-paths; do not treat a green build alone as production readiness.
+### Retired unsafe generic persistence
+
+The unused in-repository `Util.SerializeToFile` and
+`Util.DeserializeFromFile` methods now explicitly throw
+`NotSupportedException`, instead of calling `BinaryFormatter`.
+No internal source callers were found. Third-party modules still using
+these methods need an explicit typed serializer; the public method
+signatures remain only to produce an actionable failure message.
+
+**Remaining blockers:** YEngine script-state migration still has
+`BinaryFormatter` calls for serializing/reading generic CLR graphs
+and exceptions. Until it has a narrow typed replacement with data
+migration and negative tests, script-state persistence/crossing is
+not supported safely by the .NET 10 preview.
+Some tests may pass without exercising these paths; do not treat
+a green build alone as production readiness.
 
 ## Additional release gates
 
