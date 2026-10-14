@@ -6,6 +6,10 @@
     <Nullable>disable</Nullable>
   </PropertyGroup>
   <ItemGroup>
+    <Reference Include="OpenMetaverse">
+      <HintPath>../../../bin/OpenMetaverse.dll</HintPath>
+      <Private>True</Private>
+    </Reference>
     <ProjectReference Include="../../../OpenSim/Framework/OpenSim.Framework.csproj" />
   </ItemGroup>
 </Project>
