@@ -138,12 +138,50 @@ a{color:#83dcff}a:hover{color:#bcb0ff}
 @media(max-width:760px){.shell{display:block}nav{position:relative;height:auto;display:flex;flex-wrap:wrap;align-items:center;gap:4px;padding:15px;overflow:visible}.brand{width:100%;border:0;margin:0;padding:0 6px 12px}.navbtn{width:auto;margin:1px;font-size:11px;padding:8px 9px;gap:5px}.navbtn:before{height:21px;width:19px;font-size:14px}.navmeta{display:none}main{padding:22px 15px}.hero{padding:23px 18px;display:block}.hero .pill{margin-top:16px}.section{padding:19px 15px}}
 @media(prefers-reduced-motion:reduce){body:before{animation:none}.navbtn,.card,.change{transition:none}}
 
+
+/* OGL CONTROL CENTER 2026 | Visible redesign, no external dependencies */
+:root { --ogl-ice:#8af4ff; --ogl-violet:#bfa1ff; }
+body { background:#050915; }
+.shell { grid-template-columns:282px minmax(0,1fr); }
+nav { box-shadow:24px 0 86px rgba(0,0,0,.25);background:linear-gradient(155deg,rgba(7,15,32,.99),rgba(20,20,46,.98));border-right:1px solid rgba(115,220,255,.27); }
+nav .brand { background:linear-gradient(130deg,rgba(17,59,86,.56),rgba(75,39,103,.3));border-radius:18px;padding:13px;margin:0 0 20px;border:1px solid rgba(113,206,250,.2);box-shadow:inset 0 1px rgba(182,237,255,.15),0 18px 30px rgba(0,0,0,.15)}
+.navsection-label { margin:19px 14px 7px; font-size:10px; letter-spacing:.21em;color:rgba(145,190,224,.72);font-weight:800; }
+nav .navbtn { margin:5px 2px; border-radius:12px; padding:12px; }
+nav .navbtn.active {background:linear-gradient(95deg,rgba(25,118,165,.45),rgba(89,65,184,.22));box-shadow:inset 3px 0 #8cf5ff,0 0 30px rgba(55,185,234,.12);}
+main { padding:31px clamp(24px,4vw,74px);background:radial-gradient(ellipse at 85% -15%,rgba(74,39,180,.12),transparent 60%); }
+main:before {content:"";position:fixed;inset:0;pointer-events:none;opacity:.17;z-index:-1;background:repeating-linear-gradient(0deg,transparent,transparent 63px,rgba(122,185,255,.11) 64px),repeating-linear-gradient(90deg,transparent,transparent 63px,rgba(122,185,255,.11) 64px);}
+.hero { min-height:220px; padding:42px clamp(25px,4vw,59px);overflow:hidden;border:1px solid rgba(136,235,255,.38);border-radius:22px;background:linear-gradient(115deg,rgba(17,57,89,.97),rgba(35,34,83,.96) 58%,rgba(7,25,45,.96));box-shadow:0 32px 82px rgba(0,0,0,.3),0 0 42px rgba(95,154,245,.07),inset 0 1px rgba(255,255,255,.1); }
+.hero:before{width:580px;height:580px;right:-95px;top:-310px;animation:ogl-orbit 25s linear infinite;border:1px solid rgba(131,237,255,.4);box-shadow:0 0 0 51px rgba(79,160,225,.05),0 0 0 117px rgba(99,89,228,.06),0 0 0 179px rgba(76,167,230,.025);}
+.hero:after {height:3px;background:linear-gradient(90deg,rgba(93,238,255,.95),rgba(184,115,255,.95),transparent 86%);box-shadow:0 0 32px rgba(77,187,255,.5);}
+@keyframes ogl-orbit {to{transform:rotate(360deg)}}
+.hero h1 {font-size:clamp(33px,3.5vw,57px);letter-spacing:-.052em;max-width:800px;line-height:1.08;}
+.hero p {max-width:630px;font-size:14px;color:#b9cce4;}
+.hero .eyebrow {letter-spacing:.25em;font-size:11px;text-shadow:0 0 20px rgba(64,220,255,.65);}
+.hero .pill {border:1px solid rgba(148,227,250,.35);padding:11px 18px;background:rgba(11,28,54,.72);backdrop-filter:blur(12px);}
+.ogl-live-strip{display:flex;align-items:center;gap:11px;min-height:47px;margin:19px 0 27px;padding:9px 18px;border-radius:12px;background:linear-gradient(95deg,rgba(16,56,70,.8),rgba(28,31,70,.8));border:1px solid rgba(88,216,233,.19);font-size:11px;letter-spacing:.08em;color:#a6c7da;}
+.ogl-live-strip strong{color:#a8ffe1;letter-spacing:.15em;}
+.ogl-live-strip .live-version{margin-left:auto;letter-spacing:0;color:#c4d9f2;}
+.livepulse{height:9px;width:9px;border-radius:50%;background:#5de7b8;box-shadow:0 0 0 5px rgba(41,202,143,.12),0 0 14px #56e1b2;animation:ogl-pulse 2.6s ease-in-out infinite;}
+@keyframes ogl-pulse{50%{box-shadow:0 0 0 9px rgba(41,202,143,.04),0 0 20px #56e1b2;}}
+.ogl-section-head{display:flex;justify-content:space-between;align-items:baseline;gap:12px;margin:27px 2px 13px;font-size:18px;font-weight:800;letter-spacing:-.02em;}
+.ogl-section-head small{font-size:10px;color:#83abc9;letter-spacing:.19em;font-weight:700}
+.card {min-height:141px;border-radius:18px;padding:26px 22px;background:linear-gradient(140deg,rgba(24,43,72,.92),rgba(13,25,45,.93));border:1px solid rgba(135,207,255,.24);box-shadow:0 18px 45px rgba(0,0,0,.18);}
+.card .value{font-size:clamp(22px,2vw,32px);color:#ecfbff;letter-spacing:-.05em;white-space:normal;overflow-wrap:anywhere;}
+.card .label{color:#a1c1dc;letter-spacing:.16em;font-size:10px;}
+.card:hover{transform:translateY(-5px);border-color:#78dffd;}
+.section{border-radius:18px;background:linear-gradient(144deg,rgba(22,38,65,.93),rgba(11,22,41,.97));border-color:rgba(122,198,252,.25);padding:27px;}
+.section h2{font-size:22px;}
+.filter {padding:10px 14px;}
+@media(max-width:850px){.shell{grid-template-columns:1fr;}nav{position:relative;height:auto;display:flex;flex-wrap:wrap;align-items:center;padding:15px;gap:5px;}nav .brand{width:100%;}.navsection-label{width:100%;margin:12px 8px 2px}.navbtn{width:auto;}.navmeta{display:none}main{padding:18px}.ogl-live-strip{flex-wrap:wrap}.ogl-live-strip .live-version{margin-left:0;width:100%}.hero{padding:27px 20px}}
+@media(prefers-reduced-motion:reduce){.hero:before,.livepulse{animation:none!important}}
+
 </style>
 </head>
 <body>
 <div class="shell">
 <nav>
 <div class="brand"><div class="ogl-logo" aria-hidden="true">OGL</div><strong>OpenGenesisLINK</strong><span>WORLD API · CONTROL CENTER</span></div>
+<div class="navsection-label">CONTROL CENTER</div>
 <button class="navbtn active" data-page="overview">Übersicht</button>
 <button class="navbtn" data-page="statistics">Statistik</button>
 <button class="navbtn" data-page="grid">Grid-Planer</button>
@@ -151,6 +189,7 @@ a{color:#83dcff}a:hover{color:#bcb0ff}
 <button class="navbtn" data-page="changes">Was ist neu?</button>
 <button class="navbtn" data-page="versions">Versionen</button>
 <button class="navbtn" data-page="roadmap">Entwicklungsplan</button>
+<div class="navsection-label">INTEGRATIONEN</div>
 <button class="navbtn" data-page="chatgpt">ChatGPT / Portale</button>
 <button class="navbtn" data-page="adminlogin">Administrator</button>
 <button class="navbtn" data-page="secrets">Schlüssel &amp; Einrichtung</button>
@@ -163,6 +202,8 @@ a{color:#83dcff}a:hover{color:#bcb0ff}
 <div><div class="eyebrow">OpenGenesisLINK / WORLD API</div><h1>Deine Welt. <em>Deine Kontrolle.</em></h1><p>Live-Übersicht über Serverversion, API-Vertrag, aktuelle Erweiterungen und verfügbare Endpunkte.</p></div>
 <div class="pill"><span class="dot" id="healthDot"></span><span id="healthText">Prüfe API-Status…</span></div>
 </div>
+<div class="ogl-live-strip"><span class="livepulse"></span><strong>OGL LIVE</strong><span>SERVER &amp; WORLD API</span><span class="live-version" id="oglActiveRelease">OpenGenesisLINK · Status wird geladen</span></div>
+<div class="ogl-section-head"><span>Systemstatus</span><small>AKTUELLE SERVERDATEN</small></div>
 <div class="cards">
 <div class="card"><div class="label">Server</div><div class="value" id="serverVersion">–</div><div class="sub" id="milestone">Meilenstein –</div></div>
 <div class="card"><div class="label">API</div><div class="value" id="apiVersion">–</div><div class="sub">Aktueller OpenAPI-3.1-Vertrag</div></div>
@@ -173,6 +214,7 @@ a{color:#83dcff}a:hover{color:#bcb0ff}
 <h2>Neu in der aktuellen Version</h2><p class="sectionlead">Die Einträge werden direkt aus <code>x_nexverse_changelog</code> im laufenden OpenAPI-Dokument gelesen und deutsch dargestellt.</p>
 <div class="changegrid" id="overviewChanges"></div>
 </div>
+<div class="ogl-section-head"><span>Arbeitsbereiche</span><small>VERWALTUNG &amp; ENTWICKLUNG</small></div>
 <div class="section">
 <h2>Schnellzugriff</h2><p class="sectionlead">Die wichtigsten technischen Oberflächen des laufenden Servers.</p>
 <div class="filters">
@@ -1052,7 +1094,17 @@ async function loadFeatureLicenses(){
   try{
     const response=await fetch('/api/v1/feature-control/nodes',{
       method:'GET',headers:nodeHeaders(),cache:'no-store',credentials:'same-origin'});
-    const data=await response.json();
+    const data=await response.json().catch(()=>({}));
+    if(response.status===404 && (data.error==='not_found'||!data.error)){
+      oglLicenseNodes=[];
+      $('licenseNode').replaceChildren();
+      status.textContent='Lizenzmodul nicht aktiviert. Für signierte OAR/IAR-Node-Freigaben [OGLFeatureControl] Enabled = true und einen gültigen ES256-Schlüssel auf Robust konfigurieren. Ohne aktiviertes Modul ist dieser Bereich nicht verfügbar.';
+      return;
+    }
+    if(response.status===401||response.status===403){
+      status.textContent='Lizenzdienst vorhanden, aber Zugriff verweigert. Die Freigabe benötigt einen API-Zugang mit simulators:read und GridUser UserLevel 200 oder höher.';
+      return;
+    }
     if(!response.ok)throw Error(data.message||data.error||('HTTP '+response.status));
     oglLicenseNodes=data.nodes||[];
     const selection=$('licenseNode'),previous=selection.value;
@@ -1756,7 +1808,7 @@ async function init(){
     $('citizenEndpointCount').textContent=entries.filter(x=>(x.op['x-nexverse-audience']||[]).includes('citizen')).length;
     $('adminEndpointCount').textContent=entries.filter(x=>(x.op['x-nexverse-audience']||[]).includes('admin')).length;
     $('healthText').textContent=health.status==='ok'?'API online':'API Status: '+(health.status||'unbekannt');$('healthDot').className='dot '+(health.status==='ok'?'good':'bad');
-    $('serverVersion').textContent=version.server_version||'–';$('milestone').textContent='Meilenstein '+(version.milestone||'–')+(version.milestone_title?' · '+version.milestone_title:'');$('apiVersion').textContent=version.api_version||spec.info?.version||'–';
+    $('serverVersion').textContent=version.server_version||'–';$('oglActiveRelease').textContent=(version.server_version||'OpenGenesisLINK')+' · '+(version.milestone_title||'World API');$('milestone').textContent='Meilenstein '+(version.milestone||'–')+(version.milestone_title?' · '+version.milestone_title:'');$('apiVersion').textContent=version.api_version||spec.info?.version||'–';
     $('endpointCount').textContent=Object.keys(spec.paths||{}).length;$('operationCount').textContent=entries.length+' Operationen';
     $('navmeta').textContent=(version.server_version||'OpenGenesisLINK')+' · '+(version.api_version||'API')+' · '+languageLabel(version.language||spec['x_nexverse_language']||'de-DE');
     if(changes.length){$('lastChangeDate').textContent=changes[0].date||'–';$('lastChangeTitle').textContent=changes[0].title||''}
