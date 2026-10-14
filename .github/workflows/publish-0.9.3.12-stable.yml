@@ -1,0 +1,78 @@
+name: Publish OpenGenesisLINK 0.9.3.12 Stable
+
+# Publish only the immutable SHA validated by a successful main-branch CI.
+on:
+  workflow_run:
+    workflows: ["NexVerse CI"]
+    types: [completed]
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    name: Publish v0.9.3.12 only after security CI
+    if: >-
+      ${{ github.event.workflow_run.conclusion == 'success' &&
+          github.event.workflow_run.event == 'push' &&
+          github.event.workflow_run.head_branch == 'main' &&
+          github.event.workflow_run.head_repository.full_name == github.repository }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout tested commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          persist-credentials: false
+
+      - name: Verify version, security patch and release notes
+        id: stable_check
+        env:
+          TESTED_SHA: ${{ github.event.workflow_run.head_sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$TESTED_SHA"
+          if grep -Fq 'public const string ProductName = "OpenGenesisLINK";' OpenSim/Framework/VersionInfo.cs &&
+             grep -Fq 'public const string VersionNumber = "0.9.3.12";' OpenSim/Framework/VersionInfo.cs &&
+             grep -Fq 'public const string AssemblyVersionNumber = "0.9.3.12";' OpenSim/Framework/VersionInfo.cs &&
+             grep -Fq 'public const Flavour VERSION_FLAVOUR = Flavour.Release;' OpenSim/Framework/VersionInfo.cs &&
+             test -s doc/NexVerse/RELEASE_0.9.3.12.md &&
+             test -s doc/OpenGenesisLINK/09312_HG_INVENTORY_SECURITY.md &&
+             test -s tools/ci/verify_hg_inventory_security_09312.py; then
+            python3 tools/ci/verify_hg_inventory_security_09312.py
+            echo "eligible=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice::Not an eligible 0.9.3.12 Stable build; skipping."
+            echo "eligible=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Publish tested immutable stable release
+        if: steps.stable_check.outputs.eligible == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TESTED_SHA: ${{ github.event.workflow_run.head_sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag="v0.9.3.12"
+          main_sha="$(gh api "repos/$GITHUB_REPOSITORY/commits/main" --jq '.sha')"
+          if [ "$main_sha" != "$TESTED_SHA" ]; then
+            echo "::notice::main advanced; refusing to release untested state."
+            exit 0
+          fi
+          if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "Release already published; refusing to replace."
+            exit 0
+          fi
+          if gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$tag" >/dev/null 2>&1; then
+            echo "::error::Immutable tag exists without release; refusing to overwrite."
+            exit 1
+          fi
+          gh release create "$tag" \
+            --repo "$GITHUB_REPOSITORY" \
+            --target "$TESTED_SHA" \
+            --title "OpenGenesisLINK 0.9.3.12" \
+            --notes-file doc/NexVerse/RELEASE_0.9.3.12.md \
+            --latest
