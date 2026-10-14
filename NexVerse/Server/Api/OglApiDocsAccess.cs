@@ -265,7 +265,16 @@ form.addEventListener('submit',async event=>{
     expires=Date.now()+Math.max(0,Number(data.expires_in||0)-30)*1000;
     if(!expires||expires<=Date.now())throw Error('Die Administratorsitzung ist bereits abgelaufen.');
     const panel=await fetch('/api/v1/docs/panel',{headers:{'Authorization':'Bearer '+token,'Accept':'text/html'},cache:'no-store',credentials:'same-origin'});
-    if(!panel.ok)throw Error('Zugang zum Control Center verweigert (HTTP '+panel.status+').');
+    if(!panel.ok){
+      const errorCode=panel.headers.get('X-OGL-Docs-Error')||'';
+      const messages={
+        https_not_verified:'HTTPS-Verbindung am OGL-Backend nicht bestätigt. Reverse-Proxy-Konfiguration prüfen.',
+        admin_api_disabled:'Der Administrator-Dienst ist nicht aktiviert.',
+        admin_token_required:'Das Sitzungstoken wurde nicht übermittelt.',
+        admin_session_invalid:'Die Administrator-Sitzung ist ungültig oder abgelaufen.',
+        admin_permission_required:'GridUser-Berechtigung erforderlich: UserLevel mindestens 200 und admin:*.'};
+      throw Error(messages[errorCode]||('Zugang zum Control Center verweigert (HTTP '+panel.status+').'));
+    }
     const html=await panel.text();
     frame.onload=()=>{
       if(token && Date.now()<expires)
