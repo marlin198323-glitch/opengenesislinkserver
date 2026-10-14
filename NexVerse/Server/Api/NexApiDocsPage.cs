@@ -637,7 +637,7 @@ function adminLogout(){
   secretClear();
   adminUpdateStatus('Abgemeldet',null);
   showPage('adminlogin');
-  if(window.parent!==window)window.parent.postMessage({type:'ogl-logout'},location.origin);
+  if(window.parent!==window)window.parent.postMessage({type:'ogl-logout'},window.parent.location.origin);
 }
 async function adminLogin(){
   if(!window.isSecureContext){adminUpdateStatus('Administrator-Login ist nur über HTTPS erlaubt.',false);return}
@@ -1792,7 +1792,7 @@ $('validateGridPlacement').addEventListener('click',validateGridPlacement);$('gr
 $('gridCellPixels').addEventListener('input',()=>{$('gridBoard').style.setProperty('--cell',$('gridCellPixels').value+'px')});$('gridFilter').addEventListener('change',applyGridFilter);
 
 window.addEventListener('message',event=>{
-  if(event.origin!==location.origin || event.source!==window.parent ||
+  if(event.origin!==window.parent.location.origin || event.source!==window.parent ||
      !event.data || event.data.type!=='ogl-auth')return;
   const access=event.data.access_token,expiry=Number(event.data.expires_at);
   if(typeof access!=='string'||access.length<24||!Number.isFinite(expiry)||expiry<=Date.now())return;
