@@ -513,6 +513,10 @@ jobs:
         shell: bash
         run: dotnet build --configuration Release OpenSim.sln
 
+      - name: Regression-test safe .NET 10 Flotsam disk cache
+        shell: bash
+        run: dotnet run --configuration Release --project tools/ci/AssetDiskCacheRegression/AssetDiskCacheRegression.csproj
+
       - name: Runtime regression cross-region llListen delivery (two scenes)
         shell: bash
         run: dotnet run --configuration Release --project tools/ci/CrossRegionListenRuntimeRegression/CrossRegionListenRuntimeRegression.csproj
