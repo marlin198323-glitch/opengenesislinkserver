@@ -70,6 +70,9 @@ namespace NexVerse.RegionModules.Archives
 
         public OglOarOperation StartExport(Guid requestId, string archiveFileName, Dictionary<string, object> options = null)
         {
+            OpenSim.Framework.OglArchiveFeatureGate.Require(
+                OpenSim.Framework.OglArchiveFeatureGate.OarExport);
+
             if (requestId == Guid.Empty)
                 throw new ArgumentException("OAR-Request-ID darf nicht leer sein.", nameof(requestId));
             string path = m_Storage.ResolveArchivePath(archiveFileName);
@@ -98,6 +101,9 @@ namespace NexVerse.RegionModules.Archives
 
         public OglOarOperation StartImport(Guid requestId, string archiveFileName, bool dryRun, Dictionary<string, object> options = null)
         {
+            OpenSim.Framework.OglArchiveFeatureGate.Require(
+                OpenSim.Framework.OglArchiveFeatureGate.OarImport);
+
             if (requestId == Guid.Empty)
                 throw new ArgumentException("OAR-Request-ID darf nicht leer sein.", nameof(requestId));
             string path = m_Storage.ResolveArchivePath(archiveFileName);

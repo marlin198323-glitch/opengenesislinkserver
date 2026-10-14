@@ -103,8 +103,158 @@ namespace OpenSim.Framework.Console
         /// </summary>
         /// <param name="helpParts">Parsed parts of the help string.  If empty then general help is returned.</param>
         /// <returns></returns>
+        // OGL localization is presentation-only: the underlying command names,
+        // scripts and remote console protocol remain fully compatible.
+        public bool OglGermanHelp { get; set; }
+        public bool OglExpertHelp { get; set; }
+
+        private static readonly Dictionary<string, string> s_OglTopicNames =
+            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["Archiving"] = "Archive und Datensicherung",
+                ["Assets"] = "Assets und Speicher",
+                ["Comms"] = "Kommunikation",
+                ["Debug"] = "Diagnose und Fehleranalyse",
+                ["Estates"] = "Estate-Verwaltung",
+                ["Friends"] = "Freunde und Kontakte",
+                ["General"] = "Allgemein und System",
+                ["Help"] = "Hilfe",
+                ["Hypergrid"] = "Hypergrid und Netzwerk",
+                ["Land"] = "Land und Grundstücke",
+                ["NexVerse"] = "OpenGenesisLINK und NexVerse",
+                ["Objects"] = "Objekte",
+                ["Regions"] = "Regionen",
+                ["Terrain"] = "Gelände und Landschaft",
+                ["Tree"] = "Vegetation",
+                ["Users"] = "Benutzer und Avatare",
+                ["yeng"] = "Skriptengine (YEngine)"
+            };
+
+        private static readonly HashSet<string> s_OglExpertTopics =
+            new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+            { "Debug", "Tree", "yeng", "Friends", "Comms" };
+
+        private static readonly Dictionary<string, string> s_OglCommandDescriptions =
+            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["load oar"] = "Regionsarchiv importieren (Freigabe erforderlich).",
+                ["save oar"] = "Regionsarchiv exportieren (Freigabe erforderlich).",
+                ["load iar"] = "Inventararchiv importieren (Freigabe erforderlich).",
+                ["save iar"] = "Inventararchiv exportieren (Freigabe erforderlich).",
+                ["show regions"] = "Alle geladenen Regionen anzeigen.",
+                ["change region"] = "Aktive Region für nachfolgende Befehle auswählen.",
+                ["create region"] = "Eine neue Region erstellen.",
+                ["delete-region"] = "Region aus der Simulatorverwaltung entfernen.",
+                ["show users"] = "Angemeldete Avatare anzeigen.",
+                ["show stats"] = "Leistungs- und Regionsstatistiken anzeigen.",
+                ["show status"] = "Aktuellen Simulatorstatus anzeigen.",
+                ["show version"] = "Version des Simulators anzeigen.",
+                ["help"] = "Die deutsche OpenGenesisLINK-Befehlshilfe anzeigen.",
+                ["quit"] = "Den Simulator regulär beenden.",
+                ["shutdown"] = "Den Simulator herunterfahren.",
+                ["restart"] = "Den Simulator neu starten.",
+                ["backup"] = "Eine Datensicherung ausführen."
+            };
+
+        private static string OglDescription(CommandInfo command)
+        {
+            string syntax = command.help_text ?? string.Empty;
+            string[] words = Parser.Parse(syntax);
+            if (words.Length >= 2 &&
+                s_OglCommandDescriptions.TryGetValue(words[0] + " " + words[1], out string description))
+                return description;
+            if (words.Length > 0 &&
+                s_OglCommandDescriptions.TryGetValue(words[0], out description))
+                return description;
+            return s_OglTopicNames.TryGetValue(command.module, out string topic)
+                ? "Verwaltung: " + topic + "."
+                : "OpenGenesisLINK-Verwaltungsbefehl.";
+        }
+
+        private List<string> GetOglGermanHelp(string[] cmd)
+        {
+            string query = string.Join(" ", cmd.Skip(1)).Trim();
+            List<string> result = new List<string>
+            {
+                "",
+                "============================================================",
+                "  OpenGenesisLINK | SIMULATOR-KONSOLE | DEUTSCHE HILFE",
+                "============================================================"
+            };
+            if (query.Length == 0)
+            {
+                result.Add("Befehle mit Leerzeichen in Anführungszeichen setzen.");
+                result.Add("Beispiel: show object name \"Mein langes Objekt\"");
+                result.Add("");
+                result.Add("THEMENBEREICHE");
+                lock (m_modulesCommands)
+                {
+                    foreach (string topic in m_modulesCommands.Keys.OrderBy(x => x, StringComparer.OrdinalIgnoreCase))
+                    {
+                        if (!OglExpertHelp && s_OglExpertTopics.Contains(topic))
+                            continue;
+                        result.Add("  " + topic.PadRight(14) + "  " +
+                            (s_OglTopicNames.TryGetValue(topic, out string label) ? label : topic));
+                    }
+                }
+                result.Add("");
+                result.Add("  help all             Alle verfügbaren Befehle anzeigen");
+                result.Add("  help Regionen        Befehle eines Themenbereichs");
+                result.Add("  help load oar        Informationen zu einem Befehl");
+                result.Add("  help suche <Text>    Nach Befehlen suchen");
+                result.Add(OglExpertHelp ? "  Expertenmodus: AKTIV" :
+                    "  Expertenbereiche sind ausgeblendet (OGLConsoleExpertHelp=true).");
+            }
+            else
+            {
+                IEnumerable<CommandInfo> commands;
+                lock (m_modulesCommands)
+                {
+                    commands = m_modulesCommands.SelectMany(entry =>
+                        entry.Value.Where(_ => OglExpertHelp || !s_OglExpertTopics.Contains(entry.Key)))
+                        .Distinct().ToArray();
+                }
+                bool all = string.Equals(query, "all", StringComparison.OrdinalIgnoreCase);
+                bool search = query.StartsWith("suche ", StringComparison.OrdinalIgnoreCase);
+                string term = search ? query.Substring(6).Trim() : query;
+                bool topicRequest = s_OglTopicNames.Any(entry =>
+                    string.Equals(entry.Key, term, StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(entry.Value, term, StringComparison.OrdinalIgnoreCase));
+                string requestedTopic = topicRequest
+                    ? s_OglTopicNames.First(entry =>
+                        string.Equals(entry.Key, term, StringComparison.OrdinalIgnoreCase)
+                        || string.Equals(entry.Value, term, StringComparison.OrdinalIgnoreCase)).Key
+                    : "";
+                var matched = commands.Where(command =>
+                    all || (topicRequest ? string.Equals(command.module, requestedTopic,
+                        StringComparison.OrdinalIgnoreCase) :
+                    search ? (command.help_text.IndexOf(term, StringComparison.OrdinalIgnoreCase) >= 0
+                        || OglDescription(command).IndexOf(term, StringComparison.OrdinalIgnoreCase) >= 0) :
+                    string.Equals(command.help_text.Split('[')[0].Split('<')[0].Trim(),
+                        term, StringComparison.OrdinalIgnoreCase) ||
+                    command.help_text.StartsWith(term + " ", StringComparison.OrdinalIgnoreCase)))
+                    .OrderBy(command => command.help_text, StringComparer.OrdinalIgnoreCase).ToArray();
+                result.Add(all ? "ALLE BEFEHLE" : search ? "SUCHERGEBNISSE: " + term :
+                    topicRequest ? "THEMA: " + s_OglTopicNames[requestedTopic] : "BEFEHL: " + term);
+                if (matched.Length == 0)
+                    result.Add("Keine passenden Befehle gefunden. Mit 'help all' alle Befehle anzeigen.");
+                else
+                {
+                    foreach (CommandInfo command in matched)
+                        result.Add("  " + command.help_text + "\n    " + OglDescription(command));
+                    result.Add("");
+                    result.Add("Befehlsnamen bleiben aus Kompatibilitätsgründen unverändert.");
+                }
+            }
+            result.Add("============================================================");
+            result.Add("");
+            return result;
+        }
+
         public List<string> GetHelp(string[] cmd)
         {
+            if (OglGermanHelp)
+                return GetOglGermanHelp(cmd);
             List<string> help = new List<string>();
             List<string> helpParts = new List<string>(cmd);
 

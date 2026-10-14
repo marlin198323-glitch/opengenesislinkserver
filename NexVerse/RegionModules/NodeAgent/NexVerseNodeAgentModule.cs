@@ -79,6 +79,7 @@ namespace NexVerse.RegionModules.NodeAgent
         private IDisposable m_ObjectMessageSubscription;
         private IDisposable m_EstateScriptMessageSubscription;
         private IDisposable m_CrossRegionChatSubscription;
+        private IDisposable m_FeaturePolicySubscription;
         private volatile bool m_MaintenanceMode;
         private volatile bool m_Draining;
         private DateTimeOffset m_StartedAt;
@@ -258,6 +259,14 @@ namespace NexVerse.RegionModules.NodeAgent
             if (m_CrossRegionChatMessaging)
                 m_CrossRegionChatSubscription = m_Bus.Subscribe(
                     "chat.neighbor.requested", HandleNeighbourAvatarChat);
+            if (OglArchiveFeatureGate.Enabled)
+            {
+                m_FeaturePolicySubscription = m_Bus.Subscribe(
+                    "feature.policy.updated", HandleFeaturePolicy);
+                Publish(new NexEvent("feature.policy.requested",
+                    "nexverse.simulator", new Dictionary<string, string>
+                    { ["node_id"] = m_NodeId }));
+            }
 
             if (m_EstateScriptMessagingEnabled)
             {
@@ -313,6 +322,8 @@ namespace NexVerse.RegionModules.NodeAgent
             m_EstateScriptMessageSubscription = null;
             m_CrossRegionChatSubscription?.Dispose();
             m_CrossRegionChatSubscription = null;
+            m_FeaturePolicySubscription?.Dispose();
+            m_FeaturePolicySubscription = null;
             foreach (Scene scene in m_Scenes.Values)
                 scene.EventManager.OnChatFromClient -= PublishNeighbourAvatarChat;
             m_ChatOutboundRates.Clear();
@@ -993,6 +1004,27 @@ namespace NexVerse.RegionModules.NodeAgent
                         out _);
                 }
             }
+        }
+
+        private void HandleFeaturePolicy(NexEvent ev)
+        {
+            if (!OglArchiveFeatureGate.Enabled || ev?.Data == null ||
+                !string.Equals(ev.Source, "opengenesislink.world-api", StringComparison.Ordinal) ||
+                !ev.Data.TryGetValue("node_id", out string node) ||
+                !ev.Data.TryGetValue("revision", out string revisionRaw) ||
+                !long.TryParse(revisionRaw, out long revision) ||
+                !ev.Data.TryGetValue("expires", out string expiryRaw) ||
+                !long.TryParse(expiryRaw, out long expires) ||
+                !ev.Data.TryGetValue("flags", out string flagsRaw) ||
+                !int.TryParse(flagsRaw, out int flags) ||
+                !ev.Data.TryGetValue("signature", out string signature))
+                return;
+
+            if (OglArchiveFeatureGate.Apply(node, revision, expires, flags, signature))
+                m_Log.InfoFormat("[OGL FEATURE CONTROL]: Richtlinie von Robust aktualisiert: Node {0}, Flags {1}.",
+                    node, flags);
+            else
+                m_Log.Warn("[OGL FEATURE CONTROL]: Ungültige, fremde oder abgelaufene Richtlinie verworfen.");
         }
 
         private void PublishHeartbeatSafe()

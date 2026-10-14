@@ -18,15 +18,16 @@ namespace NexVerse.Server.Api
 {
     internal sealed class OglIarApi
     {
+        private readonly OglFeatureControlApi m_Features;
         private readonly NexApiAuthenticator m_Authenticator;
         private readonly NexNodeRegistry m_Nodes;
         private readonly IUserAccountService m_Accounts;
         private readonly INexEventBus m_Bus;
         private readonly OglJobEventBridge m_Jobs;
 
-        public OglIarApi(NexApiAuthenticator authenticator, NexNodeRegistry nodes, IUserAccountService accounts, INexEventBus bus, OglJobEventBridge jobs)
+        public OglIarApi(NexApiAuthenticator authenticator, NexNodeRegistry nodes, IUserAccountService accounts, INexEventBus bus, OglJobEventBridge jobs, OglFeatureControlApi features = null)
         {
-            m_Authenticator=authenticator; m_Nodes=nodes; m_Accounts=accounts; m_Bus=bus; m_Jobs=jobs;
+            m_Authenticator=authenticator; m_Nodes=nodes; m_Accounts=accounts; m_Bus=bus; m_Jobs=jobs; m_Features=features;
         }
 
         public void Handle(IOSHttpRequest request, IOSHttpResponse response)
@@ -65,6 +66,13 @@ namespace NexVerse.Server.Api
                 NexNodeSnapshot node=m_Nodes.FindNodeForRegion(regionId);
                 if(node==null||!node.State.Equals("online",StringComparison.OrdinalIgnoreCase)){Error(response,HttpStatusCode.ServiceUnavailable,"region_node_unavailable","Simulator der Region ist nicht erreichbar.");return;}
 
+                int capability=string.Equals(action,"import",StringComparison.OrdinalIgnoreCase)
+                    ? OglArchiveFeatureGate.IarImport : OglArchiveFeatureGate.IarExport;
+                if(m_Features!=null && !m_Features.Permitted(node.NodeId,capability))
+                {
+                    Error(response,HttpStatusCode.Forbidden,"feature_not_licensed",
+                        OglArchiveFeatureGate.DeniedMessage(capability));return;
+                }
                 Guid id=Guid.NewGuid(); OglJobSnapshot rec=m_Jobs.RegisterOperation("archive.iar."+action,id.ToString(),"world-api",id.ToString(),new Dictionary<string,string>{{"region_id",regionId},{"user_id",userId},{"node_id",node.NodeId},{"action",action},{"file_name",fileName},{"inventory_path",invPath},{"merge",merge.ToString()},{"dry_run",dryRun.ToString()}});
                 m_Bus.Publish(new NexEvent("archive.iar.requested","opengenesislink.world-api",new Dictionary<string,string>{
                     ["operation_id"]=id.ToString(),["target_node_id"]=node.NodeId,["region_id"]=regionId,["user_id"]=userId,

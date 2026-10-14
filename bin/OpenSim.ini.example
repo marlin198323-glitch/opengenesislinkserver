@@ -235,3 +235,23 @@
 
 [Architecture]
     Include-Architecture = "config-include/Standalone.ini"
+
+
+; ================================================================
+; OpenGenesisLINK Feature Control 1.0 - Archivfreigaben (opt-in)
+; ================================================================
+[OGLFeatureControl]
+    ; Legacy-Verhalten: false. Erst nach Einrichtung von Robust + Nodes
+    ; und erfolgreicher Wiederherstellungsprobe auf true setzen.
+    Enabled = false
+    ; Simulator erhält NUR den öffentlichen ES256-Prüfschlüssel.
+    ; Alternativ OGL_FEATURE_PUBLIC_KEY_PEM in der Prozessumgebung setzen.
+    PublicKeyPath = "config-include/ogl-feature-public.pem"
+    ; NodeID muss zu [NexVerseNodeAgent] NodeId passen.
+    ; Zusätzlich NexVerseNodeAgent Enabled=true mit authentifiziertem
+    ; NexBus und erreichbarem Robust-Peer konfigurieren.
+
+
+; Anzeigeoptionen unter [Startup]:
+; OGLConsoleGermanHelp = true
+; OGLConsoleExpertHelp = false

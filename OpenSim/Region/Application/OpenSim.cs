@@ -168,6 +168,32 @@ namespace OpenSim
                 }
             }
 
+            IConfig featureConfig = Config.Configs["OGLFeatureControl"];
+            IConfig nodeConfig = Config.Configs["NexVerseNodeAgent"];
+            string publicPem = Environment.GetEnvironmentVariable("OGL_FEATURE_PUBLIC_KEY_PEM") ?? "";
+            if (string.IsNullOrWhiteSpace(publicPem) &&
+                featureConfig?.GetBoolean("Enabled", false) == true)
+            {
+                string publicPath = featureConfig.GetString("PublicKeyPath", "");
+                if (!string.IsNullOrWhiteSpace(publicPath) && File.Exists(publicPath))
+                    publicPem = File.ReadAllText(publicPath);
+            }
+            global::OpenSim.Framework.OglArchiveFeatureGate.Configure(
+                featureConfig?.GetBoolean("Enabled", false) == true,
+                nodeConfig?.GetString("NodeId", Environment.MachineName)?.Trim(),
+                publicPem);
+            if (global::OpenSim.Framework.OglArchiveFeatureGate.Enabled)
+                m_log.Warn("[OGL FEATURE CONTROL]: Aktive Archivfreigabe: ohne gültige Robust-Richtlinie sind alle Archive gesperrt.");
+
+            if (m_console.Commands is Commands oglCommands)
+            {
+                IConfig startup = Config.Configs["Startup"];
+                oglCommands.OglGermanHelp =
+                    startup?.GetBoolean("OGLConsoleGermanHelp", true) ?? true;
+                oglCommands.OglExpertHelp =
+                    startup?.GetBoolean("OGLConsoleExpertHelp", false) ?? false;
+            }
+
             m_console.ReadConfig(Config);
 
             MainConsole.Instance = m_console;
@@ -1266,6 +1292,14 @@ namespace OpenSim
         /// <param name="cmdparams"></param>
         protected void LoadOar(string module, string[] cmdparams)
         {
+            if (!global::OpenSim.Framework.OglArchiveFeatureGate.Allowed(
+                    global::OpenSim.Framework.OglArchiveFeatureGate.OarImport))
+            {
+                MainConsole.Instance.Output(global::OpenSim.Framework.OglArchiveFeatureGate.DeniedMessage(
+                    global::OpenSim.Framework.OglArchiveFeatureGate.OarImport));
+                return;
+            }
+
             try
             {
                 SceneManager.LoadArchiveToCurrentScene(cmdparams);
@@ -1282,6 +1316,14 @@ namespace OpenSim
         /// <param name="cmdparams"></param>
         protected void SaveOar(string module, string[] cmdparams)
         {
+            if (!global::OpenSim.Framework.OglArchiveFeatureGate.Allowed(
+                    global::OpenSim.Framework.OglArchiveFeatureGate.OarExport))
+            {
+                MainConsole.Instance.Output(global::OpenSim.Framework.OglArchiveFeatureGate.DeniedMessage(
+                    global::OpenSim.Framework.OglArchiveFeatureGate.OarExport));
+                return;
+            }
+
             SceneManager.SaveCurrentSceneToArchive(cmdparams);
         }
 
