@@ -91,6 +91,10 @@ jobs:
         shell: bash
         run: python3 tools/ci/verify_ogl_worldapi_09312_ux.py
 
+      - name: Verify Hypergrid friend online status after reconnect
+        shell: bash
+        run: python3 tools/ci/verify_hg_friends_reconnect_09312.py
+
       - name: Verify runtime secrets are not committed
         shell: bash
         run: python3 tools/ci/verify_no_plaintext_runtime_secrets.py

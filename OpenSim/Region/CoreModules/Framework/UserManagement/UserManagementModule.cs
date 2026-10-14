@@ -835,7 +835,12 @@ namespace OpenSim.Region.CoreModules.Framework.UserManagement
                     if (otmp.IsValidHost)
                         return otmp.URI;
                 }
-                return string.Empty;
+                // A negative FriendsServerURI cached from an earlier
+                // partial discovery must not survive every later relog.
+                // Re-fetch now; failed discovery below is rate-limited.
+                if (!serverType.Equals("FriendsServerURI", StringComparison.OrdinalIgnoreCase))
+                    return string.Empty;
+                userdata.ServerURLs = null;
             }
 
             if (!string.IsNullOrEmpty(userdata.HomeURL))
@@ -853,12 +858,14 @@ namespace OpenSim.Region.CoreModules.Framework.UserManagement
                     {
                         m_log.DebugFormat("[USER MANAGEMENT MODULE]: GetServerURLs call failed {0}", e.Message);
                         WebUtil.GlobalExpiringBadURLs.Add(homeuri, BADURLEXPIRE * 1000);
-                        userdata.ServerURLs = new Dictionary<string, object>();
+                        userdata.ServerURLs = null;
+                        userdata.LastWebFail = Util.GetTimeStamp();
                     }
                     catch (Exception e)
                     {
                         m_log.Debug($"[USER MANAGEMENT MODULE]: GetServerURLs call failed {e.Message}");
-                        userdata.ServerURLs = new Dictionary<string, object>();
+                        userdata.ServerURLs = null;
+                        userdata.LastWebFail = Util.GetTimeStamp();
                     }
 
                     if (userdata.ServerURLs != null && userdata.ServerURLs.TryGetValue(serverType, out object ourl) && ourl != null)
@@ -867,6 +874,15 @@ namespace OpenSim.Region.CoreModules.Framework.UserManagement
                         OSHHTPHost otmp = new OSHHTPHost(turl);
                         if (otmp.IsValidHost)
                             return otmp.URI;
+                    }
+                    // A home grid can be temporarily unavailable during a
+                    // friend's reconnect or may return incomplete capabilities.
+                    // Never cache a missing FriendsServerURI forever: retry
+                    // discovery after the standard two-minute backoff.
+                    if (serverType.Equals("FriendsServerURI", StringComparison.OrdinalIgnoreCase))
+                    {
+                        userdata.ServerURLs = null;
+                        userdata.LastWebFail = Util.GetTimeStamp();
                     }
                 }
             }
@@ -905,7 +921,12 @@ namespace OpenSim.Region.CoreModules.Framework.UserManagement
                     if (otmp.IsValidHost)
                         return otmp.URI;
                 }
-                return string.Empty;
+                // A negative FriendsServerURI cached from an earlier
+                // partial discovery must not survive every later relog.
+                // Re-fetch now; failed discovery below is rate-limited.
+                if (!serverType.Equals("FriendsServerURI", StringComparison.OrdinalIgnoreCase))
+                    return string.Empty;
+                userdata.ServerURLs = null;
             }
 
             if (!recentFail && !string.IsNullOrEmpty(userdata.HomeURL))
@@ -922,7 +943,7 @@ namespace OpenSim.Region.CoreModules.Framework.UserManagement
                     catch (System.Net.Http.HttpRequestException e)
                     {
                         m_log.DebugFormat("[USER MANAGEMENT MODULE]: GetServerURLs call failed {0}", e.Message);
-                        userdata.ServerURLs = new Dictionary<string, object>();
+                        userdata.ServerURLs = null;
                         userdata.LastWebFail = Util.GetTimeStamp();
                         WebUtil.GlobalExpiringBadURLs.Add(homeurl, BADURLEXPIRE * 1000);
                         recentFail = true;
@@ -930,7 +951,7 @@ namespace OpenSim.Region.CoreModules.Framework.UserManagement
                     catch (Exception e)
                     {
                         m_log.Debug($"[USER MANAGEMENT MODULE]: GetServerURLs call failed {e.Message}");
-                        userdata.ServerURLs = new Dictionary<string, object>();
+                        userdata.ServerURLs = null;
                         userdata.LastWebFail = Util.GetTimeStamp();
                         recentFail = true;
                     }
@@ -941,6 +962,15 @@ namespace OpenSim.Region.CoreModules.Framework.UserManagement
                         OSHHTPHost otmp = new OSHHTPHost(turl);
                         if (otmp.IsValidHost)
                             return otmp.URI;
+                    }
+                    // A home grid can be temporarily unavailable during a
+                    // friend's reconnect or may return incomplete capabilities.
+                    // Never cache a missing FriendsServerURI forever: retry
+                    // discovery after the standard two-minute backoff.
+                    if (serverType.Equals("FriendsServerURI", StringComparison.OrdinalIgnoreCase))
+                    {
+                        userdata.ServerURLs = null;
+                        userdata.LastWebFail = Util.GetTimeStamp();
                     }
                 }
             }

@@ -450,26 +450,37 @@ namespace OpenSim.Services.HypergridService
             // Now, let's send the notifications
             m_log.DebugFormat("[USER AGENT SERVICE]: Status notification: user has {0} local friends", usersToBeNotified.Count);
 
-            // First, let's send notifications to local users who are online in the home grid
+            // A foreign user's login/relogin must update EVERY online local
+            // friend, not only the first presence returned by GetAgents().
+            // Keep reciprocal friendship/secret verification above unchanged.
+            // A recipient can have multiple presence records during a region
+            // transition; send at most one status packet per local user.
             PresenceInfo[] friendSessions = m_PresenceService.GetAgents(usersToBeNotified.ToArray());
             if (friendSessions != null && friendSessions.Length > 0)
             {
-                PresenceInfo friendSession = null;
-                foreach (PresenceInfo pinfo in friendSessions)
+                HashSet<string> authorizedRecipients =
+                    new HashSet<string>(usersToBeNotified, StringComparer.OrdinalIgnoreCase);
+                HashSet<UUID> deliveredRecipients = new HashSet<UUID>();
+                foreach (PresenceInfo friendSession in friendSessions)
                 {
-                    if (pinfo.RegionID.IsNotZero()) // let's guard against traveling agents
-                    {
-                        friendSession = pinfo;
-                        break;
-                    }
-                }
-                if (friendSession is not null)
-                {
-                    ForwardStatusNotificationToSim(friendSession.RegionID, foreignUserID, friendSession.UserID, online);
-                    usersToBeNotified.Remove(friendSession.UserID.ToString());
-                    if (UUID.TryParse(friendSession.UserID, out UUID id))
-                        localFriendsOnline.Add(id);
+                    if (friendSession == null || friendSession.RegionID.IsZero() ||
+                        !UUID.TryParse(friendSession.UserID, out UUID localFriendID) ||
+                        !authorizedRecipients.Contains(localFriendID.ToString()) ||
+                        !deliveredRecipients.Add(localFriendID))
+                        continue;
 
+                    try
+                    {
+                        ForwardStatusNotificationToSim(
+                            friendSession.RegionID, foreignUserID, friendSession.UserID, online);
+                        localFriendsOnline.Add(localFriendID);
+                    }
+                    catch (Exception e)
+                    {
+                        m_log.WarnFormat(
+                            "[USER AGENT SERVICE]: Status notification for local friend {0} failed: {1}",
+                            localFriendID, e.Message);
+                    }
                 }
             }
 
