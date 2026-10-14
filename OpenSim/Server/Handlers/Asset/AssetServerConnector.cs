@@ -71,7 +71,7 @@ namespace OpenSim.Server.Handlers.Asset
             // OGL SECURITY: Intentionally do NOT register HTTP DELETE /assets.
             // This endpoint was capable of deleting every asset type when enabled
             // by legacy settings, including when a public asset listener was exposed.
-            // Old AllowRemoteDelete* entries in external .ini files have no effect.
+            // Old remote-delete settings in external .ini files have no effect.
             // Local maintenance remains exclusively an operator-console operation.
             server.AddStreamHandler(new AssetServerGetHandler(m_AssetService, auth, redirectURL));
             server.AddStreamHandler(new AssetServerPostHandler(m_AssetService, auth));
