@@ -418,13 +418,10 @@ namespace OpenSim.Services.Connectors
 
         public virtual bool Delete(string id)
         {
-            m_Cache?.Expire(id);
-
-            if (m_ServerURI == null)
-                return false;
-
-            string uri = m_ServerURI + "/assets/" + id;
-            return SynchronousRestObjectRequester.MakeRequest<int, bool>("DELETE", uri, 0, m_Auth);
+            // OGL SECURITY: IAssetService still declares Delete for in-process
+            // maintenance, but the REMOTE asset connector must never initiate
+            // an HTTP DELETE call. There is no configuration override.
+            return false;
         }
         public void Get(string id, string ForeignAssetService, bool StoreOnLocalGrid, SimpleAssetRetrieved callBack)
         {
