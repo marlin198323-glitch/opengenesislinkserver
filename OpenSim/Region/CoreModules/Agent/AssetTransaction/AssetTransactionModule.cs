@@ -58,11 +58,8 @@ namespace OpenSim.Region.CoreModules.Agent.AssetTransaction
 
         public void Initialise(IConfigSource source)
         {
-            IConfig sconfig = source.Configs["Startup"];
-            if (sconfig != null)
-            {
-                m_levelUpload = sconfig.GetInt("LevelUpload", 0);
-            }
+            // Shared with CAPS: [Permissions] takes priority over legacy [Startup].
+            m_levelUpload = AssetUploadLevelPolicy.Resolve(source);
         }
 
         public void AddRegion(Scene scene)
