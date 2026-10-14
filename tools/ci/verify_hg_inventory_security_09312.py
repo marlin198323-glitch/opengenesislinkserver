@@ -32,8 +32,10 @@ assert process.index("HttpStatusCode.Forbidden") < process.index("ServerUtils.Pa
 # Internal inventory stays available on private listener; do not redirect it to HG.
 for path in ("bin/Robust.HG.ini", "bin/Robust.HG.ini.example"):
     cfg = read(path)
-    assert "HGInventoryServiceConnector = " in cfg
-    assert 'HGInventoryService@' in cfg and 'PublicPort' in cfg
+    assert not any(line.strip().startswith("HGInventoryServiceConnector =")
+                   for line in cfg.splitlines()), (path, "Public HG route must be disabled")
+    assert any(line.strip().startswith("; HGInventoryServiceConnector =")
+               for line in cfg.splitlines()), (path, "Documented HG route expected")
     assert 'InventoryInConnector = ' in cfg and 'PrivatePort' in cfg
 assert '"HGInventoryService"' in read(
     "OpenSim/Region/CoreModules/ServiceConnectorsIn/Inventory/InventoryServiceInConnectorModule.cs")
