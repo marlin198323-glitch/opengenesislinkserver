@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MPL-2.0
 using System;
+using System.Net;
 using System.Text;
 using NexVerse.Core.Security;
 using OpenSim.Framework.Servers.HttpServer;
