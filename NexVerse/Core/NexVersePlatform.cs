@@ -8,9 +8,9 @@ namespace NexVerse.Core
     public static class NexVersePlatform
     {
         public const string ProductName = "OpenGenesisLINK";
-        public const string MilestoneVersion = "0.9.3.10";
+        public const string MilestoneVersion = "0.9.3.12";
         public const string MilestoneCodename = "";
-        public const string MilestoneTitle = "Runtime, native Navigation und NexExperiences – RC1-Vorbereitung";
+        public const string MilestoneTitle = "0.9.3.12 Live-Testbuild – LSL, Regionschat, IAR und Kompatibilität";
         public const string UiLanguage = "de-DE";
         public const string ApiVersion = "v1";
         public const string ProtocolVersion = "1";
