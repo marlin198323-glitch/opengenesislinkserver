@@ -34,7 +34,9 @@ expect(generator, "Current ChatGPT instructions",
        "opengenesislink-chatgpt-anweisung.md",
        "OpenSim.VersionInfo.Version.Trim()",
        "Stadt-NexVerse bzw. NexVerse ist lediglich ein Betreiber-Grid",
-       "X-NexVerse-Api-Key")
+       "X-NexVerse-Api-Key",
+       "Entwicklungsregel: fertiggestellte OpenGenesisLINK-Funktionen",
+       "Nicht stillschweigend deaktiviert ausliefern.")
 assert "0.9.3.10 ist Entwicklung, nicht Stable" not in generator
 assert "0.9.3.8 bleibt letzte Stable" not in generator
 expect(api, "Current 0.9.3.12 OpenAPI version history",
@@ -56,5 +58,24 @@ assert "if (m_UnlocatedUserLog.TryGetValue" not in hgim, (
 expect(xmlrpc, "Malformed XMLRPC reply",
        "Ungültige XML-RPC-Anfrage", "HttpStatusCode.BadRequest",
        "XmlRpcRequestDeserializer")
+# Deployment contract: a finished OGL feature must not silently stay off
+# in the active or example configs. Private key material is never stored in Git.
+for ini in (
+    "bin/OpenSim.ini", "bin/OpenSim.ini.example",
+    "bin/Robust.HG.ini", "bin/Robust.HG.ini.example",
+    "bin/Robust.ini.example",
+):
+    body = read(ini)
+    assert body.count("[OGLFeatureControl]") == 1, (ini, "missing or duplicate section")
+    section = body.split("[OGLFeatureControl]", 1)[1].split("\n[", 1)[0]
+    assert any(line.strip() == "Enabled = true" for line in section.splitlines()), (
+        ini, "Feature Control must be enabled in shipped configs")
+    if "OpenSim.ini" in ini:
+        assert 'PublicKeyPath = "config-include/ogl-feature-public.pem"' in section, ini
+        assert "PrivateKeyPath" not in section, (ini, "never deploy private signing key to Simulator")
+    else:
+        assert 'PrivateKeyPath = "config-include/ogl-feature-private.pem"' in section, ini
+        assert "StorePath" in section, ini
+
 assert read("doc/OpenGenesisLINK/09312_WORLDAPI_WORLD_SIM_DIAGNOSTICS.md")
-print("OGL World API UX / 0.9.3.12 metadata / HG IM / XMLRPC guard: OK")
+print("OGL World API UX / 0.9.3.12 metadata / HG IM / XMLRPC / Feature Control config guard: OK")

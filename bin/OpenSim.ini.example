@@ -241,12 +241,13 @@
 
 
 ; ================================================================
-; OpenGenesisLINK Feature Control 1.0 - Archivfreigaben (opt-in)
+; OpenGenesisLINK Feature Control 1.0 - standardmäßig aktiviert
 ; ================================================================
 [OGLFeatureControl]
-    ; Legacy-Verhalten: false. Erst nach Einrichtung von Robust + Nodes
-    ; und erfolgreicher Wiederherstellungsprobe auf true setzen.
-    Enabled = false
+    ; ES256-Schlüssel auf ROBUST und Simulatoren bereitstellen!
+    ; Ohne Schlüssel scheitert der ROBUST-Start; ohne signierte Richtlinie
+    ; sperrt der Simulator OAR-/IAR-Operationen (fail-closed).
+    Enabled = true
     ; Simulator erhält NUR den öffentlichen ES256-Prüfschlüssel.
     ; Alternativ OGL_FEATURE_PUBLIC_KEY_PEM in der Prozessumgebung setzen.
     PublicKeyPath = "config-include/ogl-feature-public.pem"

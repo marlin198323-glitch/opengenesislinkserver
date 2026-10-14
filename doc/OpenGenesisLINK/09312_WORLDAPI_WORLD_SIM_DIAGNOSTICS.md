@@ -14,6 +14,14 @@ Die Daten für Serverversion, API-Vertrag, Releaseverlauf und Roadmap stammen we
 
 `GET /api/v1/feature-control/nodes` ist ein **optionaler** Verwaltungsdienst. Er wird nur registriert, wenn im Robust-Server `[OGLFeatureControl] Enabled = true` gesetzt **und** ein gültiger ES256-P-256-Schlüssel für die signierten Node-Richtlinien vorhanden ist. Ein HTTP-404 aus der Standard-API bedeutet in diesem Fall normalerweise: Dienst ist deaktiviert, nicht dass ein bezahlter Lizenzstatus ungültig wäre.
 
+Die mitgelieferten aktiven OGL-Konfigurationen und Vorlagen setzen seit dieser
+Aktivierung `[OGLFeatureControl] Enabled = true`. **Vor dem Upgrade der Live-Instanzen**
+müssen der private ES256-Schlüssel auf Robust, der öffentliche Schlüssel auf allen
+Nodes sowie die signierten Node-Freigaben vorbereitet werden. Ohne privaten Schlüssel
+scheitert die Initialisierung der Robust-World-API; ohne signierte Freigaben sperren
+Simulatoren OAR-/IAR-Operationen. Ein Merge oder Pull ersetzt keine individuell
+betriebene Konfiguration und verteilt keine Schlüssel.
+
 Die UI zeigt deshalb den deaktivierten Zustand mit Konfigurationshinweis statt `Unknown NexVerse API endpoint`. Die Funktion wird nicht automatisch aktiviert oder mit schwachen Default-Schlüsseln betrieben. Für vorhandene Node-Regeln bleiben die eigenen `simulators:read`-/`simulators:manage`-API-Berechtigungen erforderlich – der Dashboard-Zugang per UserLevel ersetzt **nicht** die Prüfung schreibender API-Operationen.
 
 ## 2. JPEG2000 / EOC / World Map Freiburg Sued
