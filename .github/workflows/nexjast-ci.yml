@@ -955,7 +955,7 @@ jobs:
           assert "/api/v1/estates/{estateId}/regions/{regionId}" in estate_change["endpoints"]
 
           roadmap = doc["x_nexverse_roadmap"]
-          assert roadmap["current_milestone"] == "0.9.3.10"
+          assert roadmap["current_milestone"] == "0.9.3.12"
           assert roadmap["current_codename"] == ""
           milestones = {item["version"]: item for item in roadmap["milestones"]}
           assert milestones["0.9.3.1"]["status"] == "released"
