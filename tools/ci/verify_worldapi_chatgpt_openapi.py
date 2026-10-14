@@ -67,7 +67,7 @@ for marker in ("SimulatorBridgeOperations(", "apiKeyAuth",
 for marker in ("/script/info", "/script/search", "/script/kv",
                "/experiences/viewer/permissions", "experiences:script",
                "experiences:viewer:permissions", "Viewer-CAPS",
-               "OpenAPI", "0.9.3.10", "0.9.3.8",
+               "OpenAPI", "OpenSim.VersionInfo.Version.Trim()", "OpenGenesisLINK World API",
                "AppendCitizenSection", "AppendAdminSection"):
     assert marker in md, "ChatGPT Markdown generator missing: " + marker
 
