@@ -166,7 +166,7 @@ namespace NexVerse.Server.Api
             md.AppendLine("- Zugriff auf fremde Konten, fremdes Inventar oder administrative Ressourcen nur mit dokumentierter Admin-Autorisierung.");
             md.AppendLine("- Fuer zustandsaendernde Operationen den dokumentierten Idempotency-Key verwenden, wenn der Endpunkt dies verlangt.");
             md.AppendLine("- Request- und Response-Felder aus dem OpenAPI-Schema lesen und nicht erraten. Bei unvollstaendigen Teil-Schemas die Operation nicht blind durch ausgedachte Felder ergaenzen.");
-            md.AppendLine("- API-v1, Protokoll- und Serverversion sind getrennte Angaben. Aktuelle OGL-Serverversion: " + OpenSim.VersionInfo.Version.Trim() + ". Immer die tatsaechliche Laufzeitantwort GET " + m_ApiBaseUrl + "/version pruefen; daraus allein keinen GitHub-Tag ableiten.");
+            md.AppendLine("- API-v1, Protokoll- und Serverversion sind getrennte Angaben. Aktuelle OGL-Serverversion: " + OpenSim.VersionInfo.Version.Trim() + ". Immer die tatsaechliche Laufzeitantwort GET /api/v1/version pruefen; daraus allein keinen GitHub-Tag ableiten.");
             md.AppendLine("- Ein Eintrag im OpenAPI-Katalog beweist nicht, dass ein optionales Modul im laufenden Robust freigeschaltet oder eine viewer-spezifische Funktion live abgenommen ist.");
             md.AppendLine("- HTTP 401 bedeutet fehlende oder ungueltige Authentifizierung; HTTP 403 bedeutet fehlende Berechtigung. Keinen privilegierten Alternativpfad zum Umgehen ausprobieren.");
             md.AppendLine("- HTTP 429 respektieren und Rate-Limits beachten.");
