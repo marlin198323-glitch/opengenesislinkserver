@@ -11,6 +11,16 @@ Regionschat-Protokolle und die historischen 0.9.3.10-Freigabedokumente.
 Die einmalige Betreiber-Ausnahme von 0.9.3.10 darf nicht stillschweigend auf
 0.9.3.12 übertragen werden.
 
+**14. Oktober 2026 – Update:** Der Feature-Scope, Betreiber-Rückmeldungen,
+der sicherheitsrelevante Restumfang und der Schritt-für-Schritt-Rollback stehen
+in [09312_RC1_CANDIDATE_PLAN.md](09312_RC1_CANDIDATE_PLAN.md).
+Die neue fail-closed CLI unter `tools/release/ogl_09312_gate.py` verlangt
+für jeden PASS eine überprüfbare lokale Evidence-Datei, deren SHA-256,
+den exakten Candidate-Commit und die explizite Freigabe. Die mündlich
+bestätigten Inworld-Funktionen sind **nicht automatisch formale PASS-Belege**.
+Der Versionswechsel zu RC1, Tags und produktive Deployments bleiben gesperrt,
+solange die Abnahmematrix nicht abgeschlossen ist.
+
 ## Festgelegter Release-Scope
 
 0.9.3.12 umfasst LSL Core/Advanced-Parität innerhalb eines dokumentierten,
