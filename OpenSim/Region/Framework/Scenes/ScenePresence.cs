@@ -4436,8 +4436,15 @@ namespace OpenSim.Region.Framework.Scenes
             if(m_childUpdatesBusy || RegionViewDistance == 0)
                 return;
 
+            // A fast-flying avatar can cover an entire standard region while
+            // the ordinary two-second child-agent refresh is on cooldown.
+            // Prefetch only when moving TOWARDS an actual region edge, and
+            // never more than once per 500 ms per avatar.
+            bool flightPrefetch = FlightNeighbourPrefetchPolicy.NeedsPrefetch(
+                Flying, pos, Velocity,
+                m_scene.RegionInfo.RegionSizeX, m_scene.RegionInfo.RegionSizeY);
             int tdiff = Util.EnvironmentTickCountSubtract(m_lastChildUpdatesTime);
-            if (tdiff < CHILDUPDATES_TIME)
+            if (tdiff < (flightPrefetch ? 500f : CHILDUPDATES_TIME))
                 return;
 
             bool viewchanged = Math.Abs(RegionViewDistance - m_lastRegionsDrawDistance) > 32.0f;
@@ -4445,7 +4452,9 @@ namespace OpenSim.Region.Framework.Scenes
             IEntityTransferModule m_agentTransfer = m_scene.RequestModuleInterface<IEntityTransferModule>();
             float dx = pos.X - m_lastChildAgentCheckPosition.X;
             float dy = pos.Y - m_lastChildAgentCheckPosition.Y;
-            if ((m_agentTransfer != null) && (viewchanged || ((dx * dx + dy * dy) > CHILDAGENTSCHECK_MOVEMENT)))
+            if ((m_agentTransfer != null) &&
+                (flightPrefetch || viewchanged ||
+                 ((dx * dx + dy * dy) > CHILDAGENTSCHECK_MOVEMENT)))
             {
                 m_childUpdatesBusy = true;
                 m_lastChildAgentCheckPosition = pos;
