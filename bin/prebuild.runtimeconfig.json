@@ -9,6 +9,7 @@
       "System.Reflection.Metadata.MetadataUpdater.IsSupported": false,
       "System.Runtime.Serialization.EnableUnsafeBinaryFormatterSerialization": false,
       "System.Runtime.TieredCompilation": false
-    }
+    },
+    "rollForward": "Major"
   }
 }
