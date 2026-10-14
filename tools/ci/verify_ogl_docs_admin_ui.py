@@ -19,25 +19,25 @@ must(api,
 assert 'apiGate.Wrap(docsPage.Handle)' not in api
 must(access,
     'public void HandleLogin(', 'public void HandlePanel(',
-    'm_Authenticator.TryAuthenticate(', 'NexScopes.AdminAll',
-    'account.UserLevel < m_MinimumLevel', 'Math.Max(200, minimumLevel)',
+    'm_Authenticator.TryAuthenticate(', 'request, string.Empty,',
+    'account.UserLevel < MinimumLevel', 'private const int MinimumLevel = 200',
     '!account.LoginAllowed', 'principal.Subject, account.PrincipalID.ToString()',
-    'authorization.StartsWith("Bearer "', 'IsSecureTransport(request)',
-    'X-NexVerse-Api-Key', 'WWW-Authenticate', 'HttpStatusCode.Unauthorized',
+    'authorization.StartsWith("Bearer "', 'HttpStatusCode.Unauthorized',
     'm_Docs.Handle(request, response)', 'Cache-Control', 'no-store, private',
-    'AdminDocsTrustedProxyAddresses', 'NormalizeAddress(peer)',
-    'IPAddress.IsLoopback(peer)', 'X-Forwarded-Proto',
-    'm_TrustedProxies.Contains(', 'HttpStatusCode.UpgradeRequired',
-    'https_not_verified', 'admin_token_required', 'admin_session_invalid',
+    'admin_token_required', 'admin_session_invalid',
     'admin_permission_required', 'admin_api_disabled',
-    'X-OGL-Docs-Error',
-    'frame-ancestors \'none\'', 'OpenGenesisLINK',
-    '/api/v1/auth/admin/session', '/api/v1/docs/panel',
+    'X-OGL-Docs-Error', "frame-ancestors 'none'", 'OpenGenesisLINK',
+    "/api/v1/auth/session", '/api/v1/docs/panel',
     "form.elements.namedItem('password').value=''",
-    'credentials', 'window.isSecureContext',
+    'Number(data.user_level)<200', "typeof data.access_token!=='string'",
     "frame.srcdoc=html", "event.source!==frame.contentWindow",
-    'frame.contentWindow.postMessage(', 'token=\'\';expires=0',
+    'frame.contentWindow.postMessage(', "token='';expires=0",
 )
+assert "if(!data.administrator" not in access
+assert "window.isSecureContext" not in access
+assert "IsSecureTransport(request)" not in access
+assert "principal.HasScope(NexScopes.AdminAll)" not in access
+assert 'request, NexScopes.AdminAll,' not in access
 must(dashboard,
     '<title>OpenGenesisLINK', '<div class="ogl-logo"',
     'OpenGenesisLINK / WORLD API',
@@ -46,18 +46,17 @@ must(dashboard,
     "window.parent.postMessage({type:'ogl-logout'}",
     '@media(prefers-reduced-motion:reduce)', 'ogl-aurora',
     '/api/v1/openapi.json', 'id="page-explorer"')
-# No regression in the original credential backend: scope+level are checked
-# BEFORE issuing administrator access tokens.
+# The ordinary GridUser login verifies the avatar password and returns
+# a signed session. The panel independently validates it plus current UserLevel.
 must(user,
-    '"/api/v1/auth/admin/session"',
-    'HandleNativeSessionLogin(request, response, true)',
-    'user.UserLevel < Math.Max(200, m_AdminMinimumLevel)',
-    'NexScopes.AdminAll', 'm_Tokens.Issue(')
-assert user.index('user.UserLevel < Math.Max(200, m_AdminMinimumLevel)') < user.index('m_Tokens.Issue(')
-# Hard boundary: both routes must use the shared request gate.
+    '"/api/v1/auth/session"', 'HandleNativeSessionLogin(request, response);',
+    'm_Users.VerifyPassword(', 'm_Tokens.Issue(', 'user_level = user.UserLevel',
+    'access_token =', 'GetUserAccount(', 'nativeClaims.SecurityStamp')
+assert user.index('m_Users.VerifyPassword(') < user.index('m_Tokens.Issue(')
+assert "const res=await fetch('/api/v1/auth/session'" in dashboard
+assert "Number(data.user_level)<200" in dashboard
+assert "if(!window.isSecureContext)" not in dashboard
+assert "data.administrator" not in dashboard
+assert "data.scope?.split" not in dashboard
 assert api.count('apiGate.Wrap(oglDocs.Handle') == 2
-assert access.index('admin_token_required') < access.index('https_not_verified')
-# Anonymous requests remain 401; only token-bearing requests see TLS diagnostics.
-assert 'X-Forwarded-For' not in access
-assert 'HttpStatusCode.Forbidden' in access
-print("OGL protected admin panel / trusted HTTPS proxy / diagnostics: OK")
+print("OGL GridUser password + UserLevel 200 login, signed session, anonymous panel deny: OK")
