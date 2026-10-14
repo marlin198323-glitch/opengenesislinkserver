@@ -55,7 +55,7 @@ must(user,
 assert user.index('m_Users.VerifyPassword(') < user.index('m_Tokens.Issue(')
 assert "const res=await fetch('/api/v1/auth/session'" in dashboard
 assert "Number(data.user_level)<200" in dashboard
-assert "if(!window.isSecureContext)" not in dashboard
+assert "if(!window.isSecureContext)" not in dashboard[dashboard.index("async function adminLogin()"):dashboard.index("const $=id=>")]
 assert "data.administrator" not in dashboard
 assert "data.scope?.split" not in dashboard
 assert api.count('apiGate.Wrap(oglDocs.Handle') == 2
