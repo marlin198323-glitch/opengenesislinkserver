@@ -18,13 +18,18 @@ namespace NexVerse.Server.Api
     internal sealed class OglApiDocsAccess
     {
         private readonly NexApiDocsPage m_Docs = new();
-        private readonly NexApiAuthenticator m_Authenticator;
-        private readonly int m_MinimumLevel;
+        private volatile NexApiAuthenticator m_Authenticator;
+        private int m_MinimumLevel = 200;
 
-        public OglApiDocsAccess(NexApiAuthenticator authenticator, int minimumLevel)
+        // Login route remains available while privileged endpoints are disabled.
+        // In that mode the panel fails closed with HTTP 401.
+        public OglApiDocsAccess() { }
+
+        public void ConfigureAdministratorAccess(
+            NexApiAuthenticator authenticator, int minimumLevel)
         {
-            m_Authenticator = authenticator ?? throw new ArgumentNullException(nameof(authenticator));
             m_MinimumLevel = Math.Max(200, minimumLevel);
+            m_Authenticator = authenticator ?? throw new ArgumentNullException(nameof(authenticator));
         }
 
         public void HandleLogin(IOSHttpRequest request, IOSHttpResponse response)
@@ -61,6 +66,7 @@ namespace NexVerse.Server.Api
             if (!authorization.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase) ||
                 !string.IsNullOrWhiteSpace(request.Headers?["X-NexVerse-Api-Key"]) ||
                 !IsSecureTransport(request) ||
+                m_Authenticator == null ||
                 !m_Authenticator.TryAuthenticate(
                     request, NexScopes.AdminAll,
                     out NexPrincipal principal, out UserAccount account,
