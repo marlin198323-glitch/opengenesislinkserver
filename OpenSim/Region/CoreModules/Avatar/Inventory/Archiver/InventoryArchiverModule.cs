@@ -61,6 +61,23 @@ namespace OpenSim.Region.CoreModules.Avatar.Inventory.Archiver
 
         // Only console jobs are printed; managed/API jobs use the progress event.
         private readonly Dictionary<UUID, string> m_consoleProgressState = new Dictionary<UUID, string>();
+        private sealed class ConsoleIarJob
+        {
+            public string Action;
+            public string Archive;
+            public string Phase = "start";
+            public int Processed;
+            public int Total;
+            public int Percent;
+            public int LastDisplayedPercent = -1;
+            public string LastDisplayedPhase = "";
+            public DateTime Started = DateTime.UtcNow;
+        }
+
+        private readonly Dictionary<UUID, ConsoleIarJob> m_consoleJobs =
+            new Dictionary<UUID, ConsoleIarJob>();
+        private bool m_liveConsoleProgress = true;
+
 
         /// <summary>
         /// The file to load and save inventory if no filename has been specified
@@ -107,6 +124,8 @@ namespace OpenSim.Region.CoreModules.Avatar.Inventory.Archiver
 
         public void Initialise(IConfigSource source)
         {
+            m_liveConsoleProgress =
+                source?.Configs["Startup"]?.GetBoolean("OGLIarLiveProgress", true) ?? true;
         }
 
         public void AddRegion(Scene scene)
@@ -124,6 +143,14 @@ namespace OpenSim.Region.CoreModules.Avatar.Inventory.Archiver
                 OnInventoryArchiveSaved += SaveInvConsoleCommandCompleted;
                 OnInventoryArchiveLoaded += LoadInvConsoleCommandCompleted;
                 OnInventoryArchiveProgress += DisplayConsoleArchiveProgress;
+
+                scene.AddCommand(
+                    "Archiving", this, "show iar progress",
+                    "show iar progress",
+                    "Aktiven IAR-Import oder -Export mit Prozenten, Zählern und Laufzeit anzeigen.",
+                    "Zeigt den aktuellen Stand laufender IAR-Konsolenoperationen. " +
+                    "Die lokale OpenGenesisLINK-Konsole aktualisiert ihren Status zusätzlich live.",
+                    ShowConsoleIarProgress);
 
                 scene.AddCommand(
                     "Archiving", this, "load iar",
@@ -235,49 +262,175 @@ namespace OpenSim.Region.CoreModules.Avatar.Inventory.Archiver
             foreach (Action<UUID, string, int, int> handler in handlers.GetInvocationList())
             {
                 try { handler(id, phase, processed, total); }
-                catch (Exception e) { m_log.Warn("[OGL-IAR] Progress listener failed.", e); }
+                catch (Exception e) { m_log.Warn("[OGL-IAR]: Fortschritts-Listener fehlgeschlagen.", e); }
+            }
+        }
+
+        private static string GermanIarPhase(string phase)
+        {
+            switch (phase)
+            {
+                case "inventory": return "Inventar erfassen";
+                case "inventory-complete": return "Inventar erfasst";
+                case "assets": return "Assets sichern";
+                case "import": return "Inventar importieren";
+                case "finalizing": return "Archiv abschließen";
+                default: return "Archiv verarbeiten";
+            }
+        }
+
+        private static int GetIarPercent(string phase, int processed, int total)
+        {
+            if (phase == "inventory-complete") return 40;
+            if (phase == "assets" && total > 0)
+                return 40 + (int)Math.Min(55L, (long)Math.Max(0, processed) * 55L / total);
+            if (phase == "import" && total > 0)
+                return 5 + (int)Math.Min(90L, (long)Math.Max(0, processed) * 90L / total);
+            if (phase == "finalizing") return 98;
+            return 5;
+        }
+
+        private static string ProgressBar(int percent)
+        {
+            int blocks = Math.Clamp(percent / 5, 0, 20);
+            return "[" + new string('#', blocks) + new string('-', 20 - blocks) + "]";
+        }
+
+        private static string LiveIarSummary(ConsoleIarJob job)
+        {
+            string counters = job.Total > 0
+                ? " " + job.Processed + "/" + job.Total + (job.Phase == "assets" ? " Assets" : " Eintr.")
+                : " " + job.Processed + " bearbeitet";
+            int completed = Math.Clamp(job.Percent / 10, 0, 10);
+            string miniBar = "[" + new string('#', completed) +
+                new string('-', 10 - completed) + "]";
+            return "IAR " + job.Action + " " + miniBar + " " +
+                job.Percent + "% " + GermanIarPhase(job.Phase) + counters;
+        }
+
+        private void RefreshIarPrompt()
+        {
+            if (!m_liveConsoleProgress || MainConsole.Instance is not LocalConsole local)
+                return;
+            string status = string.Empty;
+            lock (m_pendingConsoleTasks)
+            {
+                // Multiple parallel archives remain individually queryable.
+                if (m_consoleJobs.Count == 1)
+                {
+                    foreach (ConsoleIarJob job in m_consoleJobs.Values)
+                        status = LiveIarSummary(job);
+                }
+                else if (m_consoleJobs.Count > 1)
+                    status = "IAR: " + m_consoleJobs.Count + " Aufträge aktiv (show iar progress)";
+            }
+            try { local.UpdateOglIarProgress(status); }
+            catch (Exception e) { m_log.Debug("[OGL-IAR]: Live-Anzeige nicht verfügbar.", e); }
+        }
+
+        private void StartConsoleIarJob(UUID id, string action, string archive)
+        {
+            lock (m_pendingConsoleTasks)
+            {
+                m_pendingConsoleTasks.Add(id);
+                m_consoleJobs[id] = new ConsoleIarJob
+                {
+                    Action = action,
+                    Archive = archive
+                };
+            }
+            RefreshIarPrompt();
+        }
+
+        private void RemoveConsoleIarJob(UUID id)
+        {
+            lock (m_pendingConsoleTasks)
+            {
+                m_pendingConsoleTasks.Remove(id);
+                m_consoleJobs.Remove(id);
+                m_consoleProgressState.Remove(id);
+            }
+            RefreshIarPrompt();
+        }
+
+        private void ShowConsoleIarProgress(string module, string[] cmdparams)
+        {
+            lock (m_pendingConsoleTasks)
+            {
+                if (m_consoleJobs.Count == 0)
+                {
+                    MainConsole.Instance.Output("[OGL-IAR]: Kein Import oder Export aktiv.");
+                    return;
+                }
+
+                MainConsole.Instance.Output("[OGL-IAR]: Aktuelle Archivvorgänge:");
+                foreach (KeyValuePair<UUID, ConsoleIarJob> pair in m_consoleJobs)
+                {
+                    ConsoleIarJob job = pair.Value;
+                    string unit = job.Phase == "assets" ? "Assets" : "Einträge";
+                    string counters = job.Total > 0
+                        ? job.Processed + "/" + job.Total + " " + unit
+                        : job.Processed + " " + unit + " (Gesamtzahl noch unbekannt)";
+                    MainConsole.Instance.Output(
+                        "[OGL-IAR]: {0} | {1} | {2} {3}% | {4} | Laufzeit {5:n0} s | ID {6}",
+                        job.Action, job.Archive, ProgressBar(job.Percent),
+                        job.Percent, GermanIarPhase(job.Phase) + ": " + counters,
+                        (DateTime.UtcNow - job.Started).TotalSeconds, pair.Key);
+                }
             }
         }
 
         private void DisplayConsoleArchiveProgress(UUID id, string phase, int processed, int total)
         {
+            int percent = GetIarPercent(phase, processed, total);
             bool known = total > 0 || phase == "finalizing";
-            int percent = 0;
-            if (phase == "inventory-complete")
-                percent = 40;
-            else if (phase == "assets" && total > 0)
-                percent = 40 + (int)Math.Min(55L, (long)processed * 55L / total);
-            else if (phase == "import" && total > 0)
-                percent = 5 + (int)Math.Min(90L, (long)processed * 90L / total);
-            else if (phase == "finalizing")
-                percent = 98;
-            else if (phase == "inventory")
-                percent = 5;
-            int rounded = known ? percent / 5 * 5 : 0;
-            bool milestone = known || processed == 0 || processed % 250 == 0;
-            if (!milestone && phase != "finalizing" && phase != "inventory-complete")
-                return;
-
+            bool report;
+            bool liveUpdate;
             lock (m_pendingConsoleTasks)
             {
-                if (!m_pendingConsoleTasks.Contains(id))
+                if (!m_pendingConsoleTasks.Contains(id) ||
+                    !m_consoleJobs.TryGetValue(id, out ConsoleIarJob job))
                     return;
-                string marker = phase + ":" + (known ? rounded.ToString() : processed == 0 ? "start" : (processed / 250).ToString());
-                if (m_consoleProgressState.TryGetValue(id, out string last) && last == marker)
-                    return;
-                m_consoleProgressState[id] = marker;
+
+                job.Phase = phase;
+                job.Processed = Math.Max(0, processed);
+                job.Total = Math.Max(0, total);
+                job.Percent = percent;
+                liveUpdate = job.LastDisplayedPercent != percent ||
+                    job.LastDisplayedPhase != phase ||
+                    (total <= 0 && processed % 100 == 0);
+                if (liveUpdate)
+                {
+                    job.LastDisplayedPercent = percent;
+                    job.LastDisplayedPhase = phase;
+                }
+
+                int rounded = known ? percent / 5 * 5 : 0;
+                string marker = phase + ":" + (known
+                    ? rounded.ToString()
+                    : processed == 0 ? "start" : (processed / 250).ToString());
+                report = !m_consoleProgressState.TryGetValue(id, out string previous)
+                    || previous != marker;
+                if (report)
+                    m_consoleProgressState[id] = marker;
             }
 
+            // The local console shows the newest value between log milestones,
+            // while log4net records only 5%-checkpoints as durable lines.
+            if (liveUpdate)
+                RefreshIarPrompt();
+            if (!report)
+                return;
+
             if (phase == "finalizing")
-                m_log.Info("[OGL-IAR] Abschluss: Daten werden finalisiert und geprueft (98%).");
+                m_log.Info("[OGL-IAR]: Abschluss: Archiv wird finalisiert und geprüft (98 %).");
             else if (known)
-            {
-                int blocks = rounded / 5;
-                m_log.InfoFormat("[OGL-IAR] {0} [{1}{2}] {3}% ({4}/{5} Eintraege)",
-                    phase, new string('#', blocks), new string('-', 20 - blocks), rounded, processed, total);
-            }
+                m_log.InfoFormat("[OGL-IAR]: {0} {1} {2}% ({3}/{4} {5})",
+                    GermanIarPhase(phase), ProgressBar(percent), percent,
+                    processed, total, phase == "assets" ? "Assets" : "Einträge");
             else
-                m_log.InfoFormat("[OGL-IAR] {0}: {1} Eintraege verarbeitet (Gesamtzahl noch unbekannt).", phase, processed);
+                m_log.InfoFormat("[OGL-IAR]: {0}: {1} Einträge bearbeitet (Gesamtzahl noch unbekannt).",
+                    GermanIarPhase(phase), processed);
         }
 
         private void ForgetConsoleProgress(UUID id)
@@ -555,10 +708,9 @@ namespace OpenSim.Region.CoreModules.Avatar.Inventory.Archiver
                 return;
             }
 
+            UUID id = UUID.Random();
             try
             {
-                UUID id = UUID.Random();
-
                 Dictionary<string, object> options = new Dictionary<string, object>();
                 OptionSet optionSet = new OptionSet().Add("m|merge", delegate (string v) { options["merge"] = v != null; });
 
@@ -567,7 +719,7 @@ namespace OpenSim.Region.CoreModules.Avatar.Inventory.Archiver
                 if (mainParams.Count < 6)
                 {
                     m_log.Error(
-                        "[INVENTORY ARCHIVER]: usage is load iar [-m|--merge] <first name> <last name> <inventory path> <user password> [<load file path>]");
+                        "[OGL-IAR]: Syntax: load iar [-m|--merge] <Vorname> <Nachname> <Inventarpfad> <Passwort> [<Archivpfad>]");
                     return;
                 }
 
@@ -578,7 +730,7 @@ namespace OpenSim.Region.CoreModules.Avatar.Inventory.Archiver
                 string loadPath = (mainParams.Count > 6 ? mainParams[6] : DEFAULT_INV_BACKUP_FILENAME);
 
                 m_log.InfoFormat(
-                    "[INVENTORY ARCHIVER]: Loading archive {0} to inventory path {1} for {2} {3}",
+                    "[OGL-IAR]: Importiere Archiv {0} nach Inventarpfad {1} für {2} {3}.",
                     loadPath, invPath, firstName, lastName);
 
                 // The same bounded validator used by the managed API must run
@@ -587,33 +739,29 @@ namespace OpenSim.Region.CoreModules.Avatar.Inventory.Archiver
                     m_aScene?.RequestModuleInterface<IInventoryArchiveInspector>();
                 if (inspector == null)
                 {
-                    m_log.Error("[OGL-IAR] Import abgelehnt: sichere IAR-Vorabpruefung nicht verfuegbar.");
+                    m_log.Error("[OGL-IAR]: Import abgelehnt: Sichere IAR-Vorprüfung nicht verfügbar.");
                     return;
                 }
-                m_log.Info("[OGL-IAR] Pruefe Archivstruktur, Groessenlimits und TAR/GZip-Integritaet...");
+                m_log.Info("[OGL-IAR]: Prüfe Archivstruktur, Größenlimits und TAR/GZip-Integrität …");
                 if (!inspector.TryInspect(loadPath, out int expectedEntries, out string reason))
                 {
-                    m_log.ErrorFormat("[OGL-IAR] Import abgelehnt: {0}", reason);
+                    m_log.ErrorFormat("[OGL-IAR]: Import abgelehnt: {0}", reason);
                     return;
                 }
                 options["iar_total_entries"] = expectedEntries;
-                m_log.InfoFormat("[OGL-IAR] Archivpruefung erfolgreich: {0} Eintraege.", expectedEntries);
+                m_log.InfoFormat("[OGL-IAR]: Archivprüfung erfolgreich: {0} Einträge.", expectedEntries);
 
-                lock (m_pendingConsoleTasks)
-                    m_pendingConsoleTasks.Add(id);
+                StartConsoleIarJob(id, "Import", loadPath);
 
                 if (!DearchiveInventory(id, firstName, lastName, invPath, pass, loadPath, options))
                 {
-                    lock (m_pendingConsoleTasks)
-                    {
-                        m_pendingConsoleTasks.Remove(id);
-                        m_consoleProgressState.Remove(id);
-                    }
+                    RemoveConsoleIarJob(id);
                 }
             }
-            catch (InventoryArchiverException e)
+            catch (Exception e)
             {
-                m_log.ErrorFormat("[INVENTORY ARCHIVER]: {0}", e.Message);
+                RemoveConsoleIarJob(id);
+                m_log.Error("[OGL-IAR]: Import fehlgeschlagen.", e);
             }
         }
 
@@ -660,12 +808,12 @@ namespace OpenSim.Region.CoreModules.Avatar.Inventory.Archiver
                 if (mainParams.Count < 6)
                 {
                     m_log.Error(
-                        "[INVENTORY ARCHIVER]: save iar [-h|--home=<url>] [--noassets] <first> <last> <inventory path> <password> [<IAR path>] [-c|--creators] [-e|--exclude=<name/uuid>] [-f|--excludefolder=<foldername/uuid>] [-v|--verbose]");
+                        "[OGL-IAR]: Syntax: save iar [-h|--home=<URL>] [--noassets] <Vorname> <Nachname> <Inventarpfad> <Passwort> [<Archivpfad>] [-c|--creators] [-e|--exclude=<Name/UUID>] [-f|--excludefolder=<Ordner/UUID>] [-v|--verbose]");
                     return;
                 }
 
                 if (options.ContainsKey("home"))
-                    m_log.WarnFormat("[INVENTORY ARCHIVER]: Please be aware that inventory archives with creator information are not compatible with OpenSim 0.7.0.2 and earlier.  Do not use the -home option if you want to produce a compatible IAR");
+                    m_log.Warn("[OGL-IAR]: Achtung: Mit -home erzeugte Archive sind nicht mit OpenSim 0.7.0.2 oder älter kompatibel.");
 
                 string firstName = mainParams[2];
                 string lastName = mainParams[3];
@@ -674,24 +822,20 @@ namespace OpenSim.Region.CoreModules.Avatar.Inventory.Archiver
                 string savePath = (mainParams.Count > 6 ? mainParams[6] : DEFAULT_INV_BACKUP_FILENAME);
 
                 m_log.InfoFormat(
-                    "[INVENTORY ARCHIVER]: Saving archive {0} using inventory path {1} for {2} {3}",
+                    "[OGL-IAR]: Exportiere Archiv {0} aus Inventarpfad {1} für {2} {3}.",
                     savePath, invPath, firstName, lastName);
 
-                lock (m_pendingConsoleTasks)
-                    m_pendingConsoleTasks.Add(id);
+                StartConsoleIarJob(id, "Export", savePath);
 
                 if (!ArchiveInventory(id, firstName, lastName, invPath, pass, savePath, options))
                 {
-                    lock (m_pendingConsoleTasks)
-                    {
-                        m_pendingConsoleTasks.Remove(id);
-                        m_consoleProgressState.Remove(id);
-                    }
+                    RemoveConsoleIarJob(id);
                 }
             }
-            catch (InventoryArchiverException e)
+            catch (Exception e)
             {
-                m_log.ErrorFormat("[INVENTORY ARCHIVER]: {0}", e.Message);
+                RemoveConsoleIarJob(id);
+                m_log.Error("[OGL-IAR]: Export fehlgeschlagen.", e);
             }
         }
 
@@ -701,27 +845,25 @@ namespace OpenSim.Region.CoreModules.Avatar.Inventory.Archiver
         {
             lock (m_pendingConsoleTasks)
             {
-                if (m_pendingConsoleTasks.Contains(id))
-                    m_pendingConsoleTasks.Remove(id);
-                else
+                if (!m_pendingConsoleTasks.Contains(id))
                     return;
             }
 
-            ForgetConsoleProgress(id);
+            RemoveConsoleIarJob(id);
             if (succeeded)
             {
-                m_log.Info("[OGL-IAR] [####################] 100% - Export abgeschlossen.");
+                m_log.Info("[OGL-IAR]: [####################] 100% – Exportvorgang abgeschlossen (Asset-Warnungen beachten).");
                 // Report success and include item count and filter count (Skipped items due to --perm or --exclude switches)
                 if(FilterCount == 0)
-                    m_log.InfoFormat("[INVENTORY ARCHIVER]: Saved archive with {0} items for {1} {2}", SaveCount, userInfo.FirstName, userInfo.LastName);
+                    m_log.InfoFormat("[OGL-IAR]: Archiv für {1} {2} erfolgreich gespeichert: {0} Inventareinträge.", SaveCount, userInfo.FirstName, userInfo.LastName);
                 else
-                    m_log.InfoFormat("[INVENTORY ARCHIVER]: Saved archive with {0} items for {1} {2}. Skipped {3} items due to exclude and/or perm switches", SaveCount, userInfo.FirstName, userInfo.LastName, FilterCount);
+                    m_log.InfoFormat("[OGL-IAR]: Archiv für {1} {2} gespeichert: {0} Inventareinträge, {3} durch Ausschluss- oder Berechtigungsfilter übersprungen.", SaveCount, userInfo.FirstName, userInfo.LastName, FilterCount);
             }
             else
             {
                 m_log.ErrorFormat(
-                    "[INVENTORY ARCHIVER]: Archive save for {0} {1} failed - {2}",
-                    userInfo.FirstName, userInfo.LastName, reportedException.Message);
+                    "[OGL-IAR]: Archivexport für {0} {1} fehlgeschlagen: {2}",
+                    userInfo?.FirstName, userInfo?.LastName, reportedException?.Message ?? "Unbekannter Fehler");
             }
         }
 
@@ -731,23 +873,21 @@ namespace OpenSim.Region.CoreModules.Avatar.Inventory.Archiver
         {
             lock (m_pendingConsoleTasks)
             {
-                if (m_pendingConsoleTasks.Contains(id))
-                    m_pendingConsoleTasks.Remove(id);
-                else
+                if (!m_pendingConsoleTasks.Contains(id))
                     return;
             }
 
-            ForgetConsoleProgress(id);
+            RemoveConsoleIarJob(id);
             if (succeeded)
             {
-                m_log.Info("[OGL-IAR] [####################] 100% - Import abgeschlossen.");
-                m_log.InfoFormat("[INVENTORY ARCHIVER]: Loaded {0} items from archive {1} for {2} {3}", LoadCount, invPath, userInfo.FirstName, userInfo.LastName);
+                m_log.Info("[OGL-IAR]: [####################] 100% – Import erfolgreich abgeschlossen.");
+                m_log.InfoFormat("[OGL-IAR]: {0} Inventareinträge aus Archiv nach {1} für {2} {3} importiert.", LoadCount, invPath, userInfo.FirstName, userInfo.LastName);
             }
             else
             {
                 m_log.ErrorFormat(
-                    "[INVENTORY ARCHIVER]: Archive load for {0} {1} failed - {2}",
-                    userInfo.FirstName, userInfo.LastName, reportedException.Message);
+                    "[OGL-IAR]: Archivimport für {0} {1} fehlgeschlagen: {2}",
+                    userInfo?.FirstName, userInfo?.LastName, reportedException?.Message ?? "Unbekannter Fehler");
             }
         }
 
@@ -766,7 +906,7 @@ namespace OpenSim.Region.CoreModules.Avatar.Inventory.Archiver
             if (null == account)
             {
                 m_log.ErrorFormat(
-                    "[INVENTORY ARCHIVER]: Failed to find user info for {0} {1}",
+                    "[OGL-IAR]: Benutzerkonto für {0} {1} nicht gefunden.",
                     firstName, lastName);
                 return null;
             }
@@ -781,14 +921,14 @@ namespace OpenSim.Region.CoreModules.Avatar.Inventory.Archiver
                 else
                 {
                     m_log.ErrorFormat(
-                        "[INVENTORY ARCHIVER]: Password for user {0} {1} incorrect.  Please try again.",
+                        "[OGL-IAR]: Ungültiges Passwort für {0} {1}. Bitte erneut versuchen.",
                         firstName, lastName);
                     return null;
                 }
             }
             catch (Exception e)
             {
-                m_log.ErrorFormat("[INVENTORY ARCHIVER]: Could not authenticate password, {0}", e);
+                m_log.ErrorFormat("[OGL-IAR]: Passwortauthentifizierung fehlgeschlagen: {0}", e);
                 return null;
             }
         }

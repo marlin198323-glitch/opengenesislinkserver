@@ -141,6 +141,7 @@ namespace OpenSim.Framework.Console
                 ["save oar"] = "Regionsarchiv exportieren (Freigabe erforderlich).",
                 ["load iar"] = "Inventararchiv importieren (Freigabe erforderlich).",
                 ["save iar"] = "Inventararchiv exportieren (Freigabe erforderlich).",
+                ["show iar"] = "Fortschritt und Status laufender IAR-Archive anzeigen.",
                 ["show regions"] = "Alle geladenen Regionen anzeigen.",
                 ["change region"] = "Aktive Region für nachfolgende Befehle auswählen.",
                 ["create region"] = "Eine neue Region erstellen.",

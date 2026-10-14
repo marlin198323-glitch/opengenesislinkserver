@@ -132,14 +132,16 @@ namespace OpenSim.Region.CoreModules.World.Archiver
             else
             {
                 m_log.Error(
-                    $"[ARCHIVER]: Unrecognized asset type {asset.Type} with uuid {asset.ID}. This asset will be saved but may not load");
+                    $"[ARCHIVER]: Unbekannter Asset-Typ {asset.Type} für UUID {asset.ID}. Das Asset wird gesichert, kann beim Import aber möglicherweise nicht geladen werden.");
                 m_archiveWriter.WriteFile($"{ArchiveConstants.ASSETS_PATH}{asset.FullID}", asset.Data);
             }
 
             m_assetsWritten++;
 
             if (m_assetsWritten % LOG_ASSET_LOAD_NOTIFICATION_INTERVAL == 0)
-                m_log.Info($"[ARCHIVER]: Added {m_assetsWritten} assets to archive");
+                // Detailed milestones are debug-only; OGL-IAR already provides
+                // a summarized 5% progress line and a live terminal indicator.
+                m_log.Debug($"[ARCHIVER]: {m_assetsWritten} Assets dem Archiv hinzugefügt.");
         }
     }
 }

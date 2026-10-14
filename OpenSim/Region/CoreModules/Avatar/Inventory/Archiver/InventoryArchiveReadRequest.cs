@@ -201,7 +201,7 @@ namespace OpenSim.Region.CoreModules.Avatar.Inventory.Archiver
                 if (folderCandidates.Count == 0)
                 {
                     // Possibly provide an option later on to automatically create this folder if it does not exist
-                    m_log.ErrorFormat("[INVENTORY ARCHIVER]: Inventory path {0} does not exist", m_invPath);
+                    m_log.ErrorFormat("[OGL-IAR]: Der Inventarpfad {0} existiert nicht.", m_invPath);
 
                     return m_loadedNodes;
                 }
@@ -235,7 +235,7 @@ namespace OpenSim.Region.CoreModules.Avatar.Inventory.Archiver
                 LoadInventoryLinks();
 
                 m_log.DebugFormat(
-                    "[INVENTORY ARCHIVER]: Successfully loaded {0} assets with {1} failures",
+                    "[OGL-IAR]: {0} Assets importiert, {1} fehlgeschlagen.",
                     m_successfulAssetRestores, m_failedAssetRestores);
 
                 //Alicia: When this is called by LibraryModule or Tests, m_module will be null as event is not required
@@ -492,7 +492,7 @@ namespace OpenSim.Region.CoreModules.Avatar.Inventory.Archiver
             {
                 m_creatorIdForAssetId[item.AssetID] = item.CreatorIdAsUuid;
                 if (!m_InventoryService.AddItem(item))
-                    m_log.WarnFormat("[INVENTORY ARCHIVER]: Unable to save item {0} in folder {1}", item.Name, item.Folder);
+                    m_log.WarnFormat("[OGL-IAR]: Inventareintrag {0} konnte nicht im Ordner {1} gespeichert werden.", item.Name, item.Folder);
             }
 
             return item;
@@ -514,7 +514,7 @@ namespace OpenSim.Region.CoreModules.Avatar.Inventory.Archiver
             if (indx < 32)
             {
                 m_log.ErrorFormat(
-                   "[INVENTORY ARCHIVER]: Could not find extension information in asset path {0} since it's missing the separator {1}.  Skipping",
+                   "[OGL-IAR]: Asset-Pfad {0} enthält keine gültige Dateiendung (Trennzeichen {1} fehlt). Eintrag übersprungen.",
                     assetPath, ArchiveConstants.ASSET_EXTENSION_SEPARATOR);
 
                 return false;
@@ -524,7 +524,7 @@ namespace OpenSim.Region.CoreModules.Avatar.Inventory.Archiver
             if (!ArchiveConstants.EXTENSION_TO_ASSET_TYPE.TryGetValue(extension, out sbyte assetType))
             {
                 m_log.ErrorFormat(
-                   "[INVENTORY ARCHIVER]: Tried to dearchive data with path {0} with an unknown type extension {1}",
+                   "[OGL-IAR]: Asset {0} hat die unbekannte Dateiendung {1} und wird übersprungen.",
                     assetPath, extension);
                 return false;
             }
@@ -535,7 +535,7 @@ namespace OpenSim.Region.CoreModules.Avatar.Inventory.Archiver
 
             if (assetType == (sbyte)AssetType.Unknown)
             {
-                m_log.WarnFormat("[INVENTORY ARCHIVER]: Importing {0} byte asset {1} with unknown type", data.Length, assetId);
+                m_log.WarnFormat("[OGL-IAR]: Asset {1} mit {0} Bytes besitzt einen unbekannten Typ und wird übersprungen.", data.Length, assetId);
                 return false;
             }
 
@@ -594,12 +594,12 @@ namespace OpenSim.Region.CoreModules.Avatar.Inventory.Archiver
             {
                 throw new Exception(
                     string.Format(
-                        "The IAR you are trying to load has major version number of {0} but this version of OpenSim can only load IARs with major version number {1} and below",
+                        "Das IAR besitzt Hauptversion {0}; dieser Simulator unterstützt nur IAR-Versionen bis einschließlich {1}.",
                         majorVersion, MAX_MAJOR_VERSION));
             }
 
             ControlFileLoaded = true;
-            m_log.InfoFormat("[INVENTORY ARCHIVER]: Loading IAR with version {0}", version);
+            m_log.InfoFormat("[OGL-IAR]: Importiere IAR-Archivformat Version {0}.", version);
         }
 
         /// <summary>
@@ -613,13 +613,13 @@ namespace OpenSim.Region.CoreModules.Avatar.Inventory.Archiver
             if (!ControlFileLoaded)
                 throw new Exception(
                     string.Format(
-                        "The IAR you are trying to load does not list {0} before {1}.  Aborting load",
+                        "Ungültige IAR-Reihenfolge: {0} muss vor {1} stehen. Import abgebrochen.",
                         ArchiveConstants.CONTROL_FILE_PATH, ArchiveConstants.INVENTORY_PATH));
 
             if (m_assetsLoaded)
                 throw new Exception(
                     string.Format(
-                        "The IAR you are trying to load does not list all {0} before {1}.  Aborting load",
+                        "Ungültige IAR-Reihenfolge: Alle {0} müssen vor {1} stehen. Import abgebrochen.",
                         ArchiveConstants.INVENTORY_PATH, ArchiveConstants.ASSETS_PATH));
 
             path = path.Substring(ArchiveConstants.INVENTORY_PATH.Length);
@@ -659,7 +659,7 @@ namespace OpenSim.Region.CoreModules.Avatar.Inventory.Archiver
                 {
                     it.AssetID = m_itemIDs[target];
                     if(!m_InventoryService.AddItem(it))
-                        m_log.WarnFormat("[INVENTORY ARCHIVER]: Unable to save item {0} in folder {1}",it.Name,it.Folder);
+                        m_log.WarnFormat("[OGL-IAR]: Inventareintrag {0} konnte nicht im Ordner {1} gespeichert werden.",it.Name,it.Folder);
                     else
                     {
                         m_successfulItemRestores++;
@@ -684,13 +684,13 @@ namespace OpenSim.Region.CoreModules.Avatar.Inventory.Archiver
             if (!ControlFileLoaded)
                 throw new Exception(
                     string.Format(
-                        "The IAR you are trying to load does not list {0} before {1}.  Aborting load",
+                        "Ungültige IAR-Reihenfolge: {0} muss vor {1} stehen. Import abgebrochen.",
                         ArchiveConstants.CONTROL_FILE_PATH, ArchiveConstants.ASSETS_PATH));
 
             if (!m_inventoryNodesLoaded)
                 throw new Exception(
                     string.Format(
-                        "The IAR you are trying to load does not list all {0} before {1}.  Aborting load",
+                        "Ungültige IAR-Reihenfolge: Alle {0} müssen vor {1} stehen. Import abgebrochen.",
                         ArchiveConstants.INVENTORY_PATH, ArchiveConstants.ASSETS_PATH));
 
             if (LoadAsset(path, data))
@@ -700,7 +700,7 @@ namespace OpenSim.Region.CoreModules.Avatar.Inventory.Archiver
 
             if ((m_successfulAssetRestores) % 50 == 0)
                 m_log.DebugFormat(
-                    "[INVENTORY ARCHIVER]: Loaded {0} assets...",
+                    "[OGL-IAR]: {0} Assets importiert …",
                     m_successfulAssetRestores);
 
             m_assetsLoaded = true;
