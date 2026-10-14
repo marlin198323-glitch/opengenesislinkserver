@@ -537,6 +537,12 @@ jobs:
         shell: bash
         run: dotnet run --configuration Release --project tools/ci/CrossRegionNexBusProcessRegression/CrossRegionNexBusProcessRegression.csproj
 
+      - name: Ensure YEngine does not use unsafe BinaryFormatter migration
+        shell: bash
+        run: |
+          python3 tools/ci/verify_yengine_no_binaryformatter.py
+          dotnet run --configuration Release --project tools/ci/YEngineExceptionCodecRegression/YEngineExceptionCodecRegression.csproj
+
       - name: OGL German console and signed feature licenses
         shell: bash
         run: dotnet run --configuration Release --project tools/ci/OglFeatureControlRegression/OglFeatureControlRegression.csproj
