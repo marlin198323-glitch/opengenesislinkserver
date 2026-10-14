@@ -62,6 +62,15 @@ namespace OpenSim.Server.Handlers.Inventory
             if (configName != string.Empty)
                 m_ConfigName = configName;
 
+            // This legacy REST connector has unverified CheckAuthSession and
+            // CheckTrustSource defaults and an unauthenticated PUT /inventory.
+            // It must never serve the public Hypergrid inventory service.
+            if (string.Equals(m_ConfigName, "HGInventoryService",
+                    StringComparison.OrdinalIgnoreCase))
+                throw new InvalidOperationException(
+                    "[HG INVENTORY SECURITY]: Legacy REST inventory connector cannot be used for HGInventoryService. " +
+                    "Use XInventoryInConnector with its read-only HG dispatch.");
+
             IConfig serverConfig = config.Configs[m_ConfigName];
             if (serverConfig == null)
                 throw new Exception(String.Format("No section '{0}' in config file", m_ConfigName));
