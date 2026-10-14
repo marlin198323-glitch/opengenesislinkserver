@@ -190,7 +190,7 @@ a{color:#83dcff}a:hover{color:#bcb0ff}
 
 <section class="page" id="page-statistics">
 <div class="hero">
-<div><div class="eyebrow">Live-Statistik</div><h1>Grid-Statistik</h1><p>Aktuelle Einwohner-, Aktivitäts-, Anwesenheits- und Hypergrid-Kennzahlen direkt aus den laufenden NexVerse-Diensten.</p></div>
+<div><div class="eyebrow">Live-Statistik</div><h1>Grid-Statistik</h1><p>Aktuelle Einwohner-, Aktivitäts-, Anwesenheits- und Hypergrid-Kennzahlen direkt aus den laufenden OGL-Diensten.</p></div>
 <div class="pill"><span class="dot" id="statsDot"></span><span id="statsStatus">Noch nicht geladen</span></div>
 </div>
 <div class="section">
@@ -231,7 +231,7 @@ a{color:#83dcff}a:hover{color:#bcb0ff}
 
 <section class="page" id="page-grid">
 <div class="hero">
-<div><div class="eyebrow">Region Control Plane</div><h1>Interaktiver Grid-Planer</h1><p>Rasteransicht der NexVerse-Welt auf 256-Meter-Basis. Belegte, freie, reservierte und widersprüchliche Zellen werden direkt aus der World API gelesen.</p></div>
+<div><div class="eyebrow">Region Control Plane</div><h1>Interaktiver Grid-Planer</h1><p>Rasteransicht des angeschlossenen Grids auf 256-Meter-Basis. Belegte, freie, reservierte und widersprüchliche Zellen werden direkt aus der World API gelesen.</p></div>
 <div class="pill"><span class="dot" id="gridDot"></span><span id="gridStatus">Noch nicht geladen</span></div>
 </div>
 <div class="section">
@@ -323,7 +323,7 @@ a{color:#83dcff}a:hover{color:#bcb0ff}
 <div class="planner-controls">
 <div><label class="label2">Estate-ID</label><input id="estateManageId" type="number" min="1" step="1" placeholder="bei Create leer lassen"></div>
 <div><label class="label2">Name</label><input id="estateManageName" maxlength="64" placeholder="Estate-Name"></div>
-<div><label class="label2">Owner UUID</label><input id="estateManageOwner" placeholder="lokaler NexVerse-Account"></div>
+<div><label class="label2">Owner UUID</label><input id="estateManageOwner" placeholder="lokaler Grid-Account"></div>
 <div><label class="label2">Parent-Estate-ID</label><input id="estateManageParent" type="number" min="0" step="1" value="1"></div>
 <div><label class="label2">Manager UUIDs</label><input id="estateManageManagers" placeholder="Komma oder Leerzeichen getrennt"></div>
 <div><label class="label2">Erlaubte Residents</label><input id="estateManageAllowed" placeholder="UUIDs, Komma oder Leerzeichen getrennt"></div>
@@ -355,7 +355,7 @@ a{color:#83dcff}a:hover{color:#bcb0ff}
 
 <section class="page" id="page-nodes">
 <div class="hero">
-<div><div class="eyebrow">Simulator Control Plane</div><h1>Simulator-Nodes</h1><p>Live-Zustand der durch den NexVerse NodeAgent beobachteten Simulatorprozesse und ihrer aktuell gemeldeten Regionen.</p></div>
+<div><div class="eyebrow">Simulator Control Plane</div><h1>Simulator-Nodes</h1><p>Live-Zustand der durch den OGL NodeAgent beobachteten Simulatorprozesse und ihrer aktuell gemeldeten Regionen.</p></div>
 <div class="pill"><span class="dot" id="nodesDot"></span><span id="nodesStatus">Noch nicht geladen</span></div>
 </div>
 <div class="section">
@@ -423,7 +423,7 @@ Archivprüfungen bleiben auch für freigegebene Importe aktiv.</div>
 </section>
 
 <section class="page" id="page-roadmap">
-<div class="hero"><div><div class="eyebrow">Projektstatus</div><h1>NexVerse-Entwicklungsplan</h1><p>Meilenstein-Status auf Basis des veröffentlichten Entwicklungsplans und konkreter Implementierungsnachweise. Prozentwerte werden nur angezeigt, wenn der Meilenstein tatsächlich eine gepflegte Checkbox-Checkliste besitzt.</p></div></div>
+<div class="hero"><div><div class="eyebrow">Projektstatus</div><h1>OpenGenesisLINK Entwicklungsplan</h1><p>Meilenstein-Status auf Basis des veröffentlichten Entwicklungsplans und konkreter Implementierungsnachweise. Prozentwerte werden nur angezeigt, wenn der Meilenstein tatsächlich eine gepflegte Checkbox-Checkliste besitzt.</p></div></div>
 <div class="roadmap-summary">
 <div class="card"><div class="label">Aktueller Meilenstein</div><div class="value" id="roadmapCurrent">–</div><div class="sub" id="roadmapCodename">–</div></div>
 <div class="card"><div class="label">Aktiv</div><div class="value" id="roadmapActiveCount">–</div><div class="sub">aktueller Produkt-Meilenstein</div></div>
@@ -496,8 +496,8 @@ Archivprüfungen bleiben auch für freigegebene Importe aktiv.</div>
 <section class="page" id="page-adminlogin">
 <div class="hero">
 <div><div class="eyebrow">Geschützter Verwaltungszugang</div>
-<h1>Als NexVerse-Administrator anmelden</h1>
-<p>Dieses Control Center erlaubt die Anmeldung ausschließlich für lokale lokale Grid-Benutzer mit <code>UserLevel >= 200</code> und <code>admin:*</code>. Andere Einwohner können die öffentliche API-Dokumentation weiter lesen, erhalten jedoch keine Administratorsitzung.</p></div>
+<h1>Als OGL-Administrator anmelden</h1>
+<p>Dieses Control Center erlaubt die Anmeldung ausschließlich für lokale Grid-Benutzer mit <code>UserLevel >= 200</code> und <code>admin:*</code>. Andere Einwohner können die öffentliche API-Dokumentation weiter lesen, erhalten jedoch keine Administratorsitzung.</p></div>
 <div class="pill"><span class="dot" id="adminLoginDot"></span><span id="adminLoginState">Nicht angemeldet</span></div>
 </div>
 <div class="section">
@@ -1673,14 +1673,14 @@ async function secretGenerate() {
     if(!window.isSecureContext)throw new Error('Schlüssel nur über HTTPS generieren.');
     const token=await secretAdminToken();
     const plan=[
-      {wanted:wantEconomy,name:'NexVerse Simulator Economy',
+      {wanted:wantEconomy,name:'OGL Simulator Economy',
        scopes:['economy:read','economy:transfer'],env:'NEXVERSE_ECONOMY_API_KEY'},
-      {wanted:wantExperiences,name:'NexVerse Simulator Experiences',
+      {wanted:wantExperiences,name:'OGL Simulator Experiences',
        scopes:['experiences:script'],env:'NEXVERSE_EXPERIENCES_API_KEY'},
-      {wanted:wantPermissions,name:'NexVerse Simulator Experience Permissions',
+      {wanted:wantPermissions,name:'OGL Simulator Experience Permissions',
        scopes:['experiences:viewer:permissions'],
        env:'NEXVERSE_EXPERIENCES_VIEWER_PERMISSIONS_API_KEY'},
-      {wanted:wantManage,name:'NexVerse Simulator Experience Management',
+      {wanted:wantManage,name:'OGL Simulator Experience Management',
        scopes:['experiences:viewer:manage'],
        env:'NEXVERSE_EXPERIENCES_VIEWER_MANAGE_API_KEY'}
     ].filter(item=>item.wanted);
@@ -1758,7 +1758,7 @@ async function init(){
     $('healthText').textContent=health.status==='ok'?'API online':'API Status: '+(health.status||'unbekannt');$('healthDot').className='dot '+(health.status==='ok'?'good':'bad');
     $('serverVersion').textContent=version.server_version||'–';$('milestone').textContent='Meilenstein '+(version.milestone||'–')+(version.milestone_title?' · '+version.milestone_title:'');$('apiVersion').textContent=version.api_version||spec.info?.version||'–';
     $('endpointCount').textContent=Object.keys(spec.paths||{}).length;$('operationCount').textContent=entries.length+' Operationen';
-    $('navmeta').textContent=(version.server_version||'NexVerse')+' · '+(version.api_version||'API')+' · '+languageLabel(version.language||spec['x_nexverse_language']||'de-DE');
+    $('navmeta').textContent=(version.server_version||'OpenGenesisLINK')+' · '+(version.api_version||'API')+' · '+languageLabel(version.language||spec['x_nexverse_language']||'de-DE');
     if(changes.length){$('lastChangeDate').textContent=changes[0].date||'–';$('lastChangeTitle').textContent=changes[0].title||''}
     const overview=$('overviewChanges');overview.replaceChildren();changes.slice(0,4).forEach(x=>overview.append(makeChange(x)));if(!changes.length)overview.innerHTML='<div class="empty">Noch keine Versionshinweise veröffentlicht.</div>';
     renderChangeFilters();renderChanges('all');renderVersions();renderRoadmap();renderEndpointList();
