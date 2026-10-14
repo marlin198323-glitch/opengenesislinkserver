@@ -3,6 +3,9 @@
 copy bin\System.Drawing.Common.dll.win bin\System.Drawing.Common.dll
 
 dotnet bin\prebuild.dll /target vs2022 /targetframework net8_0 /excludedir = "obj | bin" /file prebuild.xml
+if errorlevel 1 exit /b %errorlevel%
+py -3 tools\build\retarget_net10.py
+if errorlevel 1 exit /b %errorlevel%
 
     @echo Creating compile.bat
 rem To compile in release mode
