@@ -1161,7 +1161,7 @@ jobs:
           fi
 
           curl --silent --fail --max-time 2 http://127.0.0.1:19090/api/v1/chatgpt-instructions.md > /tmp/nexverse-chatgpt.md
-          grep -F 'NexVerse World API - ChatGPT Gesamtanweisung' /tmp/nexverse-chatgpt.md
+          grep -F 'OpenGenesisLINK World API - ChatGPT Gesamtanweisung' /tmp/nexverse-chatgpt.md
           grep -F 'Buergerportal / Einwohner-Selbstbedienung' /tmp/nexverse-chatgpt.md
           grep -F '## Adminbereich' /tmp/nexverse-chatgpt.md
           grep -F '/api/v1/openapi.json' /tmp/nexverse-chatgpt.md
