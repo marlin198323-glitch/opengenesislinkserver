@@ -512,7 +512,7 @@ Archivprüfungen bleiben auch für freigegebene Importe aktiv.</div>
 <button class="action" id="adminLoginSubmit">Als Administrator anmelden</button>
 <button class="action" id="adminLoginLogout" disabled>Abmelden</button>
 </div>
-<p class="authnote" id="adminLoginMessage" role="status">Der Login verwendet ausschließlich den geschützten OGL-World-API-Endpunkt <code>POST /api/v1/auth/admin/session</code>. Das Access-Token wird nur im Arbeitsspeicher dieser Seite gehalten, nicht als Cookie oder im Browserspeicher abgelegt.</p>
+<p class="authnote" id="adminLoginMessage" role="status">Der Login verwendet die Grid-Benutzeranmeldung <code>POST /api/v1/auth/session</code> und prüft den UserLevel auf dem Server. Das Access-Token wird nur im Arbeitsspeicher dieser Seite gehalten, nicht als Cookie oder im Browserspeicher abgelegt.</p>
 </div>
 </section>
 
@@ -521,7 +521,7 @@ Archivprüfungen bleiben auch für freigegebene Importe aktiv.</div>
 <p>Erzeuge auf dieser Seite dedizierte Maschinen-API-Schlüssel und einen gemeinsamen NexBus-Signaturschlüssel. Kopiere anschließend die fertigen Zeilen in die geschützte <code>/etc/nexverse/nexverse.env</code> auf den beteiligten Servern.</p></div></div>
 <div class="section">
 <h2>1. Geschützte Administrator-Sitzung</h2>
-<p class="sectionlead">Für die Schlüsselverwaltung ist eine aktive World-API-Administratorsitzung (UserLevel mindestens 200, Scope <code>admin:*</code>) erforderlich.</p>
+<p class="sectionlead">Für die Schlüsselverwaltung muss der GridUser mit UserLevel mindestens 200 angemeldet sein. Einzelne Verwaltungsaktionen behalten ihre bestehenden API-Berechtigungen.</p>
 <button class="action" data-goto="adminlogin">Admin-Login öffnen</button>
 </div>
 <div class="section">
@@ -640,7 +640,6 @@ function adminLogout(){
   if(window.parent!==window)window.parent.postMessage({type:'ogl-logout'},window.parent.location.origin);
 }
 async function adminLogin(){
-  if(!window.isSecureContext){adminUpdateStatus('Administrator-Login ist nur über HTTPS erlaubt.',false);return}
   const username=$('adminLoginUsername').value.trim();
   const password=$('adminLoginPassword').value;
   const totp=$('adminLoginTotp').value.trim();
@@ -649,14 +648,15 @@ async function adminLogin(){
   try{
     const body={username,password};
     if(totp)body.totp=totp;
-    const res=await fetch('/api/v1/auth/admin/session',{
+    const res=await fetch('/api/v1/auth/session',{
       method:'POST',headers:{'Content-Type':'application/json','Accept':'application/json'},
       body:JSON.stringify(body),cache:'no-store',credentials:'same-origin'
     });
     const data=await res.json();
     if(!res.ok)throw new Error('HTTP '+res.status+' ('+(data.error||'login_failed')+')');
-    if(Number(data.user_level)<200||!data.scope?.split(/\s+/).includes('admin:*')||!data.administrator)
-      throw new Error('Administratorrolle oder UserLevel 200 fehlt.');
+    if(Number(data.user_level)<200)
+      throw new Error('Zugriff verweigert: UserLevel 200 erforderlich.');
+    if(!data.access_token)throw new Error('Der Server hat kein Sitzungstoken zurückgegeben.');
     adminSessionToken=data.access_token;
     adminSessionExpiry=Date.now()+Math.max(0,Number(data.expires_in||0)-30)*1000;
     if(!adminIsActive())throw new Error('Administratorsitzung bereits abgelaufen.');
