@@ -103,6 +103,13 @@ jobs:
         shell: bash
         run: python3 tools/ci/verify_no_remote_asset_delete_09312.py
 
+      - name: Verify LevelUpload precedence for UDP and CAPS
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/ci/verify_asset_upload_level_consistency.py
+          dotnet run --configuration Release --project tools/ci/AssetUploadLevelRegression/AssetUploadLevelRegression.csproj
+
       - name: Verify runtime secrets are not committed
         shell: bash
         run: python3 tools/ci/verify_no_plaintext_runtime_secrets.py
