@@ -76,7 +76,20 @@ namespace OpenSim.Server.Handlers.Inventory
 
             IServiceAuth auth = ServiceAuth.Create(config, m_ConfigName);
 
-            server.AddStreamHandler(new XInventoryConnectorPostHandler(m_InventoryService, auth));
+            // External HG calls do not carry an authenticated, avatar-bound
+            // authorization proof. A service credential or a caller-supplied
+            // principal UUID is not sufficient to authorize inventory access.
+            // Fail closed for this public endpoint until a secure HG protocol
+            // with per-avatar authorization is implemented.
+            bool publicHypergridInventory = string.Equals(
+                m_ConfigName, "HGInventoryService", StringComparison.OrdinalIgnoreCase);
+            if (publicHypergridInventory)
+                m_log.Warn("[OGL SECURITY]: Public Hypergrid inventory access is blocked " +
+                    "until authenticated per-avatar authorization is implemented. " +
+                    "Local inventory service remains available.");
+
+            server.AddStreamHandler(new XInventoryConnectorPostHandler(
+                m_InventoryService, auth, publicHypergridInventory));
         }
     }
 
@@ -85,16 +98,31 @@ namespace OpenSim.Server.Handlers.Inventory
         private static readonly ILog m_log = LogManager.GetLogger(MethodBase.GetCurrentMethod().DeclaringType);
 
         private IInventoryService m_InventoryService;
+        private readonly bool m_DenyPublicHypergridInventory;
 
-        public XInventoryConnectorPostHandler(IInventoryService service, IServiceAuth auth) :
+        public XInventoryConnectorPostHandler(
+            IInventoryService service, IServiceAuth auth, bool denyPublicHypergridInventory = false) :
                 base("POST", "/xinventory", auth)
         {
             m_InventoryService = service;
+            m_DenyPublicHypergridInventory = denyPublicHypergridInventory;
         }
 
         protected override byte[] ProcessRequest(string path, Stream requestData,
                 IOSHttpRequest httpRequest, IOSHttpResponse httpResponse)
         {
+            // Reject before reading or parsing any caller-supplied inventory IDs.
+            // A remote grid cannot assert another user's principal/owner UUID.
+            // Keep the internal InventoryService connector unchanged.
+            if (m_DenyPublicHypergridInventory)
+            {
+                httpResponse.StatusCode = (int)System.Net.HttpStatusCode.Forbidden;
+                httpResponse.ContentType = "text/plain";
+                return Util.UTF8NoBomEncoding.GetBytes(
+                    "OGL-HG-INV-403: External Hypergrid inventory requires authenticated " +
+                    "per-avatar authorization.");
+            }
+
             string body;
             using(StreamReader sr = new StreamReader(requestData))
                 body = sr.ReadToEnd();
