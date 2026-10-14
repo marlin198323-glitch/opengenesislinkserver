@@ -57,6 +57,11 @@ namespace OpenSim.Services.HypergridService
         protected static IInstantMessageSimConnector m_IMSimConnector;
         protected static readonly ExpiringCacheOS<UUID, string> m_UserLocationMap = new ExpiringCacheOS<UUID, string>(10000);
         protected static readonly ExpiringCacheOS<UUID, string> m_RegionsCache = new ExpiringCacheOS<UUID, string>(60000);
+        // Diagnostic-only negative lookup throttle; every IM still retries
+        // normal presence and UserAgentService lookup (no delivery delay).
+        private static readonly ExpiringCacheOS<UUID, bool> m_UnlocatedUserLog =
+            new ExpiringCacheOS<UUID, bool>(60000);
+
 
         private static bool m_ForwardOfflineGroupMessages;
         private static bool m_InGatekeeper;
@@ -216,7 +221,8 @@ namespace OpenSim.Services.HypergridService
             if (string.IsNullOrEmpty(url) && !foreigner && m_UserAgentService != null)
             {
                 // Let's check with the UAS if the user is elsewhere in HG
-                m_log.DebugFormat("[HG IM SERVICE]: Benutzer ist nicht lokal vorhanden. Standort wird über UserAgentService ermittelt");
+                // Kept silent here: repeat lookups are normal while a foreign
+                // avatar is offline. Log the final result at most once/minute.
                 try
                 {
                     url = m_UserAgentService.LocateUser(toAgentID);
@@ -230,7 +236,20 @@ namespace OpenSim.Services.HypergridService
 
             if (string.IsNullOrEmpty(url))
             {
-                m_log.DebugFormat("[HG IM SERVICE]: Benutzer {0} konnte nicht lokalisiert werden", toAgentID);
+                // Throttle repetitive diagnostics only, not the actual IM
+                // routing/fallback. Otherwise temporary UAS outages would
+                // result in silent, lost cross-grid notifications.
+                lock (m_UnlocatedUserLog)
+                {
+                    if (!m_UnlocatedUserLog.TryGetValue(toAgentID, out bool alreadyLogged))
+                    {
+                        m_UnlocatedUserLog.AddOrUpdate(toAgentID, true, 60);
+                        m_log.DebugFormat(
+                            "[HG IM SERVICE]: Benutzer {0} aktuell nicht lokalisierbar " +
+                            "(weitere gleichartige Meldungen 60 Sekunden unterdrückt; " +
+                            "Zustellversuche laufen unverändert weiter)", toAgentID);
+                    }
+                }
                 return false;
             }
 
