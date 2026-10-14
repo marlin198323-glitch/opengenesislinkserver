@@ -223,7 +223,6 @@
     <Compile Include="Asset\AssetServerGetHandler.cs">
       <SubType>Code</SubType>
     </Compile>
-    <Compile Include="Asset\AssetServerDeleteHandler.cs">
       <SubType>Code</SubType>
     </Compile>
     <Compile Include="Asset\AssetsExistHandler.cs">
