@@ -95,6 +95,10 @@ jobs:
         shell: bash
         run: python3 tools/ci/verify_hg_friends_reconnect_09312.py
 
+      - name: Security audit - public HG inventory must reject mutations
+        shell: bash
+        run: python3 tools/ci/verify_hg_inventory_security_09312.py
+
       - name: Verify runtime secrets are not committed
         shell: bash
         run: python3 tools/ci/verify_no_plaintext_runtime_secrets.py
@@ -496,6 +500,10 @@ jobs:
       - name: OGL German console and signed feature licenses
         shell: bash
         run: dotnet run --configuration Release --project tools/ci/OglFeatureControlRegression/OglFeatureControlRegression.csproj
+
+      - name: Runtime security regression - public Hypergrid inventory verbs
+        shell: bash
+        run: dotnet run --configuration Release --project tools/ci/HgInventorySecurityRegression/HgInventorySecurityRegression.csproj
 
       - name: Runtime LSL core conformance (0.9.3.11)
         shell: bash
