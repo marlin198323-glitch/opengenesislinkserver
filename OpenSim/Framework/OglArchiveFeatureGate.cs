@@ -30,6 +30,25 @@ namespace OpenSim.Framework
 
         public static bool Enabled { get { lock (s_Sync) return s_Enabled; } }
 
+        // The NodeAgent and the archive gate must resolve empty NodeId settings
+        // identically. Otherwise valid policies for the machine name are refused.
+        public static string ResolveNodeId(string configuredNodeId, string fallbackNodeId)
+        {
+            string configured = configuredNodeId?.Trim();
+            return string.IsNullOrWhiteSpace(configured)
+                ? (fallbackNodeId?.Trim() ?? string.Empty)
+                : configured;
+        }
+
+        // NexBus broadcasts feature policies for ALL simulators. Foreign-node
+        // policies are not authorization failures for this simulator.
+        public static bool IsForConfiguredNode(string nodeId)
+        {
+            lock (s_Sync)
+                return s_Enabled && s_NodeId.Length != 0 &&
+                    string.Equals(nodeId, s_NodeId, StringComparison.Ordinal);
+        }
+
         public static void Configure(bool enabled, string nodeId, string publicKeyPem)
         {
             lock (s_Sync)

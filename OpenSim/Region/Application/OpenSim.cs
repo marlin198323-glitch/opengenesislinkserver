@@ -180,7 +180,9 @@ namespace OpenSim
             }
             global::OpenSim.Framework.OglArchiveFeatureGate.Configure(
                 featureConfig?.GetBoolean("Enabled", false) == true,
-                nodeConfig?.GetString("NodeId", Environment.MachineName)?.Trim(),
+                global::OpenSim.Framework.OglArchiveFeatureGate.ResolveNodeId(
+                    nodeConfig?.GetString("NodeId", Environment.MachineName),
+                    Environment.MachineName),
                 publicPem);
             if (global::OpenSim.Framework.OglArchiveFeatureGate.Enabled)
                 m_log.Warn("[OGL FEATURE CONTROL]: Aktive Archivfreigabe: ohne gültige Robust-Richtlinie sind alle Archive gesperrt.");
