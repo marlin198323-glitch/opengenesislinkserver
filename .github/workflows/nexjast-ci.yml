@@ -474,6 +474,14 @@ jobs:
         shell: bash
         run: python3 tools/ci/verify_object_messaging.py
 
+      - name: Verify high-speed flight neighbour prefetch
+        shell: bash
+        run: dotnet run --configuration Release --project tools/ci/FlightNeighbourPrefetchRegression/FlightNeighbourPrefetchRegression.csproj
+
+      - name: Verify flight crossing velocity hand-off
+        shell: bash
+        run: python3 tools/ci/verify_cross_region_flight_velocity.py
+
       - name: Verify cross-region llListen and NexBus chat forwarding
         shell: bash
         run: |
@@ -528,6 +536,10 @@ jobs:
       - name: OGL German console and signed feature licenses
         shell: bash
         run: dotnet run --configuration Release --project tools/ci/OglFeatureControlRegression/OglFeatureControlRegression.csproj
+
+      - name: Regression-test Firestorm Bridge HTTP event string types
+        shell: bash
+        run: dotnet run --configuration Release --project tools/ci/FirestormBridgeHttpRegression/FirestormBridgeHttpRegression.csproj
 
       - name: Runtime LSL core conformance (0.9.3.11)
         shell: bash

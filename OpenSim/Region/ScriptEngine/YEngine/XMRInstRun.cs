@@ -52,10 +52,44 @@ namespace OpenSim.Region.ScriptEngine.Yengine
          * @brief This can be called in any thread (including the script thread itself)
          *        to queue event to script for processing.
          */
+        /// <summary>
+        /// Normalize the incoming URL-request event's key/method/body for
+        /// both modern CLR-string emitters and legacy LSLString emitters.
+        /// This method does not attempt to coerce arbitrary objects or alter
+        /// non-HTTP events.
+        /// </summary>
+        public static object[] NormalizeHttpRequestArgs(object[] args)
+        {
+            if (args == null || args.Length != 3)
+                return args;
+
+            object[] converted = null;
+            for (int i = 0; i < 3; ++i)
+            {
+                if (args[i] is LSL_Types.LSLString lsl)
+                {
+                    converted ??= (object[])args.Clone();
+                    converted[i] = lsl.m_string;
+                }
+            }
+            return converted ?? args;
+        }
+
         public bool PostEvent(EventParams evt)
         {
             if (!m_eventCodeMap.TryGetValue(evt.EventName, out ScriptEventCode evc))
                 return false;
+
+            // An LSL event producer can supply boxed LSLString values.
+            // The compiled http_request(key, string, string) entrypoint and
+            // some legacy scripts expect CLR strings instead. Normalize only
+            // the three textual HTTP parameters without mutating the source.
+            if (evc == ScriptEventCode.http_request)
+            {
+                object[] normalized = NormalizeHttpRequestArgs(evt.Params);
+                if (!ReferenceEquals(normalized, evt.Params))
+                    evt = new EventParams(evt.EventName, normalized, evt.DetectParams);
+            }
 
             if (!m_HaveEventHandlers[(int)evc]) // don't bother if we don't have such a handler in any state
                 return false;
@@ -482,7 +516,10 @@ namespace OpenSim.Region.ScriptEngine.Yengine
             // Save eventCode so we know what event handler to run in the microthread.
             // And it also marks us busy so we can't be started again and this event lost.
             eventCode = newEventCode;
-            ehArgs = newEhArgs;
+            // Also normalize restored/legacy events which can bypass PostEvent.
+            ehArgs = newEventCode == ScriptEventCode.http_request
+                ? NormalizeHttpRequestArgs(newEhArgs)
+                : newEhArgs;
 
             // This calls ScriptUThread.Main() directly, and returns when Main() [indirectly]
             // calls Suspend() or when Main() returns, whichever occurs first.

@@ -63,6 +63,7 @@
   <ItemGroup>
     <Compile Include="AssetUploadLevelPolicy.cs" />
     <Compile Include="AssetDiskCacheCodec.cs" />
+    <Compile Include="FlightNeighbourPrefetchPolicy.cs" />
     <Compile Include="OfflineImMailRelayToken.cs">
       <SubType>Code</SubType>
     </Compile>
