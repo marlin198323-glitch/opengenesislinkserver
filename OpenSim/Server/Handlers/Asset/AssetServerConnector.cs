@@ -65,30 +65,16 @@ namespace OpenSim.Server.Handlers.Asset
             if (m_AssetService == null)
                 throw new Exception(string.Format("Failed to load AssetService from {0}; config is {1}", assetService, m_ConfigName));
 
-            bool allowDelete = serverConfig.GetBoolean("AllowRemoteDelete", false);
-            bool allowDeleteAllTypes = serverConfig.GetBoolean("AllowRemoteDeleteAllTypes", false);
-
             string redirectURL = serverConfig.GetString("RedirectURL", string.Empty);
-
-            AllowedRemoteDeleteTypes allowedRemoteDeleteTypes;
-
-            if (!allowDelete)
-            {
-                allowedRemoteDeleteTypes = AllowedRemoteDeleteTypes.None;
-            }
-            else
-            {
-                if (allowDeleteAllTypes)
-                    allowedRemoteDeleteTypes = AllowedRemoteDeleteTypes.All;
-                else
-                    allowedRemoteDeleteTypes = AllowedRemoteDeleteTypes.MapTile;
-            }
-
             IServiceAuth auth = ServiceAuth.Create(config, m_ConfigName);
 
+            // OGL SECURITY: Intentionally do NOT register HTTP DELETE /assets.
+            // This endpoint was capable of deleting every asset type when enabled
+            // by legacy settings, including when a public asset listener was exposed.
+            // Old AllowRemoteDelete* entries in external .ini files have no effect.
+            // Local maintenance remains exclusively an operator-console operation.
             server.AddStreamHandler(new AssetServerGetHandler(m_AssetService, auth, redirectURL));
             server.AddStreamHandler(new AssetServerPostHandler(m_AssetService, auth));
-            server.AddStreamHandler(new AssetServerDeleteHandler(m_AssetService, allowedRemoteDeleteTypes, auth));
             server.AddStreamHandler(new AssetsExistHandler(m_AssetService));
 
             MainConsole.Instance.Commands.AddCommand("Assets", false,
