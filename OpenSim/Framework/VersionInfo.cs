@@ -35,7 +35,7 @@ namespace OpenSim
         public const string AssemblyVersionNumber = "0.9.3.12";
 
         // Development test rollout: RC1 requires separate, evidence-backed approval.
-        public const Flavour VERSION_FLAVOUR = Flavour.Dev;
+        public const Flavour VERSION_FLAVOUR = Flavour.Release;
 
         public enum Flavour
         {
