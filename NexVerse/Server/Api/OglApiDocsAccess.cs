@@ -81,16 +81,13 @@ namespace NexVerse.Server.Api
                 return;
             }
 
-            // The client has an HTTPS connection to the front proxy but the
-            // backend may use HTTP. A trusted proxy must attest the outer TLS
-            // scheme. A missing header previously yielded a misleading 401,
-            // even for a successfully authenticated level-200 GridUser.
-            if (!IsSecureTransport(request))
+            // Anonymous requests remain 401 even when the backend uses plain
+            // HTTP. Transport diagnostics are revealed only to a bearer holder.
+            string authorization = request.Headers?["Authorization"] ?? string.Empty;
+            if (!authorization.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase) ||
+                !string.IsNullOrWhiteSpace(request.Headers?["X-NexVerse-Api-Key"]))
             {
-                m_Log.Warn("[OGL-DOCS]: Adminpanel verweigert: Backend konnte HTTPS nicht " +
-                    "bestätigen. Reverse-Proxy X-Forwarded-Proto und " +
-                    "AdminDocsTrustedProxyAddresses prüfen.");
-                Reject(response, HttpStatusCode.UpgradeRequired, "https_not_verified");
+                Reject(response, HttpStatusCode.Unauthorized, "admin_token_required");
                 return;
             }
 
@@ -100,13 +97,16 @@ namespace NexVerse.Server.Api
                 return;
             }
 
-            // Never grant browser admin access from a machine API key, a service
-            // principal, or any claimed UserLevel supplied by the browser.
-            string authorization = request.Headers?["Authorization"] ?? string.Empty;
-            if (!authorization.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase) ||
-                !string.IsNullOrWhiteSpace(request.Headers?["X-NexVerse-Api-Key"]))
+            // The client has an HTTPS connection to the front proxy but the
+            // backend may use HTTP. A trusted proxy must attest the outer TLS
+            // scheme. A missing header previously yielded a misleading 401
+            // even for a successfully authenticated level-200 GridUser.
+            if (!IsSecureTransport(request))
             {
-                Reject(response, HttpStatusCode.Unauthorized, "admin_token_required");
+                m_Log.Warn("[OGL-DOCS]: Adminpanel verweigert: Backend konnte HTTPS nicht " +
+                    "bestätigen. Reverse-Proxy X-Forwarded-Proto und " +
+                    "AdminDocsTrustedProxyAddresses prüfen.");
+                Reject(response, HttpStatusCode.UpgradeRequired, "https_not_verified");
                 return;
             }
 
