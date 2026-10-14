@@ -16,11 +16,14 @@ ob produktive Server tatsächlich angegriffen wurden.
 
 ## Sofortige Gegenmaßnahme
 
-Die öffentlich konfigurierte `HGInventoryService`-Instanz wird vom
-`XInventoryInConnector` eindeutig identifiziert. Ihr HTTP-Handler antwortet
-für alle Inventaroperationen **vor** dem Auswerten von Anfrageparametern mit
-`HTTP 403` (`OGL-HG-INV-403`). Weder eine frei übermittelte UUID noch
+In den mitgelieferten ROBUST-HG-Konfigurationen ist die Registrierung
+des öffentlichen `HGInventoryService`-Connectors **deaktiviert**:
+Standardantwort deshalb **HTTP 404**. Zusätzlich wird jeder manuell bzw.
+durch eine ältere INI weiterhin aktivierte öffentliche HG-Inventory-Handler
+vom C#-Code **vor** dem Auswerten von Anfrageparametern mit **HTTP 403**
+(`OGL-HG-INV-403`) abgewiesen. Weder eine frei übermittelte UUID noch
 BasicAuth oder eine gefälschte Besitzerkennung schalten diese Sperre frei.
+Auf Standalone-HG-Installationen greift diese Code-Sperre ebenfalls.
 
 Der private Standard-`InventoryService`-Connector bleibt unverändert.
 Der Mechanismus greift für die ROBUST-Hypergrid-Konfigurationen und den
@@ -36,7 +39,8 @@ OpenGenesisLINK-Serverbinary; ein `.ini`-Toggle kann ihn nicht aushebeln.
    kontrolliert neu starten. Ein Git-Merge alleine aktualisiert laufende
    Instanzen nicht.
 3. Auf dem öffentlichen HG-Endpunkt bestätigen, dass eine Inventaranfrage
-   ohne Autorisierung HTTP 403 ergibt. **Keine echten Nutzerdaten** verwenden,
+   ohne Autorisierung HTTP 404 (Route deaktiviert) beziehungsweise 403
+   (zusätzliche Handler-Sperre bei alter Konfiguration) ergibt. **Keine echten Nutzerdaten** verwenden,
    keine produktiven Inventare verändern. Schreiber- und Lesezugriffe sind
    gleichermaßen gesperrt.
 4. Die interne Inventarschnittstelle am PrivatePort nur für vertrauenswürdige
