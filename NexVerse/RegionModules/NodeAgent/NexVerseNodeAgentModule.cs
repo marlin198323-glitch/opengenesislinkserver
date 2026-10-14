@@ -80,6 +80,8 @@ namespace NexVerse.RegionModules.NodeAgent
         private IDisposable m_EstateScriptMessageSubscription;
         private IDisposable m_CrossRegionChatSubscription;
         private IDisposable m_FeaturePolicySubscription;
+        // A malformed own-node policy must remain visible without flooding the log.
+        private long m_LastOwnFeaturePolicyWarningSeconds;
         private volatile bool m_MaintenanceMode;
         private volatile bool m_Draining;
         private DateTimeOffset m_StartedAt;
@@ -114,9 +116,9 @@ namespace NexVerse.RegionModules.NodeAgent
                 return;
             }
 
-            m_NodeId = config.GetString("NodeId", Environment.MachineName).Trim();
-            if (string.IsNullOrWhiteSpace(m_NodeId))
-                m_NodeId = Environment.MachineName;
+            m_NodeId = OglArchiveFeatureGate.ResolveNodeId(
+                config.GetString("NodeId", Environment.MachineName),
+                Environment.MachineName);
 
             m_SharedKey = sharedKey;
             m_InboundPath = config.GetString(
@@ -1020,11 +1022,34 @@ namespace NexVerse.RegionModules.NodeAgent
                 !ev.Data.TryGetValue("signature", out string signature))
                 return;
 
+            // NexBus broadcasts every node's renewal. Ignore policies addressed
+            // to another node WITHOUT attempting signature verification or
+            // treating them as security incidents on this simulator.
+            if (!OglArchiveFeatureGate.IsForConfiguredNode(node))
+                return;
+
             if (OglArchiveFeatureGate.Apply(node, revision, expires, flags, signature))
-                m_Log.InfoFormat("[OGL FEATURE CONTROL]: Richtlinie von Robust aktualisiert: Node {0}, Flags {1}.",
+            {
+                Interlocked.Exchange(ref m_LastOwnFeaturePolicyWarningSeconds, 0);
+                m_Log.DebugFormat(
+                    "[OGL FEATURE CONTROL]: Eigene Richtlinie aktualisiert: Node {0}, Flags {1}.",
                     node, flags);
+            }
             else
-                m_Log.Warn("[OGL FEATURE CONTROL]: Ungültige, fremde oder abgelaufene Richtlinie verworfen.");
+            {
+                // Bad own-node signatures/expiry remain fail-closed. Warn at
+                // most once per 120 seconds, without disclosing signatures.
+                long now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+                long previous = Interlocked.Read(ref m_LastOwnFeaturePolicyWarningSeconds);
+                if (now - previous >= 120 &&
+                    Interlocked.CompareExchange(
+                        ref m_LastOwnFeaturePolicyWarningSeconds, now, previous) == previous)
+                    m_Log.WarnFormat(
+                        "[OGL FEATURE CONTROL]: Richtlinie für eigene Node {0} abgewiesen " +
+                        "(Revision {1}, Ablauf UTC {2}). NodeId, ES256-Public-Key, " +
+                        "ROBUST-Signing-Key und Systemzeit prüfen. Archivfreigaben bleiben gesperrt.",
+                        node, revision, expires);
+            }
         }
 
         private void PublishHeartbeatSafe()
