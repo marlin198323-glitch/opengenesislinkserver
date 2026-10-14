@@ -24,3 +24,7 @@ bin/nexverse.local.env
 # Runtime-created Mono.Addins registry and map tile cache (never version)
 bin/addin-db-*/
 bin/maptiles/
+
+# Grid-specific terrain source data and accidental filesystem cache copy
+bin/nexverse-deutschland/
+bin/opt/
