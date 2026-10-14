@@ -76,20 +76,30 @@ namespace OpenSim.Server.Handlers.Inventory
 
             IServiceAuth auth = ServiceAuth.Create(config, m_ConfigName);
 
-            // External HG calls do not carry an authenticated, avatar-bound
-            // authorization proof. A service credential or a caller-supplied
-            // principal UUID is not sufficient to authorize inventory access.
-            // Fail closed for this public endpoint until a secure HG protocol
-            // with per-avatar authorization is implemented.
+            // OpenSim legacy HG does not provide avatar-bound caller authorization.
+            // Keep the default fail-closed even if a route is accidentally registered.
+            // Operators may explicitly opt in for temporary legacy HG compatibility;
+            // this is a compatibility switch, NOT a security fix.
             bool publicHypergridInventory = string.Equals(
                 m_ConfigName, "HGInventoryService", StringComparison.OrdinalIgnoreCase);
+            bool allowLegacyPublicHypergridInventory = publicHypergridInventory &&
+                serverConfig.GetBoolean("AllowLegacyPublicHGInventory", false);
             if (publicHypergridInventory)
-                m_log.Warn("[OGL SECURITY]: Public Hypergrid inventory access is blocked " +
-                    "until authenticated per-avatar authorization is implemented. " +
-                    "Local inventory service remains available.");
+            {
+                if (allowLegacyPublicHypergridInventory)
+                    m_log.Warn("[OGL SECURITY][LEGACY HG]: Public /xinventory explicitly " +
+                        "ENABLED without verified per-avatar authorization. " +
+                        "Unauthorized inventory reads/writes may be possible. " +
+                        "Disable AllowLegacyPublicHGInventory when no longer required.");
+                else
+                    m_log.Warn("[OGL SECURITY]: Public Hypergrid inventory access is blocked " +
+                        "until authenticated per-avatar authorization is implemented. " +
+                        "Local inventory service remains available.");
+            }
 
             server.AddStreamHandler(new XInventoryConnectorPostHandler(
-                m_InventoryService, auth, publicHypergridInventory));
+                m_InventoryService, auth,
+                publicHypergridInventory && !allowLegacyPublicHypergridInventory));
         }
     }
 
