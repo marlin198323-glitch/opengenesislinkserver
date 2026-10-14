@@ -210,8 +210,7 @@ namespace NexVerse.Server.Api
                 new NexChatGptInstructionDownloads(publicBaseUrl);
             // Keep the login shell reachable even without privileged endpoints.
             // The panel fails closed until a real GridUser authenticator is configured.
-            OglApiDocsAccess oglDocs = new OglApiDocsAccess(
-                apiConfig.GetString("AdminDocsTrustedProxyAddresses", string.Empty));
+            OglApiDocsAccess oglDocs = new OglApiDocsAccess();
             server.AddSimpleStreamHandler(new SimpleStreamHandler(
                 "/api/v1/docs", apiGate.Wrap(oglDocs.HandleLogin),
                 "OpenGenesisLINK Control Center Login"));
