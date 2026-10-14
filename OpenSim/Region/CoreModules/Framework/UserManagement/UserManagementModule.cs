@@ -835,7 +835,12 @@ namespace OpenSim.Region.CoreModules.Framework.UserManagement
                     if (otmp.IsValidHost)
                         return otmp.URI;
                 }
-                return string.Empty;
+                // A negative FriendsServerURI cached from an earlier
+                // partial discovery must not survive every later relog.
+                // Re-fetch now; failed discovery below is rate-limited.
+                if (!serverType.Equals("FriendsServerURI", StringComparison.OrdinalIgnoreCase))
+                    return string.Empty;
+                userdata.ServerURLs = null;
             }
 
             if (!string.IsNullOrEmpty(userdata.HomeURL))
@@ -916,7 +921,12 @@ namespace OpenSim.Region.CoreModules.Framework.UserManagement
                     if (otmp.IsValidHost)
                         return otmp.URI;
                 }
-                return string.Empty;
+                // A negative FriendsServerURI cached from an earlier
+                // partial discovery must not survive every later relog.
+                // Re-fetch now; failed discovery below is rate-limited.
+                if (!serverType.Equals("FriendsServerURI", StringComparison.OrdinalIgnoreCase))
+                    return string.Empty;
+                userdata.ServerURLs = null;
             }
 
             if (!recentFail && !string.IsNullOrEmpty(userdata.HomeURL))
