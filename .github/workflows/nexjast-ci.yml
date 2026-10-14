@@ -69,6 +69,20 @@ jobs:
           # Do not invoke an empty operator manifest as a simulated PASS:
           # the real RC1/Stable evidence check is a separate manual gate.
 
+      - name: Regression-test 0.9.3.12 RC1 release evidence gate
+        shell: bash
+        run: |
+          python3 -m unittest discover -s tools/ci -p 'test_09312_release_gate.py' -v
+          # A blank manifest MUST NOT be accepted as an RC1 sign-off.
+          directory="$(mktemp -d)"
+          trap 'rm -rf "$directory"' EXIT
+          python3 tools/release/ogl_09312_gate.py init --manifest "$directory/manifest.json"
+          python3 tools/release/ogl_09312_gate.py inventory --manifest "$directory/manifest.json"
+          if python3 tools/release/ogl_09312_gate.py rc1 --manifest "$directory/manifest.json"; then
+            echo "::error::0.9.3.12 RC1 gate accepted empty evidence"
+            exit 1
+          fi
+
       - name: Verify runtime secrets are not committed
         shell: bash
         run: python3 tools/ci/verify_no_plaintext_runtime_secrets.py
