@@ -14,7 +14,7 @@ namespace OpenSim.Framework
         public const float MaximumLookAheadMetres = 128f;
 
         public static bool NeedsPrefetch(bool isFlying, Vector3 position,
-            Vector3 velocity, int regionSizeX, int regionSizeY)
+            Vector3 velocity, uint regionSizeX, uint regionSizeY)
         {
             if (!isFlying || regionSizeX <= 0 || regionSizeY <= 0)
                 return false;
