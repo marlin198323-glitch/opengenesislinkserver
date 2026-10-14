@@ -208,6 +208,15 @@ namespace NexVerse.Server.Api
             NexVerseWorldApiHandlers handlers = new NexVerseWorldApiHandlers(publicBaseUrl, eventBus, publicAuditSink);
             NexChatGptInstructionDownloads chatGptInstructions =
                 new NexChatGptInstructionDownloads(publicBaseUrl);
+            // Keep the login shell reachable even without privileged endpoints.
+            // The panel fails closed until a real GridUser authenticator is configured.
+            OglApiDocsAccess oglDocs = new OglApiDocsAccess();
+            server.AddSimpleStreamHandler(new SimpleStreamHandler(
+                "/api/v1/docs", apiGate.Wrap(oglDocs.HandleLogin),
+                "OpenGenesisLINK Control Center Login"));
+            server.AddSimpleStreamHandler(new SimpleStreamHandler(
+                "/api/v1/docs/panel", apiGate.Wrap(oglDocs.HandlePanel),
+                "OpenGenesisLINK protected administration panel"));
 
             server.AddSimpleStreamHandler(new SimpleStreamHandler("/api/v1", apiGate.Wrap(handlers.Root), "NexVerse World API"));
             server.AddSimpleStreamHandler(new SimpleStreamHandler("/api/v1/chatgpt-instructions.md", apiGate.Wrap(chatGptInstructions.HandleAll), "NexVerse ChatGPT API Instructions"));
@@ -490,16 +499,10 @@ namespace NexVerse.Server.Api
                     apiKeyStore,
                     adminMinimumLevel);
 
-                // Login markup is public; the admin panel requires a valid GridUser
-                // access token with current UserLevel >= 200 and admin:*.
-                OglApiDocsAccess oglDocs = new OglApiDocsAccess(
+                // Attach the existing, server-side native admin authenticator
+                // once privileged services are available. No duplicate routing.
+                oglDocs.ConfigureAdministratorAccess(
                     authenticator, adminMinimumLevel);
-                server.AddSimpleStreamHandler(new SimpleStreamHandler(
-                    "/api/v1/docs", apiGate.Wrap(oglDocs.HandleLogin),
-                    "OpenGenesisLINK Control Center Login"));
-                server.AddSimpleStreamHandler(new SimpleStreamHandler(
-                    "/api/v1/docs/panel", apiGate.Wrap(oglDocs.HandlePanel),
-                    "OpenGenesisLINK protected administration panel"));
 
                 OglFeatureControlApi featureControl = null;
                 IConfig featureConfig = config.Configs["OGLFeatureControl"];
