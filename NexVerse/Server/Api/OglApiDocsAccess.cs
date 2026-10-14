@@ -12,41 +12,22 @@ namespace NexVerse.Server.Api
     /// OpenGenesisLINK Control Center access boundary.
     /// /api/v1/docs is a login-only shell; full UI markup lives at
     /// /api/v1/docs/panel and is NEVER sent before a server-side
-    /// bearer-token, local GridUser, scope and UserLevel check.
+    /// bearer-token, local GridUser identity and UserLevel >= 200 check.
     /// Existing machine-key API clients and public OpenAPI routes are unchanged.
     /// </summary>
     internal sealed class OglApiDocsAccess
     {
-        private static readonly log4net.ILog m_Log =
-            log4net.LogManager.GetLogger(typeof(OglApiDocsAccess));
-
         private readonly NexApiDocsPage m_Docs = new();
-        private readonly System.Collections.Generic.HashSet<string> m_TrustedProxies =
-            new(StringComparer.OrdinalIgnoreCase);
         private volatile NexApiAuthenticator m_Authenticator;
-        private int m_MinimumLevel = 200;
+        private const int MinimumLevel = 200;
 
-        // Loopback TLS-terminating proxies are trusted by default. Non-loopback
-        // proxy IPs must be explicitly allowlisted by the administrator; never
-        // trust client-provided IP headers to establish this peer identity.
-        public OglApiDocsAccess(string trustedProxyAddresses = "")
-        {
-            foreach (string raw in (trustedProxyAddresses ?? string.Empty).Split(
-                ',', StringSplitOptions.RemoveEmptyEntries))
-            {
-                string address = raw.Trim();
-                if (!IPAddress.TryParse(address, out IPAddress parsed))
-                    throw new ArgumentException(
-                        "Ungültige IP-Adresse in AdminDocsTrustedProxyAddresses.",
-                        nameof(trustedProxyAddresses));
-                m_TrustedProxies.Add(NormalizeAddress(parsed));
-            }
-        }
+        public OglApiDocsAccess() { }
 
         public void ConfigureAdministratorAccess(
             NexApiAuthenticator authenticator, int minimumLevel)
         {
-            m_MinimumLevel = Math.Max(200, minimumLevel);
+            // Control Center access is intentionally based on the fixed
+            // GridUser threshold, not secondary administrator roles/scopes.
             m_Authenticator = authenticator ??
                 throw new ArgumentNullException(nameof(authenticator));
         }
@@ -81,8 +62,9 @@ namespace NexVerse.Server.Api
                 return;
             }
 
-            // Anonymous requests remain 401 even when the backend uses plain
-            // HTTP. Transport diagnostics are revealed only to a bearer holder.
+            // Never serve the dashboard without a valid signed session token.
+            // The password is checked by /api/v1/auth/session; here we check
+            // the same local GridUser identity and its current UserLevel.
             string authorization = request.Headers?["Authorization"] ?? string.Empty;
             if (!authorization.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase) ||
                 !string.IsNullOrWhiteSpace(request.Headers?["X-NexVerse-Api-Key"]))
@@ -97,21 +79,8 @@ namespace NexVerse.Server.Api
                 return;
             }
 
-            // The client has an HTTPS connection to the front proxy but the
-            // backend may use HTTP. A trusted proxy must attest the outer TLS
-            // scheme. A missing header previously yielded a misleading 401
-            // even for a successfully authenticated level-200 GridUser.
-            if (!IsSecureTransport(request))
-            {
-                m_Log.Warn("[OGL-DOCS]: Adminpanel verweigert: Backend konnte HTTPS nicht " +
-                    "bestätigen. Reverse-Proxy X-Forwarded-Proto und " +
-                    "AdminDocsTrustedProxyAddresses prüfen.");
-                Reject(response, HttpStatusCode.UpgradeRequired, "https_not_verified");
-                return;
-            }
-
             if (!m_Authenticator.TryAuthenticate(
-                    request, NexScopes.AdminAll,
+                    request, string.Empty,
                     out NexPrincipal principal, out UserAccount account,
                     out int authStatus, out string _))
             {
@@ -128,8 +97,7 @@ namespace NexVerse.Server.Api
             if (!principal.IsAuthenticated ||
                 account == null ||
                 !account.LoginAllowed ||
-                account.UserLevel < m_MinimumLevel ||
-                !principal.HasScope(NexScopes.AdminAll) ||
+                account.UserLevel < MinimumLevel ||
                 !string.Equals(principal.Subject, account.PrincipalID.ToString(),
                     StringComparison.OrdinalIgnoreCase))
             {
@@ -139,30 +107,6 @@ namespace NexVerse.Server.Api
 
             m_Docs.Handle(request, response);
             response.AddHeader("X-Frame-Options", "SAMEORIGIN");
-        }
-
-        private static string NormalizeAddress(IPAddress address) =>
-            address.IsIPv4MappedToIPv6
-                ? address.MapToIPv4().ToString()
-                : address.ToString();
-
-        private bool IsSecureTransport(IOSHttpRequest request)
-        {
-            if (request.IsSecured)
-                return true;
-
-            IPAddress peer = request.RemoteIPEndPoint?.Address;
-            if (peer == null)
-                return false;
-
-            bool trusted = IPAddress.IsLoopback(peer) ||
-                (peer.IsIPv4MappedToIPv6 && IPAddress.IsLoopback(peer.MapToIPv4())) ||
-                m_TrustedProxies.Contains(NormalizeAddress(peer));
-            // Exact scheme only: no comma-separated values or forwarded chain
-            // which an untrusted client could prepend.
-            return trusted &&
-                string.Equals(request.Headers?["X-Forwarded-Proto"]?.Trim(),
-                    "https", StringComparison.OrdinalIgnoreCase);
         }
 
         private static void CommonHeaders(IOSHttpResponse response)
@@ -227,7 +171,7 @@ label{display:block;color:#d3deed;font-size:12px;margin:18px 0 8px;font-weight:6
 <header class="top"><div class="brand"><div class="sigil">OGL</div><div><strong>OpenGenesisLINK</strong><span>World API · Control Center</span></div></div><div class="topright"><i class="light" aria-hidden="true"></i> Secure administration <span> / </span> OGL 0.9.3.12</div></header>
 <main class="stage">
 <section class="showcase"><div class="eyebrow">The next generation of OpenSimulator</div><h1>Deine Welt.<br><em>Deine Kontrolle.</em></h1><div class="intro">Willkommen im OpenGenesisLINK Control Center. Verwalte Simulator-Nodes, Grid-Regionen, Dienste, Sicherheit, API-Zugänge und die Infrastruktur deiner virtuellen Welt an einem zentralen Ort.</div><div class="highlights"><div class="highlight">◈ Grid &amp; Regions</div><div class="highlight">⬡ Simulator Control</div><div class="highlight">⌁ World API Explorer</div></div><div class="orbit" aria-hidden="true"></div></section>
-<div class="window"><section class="login"><div class="loginkicker">Authorized Personnel Only</div><h2>Administrator Login</h2><p>Bitte melde dich mit deinem lokalen GridUser-Konto an. Nur Benutzer ab <strong>UserLevel 200</strong> und Administratorberechtigung erhalten Zugang.</p><form id="adminForm" autocomplete="on"><label for="username">Grid-Benutzername</label><input id="username" name="username" autocomplete="username" maxlength="100" required placeholder="Vorname.Nachname"><div class="fieldhelp">Beispiel: Sleimer.Akina oder Vorname Resident</div><label for="password">Passwort</label><input id="password" name="password" autocomplete="current-password" type="password" maxlength="256" required placeholder="Dein Grid-Passwort"><div class="formlabel"><label for="totp">Zwei-Faktor-Code (falls aktiviert)</label><span>Optional</span></div><input id="totp" name="totp" autocomplete="one-time-code" inputmode="numeric" maxlength="12" placeholder="6-stelliger TOTP-Code"><button class="submit" id="submit" type="submit">Sicher anmelden →</button><div class="status" id="status" role="status" aria-live="polite">Verschlüsselte Administrator-Anmeldung über die World API.</div></form><div class="footnote">Anmeldung ausschließlich über HTTPS. Rechte werden auf dem Server geprüft. Zugangstokens werden weder in Cookies noch im Browserspeicher gespeichert.</div></section></div>
+<div class="window"><section class="login"><div class="loginkicker">Authorized Personnel Only</div><h2>Administrator Login</h2><p>Bitte melde dich mit deinem lokalen GridUser-Konto an. Zugang für lokale GridUser ab <strong>UserLevel 200</strong>.</p><form id="adminForm" autocomplete="on"><label for="username">Grid-Benutzername</label><input id="username" name="username" autocomplete="username" maxlength="100" required placeholder="Vorname.Nachname"><div class="fieldhelp">Beispiel: Sleimer.Akina oder Vorname Resident</div><label for="password">Passwort</label><input id="password" name="password" autocomplete="current-password" type="password" maxlength="256" required placeholder="Dein Grid-Passwort"><div class="formlabel"><label for="totp">Zwei-Faktor-Code (falls aktiviert)</label><span>Optional</span></div><input id="totp" name="totp" autocomplete="one-time-code" inputmode="numeric" maxlength="12" placeholder="6-stelliger TOTP-Code"><button class="submit" id="submit" type="submit">Sicher anmelden →</button><div class="status" id="status" role="status" aria-live="polite">Mit Grid-Benutzername und Passwort anmelden.</div></form><div class="footnote">Benutzername, Passwort und UserLevel werden auf dem Server geprüft. HTTPS wird zum Schutz deiner Zugangsdaten empfohlen. Sitzungstokens bleiben nur im Arbeitsspeicher.</div></section></div>
 </main>
 <footer class="bottom"><div>© OpenGenesisLINK · OGL Server Technology</div><div>Protected administration environment</div></footer>
 </div>
@@ -251,17 +195,17 @@ window.addEventListener('message',event=>{
 });
 form.addEventListener('submit',async event=>{
   event.preventDefault();
-  if(!window.isSecureContext || location.protocol!=='https:'){message('HTTPS ist für die Administrator-Anmeldung zwingend erforderlich.',true);return;}
   if(!form.reportValidity())return;
   submit.disabled=true;message('Anmeldung wird überprüft …',false);
   try{
     const credentials={username:form.elements.namedItem('username').value.trim(),password:form.elements.namedItem('password').value};
     if(form.elements.namedItem('totp').value.trim())credentials.totp=form.elements.namedItem('totp').value.trim();
-    const login=await fetch('/api/v1/auth/admin/session',{method:'POST',headers:{'Content-Type':'application/json','Accept':'application/json'},body:JSON.stringify(credentials),cache:'no-store',credentials:'same-origin'});
+    const login=await fetch('/api/v1/auth/session',{method:'POST',headers:{'Content-Type':'application/json','Accept':'application/json'},body:JSON.stringify(credentials),cache:'no-store',credentials:'same-origin'});
     form.elements.namedItem('password').value='';form.elements.namedItem('totp').value='';
     const data=await login.json().catch(()=>({}));
-    if(!login.ok)throw Error(login.status===403?'Keine Berechtigung: UserLevel 200 und admin:* erforderlich.':login.status===401?'Anmeldung fehlgeschlagen. Zugangsdaten oder TOTP überprüfen.':'Administrator-Dienst nicht verfügbar (HTTP '+login.status+').');
-    if(!data.administrator||Number(data.user_level)<200||!String(data.scope||'').split(/\s+/).includes('admin:*')||!data.access_token)throw Error('Dieses Konto hat keine gültige OGL-Administratorberechtigung.');
+    if(!login.ok)throw Error(login.status===401?'Anmeldung fehlgeschlagen. Benutzername, Passwort oder TOTP überprüfen.':'Anmeldung fehlgeschlagen (HTTP '+login.status+').');
+    if(Number(data.user_level)<200)throw Error('Zugriff verweigert: UserLevel 200 erforderlich.');
+    if(typeof data.access_token!=='string'||!data.access_token)throw Error('Der Server hat kein Sitzungstoken zurückgegeben.');
     token=data.access_token;
     expires=Date.now()+Math.max(0,Number(data.expires_in||0)-30)*1000;
     if(!expires||expires<=Date.now())throw Error('Die Administratorsitzung ist bereits abgelaufen.');
@@ -273,7 +217,7 @@ form.addEventListener('submit',async event=>{
         admin_api_disabled:'Der Administrator-Dienst ist nicht aktiviert.',
         admin_token_required:'Das Sitzungstoken wurde nicht übermittelt.',
         admin_session_invalid:'Die Administrator-Sitzung ist ungültig oder abgelaufen.',
-        admin_permission_required:'GridUser-Berechtigung erforderlich: UserLevel mindestens 200 und admin:*.'};
+        admin_permission_required:'Zugriff verweigert: UserLevel 200 erforderlich.'};
       throw Error(messages[errorCode]||('Zugang zum Control Center verweigert (HTTP '+panel.status+').'));
     }
     const html=await panel.text();

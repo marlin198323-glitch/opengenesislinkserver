@@ -85,7 +85,7 @@ for name in ("NEXVERSE_EXPERIENCES_API_KEY",
 assert admin_route in api
 ui=contents("NexVerse/Server/Api/NexApiDocsPage.cs")
 for marker in ('data-page="adminlogin"','id="page-adminlogin"','id="adminLoginPassword"',
-               "'/api/v1/auth/admin/session'","function adminIsActive()", "function adminLogout()",
+               "'/api/v1/auth/session'","function adminIsActive()", "function adminLogout()",
                "'secrets','nodes','grid'", 'id="page-secrets"',
                "'/api/v1/auth/api-keys'","window.crypto.getRandomValues(bytes)"):
     assert marker in ui,marker
