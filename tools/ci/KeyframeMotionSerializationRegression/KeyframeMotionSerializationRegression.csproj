@@ -7,6 +7,10 @@
     <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
   </PropertyGroup>
   <ItemGroup>
+    <Reference Include="OpenMetaverse">
+      <HintPath>../../../bin/OpenMetaverse.dll</HintPath>
+      <Private>True</Private>
+    </Reference>
     <ProjectReference Include="../../../OpenSim/Region/Framework/OpenSim.Region.Framework.csproj" />
   </ItemGroup>
 </Project>
