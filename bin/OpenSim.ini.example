@@ -40,6 +40,9 @@
     PrivatePort = "8003"
 
 [Startup]
+    ; IAR-Fortschritt live neben der lokalen Konsolen-Eingabe anzeigen.
+    ; Remote-Konsole: show iar progress (manuelle Live-Abfrage).
+    OGLIarLiveProgress = true
     meshing = Meshmerizer
     physics = BulletSim
     EnableCertConverter = false

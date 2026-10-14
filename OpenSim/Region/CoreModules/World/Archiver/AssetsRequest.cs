@@ -160,7 +160,7 @@ namespace OpenSim.Region.CoreModules.World.Archiver
                     sbyte assetType = kvp.Value;
                     if (asset != null && assetType == (sbyte)AssetType.Unknown)
                     {
-                        m_log.InfoFormat("[ARCHIVER]: Rewriting broken asset type for {0} to {1}", thiskey, SLUtil.AssetTypeFromCode(assetType));
+                        m_log.InfoFormat("[ARCHIVER]: Korrigiere beschädigten Asset-Typ für {0} auf {1}.", thiskey, SLUtil.AssetTypeFromCode(assetType));
                         asset.Type = assetType;
                     }
 
@@ -175,13 +175,13 @@ namespace OpenSim.Region.CoreModules.World.Archiver
 
                 catch (Exception e)
                 {
-                    m_log.ErrorFormat("[ARCHIVER]: Execute failed with {0}", e);
+                    m_log.ErrorFormat("[ARCHIVER]: Verarbeitung fehlgeschlagen: {0}", e);
                 }
                 finally
                 {
                     // Includes missing/damaged assets so the progress denominator is accurate.
                     try { m_progressCallback?.Invoke(++m_assetsProcessed, m_repliesRequired); }
-                    catch (Exception e) { m_log.Warn("[ARCHIVER]: Asset progress callback failed.", e); }
+                    catch (Exception e) { m_log.Warn("[ARCHIVER]: Asset-Fortschrittsrückmeldung fehlgeschlagen.", e); }
                 }
             }
 
@@ -189,11 +189,11 @@ namespace OpenSim.Region.CoreModules.World.Archiver
             int totalerrors = m_notFoundAssetUuids.Count + m_previousErrorsCount;
 
             if(m_timeout)
-                m_log.DebugFormat("[ARCHIVER]: Aborted because AssetService request timeout. Successfully added {0} assets", m_foundAssetUuids.Count);
+                m_log.WarnFormat("[ARCHIVER]: Zeitüberschreitung beim AssetService. Bis zum Abbruch wurden {0} Assets gesichert.", m_foundAssetUuids.Count);
             else if(totalerrors == 0)
-                m_log.DebugFormat("[ARCHIVER]: Successfully added all {0} assets", m_foundAssetUuids.Count);
+                m_log.DebugFormat("[ARCHIVER]: Alle {0} angeforderten Assets wurden gesichert.", m_foundAssetUuids.Count);
             else
-                m_log.DebugFormat("[ARCHIVER]: Successfully added {0} assets ({1} of total possible assets requested were not found, were damaged or were not assets)",
+                m_log.WarnFormat("[ARCHIVER]: {0} Assets gesichert; {1} angeforderte Einträge waren nicht auffindbar, beschädigt oder keine gültigen Assets (Archiv möglicherweise unvollständig).",
                             m_foundAssetUuids.Count, totalerrors);
 
             GC.Collect();

@@ -58,6 +58,22 @@ namespace OpenSim.Framework.Console
         private int m_cursorYPosition = -1;
         private int m_cursorXPosition = 0;
         private StringBuilder m_commandLine = new StringBuilder();
+        // Non-persistent, console-only status next to the editable command
+        // prompt. It is never inserted into the log stream or command text.
+        private string m_oglIarStatus = string.Empty;
+        private int m_lastOglIarStatusLength;
+
+        public void UpdateOglIarProgress(string status)
+        {
+            status = status ?? string.Empty;
+            // Bound text to prevent huge server messages wrapping the prompt.
+            if (status.Length > 72)
+                status = status.Substring(0, 72);
+            LockOutput();
+            try { m_oglIarStatus = status; }
+            finally { UnlockOutput(); }
+        }
+
         private bool m_echo = true;
         private List<string> m_history = new List<string>();
 
@@ -289,6 +305,13 @@ namespace OpenSim.Framework.Console
                 if (m_cursorYPosition == -1 || System.Console.BufferWidth == 0)
                     return;
 
+                int room = System.Console.BufferWidth - prompt.Length - m_commandLine.Length - 1;
+                string suffix = m_oglIarStatus.Length > 0 && room > 12
+                    ? " | " + m_oglIarStatus.Substring(0, Math.Min(m_oglIarStatus.Length, room - 3))
+                    : string.Empty;
+                int previousSuffix = m_lastOglIarStatusLength;
+                m_lastOglIarStatusLength = suffix.Length;
+
                 int xc = prompt.Length + m_cursorXPosition;
                 int new_x = xc % System.Console.BufferWidth;
 
@@ -310,6 +333,10 @@ namespace OpenSim.Framework.Console
                 else
                     System.Console.Write("{0}", prompt);
 
+                System.Console.Write(suffix);
+                if (previousSuffix > suffix.Length)
+                    System.Console.Write(new string(' ', previousSuffix - suffix.Length));
+
                 SetCursorTopLeft(new_y, new_x);
             }
         }
@@ -323,7 +350,8 @@ namespace OpenSim.Framework.Console
                 {
                     m_cursorYPosition = SetCursorZeroLeft(m_cursorYPosition);
 
-                    int count = m_commandLine.Length + prompt.Length;
+                    int count = m_commandLine.Length + prompt.Length + m_lastOglIarStatusLength;
+                    m_lastOglIarStatusLength = 0;
                     if(count > 0)
                         System.Console.Write(new string(' ', count));
 

@@ -162,7 +162,7 @@ namespace OpenSim.Region.CoreModules.Avatar.Inventory.Archiver
             if (timedOut)
             {
                 succeeded = false;
-                reportedException = new Exception("Loading assets timed out");
+                reportedException = new Exception("Zeitüberschreitung beim Laden der Assets");
             }
 
             m_module.TriggerInventoryArchiveSaved(
@@ -179,7 +179,7 @@ namespace OpenSim.Region.CoreModules.Avatar.Inventory.Archiver
                     if (options.ContainsKey("verbose"))
                     {
                         m_log.InfoFormat(
-                            "[INVENTORY ARCHIVER]: Skipping inventory item {0} {1} at {2}",
+                            "[OGL-IAR]: Inventareintrag {0} ({1}) unter {2} wird übersprungen.",
                             inventoryItem.Name, inventoryItem.ID, path);
                     }
 
@@ -193,7 +193,7 @@ namespace OpenSim.Region.CoreModules.Avatar.Inventory.Archiver
             if (!CanUserArchiveObject(m_userInfo.PrincipalID, inventoryItem))
             {
                 m_log.InfoFormat(
-                            "[INVENTORY ARCHIVER]: Insufficient permissions, skipping inventory item {0} {1} at {2}",
+                            "[OGL-IAR]: Unzureichende Berechtigung: Inventareintrag {0} ({1}) unter {2} wird übersprungen.",
                             inventoryItem.Name, inventoryItem.ID, path);
 
                 // Count Items Excluded
@@ -204,7 +204,7 @@ namespace OpenSim.Region.CoreModules.Avatar.Inventory.Archiver
 
             if (options.ContainsKey("verbose"))
                 m_log.InfoFormat(
-                    "[INVENTORY ARCHIVER]: Saving item {0} {1} (asset UUID {2})",
+                    "[OGL-IAR]: Sichere Inventareintrag {0} ({1}; Asset-UUID {2}).",
                     inventoryItem.ID, inventoryItem.Name, inventoryItem.AssetID);
 
             string filename = path + CreateArchiveItemName(inventoryItem);
@@ -242,14 +242,14 @@ namespace OpenSim.Region.CoreModules.Avatar.Inventory.Archiver
 
                     if(curErrorCntr > 0)
                     {
-                        m_log.ErrorFormat("[INVENTORY ARCHIVER Warning]: item {0} '{1}', type {2}, in '{3}', contains {4} references to  missing or damaged assets",
+                        m_log.ErrorFormat("[OGL-IAR]: Inventareintrag {0} '{1}' (Typ {2}, Pfad '{3}') enthält {4} Referenzen auf fehlende oder beschädigte Assets.",
                             inventoryItem.ID, inventoryItem.Name, itemAssetType.ToString(), spath, curErrorCntr);
                         if(possible > 0)
-                            m_log.WarnFormat("[INVENTORY ARCHIVER Warning]: item also contains {0} references that may be to missing or damaged assets or not a problem", possible);
+                            m_log.WarnFormat("[OGL-IAR]: Zusätzlich {0} möglicherweise ungültige Asset-Referenzen; bitte prüfen.", possible);
                     }
                     else if(possible > 0)
                     {
-                        m_log.WarnFormat("[INVENTORY ARCHIVER Warning]: item {0} '{1}', type {2}, in '{3}', contains {4} references that may be to missing or damaged assets or not a problem", inventoryItem.ID, inventoryItem.Name, itemAssetType.ToString(), spath, possible);
+                        m_log.WarnFormat("[OGL-IAR]: Inventareintrag {0} '{1}' (Typ {2}, Pfad '{3}') enthält {4} möglicherweise ungültige Asset-Referenzen.", inventoryItem.ID, inventoryItem.Name, itemAssetType.ToString(), spath, possible);
                     }
                 }
             }
@@ -275,7 +275,7 @@ namespace OpenSim.Region.CoreModules.Avatar.Inventory.Archiver
                     if (options.ContainsKey("verbose"))
                     {
                         m_log.InfoFormat(
-                            "[INVENTORY ARCHIVER]: Skipping folder {0} at {1}",
+                            "[OGL-IAR]: Ordner {0} unter {1} wird übersprungen.",
                             inventoryFolder.Name, path);
                     }
                     return;
@@ -283,7 +283,7 @@ namespace OpenSim.Region.CoreModules.Avatar.Inventory.Archiver
             }
 
             if (options.ContainsKey("verbose"))
-                m_log.InfoFormat("[INVENTORY ARCHIVER]: Saving folder {0}", inventoryFolder.Name);
+                m_log.InfoFormat("[OGL-IAR]: Sichere Ordner {0}.", inventoryFolder.Name);
 
             if (saveThisFolderItself)
             {
@@ -409,7 +409,7 @@ namespace OpenSim.Region.CoreModules.Avatar.Inventory.Archiver
                 if (null == inventoryFolder && null == inventoryItem)
                 {
                     // We couldn't find the path indicated
-                    string errorMessage = string.Format("Aborted save.  Could not find inventory path {0}", m_invPath);
+                    string errorMessage = string.Format("Export abgebrochen: Inventarpfad {0} nicht gefunden.", m_invPath);
                     Exception e = new InventoryArchiverException(errorMessage);
                     m_module.TriggerInventoryArchiveSaved(m_id, false, m_userInfo, m_invPath, m_saveStream, e, 0, 0);
                     if(m_saveStream != null && m_saveStream.CanWrite)
@@ -420,7 +420,7 @@ namespace OpenSim.Region.CoreModules.Avatar.Inventory.Archiver
                 m_module?.TriggerInventoryArchiveProgress(m_id, "inventory", 0, 0);
                 m_archiveWriter = new TarArchiveWriter(m_saveStream);
 
-                m_log.InfoFormat("[INVENTORY ARCHIVER]: Adding control file to archive.");
+                m_log.Info("[OGL-IAR]: Archiv-Kontrolldatei wird geschrieben.");
 
                 // Write out control file.  This has to be done first so that subsequent loaders will see this file first
                 // XXX: I know this is a weak way of doing it since external non-OAR aware tar executables will not do this
@@ -459,9 +459,9 @@ namespace OpenSim.Region.CoreModules.Avatar.Inventory.Archiver
                     int errors = m_assetGatherer.FailedUUIDs.Count;
 
                     m_log.DebugFormat(
-                        "[INVENTORY ARCHIVER]: The items to save reference {0} possible assets", m_assetGatherer.GatheredUuids.Count + errors);
+                        "[OGL-IAR]: Inventareinträge verweisen auf {0} mögliche Assets.", m_assetGatherer.GatheredUuids.Count + errors);
                     if(errors > 0)
-                        m_log.DebugFormat("[INVENTORY ARCHIVER]: {0} of these have problems or are not assets and will be ignored", errors);
+                        m_log.WarnFormat("[OGL-IAR]: {0} Referenzen sind beschädigt oder keine gültigen Assets und werden ausgelassen.", errors);
 
                     int assetTotal = m_assetGatherer.GatheredUuids.Count;
                     m_module?.TriggerInventoryArchiveProgress(m_id, "assets", 0, Math.Max(1, assetTotal));
@@ -493,7 +493,7 @@ namespace OpenSim.Region.CoreModules.Avatar.Inventory.Archiver
         /// </summary>
         protected void SaveUsers()
         {
-            m_log.InfoFormat("[INVENTORY ARCHIVER]: Saving user information for {0} users", m_userUuids.Count);
+            m_log.InfoFormat("[OGL-IAR]: Sichere Erstellerinformationen für {0} Benutzer.", m_userUuids.Count);
 
             foreach (UUID creatorId in m_userUuids.Keys)
             {
@@ -508,7 +508,7 @@ namespace OpenSim.Region.CoreModules.Avatar.Inventory.Archiver
                 }
                 else
                 {
-                    m_log.WarnFormat("[INVENTORY ARCHIVER]: Failed to get creator profile for {0}", creatorId);
+                    m_log.WarnFormat("[OGL-IAR]: Erstellerprofil für {0} konnte nicht geladen werden.", creatorId);
                 }
             }
         }
@@ -591,7 +591,7 @@ namespace OpenSim.Region.CoreModules.Avatar.Inventory.Archiver
                 minorVersion = 3;
             }
 
-            m_log.InfoFormat("[INVENTORY ARCHIVER]: Creating version {0}.{1} IAR", majorVersion, minorVersion);
+            m_log.InfoFormat("[OGL-IAR]: Erzeuge IAR-Archivformat Version {0}.{1}.", majorVersion, minorVersion);
 
             StringWriter sw = new StringWriter();
             XmlTextWriter xtw = new XmlTextWriter(sw);
