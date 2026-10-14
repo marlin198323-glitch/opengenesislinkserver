@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: MPL-2.0
 using System;
-using System.Net;
 using System.Text;
 using NexVerse.Core.Security;
 using OpenSim.Framework.Servers.HttpServer;
@@ -17,31 +16,11 @@ namespace NexVerse.Server.Api
     /// </summary>
     internal sealed class OglApiDocsAccess
     {
-        private static readonly log4net.ILog m_Log =
-            log4net.LogManager.GetLogger(typeof(OglApiDocsAccess));
-
         private readonly NexApiDocsPage m_Docs = new();
-        private readonly System.Collections.Generic.HashSet<string> m_TrustedProxies =
-            new(StringComparer.OrdinalIgnoreCase);
         private volatile NexApiAuthenticator m_Authenticator;
         private const int MinimumLevel = 200;
 
-        // Loopback TLS-terminating proxies are trusted by default. Non-loopback
-        // proxy IPs must be explicitly allowlisted by the administrator; never
-        // trust client-provided IP headers to establish this peer identity.
-        public OglApiDocsAccess(string trustedProxyAddresses = "")
-        {
-            foreach (string raw in (trustedProxyAddresses ?? string.Empty).Split(
-                ',', StringSplitOptions.RemoveEmptyEntries))
-            {
-                string address = raw.Trim();
-                if (!IPAddress.TryParse(address, out IPAddress parsed))
-                    throw new ArgumentException(
-                        "Ungültige IP-Adresse in AdminDocsTrustedProxyAddresses.",
-                        nameof(trustedProxyAddresses));
-                m_TrustedProxies.Add(NormalizeAddress(parsed));
-            }
-        }
+        public OglApiDocsAccess() { }
 
         public void ConfigureAdministratorAccess(
             NexApiAuthenticator authenticator, int minimumLevel)
@@ -127,30 +106,6 @@ namespace NexVerse.Server.Api
 
             m_Docs.Handle(request, response);
             response.AddHeader("X-Frame-Options", "SAMEORIGIN");
-        }
-
-        private static string NormalizeAddress(IPAddress address) =>
-            address.IsIPv4MappedToIPv6
-                ? address.MapToIPv4().ToString()
-                : address.ToString();
-
-        private bool IsSecureTransport(IOSHttpRequest request)
-        {
-            if (request.IsSecured)
-                return true;
-
-            IPAddress peer = request.RemoteIPEndPoint?.Address;
-            if (peer == null)
-                return false;
-
-            bool trusted = IPAddress.IsLoopback(peer) ||
-                (peer.IsIPv4MappedToIPv6 && IPAddress.IsLoopback(peer.MapToIPv4())) ||
-                m_TrustedProxies.Contains(NormalizeAddress(peer));
-            // Exact scheme only: no comma-separated values or forwarded chain
-            // which an untrusted client could prepend.
-            return trusted &&
-                string.Equals(request.Headers?["X-Forwarded-Proto"]?.Trim(),
-                    "https", StringComparison.OrdinalIgnoreCase);
         }
 
         private static void CommonHeaders(IOSHttpResponse response)
