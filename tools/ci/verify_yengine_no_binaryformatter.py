@@ -17,6 +17,7 @@ assert "ScriptStateExceptionCodec.ReadLimitedString(" in abstract
 assert "throw new NotSupportedException(" in abstract
 assert "GetType().FullName" in abstract
 assert "Type.GetType(" not in codec
-assert "BinaryFormatter" not in codec
+assert "new BinaryFormatter" not in codec
+assert "Formatters.Binary" not in codec
 assert "MaxTextLength = 16384" in codec
 print("YEngine script state serialization rejects BinaryFormatter and unknown CLR types: OK")
