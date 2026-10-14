@@ -83,6 +83,10 @@ jobs:
             exit 1
           fi
 
+      - name: Verify OpenGenesisLINK protected admin Control Center
+        shell: bash
+        run: python3 tools/ci/verify_ogl_docs_admin_ui.py
+
       - name: Verify runtime secrets are not committed
         shell: bash
         run: python3 tools/ci/verify_no_plaintext_runtime_secrets.py
@@ -1096,7 +1100,15 @@ jobs:
           fi
 
           curl --silent --fail --max-time 2 http://127.0.0.1:19090/api/v1/docs > /tmp/nexverse-api-docs.html
-          grep -F 'NexVerse Welt-API-Kontrollzentrum' /tmp/nexverse-api-docs.html
+          grep -F 'OpenGenesisLINK – Control Center' /tmp/nexverse-api-docs.html
+          # Full Control Center HTML must never be returned without a
+          # server-verified local administrator token, regardless of UI scripts.
+          DOCS_STATUS="$(curl --silent --output /tmp/ogl-docs-denied.txt --write-out '%{http_code}' --max-time 3 http://127.0.0.1:19090/api/v1/docs/panel)"
+          test "$DOCS_STATUS" = 401
+          if grep -F 'id="page-explorer"' /tmp/ogl-docs-denied.txt; then
+            echo "::error::Protected OGL admin HTML was exposed anonymously"
+            exit 1
+          fi
           grep -F 'Was ist neu?' /tmp/nexverse-api-docs.html
           grep -F 'NexVerse-Entwicklungsplan' /tmp/nexverse-api-docs.html
           grep -F 'Was ist neu?' /tmp/nexverse-api-docs.html
