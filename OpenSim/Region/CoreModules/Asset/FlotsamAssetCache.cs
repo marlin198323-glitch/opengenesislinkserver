@@ -29,7 +29,6 @@ using System;
 using System.IO;
 using System.Collections.Generic;
 using System.Reflection;
-using System.Runtime.Serialization.Formatters.Binary;
 using System.Text;
 using System.Threading;
 using System.Timers;
@@ -525,8 +524,7 @@ namespace OpenSim.Region.CoreModules.Asset
                 if (stream.Length == 0) // Empty file will trigger exception below
                     return null;
 
-                BinaryFormatter bformatter = new();
-                asset = (AssetBase)bformatter.Deserialize(stream);
+                asset = AssetDiskCacheCodec.Read(stream, id);
 
                 m_DiskHits++;
             }
@@ -536,7 +534,7 @@ namespace OpenSim.Region.CoreModules.Asset
             catch (DirectoryNotFoundException)
             {
             }
-            catch (System.Runtime.Serialization.SerializationException e)
+            catch (InvalidDataException e)
             {
                 m_log.Warn($"[FLOTSAM ASSET CACHE]: Failed to get file {filename} for asset {id}: {e.Message}");
 
@@ -544,6 +542,11 @@ namespace OpenSim.Region.CoreModules.Asset
                 // either be corrupted OR was serialized under an old format
                 // {different version of AssetBase} -- we should attempt to
                 // delete it and re-cache
+                File.Delete(filename);
+            }
+            catch (EndOfStreamException e)
+            {
+                m_log.Warn($"[FLOTSAM ASSET CACHE]: Truncated cache {filename}: {e.Message}");
                 File.Delete(filename);
             }
             catch (Exception e)
@@ -1011,8 +1014,7 @@ namespace OpenSim.Region.CoreModules.Asset
 
                     using (Stream stream = File.Open(tempname, FileMode.Create))
                     {
-                        BinaryFormatter bformatter = new();
-                        bformatter.Serialize(stream, asset);
+                        AssetDiskCacheCodec.Write(stream, asset);
                         stream.Flush();
                     }
                     m_lastFileAccessTimeChange?.Add(filename, 900000);
