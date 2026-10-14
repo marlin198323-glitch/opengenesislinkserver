@@ -76,7 +76,14 @@ namespace OpenSim.Server.Handlers.Inventory
 
             IServiceAuth auth = ServiceAuth.Create(config, m_ConfigName);
 
-            server.AddStreamHandler(new XInventoryConnectorPostHandler(m_InventoryService, auth));
+            // The public HG inventory URI carries no authenticated user/session proof.
+            // Never expose its mutation verbs: a self-asserted PRINCIPAL/Owner is not authorization.
+            bool publicHypergrid = string.Equals(m_ConfigName, "HGInventoryService",
+                StringComparison.OrdinalIgnoreCase);
+            if (publicHypergrid)
+                m_log.Warn("[HG INVENTORY SECURITY]: Public HG inventory is READ-ONLY. " +
+                    "Remote suitcase modifications are denied until an authenticated per-agent protocol exists.");
+            server.AddStreamHandler(new XInventoryConnectorPostHandler(m_InventoryService, auth, publicHypergrid));
         }
     }
 
@@ -85,11 +92,38 @@ namespace OpenSim.Server.Handlers.Inventory
         private static readonly ILog m_log = LogManager.GetLogger(MethodBase.GetCurrentMethod().DeclaringType);
 
         private IInventoryService m_InventoryService;
+        private readonly bool m_PublicHypergridReadOnly;
 
-        public XInventoryConnectorPostHandler(IInventoryService service, IServiceAuth auth) :
+        public XInventoryConnectorPostHandler(IInventoryService service, IServiceAuth auth,
+                bool publicHypergridReadOnly = false) :
                 base("POST", "/xinventory", auth)
         {
             m_InventoryService = service;
+            m_PublicHypergridReadOnly = publicHypergridReadOnly;
+        }
+
+        // Deliberate allowlist: a future write verb is denied automatically too.
+        // Only read-only HG requests are served; GETROOTFOLDER can lazily
+        // initialize the local suitcase, but does not accept caller-supplied writes.
+        public static bool IsAllowedPublicHypergridMethod(string method)
+        {
+            switch (method)
+            {
+                case "GETINVENTORYSKELETON":
+                case "GETROOTFOLDER":
+                case "GETFOLDERFORTYPE":
+                case "GETFOLDERCONTENT":
+                case "GETMULTIPLEFOLDERSCONTENT":
+                case "GETFOLDERITEMS":
+                case "GETITEM":
+                case "GETMULTIPLEITEMS":
+                case "GETFOLDER":
+                case "GETACTIVEGESTURES":
+                case "GETASSETPERMISSIONS":
+                    return true;
+                default:
+                    return false;
+            }
         }
 
         protected override byte[] ProcessRequest(string path, Stream requestData,
@@ -112,6 +146,16 @@ namespace OpenSim.Server.Handlers.Inventory
 
                 string method = request["METHOD"].ToString();
                 request.Remove("METHOD");
+
+                // HGInventoryService is published on the external ROBUST port and
+                // has AuthType=None for cross-grid compatibility. Do not trust
+                // request-controlled user UUIDs as authentication. Fail closed
+                // before ANY write handler can deserialize or modify inventory.
+                if (m_PublicHypergridReadOnly && !IsAllowedPublicHypergridMethod(method))
+                {
+                    httpResponse.StatusCode = (int)System.Net.HttpStatusCode.Forbidden;
+                    return FailureResult();
+                }
 
                 switch (method)
                 {
