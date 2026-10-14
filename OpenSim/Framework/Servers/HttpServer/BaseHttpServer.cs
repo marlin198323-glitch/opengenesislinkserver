@@ -1189,9 +1189,14 @@ namespace OpenSim.Framework.Servers.HttpServer
             }
             catch (Exception e)
             {
+                // Invalid/unparseable XML-RPC from internet scanners must not
+                // look like a valid RPC or a missing API operation.
+                // Keep one diagnostic with the remote endpoint for operators.
+                response.StatusCode = (int)HttpStatusCode.BadRequest;
+                response.KeepAlive = false;
                 m_log.WarnFormat(
-                    "[BASE HTTP SERVER]: Fail to decode XMLRPC request {0}: {1}",
-                        request.RemoteIPEndPoint, e.Message);
+                    "[BASE HTTP SERVER]: Ungültige XML-RPC-Anfrage von {0}: {1} (HTTP 400)",
+                    request.RemoteIPEndPoint, e.Message);
             }
             finally
             {
