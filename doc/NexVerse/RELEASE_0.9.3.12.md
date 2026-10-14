@@ -27,6 +27,10 @@ Geplante oder eigenständig nicht freigegebene neue Funktionen (z. B. OGLVoice, 
 
 Durch die notwendige Notfallsperre ist der **Inventarzugriff von fremden Hypergrid-Regionen auf das lokale Heimat-Inventar vorübergehend nicht verfügbar**, einschließlich Suitcase-Inventarfunktionen. Avatar-Reisen und andere HG-Dienste müssen nach dem Rollout gesondert auf Kompatibilität getestet werden. Die Sperre darf nicht durch Freischalten des internen Inventar-HTTP-Handlers umgangen werden. Wiederherstellung erfordert eine spätere HG-Protokollerweiterung mit verifizierter, avatarspezifischer Autorisierung. Siehe `doc/OpenGenesisLINK/09312_HG_INVENTORY_SECURITY.md`.
 
+## Feature Control: Voraussetzung für ROBUST und Simulatoren
+
+Die ausgelieferten Konfigurationen aktivieren `[OGLFeatureControl] Enabled = true`. Vor dem Start muss ROBUST den privaten ES256-P-256-Schlüssel besitzen und jeder Simulator den passenden öffentlichen Schlüssel, eine eindeutige NodeID und funktionierendes NexBus. Sonst startet die ROBUST-World-API nicht bzw. IAR-/OAR-Operationen werden fail-closed gesperrt. **Vor der Aktualisierung** Backup und Schlüsselkonfiguration prüfen; keine privaten Schlüssel in GitHub hochladen.
+
 ## Upgrade / Rückfall
 
 Ein Merge nach `main` aktualisiert nur GitHub. Auf dem Live-Server muss der Betreiber den aktuellen SHA selbst bauen und die laufende Anwendung kontrolliert ersetzen. SQL-Datenbanken, FSAssets, Regionen und Runtime-Konfiguration konsistent sichern. `v0.9.3.10` zusammen mit einem **passenden Daten-Snapshot** als Rollback-Stand bereithalten. Siehe `09312_LIVE_TEST_DEPLOYMENT.md` und `09312_RC1_CANDIDATE_PLAN.md`.
