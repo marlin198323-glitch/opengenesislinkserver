@@ -159,6 +159,9 @@
     HeloServiceInConnector = "${Const|PublicPort}/OpenSim.Server.Handlers.dll:HeloServiceInConnector"
     HGFriendsServerConnector = "${Const|PublicPort}/OpenSim.Server.Handlers.dll:HGFriendsServerConnector"
     InstantMessageServerConnector = "${Const|PublicPort}/OpenSim.Server.Handlers.dll:InstantMessageServerConnector"
+    ; OGL-SECURITY: Externes HG-Inventar wird in 0.9.3.12 vom HTTP-Handler
+    ; ausnahmslos mit 403 abgewiesen (keine Avatar-gebundene HG-Autorisierung).
+    ; Lokales Inventar am PRIVATE Port bleibt erhalten.
     HGInventoryServiceConnector = "HGInventoryService@${Const|PublicPort}/OpenSim.Server.Handlers.dll:XInventoryInConnector"
     HGAssetServiceConnector = "HGAssetService@${Const|PublicPort}/OpenSim.Server.Handlers.dll:AssetServiceConnector"
     ;; Uncomment this if you want Groups V2, HG to work
