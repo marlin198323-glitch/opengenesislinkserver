@@ -206,12 +206,10 @@ namespace NexVerse.Server.Api
                 apiConfig.GetBoolean("TrustForwardedFor", false));
 
             NexVerseWorldApiHandlers handlers = new NexVerseWorldApiHandlers(publicBaseUrl, eventBus, publicAuditSink);
-            NexApiDocsPage docsPage = new NexApiDocsPage();
             NexChatGptInstructionDownloads chatGptInstructions =
                 new NexChatGptInstructionDownloads(publicBaseUrl);
 
             server.AddSimpleStreamHandler(new SimpleStreamHandler("/api/v1", apiGate.Wrap(handlers.Root), "NexVerse World API"));
-            server.AddSimpleStreamHandler(new SimpleStreamHandler("/api/v1/docs", apiGate.Wrap(docsPage.Handle), "NexVerse World API Explorer"));
             server.AddSimpleStreamHandler(new SimpleStreamHandler("/api/v1/chatgpt-instructions.md", apiGate.Wrap(chatGptInstructions.HandleAll), "NexVerse ChatGPT API Instructions"));
             server.AddSimpleStreamHandler(new SimpleStreamHandler("/api/v1/chatgpt-buergerportal.md", apiGate.Wrap(chatGptInstructions.HandleCitizen), "NexVerse ChatGPT Citizen Portal Instructions"));
             server.AddSimpleStreamHandler(new SimpleStreamHandler("/api/v1/chatgpt-admin.md", apiGate.Wrap(chatGptInstructions.HandleAdmin), "NexVerse ChatGPT Admin Instructions"));
@@ -491,6 +489,17 @@ namespace NexVerse.Server.Api
                     oauthStore,
                     apiKeyStore,
                     adminMinimumLevel);
+
+                // Login markup is public; the admin panel requires a valid GridUser
+                // access token with current UserLevel >= 200 and admin:*.
+                OglApiDocsAccess oglDocs = new OglApiDocsAccess(
+                    authenticator, adminMinimumLevel);
+                server.AddSimpleStreamHandler(new SimpleStreamHandler(
+                    "/api/v1/docs", apiGate.Wrap(oglDocs.HandleLogin),
+                    "OpenGenesisLINK Control Center Login"));
+                server.AddSimpleStreamHandler(new SimpleStreamHandler(
+                    "/api/v1/docs/panel", apiGate.Wrap(oglDocs.HandlePanel),
+                    "OpenGenesisLINK protected administration panel"));
 
                 OglFeatureControlApi featureControl = null;
                 IConfig featureConfig = config.Configs["OGLFeatureControl"];
