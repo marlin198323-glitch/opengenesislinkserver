@@ -187,6 +187,7 @@
     <Compile Include="Scenes\EntityBase.cs">
       <SubType>Code</SubType>
     </Compile>
+    <Compile Include="Scenes\KeyframeMotion.SafeSerialization.cs" />
     <Compile Include="Scenes\KeyframeMotion.cs">
       <SubType>Code</SubType>
     </Compile>
