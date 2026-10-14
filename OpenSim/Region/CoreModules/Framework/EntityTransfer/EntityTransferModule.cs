@@ -1859,9 +1859,16 @@ namespace OpenSim.Region.CoreModules.Framework.EntityTransfer
 
             m_log.DebugFormat("[ENTITY TRANSFER MODULE]: Sending new CAPS seed url {0} to client {1}", capsPath, agent.UUID);
 
+            // CrossRegion previously sent zero velocity for all normal avatars,
+            // even when they were actively flying. The viewer then decelerated
+            // abruptly at the region boundary before new physics updates arrived.
+            // Preserve actual flight velocity; keep ground and seated behavior
+            // unchanged until separately validated with their movement models.
             Vector3 vel2 = Vector3.Zero;
             if((agent.m_crossingFlags & 2) != 0)
                 vel2 = new Vector3(agent.Velocity.X, agent.Velocity.Y, 0);
+            else if (isFlying)
+                vel2 = agent.Velocity;
 
             if (m_eqModule != null)
             {
