@@ -165,7 +165,7 @@ function logout(){
   token='';expires=0;
   frame.srcdoc='';frame.hidden=true;
   document.getElementById('loginView').hidden=false;
-  form.password.value='';form.totp.value='';submit.disabled=false;
+  form.elements.namedItem('password').value='';form.elements.namedItem('totp').value='';submit.disabled=false;
   message('Abgemeldet. Bitte erneut anmelden.',false);
 }
 window.addEventListener('message',event=>{
@@ -178,10 +178,10 @@ form.addEventListener('submit',async event=>{
   if(!form.reportValidity())return;
   submit.disabled=true;message('Anmeldung wird überprüft …',false);
   try{
-    const credentials={username:form.username.value.trim(),password:form.password.value};
-    if(form.totp.value.trim())credentials.totp=form.totp.value.trim();
+    const credentials={username:form.elements.namedItem('username').value.trim(),password:form.elements.namedItem('password').value};
+    if(form.elements.namedItem('totp').value.trim())credentials.totp=form.elements.namedItem('totp').value.trim();
     const login=await fetch('/api/v1/auth/admin/session',{method:'POST',headers:{'Content-Type':'application/json','Accept':'application/json'},body:JSON.stringify(credentials),cache:'no-store',credentials:'same-origin'});
-    form.password.value='';form.totp.value='';
+    form.elements.namedItem('password').value='';form.elements.namedItem('totp').value='';
     const data=await login.json().catch(()=>({}));
     if(!login.ok)throw Error(login.status===403?'Keine Berechtigung: UserLevel 200 und admin:* erforderlich.':login.status===401?'Anmeldung fehlgeschlagen. Zugangsdaten oder TOTP überprüfen.':'Administrator-Dienst nicht verfügbar (HTTP '+login.status+').');
     if(!data.administrator||Number(data.user_level)<200||!String(data.scope||'').split(/\s+/).includes('admin:*')||!data.access_token)throw Error('Dieses Konto hat keine gültige OGL-Administratorberechtigung.');
