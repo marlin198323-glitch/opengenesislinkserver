@@ -45,7 +45,7 @@ namespace NexVerse.Server.Api
 
             WriteJson(response, new
             {
-                service = "NexVerse Welt-API",
+                service = "OpenGenesisLINK World API",
                 product = NexVersePlatform.ProductName,
                 api_version = NexVersePlatform.ApiVersion,
                 milestone = NexVersePlatform.MilestoneVersion,
@@ -1455,6 +1455,23 @@ namespace NexVerse.Server.Api
                     new
                     {
                         api_version = NexVersePlatform.ApiVersion,
+                        server_line = "0.9.3.12",
+                        codename = "OGL",
+                        status = "release",
+                        published = "2026-10-14",
+                        compatibility = "OpenGenesisLINK 0.9.3.12 Stable-Kennung — OpenSim/Firestorm, World API Control Center, LSL- und IAR-Verbesserungen; 22-Fälle-Abnahme weiterhin dokumentiert.",
+                        highlights = new[]
+                        {
+                            "OpenGenesisLINK wird als Server-Produkt angezeigt; NexVerse bezeichnet ein konkretes Grid",
+                            "Modernisiertes World API Control Center, GridUser-Login ab UserLevel 200 und aktualisierte ChatGPT-Anweisungen",
+                            "LSL-/Regionschat-Regression, sichere IAR-Vorabprüfung und deutschsprachige IAR-Live-Fortschrittsanzeige",
+                            "OGL Feature-Control ist optional; inaktive Dienste werden transparent erklärt statt als kaputte Lizenz dargestellt",
+                            "Offene IAR03-/Performance-/Restore-Belege weiterhin im offiziellen RC1-Plan dokumentiert"
+                        }
+                    },
+                    new
+                    {
+                        api_version = NexVersePlatform.ApiVersion,
                         server_line = "0.9.3.10",
                         codename = NexVersePlatform.MilestoneCodename,
                         status = "release",
@@ -1578,6 +1595,32 @@ namespace NexVerse.Server.Api
                 },
                 x_nexverse_changelog = new object[]
                 {
+                    new
+                    {
+                        date = "2026-10-14",
+                        version = "0.9.3.12",
+                        category = "api",
+                        status = "released",
+                        title = "OpenGenesisLINK 0.9.3.12 Stable: neues OGL Control Center",
+                        summary = "Vollständiger OGL-Markenauftritt mit animiertem Systemdashboard, aktueller API-Version, GridUser-Login ab UserLevel 200, aktuellem ChatGPT-Kontext und verständlichen Hinweisen bei optional deaktiviertem Lizenzmodul. Kompatible Legacy-API-Pfade bleiben bestehen.",
+                        endpoints = new[]
+                        {
+                            "/api/v1/docs",
+                            "/api/v1/version",
+                            "/api/v1/chatgpt-instructions.md",
+                            "/api/v1/feature-control/nodes"
+                        }
+                    },
+                    new
+                    {
+                        date = "2026-10-14",
+                        version = "0.9.3.12",
+                        category = "scripting",
+                        status = "implemented",
+                        title = "IAR- und LSL-Abnahme, moderner Fortschrittsmonitor",
+                        summary = "Automatisierte Archiv-Sicherheitsfixtures, deutschsprachige IAR-Logmeldungen und Live-Balken; LSL-Touch-/Regionenchat-Regression sowie RC1-Evidence-Gate. Fehlende Assets und noch nicht dokumentierte Live-Restore-Tests bleiben ausdrücklich sichtbar.",
+                        endpoints = Array.Empty<string>()
+                    },
                     new
                     {
                         date = "2026-10-03",
@@ -1813,7 +1856,7 @@ namespace NexVerse.Server.Api
                         advanced = "Wesentliche Implementierungen wurden vor dem formalen Wechsel des Meilensteins vorgezogen.",
                         started = "Ein definierter Teil ist umgesetzt, wesentlicher Umfang steht jedoch noch aus.",
                         foundation = "Die Kerninfrastruktur ist vorhanden, während der Produktumfang des Meilensteins größtenteils noch offen ist.",
-                        planned = "Der Roadmap-Umfang ist definiert; eine NexVerse-native Umsetzung dieses Meilensteins wird noch nicht beansprucht."
+                        planned = "Der Roadmap-Umfang ist definiert; eine eigenständige OGL-Umsetzung dieses Meilensteins wird noch nicht beansprucht."
                     },
                     milestones = new object[]
                     {
@@ -1906,7 +1949,7 @@ namespace NexVerse.Server.Api
                         new { version = "0.9.3.9", codename = "", title = "OGLVoice – späterer Entwicklungstrain", status = "deferred", checklist = (object)null, summary = "OGLVoice/LiveKit wird gesondert fortgeführt; für 0.9.3.9 wurde keine separate Stable-Version veröffentlicht.", evidence = Array.Empty<string>() },
                         new { version = "0.9.3.10", codename = "", title = "Runtime-/Economy-/Inventar-/World-API-Stabilisierung", status = "released", checklist = (object)null, summary = "OpenGenesisLINK 0.9.3.10 Stable wurde am 12.10.2026 veröffentlicht. NexExperiences ist deaktiviert; OGL Pathfinding 2.0 und My Outfits 2.0 sind auf den eigenen Viewer verschoben. Die direkte Betreiber-Risikoübernahme statt vollständiger v2-Einzelbelege ist ausdrücklich dokumentiert.", evidence = new[] { "Stable-Release v0.9.3.10 auf GitHub", "CI-Release-Build und NV$-Datenbankmatrix erfolgreich", "doc/NexVerse/09310_OPERATOR_RELEASE_DECISION.md" } },
                         new { version = "0.9.3.11", codename = "", title = "LSL-Parität I — Kernkonformität", status = "planned", checklist = (object)null, summary = "Maschinenlesbare LSL-Matrix, Konformitätstests und Härtung der Script-Sandbox.", evidence = Array.Empty<string>() },
-                        new { version = "0.9.3.12", codename = "", title = "LSL-Parität II — Erweiterte Systeme", status = "planned", checklist = (object)null, summary = "Erweiterte LSL-Systeme, Profiler und Entwicklerwerkzeuge.", evidence = Array.Empty<string>() },
+                        new { version = "0.9.3.12", codename = "OGL", title = "OpenGenesisLINK 0.9.3.12 Stable — World API, IAR und LSL", status = "released", checklist = (object)null, summary = "Stable-Versionskennung auf Betreiberwunsch; LSL-/Touch- und Regionschat-Fixes, deutscher IAR-Fortschritt, World API Control Center und RC1-Evidence-Gate. Einzelne Security-/Restore-Live-Nachweise sind weiterhin offen.", evidence = new[] { "Release-Build und GitHub-CI", "IAR-Regression mit 11 Archiven", "UserLevel-200-GridUser-Login" } },
                         new { version = "0.9.3.13", codename = "", title = "Assets, Darstellung, Marktplatz und Medien", status = "planned", checklist = (object)null, summary = "NexAsset, moderne Material- und Inhaltspipeline, Marktplatz und Medien.", evidence = Array.Empty<string>() },
                         new { version = "0.9.3.14", codename = "", title = "NexAds, Veranstaltungen und Benachrichtigungen", status = "planned", checklist = (object)null, summary = "Plattformdienste für Werbung, Veranstaltungen und Benachrichtigungen.", evidence = Array.Empty<string>() },
                         new
