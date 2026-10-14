@@ -525,6 +525,10 @@ jobs:
         shell: bash
         run: dotnet run --configuration Release --project tools/ci/AssetDiskCacheRegression/AssetDiskCacheRegression.csproj
 
+      - name: Regression-test typed KeyframeMotion persistence
+        shell: bash
+        run: dotnet run --configuration Release --project tools/ci/KeyframeMotionSerializationRegression/KeyframeMotionSerializationRegression.csproj
+
       - name: Runtime regression cross-region llListen delivery (two scenes)
         shell: bash
         run: dotnet run --configuration Release --project tools/ci/CrossRegionListenRuntimeRegression/CrossRegionListenRuntimeRegression.csproj
