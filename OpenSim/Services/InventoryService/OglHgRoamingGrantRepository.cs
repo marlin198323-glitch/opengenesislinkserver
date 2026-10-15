@@ -37,6 +37,29 @@ namespace OpenSim.Services.InventoryService
             return connection;
         }
 
+        // Explicit startup/admin migration, never invoked from public HG.
+        // Executes provider-specific DDL in separate statements so drivers
+        // need not support multi-statement commands.
+        public bool TryEnsureSchema(OglHgGrantDatabase database)
+        {
+            try
+            {
+                using DbConnection connection = Open();
+                string ddl = OglHgRoamingGrantSchema.CreateTable(database);
+                foreach (string statement in ddl.Split(';'))
+                {
+                    if (string.IsNullOrWhiteSpace(statement))
+                        continue;
+                    using DbCommand command = connection.CreateCommand();
+                    command.CommandText = statement.Trim();
+                    command.ExecuteNonQuery();
+                }
+                return true;
+            }
+            catch (DbException) { return false; }
+            catch (InvalidOperationException) { return false; }
+        }
+
         // Invoke ONLY after an authenticated local travel action. Never
         // accept owner/session/destination solely from a remote HG request.
         public bool TryCreateTrustedGrant(UUID grantId, UUID residentId,
