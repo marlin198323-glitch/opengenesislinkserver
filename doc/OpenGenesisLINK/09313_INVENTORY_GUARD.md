@@ -1,4 +1,4 @@
-# OpenGenesisLINK 0.9.3.13 - OGL HG InventoryGuard (Phase 1-3i, Entwicklung)
+# OpenGenesisLINK 0.9.3.13 - OGL HG InventoryGuard (Phase 1-3j, Entwicklung)
 
 Status: **Entwicklungszweig / noch nicht fuer Stable freigegeben.**
 Diese Aenderung betrifft ausschliesslich den per `HGSuitcaseInventoryService`
@@ -727,6 +727,85 @@ Zahlung, Hashabweichung, erfolgreiche reine
 Quarantaene-Einlieferung fuer Purchase/TakeCopy/Gift,
 abweichende Bezahlpflicht, ausbleibende
 Inventarzustellung und Replay auch nach Neustart.
+
+## Phase 3j: Home-Grid-Reisedelegation mit HMAC und Operationsrechten
+
+Neu in `OglHgRoamingConsentAuthority`: Ein **vertrauenswuerdiger
+lokaler Heimatgrid-Dienst** kann nach positivem
+`IOglHgAuthenticatedResidentSessionSource.CanDelegate`-Nachweis
+ein kurzes HMAC-SHA-256-Reisedelegationsticket ausstellen.
+Die Sessionquelle muss das **tatsaechlich authentifizierte
+Bewohnerkonto**, die reale Login-/Delegationssitzung sowie das
+erlaubte fremde Zielgrid bestaetigen. Reine Fremdgrid-UUIDs
+reichen zur Ausstellung nicht aus.
+
+Das Ticket bindet versioniert und MAC-geschuetzt:
+- Ausstellendes Home-Grid (explizite Issuer-ID), Bewohner-UUID,
+  authentifizierte Session-/Delegations-UUID und **genaue**
+  kanonische Grid-URI;
+- Freigegebene Operationsmasken nur `Purchase`, `TakeCopy`,
+  `Gift` oder deren explizite Kombination;
+- Ausgabe-/Ablaufzeit in UTC (hoechstens **10 Minuten**) und
+  einen zufaelligen 128-Bit-Nonce.
+
+Die `VerifyForDelivery`-Pruefung verweigert ungueltige,
+manipulierte, falsch signierte und abgelaufene Tickets,
+abweichende Resident-/Session-/Grid-Bindungen sowie
+nicht erteilte Operationen. Der MAC wird zeitkonstant
+verglichen. `OglHgRoamingDeliveryEvidence` implementiert
+den **Bewohnerzustimmungs-Teil** des bestehenden
+`IOglHgVerifiedDeliveryEvidence`-Interfaces mit dem
+Home-Grid-Ticket. Die drei **getrennten** Fremdquellen-/
+Rechte-/Bezahlverifikationen werden explizit von einem
+anderen vertrauenswuerdigen Provider verlangt.
+
+Ausstellerseite und Schluessel verbleiben ausschliesslich
+auf dem Heimatgrid. Es gibt **keinen oeffentlichen
+/xinventory-/HG-Endpoint fuer die Ticketausgabe**,
+keinen Default-Schluessel und keine automatische
+Weitergabe von Bearer-Tickets an Fremdgrids.
+Fremde Grids koennen hierdurch keine Home-Grid-Tickets
+signieren.
+
+**Integration und Grenzen:** Das signierte Ticket ist
+eine **Konstruktionsgrundlage**, noch keine produktive
+HG-Anmeldung. Ein realer Adapter fuer die
+`IOglHgAuthenticatedResidentSessionSource` ist weiterhin
+nicht implementiert. Das Home-Grid muss zuerst lokal
+authentifizierte Reisedelegationen registrieren,
+deren Widerruf und Session-Ende definieren und den
+fremden Grid-Transfer kryptografisch getrennt bestaetigen.
+Bis dahin wird die Regression nur mit einer Fake-
+Sessionquelle durchgefuehrt. Ein gueltiges Ticket
+allein erlaubt **weder fremde Asset-/Inventarzugriffe
+noch Zahlung, Kauf oder Freigabe**. Es darf
+**nicht** als Ersatz der drei anderen Nachweise
+oder als frei weiterleitbares HG-Zugangstoken
+verstanden werden.
+
+Die Reisedelegation ist fuer mehrere **verschiedene**
+Transfers innerhalb ihrer kurzen Lebensdauer nutzbar,
+wobei die bereits vorhandene, persistente
+`source_grid + foreign_transfer_id`-Quittung
+Doppelabgaben desselben Transfers verhindert.
+Ein expliziter Widerruf gestohlener, noch gueltiger
+Tickets, verbindliche PoP-Kanalbindung und ein
+verteilter SQL-basierter Session-/Replay-Store sind
+noch offen. Tickets nicht an fremde Viewer-/Regionen
+uebertragen, solange ein gesicherter Kanal nicht
+fertig ist.
+
+CI: SQLite-Laufzeittest mit testweiser
+Sessionquelle prueft verbotene Ticket-Ausstellung
+ohne Authentifizierung, Scope-/Zeitlimits,
+residenten- und sessiongebundene Signaturen,
+Zielgrid-Bindung, falschen HMAC/Issuer,
+Manipulation und Ablauf. Ausserdem bestaetigt er,
+dass ein gueltiges Reisedelegationsticket weder
+fehlende Fremdquellenattestierung noch unbestaetigte
+Zahlungen uebergehen kann, und dass selbst ein
+vollstaendig attestierter Testkauf **nur** in
+Quarantaene landet.
 
 ## Nicht implementiert - keine Sicherheitsversprechen
 
