@@ -37,6 +37,10 @@ db.execute("UPDATE ogl_hg_roaming_grants SET revoked_utc = ? "
            (now, resident, session))
 assert not active(now)
 assert "TryRevokeSession" in repository
+assert "TryRevokeResident" in repository
+coordinator = (ROOT / "OpenSim/Services/InventoryService/OglHgRoamingTravelCoordinator.cs").read_text()
+assert "m_verifiedLocalTravel(resident, session, verifiedDestination)" in coordinator
+assert "TryRevokeSession(resident, session)" in coordinator
 assert "TryPurgeInactiveGrants" in repository
 assert "ValidDestination(destination)" in repository
 print("PASS: SQLite schema idempotence, active, destination, expiry, revoke; repository hooks")
