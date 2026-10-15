@@ -325,6 +325,52 @@ internal static class Program
             new string('Q', 20000))) == new string('Q', 20000),
             "writer/reader preserve valid long script strings");
 
+        // Exercise actual YEngine file persistence without a live simulator.
+        // The previous known-good snapshot must not be truncated if replacing
+        // an existing state fails halfway through or destination is unusable.
+        MethodInfo stateSave = typeof(XMRInstance).GetMethod(
+            "WriteStateFileAtomically",
+            BindingFlags.NonPublic | BindingFlags.Static);
+        Check(stateSave != null, "shared atomic YEngine state writer is available");
+        string stateDir = Path.Combine(
+            Path.GetTempPath(), "ogl-yengine-state-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(stateDir);
+        try
+        {
+            string stateFile = Path.Combine(stateDir, "example.state");
+            File.WriteAllText(stateFile, "<ScriptState>last-known-good</ScriptState>");
+            string replacement = "<ScriptState>neue Daten ÄÖÜ " +
+                new string('x', 65536) + "</ScriptState>";
+            stateSave.Invoke(null, new object[] { stateFile, replacement });
+            Check(File.ReadAllText(stateFile) == replacement,
+                "complete UTF-8 script state atomically replaces previous snapshot");
+
+            string destinationIsDirectory = Path.Combine(stateDir, "busy.state");
+            Directory.CreateDirectory(destinationIsDirectory);
+            bool failedClosed = false;
+            try
+            {
+                stateSave.Invoke(null, new object[] {
+                    destinationIsDirectory, "<ScriptState>should-not-install</ScriptState>" });
+            }
+            catch (TargetInvocationException e)
+                when (e.InnerException is IOException ||
+                      e.InnerException is UnauthorizedAccessException)
+            {
+                failedClosed = true;
+            }
+            Check(failedClosed, "cannot rename snapshot over an existing directory");
+            Check(Directory.Exists(destinationIsDirectory) &&
+                  File.ReadAllText(stateFile) == replacement,
+                  "failed replacement leaves the previous snapshot intact");
+            Check(Directory.GetFiles(stateDir, "*.tmp").Length == 0,
+                  "failed writer cleans temporary snapshots");
+        }
+        finally
+        {
+            Directory.Delete(stateDir, recursive: true);
+        }
+
         Console.WriteLine("YEngine exception state codec: PASS (" + checks + " checks)");
         return 0;
     }
