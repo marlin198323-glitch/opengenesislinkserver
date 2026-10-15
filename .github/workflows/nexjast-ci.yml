@@ -553,6 +553,10 @@ jobs:
         shell: bash
         run: dotnet run --configuration Release --project tools/ci/CrossRegionNexBusProcessRegression/CrossRegionNexBusProcessRegression.csproj
 
+      - name: Soak three concurrent two-process NexBus transports (not avatar crossing)
+        shell: bash
+        run: python3 tools/ci/verify_multi_process_transport_soak.py
+
       - name: Ensure YEngine does not use unsafe BinaryFormatter migration
         shell: bash
         run: |
