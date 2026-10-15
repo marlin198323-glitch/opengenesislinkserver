@@ -27,6 +27,23 @@ namespace OpenSim.Services.InventoryService
             command.Parameters.Add(parameter);
         }
 
+        private static bool ValidDestination(string destination)
+        {
+            if (string.IsNullOrWhiteSpace(destination) ||
+                destination.Length > 255 ||
+                !Uri.TryCreate(destination, UriKind.Absolute, out Uri uri) ||
+                (uri.Scheme != Uri.UriSchemeHttps &&
+                 uri.Scheme != Uri.UriSchemeHttp) ||
+                string.IsNullOrEmpty(uri.Host) ||
+                !string.IsNullOrEmpty(uri.UserInfo) ||
+                uri.AbsolutePath != "/" ||
+                !string.IsNullOrEmpty(uri.Query) ||
+                !string.IsNullOrEmpty(uri.Fragment))
+                return false;
+            string authority = uri.GetLeftPart(UriPartial.Authority);
+            return destination == authority || destination == authority + "/";
+        }
+
         private DbConnection Open()
         {
             DbConnection connection = m_openConnection();
@@ -66,8 +83,7 @@ namespace OpenSim.Services.InventoryService
             UUID sessionId, string destination, DateTimeOffset expiry)
         {
             if (grantId == UUID.Zero || residentId == UUID.Zero ||
-                sessionId == UUID.Zero || string.IsNullOrWhiteSpace(destination) ||
-                destination.Length > 255)
+                sessionId == UUID.Zero || !ValidDestination(destination))
                 return false;
             long now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
             long until = expiry.ToUnixTimeSeconds();
@@ -95,7 +111,7 @@ namespace OpenSim.Services.InventoryService
         public bool IsActive(UUID residentId, UUID sessionId, string destination)
         {
             if (residentId == UUID.Zero || sessionId == UUID.Zero ||
-                string.IsNullOrWhiteSpace(destination))
+                !ValidDestination(destination))
                 return false;
             try
             {
