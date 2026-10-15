@@ -998,6 +998,9 @@ function renderStatistics(data){
     erzeugt_am:data.generated_at,
     kontostatus:states,
     datenqualitaet:{
+      vollstaendig:quality.complete,
+      griduser_datenquelle:quality.griduser_source,
+      fehlende_kennzahlen:quality.missing_metrics||[],
       registrierungsquelle:qv(quality.registered_source),
       online_quelle:qv(quality.online_source),
       historische_aktivitaet:qv(quality.historical_activity),
@@ -1008,8 +1011,12 @@ function renderStatistics(data){
 }
 async function loadStatistics(){
   const headers={'Accept':'application/json'};
-  const bearer=$('statsBearer').value.trim()||$('bearer').value.trim()||adminAuthToken();
-  const key=$('statsApiKey').value.trim()||$('apiKey').value.trim();
+  // Do not reuse arbitrary credentials typed into the API Explorer:
+  // expired/incorrect bearer or API keys turn otherwise public aggregates
+  // into 401/403. Only the verified admin session or explicit stats
+  // credentials should be sent to the statistics endpoint.
+  const bearer=$('statsBearer').value.trim()||adminAuthToken();
+  const key=$('statsApiKey').value.trim();
   if(bearer)headers.Authorization='Bearer '+bearer;
   if(key)headers['X-NexVerse-Api-Key']=key;
   $('statsStatus').textContent='Lade Statistik…';$('statsDot').className='dot';
@@ -1023,7 +1030,7 @@ async function loadStatistics(){
       return;
     }
     renderStatistics(data||{});
-    $('statsStatus').textContent='Live · '+(data.protected_details?'Details':'Aggregiert')+' · '+formatStatDate(data.generated_at);
+    $('statsStatus').textContent='Live · '+(data.data_quality&&data.data_quality.complete===false?'Teilweise (Datenquelle fehlt)':data.protected_details?'Details':'Aggregiert')+' · '+formatStatDate(data.generated_at);
     $('statsDot').className='dot good';
   }catch(err){
     $('statsStatus').textContent='Statistik nicht erreichbar';$('statsDot').className='dot bad';$('statsQuality').textContent=String(err);
