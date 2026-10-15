@@ -356,7 +356,7 @@ namespace NexVerse.Server.Api
                             .Count()
                         : (int?)null
                 },
-                detail_level = !gridUserAvailable
+                detail_level = !gridUserAvailable || !regions.Available || assetStatus != "ok"
                     ? "partial"
                     : includeProtectedDetails ? "authenticated" : "aggregate",
                 protected_details = includeProtectedDetails,
@@ -453,6 +453,7 @@ namespace NexVerse.Server.Api
                     .Where(x => x != null && !x.RegionID.IsZero())
                     .GroupBy(x => x.RegionID)
                     .Select(group => group.First())
+                    .OrderBy(x => x.RegionName, StringComparer.OrdinalIgnoreCase)
                     .ToArray();
 
                 int online = 0, reserved = 0, links = 0;
