@@ -142,7 +142,7 @@ namespace OpenSim.Region.Framework.Scenes.Serialization
             if (reader.Name == "KeyframeMotion" && reader.NodeType == XmlNodeType.Element)
             {
                 string innerkeytxt = reader.ReadElementContentAsString();
-                sceneObject.RootPart.KeyframeMotion = KeyframeMotion.FromData(sceneObject, Convert.FromBase64String(innerkeytxt));
+                sceneObject.RootPart.LoadPersistedKeyframeMotion(sceneObject, Convert.FromBase64String(innerkeytxt));
             }
 
             if (reader.Name == "lnkstdt" && reader.NodeType == XmlNodeType.Element)
@@ -251,9 +251,9 @@ namespace OpenSim.Region.Framework.Scenes.Serialization
 
             writer.WriteEndElement(); // OtherParts
 
-            if (sceneObject.RootPart.KeyframeMotion != null)
+            if (sceneObject.RootPart.HasPersistedKeyframeMotion)
             {
-                byte[] data = sceneObject.RootPart.KeyframeMotion.Serialize();
+                byte[] data = sceneObject.RootPart.SerializePersistedKeyframeMotion();
 
                 writer.WriteStartElement(string.Empty, "KeyframeMotion", string.Empty);
                 writer.WriteBase64(data, 0, data.Length);
@@ -331,7 +331,7 @@ namespace OpenSim.Region.Framework.Scenes.Serialization
 
                 XmlNodeList keymotion = doc.GetElementsByTagName("KeyframeMotion");
                 if (keymotion.Count > 0)
-                    sceneObject.RootPart.KeyframeMotion = KeyframeMotion.FromData(sceneObject, Convert.FromBase64String(keymotion[0].InnerText));
+                    sceneObject.RootPart.LoadPersistedKeyframeMotion(sceneObject, Convert.FromBase64String(keymotion[0].InnerText));
 
                 XmlNodeList keylinksetdata = doc.GetElementsByTagName("lnkstdt");
                 if (keylinksetdata.Count > 0)
@@ -1510,9 +1510,9 @@ namespace OpenSim.Region.Framework.Scenes.Serialization
 
             writer.WriteEndElement();
 
-            if (sog.RootPart.KeyframeMotion != null)
+            if (sog.RootPart.HasPersistedKeyframeMotion)
             {
-                Byte[] data = sog.RootPart.KeyframeMotion.Serialize();
+                Byte[] data = sog.RootPart.SerializePersistedKeyframeMotion();
 
                 writer.WriteStartElement(string.Empty, "KeyframeMotion", string.Empty);
                 writer.WriteBase64(data, 0, data.Length);
