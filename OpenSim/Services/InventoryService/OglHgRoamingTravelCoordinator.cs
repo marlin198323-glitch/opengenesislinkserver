@@ -12,13 +12,16 @@ namespace OpenSim.Services.InventoryService
         private readonly IPresenceService m_presence;
         private readonly OglHgRoamingGrantRepository m_grants;
         private readonly OglHgRoamingConsentAuthority m_authority;
+        private readonly Func<UUID, UUID, string, bool> m_verifiedLocalTravel;
 
         public OglHgRoamingTravelCoordinator(IPresenceService presence,
             OglHgRoamingGrantRepository grants, byte[] signingSecret,
-            string issuer)
+            string issuer, Func<UUID, UUID, string, bool> verifiedLocalTravel)
         {
             m_presence = presence ?? throw new ArgumentNullException(nameof(presence));
             m_grants = grants ?? throw new ArgumentNullException(nameof(grants));
+            m_verifiedLocalTravel = verifiedLocalTravel ??
+                throw new ArgumentNullException(nameof(verifiedLocalTravel));
             m_authority = new OglHgRoamingConsentAuthority(signingSecret, issuer,
                 new OglHgPresenceSessionSource(presence, grants));
         }
@@ -38,11 +41,12 @@ namespace OpenSim.Services.InventoryService
                 PresenceInfo presence = m_presence.GetAgent(session);
                 if (presence == null ||
                     !UUID.TryParse(presence.UserID, out UUID owner) ||
-                    owner != resident)
+                    owner != resident ||
+                    !m_verifiedLocalTravel(resident, session, verifiedDestination))
                     return false;
 
-                // Grant creation is not an authentication mechanism:
-                // this method must be called ONLY by trusted local travel.
+                // Local travel verification is a required independent check.
+                // Never wire this delegate to a caller-supplied assertion.
                 UUID grantId = UUID.Random();
                 if (!m_grants.TryCreateTrustedGrant(grantId, resident, session,
                     verifiedDestination, DateTimeOffset.UtcNow.Add(lifetime)))
