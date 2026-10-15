@@ -19,7 +19,7 @@ for marker in (
     'active_last_7_days = gridUserAvailable',
     'online_now = gridUserAvailable ? hypergridOnline.Count : (int?)null',
     'total = gridUserAvailable ? allOnline.Count : (int?)null',
-    'missing_metrics = gridUserAvailable',
+    'missing_metrics = (gridUserAvailable',
     'griduser_source = gridUserAvailable ? "available" : "unavailable"',
     'complete = gridUserAvailable && completeAccountEnumeration',
 ):
