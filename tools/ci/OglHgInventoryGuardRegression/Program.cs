@@ -9,6 +9,7 @@ using System.Text.Json;
 using OpenMetaverse;
 using OpenSim.Framework;
 using OpenSim.Services.HypergridService;
+using OpenSim.Services.InventoryService;
 
 internal static class Program
 {
@@ -397,6 +398,102 @@ internal static class Program
         Expect("foreign executable nested bytecode never accepted",
             !CheckGraph(graphRoot, (int)AssetType.Object, bytecodeGraph,
                 Pins(bytecodeGraph), out _, out _));
+
+        // Phase 3f: real disk staging + immutable full-copy snapshot + graph scan.
+        if (OperatingSystem.IsLinux())
+        {
+            string stagedPath = Path.Combine(Path.GetTempPath(),
+                "ogl-hg-multistage-regression-" + Guid.NewGuid().ToString("N"));
+            try
+            {
+                UUID stagingOwner = UUID.Random();
+                UUID stagingCase = UUID.Random();
+                UUID stagingRootItem = UUID.Random();
+                var store = new OglQuarantineTransferStageStore(stagedPath, 16384, 8, 65536);
+                byte[] rootBytes = graph[graphRoot].Data;
+                Expect("multi-asset stage: root created",
+                    store.TryStage(stagingOwner, stagingCase, stagingRootItem,
+                        graphRoot, (int)AssetType.Object, rootBytes, out _));
+
+                bool BundleInspect(out OglHgDependencyGraphReport result, out string reason)
+                    => OglHgStagedQuarantineBundleInspector.TryInspect(store,
+                        stagingOwner, stagingCase, stagingRootItem,
+                        16384, 4096, 8, 16, 8, 65536,
+                        out result, out reason);
+
+                Expect("multi-asset stage: missing child blocks graph",
+                    !BundleInspect(out _, out string beforeChild) &&
+                    beforeChild == "graph_dependency_missing");
+
+                Expect("multi-asset stage: nested object staged",
+                    store.TryStageDependency(stagingOwner, stagingCase,
+                        stagingRootItem, graphChild, (int)AssetType.Object,
+                        graph[graphChild].Data, out _));
+                Expect("multi-asset stage: missing grandchild script blocks graph",
+                    !BundleInspect(out _, out string beforeScript) &&
+                    beforeScript == "graph_dependency_missing");
+
+                Expect("multi-asset stage: nested script staged",
+                    store.TryStageDependency(stagingOwner, stagingCase,
+                        stagingRootItem, graphScript, (int)AssetType.LSLText,
+                        graph[graphScript].Data, out _));
+
+                Expect("multi-asset stage: complete pinned recursive inspection succeeds",
+                    BundleInspect(out OglHgDependencyGraphReport bundleReport,
+                        out string bundleReason) &&
+                    bundleReport.Status == "structurally_inspected_not_authorized" &&
+                    bundleReport.AssetsInspected == 3 &&
+                    bundleReport.ObjectAssetsInspected == 2 &&
+                    bundleReport.ScriptSourcesInspected == 1 &&
+                    bundleReport.NestedReferences == 2);
+
+                var afterRestart = new OglQuarantineTransferStageStore(
+                    stagedPath, 16384, 8, 65536);
+                Expect("multi-asset stage: hash-pinned bundle survives restart",
+                    OglHgStagedQuarantineBundleInspector.TryInspect(afterRestart,
+                        stagingOwner, stagingCase, stagingRootItem,
+                        16384, 4096, 8, 16, 8, 65536,
+                        out OglHgDependencyGraphReport restartReport, out _) &&
+                    restartReport.AssetsInspected == 3);
+
+                Expect("multi-asset stage: owner mismatch denied",
+                    !OglHgStagedQuarantineBundleInspector.TryInspect(afterRestart,
+                        UUID.Random(), stagingCase, stagingRootItem,
+                        16384, 4096, 8, 16, 8, 65536, out _, out _));
+
+                Expect("multi-asset stage: child duplicate denied",
+                    !store.TryStageDependency(stagingOwner, stagingCase,
+                        stagingRootItem, graphScript, (int)AssetType.LSLText,
+                        graph[graphScript].Data, out _));
+
+                UUID extraId = UUID.Random();
+                Expect("multi-asset stage: unrelated extra asset staged as untrusted",
+                    store.TryStageDependency(stagingOwner, stagingCase,
+                        stagingRootItem, extraId, (int)AssetType.Texture,
+                        Encoding.UTF8.GetBytes("opaque extra bytes"), out _));
+                Expect("multi-asset stage: unreferenced extra asset blocks case",
+                    !BundleInspect(out _, out string extraReason) &&
+                    extraReason == "bundle_unreferenced_staged_asset");
+
+                string[] scriptFiles = Directory.GetFiles(stagedPath,
+                    "*.dep." + graphScript + ".payload");
+                Expect("multi-asset stage: private script payload located",
+                    scriptFiles.Length == 1);
+                if (scriptFiles.Length == 1)
+                {
+                    File.WriteAllText(scriptFiles[0], "corrupted");
+                    Expect("multi-asset stage: corrupted script blocks snapshot",
+                        !store.TryReadVerifiedBundle(stagingOwner, stagingCase,
+                            stagingRootItem, 8, 65536, out _, out string corruptedReason) &&
+                        corruptedReason == "bundle_dependency_corrupt");
+                }
+            }
+            finally
+            {
+                if (Directory.Exists(stagedPath))
+                    Directory.Delete(stagedPath, true);
+            }
+        }
 
         // Linux-only private quarantine: capture a bounded sample of already
         // rejected assets, without inserting them into the normal asset store.
