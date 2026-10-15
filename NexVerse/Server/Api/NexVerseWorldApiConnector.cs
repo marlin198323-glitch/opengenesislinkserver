@@ -985,6 +985,21 @@ namespace NexVerse.Server.Api
                         "NexVerse Session Revocation"));
                 }
 
+                // Register authentication as exact routes rather than relying
+                // only on /api variable-path fallback. A wrong handler or
+                // reverse-proxy fallback can otherwise respond HTTP 200 without
+                // the access_token contract expected by the Control Center.
+                // The existing userRouter still validates POST, credentials,
+                // TOTP, permissions and issues the signed bearer token.
+                server.AddSimpleStreamHandler(new SimpleStreamHandler(
+                    "/api/v1/auth/session",
+                    apiGate.Wrap(userRouter.Handle),
+                    "OpenGenesisLINK native resident session"));
+                server.AddSimpleStreamHandler(new SimpleStreamHandler(
+                    "/api/v1/auth/admin/session",
+                    apiGate.Wrap(userRouter.Handle),
+                    "OpenGenesisLINK native administrator session"));
+
                 server.AddSimpleStreamHandler(
                     new SimpleStreamHandler("/api", apiGate.Wrap(userRouter.Handle), "NexVerse World API privileged router"),
                     true);
