@@ -54,6 +54,8 @@ exact_routes = {
     "/api/v1": "root",
     "/api/v1/health": "health",
     "/api/v1/docs": "docs",
+    "/api/v1/auth/session": "native-session",
+    "/api/v1/auth/admin/session": "admin-session",
 }
 variable_routes = {
     "/api": "users",
@@ -69,6 +71,9 @@ examples = {
     "/api/v1": "root",
     "/api/v1/health": "health",
     "/api/v1/docs": "docs",
+    "/api/v1/auth/session": "native-session",
+    "/api/v1/auth/admin/session": "admin-session",
+    "/api/v1/auth/clients": "users",
     "/api/v1/experiences": "experiences",
     "/api/v1/experiences/script/resolve": "experiences",
     "/api/v1/experiences/script/details": "experiences",
@@ -82,6 +87,12 @@ examples = {
     "/api/v1/experiences-other": "users",  # no partial-segment match
     "/apix/v1/experiences": None,             # no partial-segment match
 }
+# Both exact login routes must bypass the broad /api fallback.
+assert connector.count('"/api/v1/auth/session"') == 1
+assert connector.count('"/api/v1/auth/admin/session"') == 1
+assert connector.index('"/api/v1/auth/session"') < connector.index(
+    '"/api", apiGate.Wrap(userRouter.Handle)')
+
 for path, expected in examples.items():
     actual = match(path, exact_routes, variable_routes)
     assert actual == expected, f"{path}: expected {expected}, got {actual}"
