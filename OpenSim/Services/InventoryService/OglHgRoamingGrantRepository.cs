@@ -157,6 +157,29 @@ namespace OpenSim.Services.InventoryService
             catch (InvalidOperationException) { return false; }
         }
 
+        // Invoked by the trusted home-grid logout path before session
+        // termination. A failed database write must be treated as an error.
+        // The caller must not report revocation success on failure.
+        public bool TryRevokeResident(UUID residentId)
+        {
+            if (residentId == UUID.Zero)
+                return false;
+            try
+            {
+                using DbConnection connection = Open();
+                using DbCommand cmd = connection.CreateCommand();
+                cmd.CommandText = "UPDATE ogl_hg_roaming_grants " +
+                    "SET revoked_utc = @now WHERE resident_id = @resident " +
+                    "AND revoked_utc IS NULL";
+                Add(cmd, "@resident", residentId.ToString());
+                Add(cmd, "@now", DateTimeOffset.UtcNow.ToUnixTimeSeconds());
+                cmd.ExecuteNonQuery();
+                return true;
+            }
+            catch (DbException) { return false; }
+            catch (InvalidOperationException) { return false; }
+        }
+
         public bool TryRevokeSession(UUID residentId, UUID sessionId)
         {
             if (residentId == UUID.Zero || sessionId == UUID.Zero)
