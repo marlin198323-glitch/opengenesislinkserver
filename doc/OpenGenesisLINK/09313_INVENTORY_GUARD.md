@@ -236,6 +236,66 @@ erlaubte Pending->Rejected-Transition, verbotenen Ruecksprung,
 Nichtmanipulierbarkeit, Versionszaehler und Persistenz nach
 einem neuen Serviceprozess.
 
+## Phase 3b / Sicherheitsnachweis fuer lokale Statusuebergaenge
+
+`OglQuarantineTransferGrantAuthority` und
+`OglQuarantineTransferCoordinator` sind in
+`OpenSim.Services.InventoryService` implementiert.
+
+- Der **vertraute lokale** Aussteller erzeugt ein signiertes
+  HMAC-SHA-256-Ticket fuer eine exakt angegebene Bewohner-UUID,
+  Vorgangs-UUID, Inventory-Item-UUID, Asset-UUID, Ziel-Grid-Audience
+  und Operation `Begin` oder `Reject`. Die Gültigkeit liegt zwischen
+  einer Sekunde und maximal fuenf Minuten.
+- Validator prueft MAC in konstanter Zeit, Audience, Operation,
+  Objekt-/Asset-/Owner-IDs, Zeitgrenzen und Signatur, **bevor** der
+  Quarantaene-Vorgangsstatus veraendert werden darf. Ein Begin-Ticket
+  kann keine Ablehnung ausloesen, ein Ticket fuer Avatar A nicht
+  an Avatar B eingesetzt werden.
+- Jedes gueltige Ticket wird beim Verbrauch im isolierten Linux-Verzeichnis
+  durch `FileMode.CreateNew` (atomar auf einem lokalen Dateisystem)
+  als `SHA256(ticket).spent` vermerkt. Kein Ticket darf erneut
+  verwendet werden, auch nicht nach einem Dienstneustart. Dateimodus
+  0600, Verzeichnis 0700; ein unbeschreibbares Verzeichnis fuehrt
+  zum **Abbruch**. Kann nach erfolgreichem Verbrauch der Viewer-Status
+  nicht geschrieben werden, bleibt das Ticket bewusst verbraucht;
+  Wiederherstellung erfordert einen neuen, separat autorisierten
+  Vorgang, nicht einen unsicheren Replay.
+- Das Ticket muss aus einem **bereits authentifizierten lokalen
+  Kontext** stammen; der Konstruktor erwartet einen mindestens
+  32 Bytes langen zufaelligen Schluessel und eine explizite
+  Grid-Audience. **Kein** Default-Schluessel und **keine**
+  Ticket-Ausgabe ueber einen oeffentlichen Connector!
+- Das Replay-Verzeichnis muss bei Multi-Prozess-Betrieb von **allen**
+  kooperierenden Komponenten ueber **ein gemeinsames Dateisystem
+  mit garantierter atomarer CreateNew-Semantik** verwendet werden.
+  Ein je-Knoten-lokales Verzeichnis bietet keinen Cluster-weiten
+  Replay-Schutz. Langfristig ist eine transaktionale Datenbank-
+  Ledger-Tabelle in PostgreSQL/MariaDB/SQLite vorgesehen.
+- Die Zeitpruefung verwendet die lokale Server-UTC; NTP-Synchronisierung
+  und Key-Rotation sind Betreiberpflicht. Keine automatisierte
+  Bereinigung verbrauchter Tickets implementiert. Keine
+  Signierschluessel ins Repository oder die Clientanwendung kopieren.
+
+**Extrem wichtig:** Das ist eine kryptographische Eintrittsbedingung
+fuer **lokale Statuswechsel**, **keine HG-Avatar-Authentifizierung**.
+Die Ausstellerseite besitzt noch keine bewiesene Zuordnung
+`fremdes Grid -> Avatar -> Zugriffsrecht -> bezahlter Transfer`.
+Daher werden aus rohen HG-/xinventory-Nachrichten derzeit weder
+Tickets ausgegeben noch der Coordinator aus der Public-API
+aufgerufen. Die oeffentliche Legacy-Schnittstelle bleibt in den
+Entwicklungsprofilen teilweise aktiv und ist weiter unsicher.
+Ticketpruefung ist auch noch **keine** Prüfung von rekursiven
+Scripten/Meshes oder atomare Inventarzustellung.
+Produktiver Einsatz dieser Teilfunktion erst nach integriertem
+authentifiziertem Transferprotokoll und gemeinsamem Ledger.
+
+Regressionstest:
+`dotnet run -c Release --project tools/ci/OglQuarantineFolderRegression/OglQuarantineFolderRegression.csproj`
+prueft gueltige und gefaelschte Tickets, falsche Audience/
+Avatar-/Item-/Asset-ID, Operationstrennung, Replay nach Neustart,
+maximale Gültigkeitsdauer und idempotente Quarantaene-Statuswechsel.
+
 ## Nicht implementiert - keine Sicherheitsversprechen
 
 1. **Keine Autorisierung:** Der Legacy-Handler ermittelt aus einem
