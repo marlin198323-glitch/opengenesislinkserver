@@ -14,7 +14,8 @@ namespace OpenSim.Services.InventoryService
     {
         Begin = 1,
         Reject = 2,
-        Stage = 3
+        Stage = 3,
+        StageDependency = 4
     }
 
     /// <summary>
@@ -76,7 +77,8 @@ namespace OpenSim.Services.InventoryService
                 itemId == UUID.Zero || assetId == UUID.Zero ||
                 (action != OglQuarantineTransferAction.Begin &&
                  action != OglQuarantineTransferAction.Reject &&
-                 action != OglQuarantineTransferAction.Stage) ||
+                 action != OglQuarantineTransferAction.Stage &&
+                 action != OglQuarantineTransferAction.StageDependency) ||
                 lifetime < TimeSpan.FromSeconds(1) ||
                 lifetime > TimeSpan.FromMinutes(5))
                 throw new ArgumentException("Invalid or overlong quarantine grant");
@@ -256,6 +258,30 @@ namespace OpenSim.Services.InventoryService
                        assetId, assetType, payload, out _) &&
                    m_stageStore.TryVerify(verifiedOwner, caseId, itemId, assetId) &&
                    m_inventory.TryBeginTrustedQuarantineCase(verifiedOwner, caseId);
+        }
+
+        /// <summary>
+        /// Only a trusted local issuer can authorize staging child data.
+        /// The signed item ID is the root inventory item ID, and the signed
+        /// asset ID is the *specific dependency*, not a caller-chosen wildcard.
+        /// A rejected case cannot accept more dependencies. No HG wire method.
+        /// </summary>
+        public bool TryStageDependency(string proof, UUID verifiedOwner, UUID caseId,
+            UUID rootItemId, UUID dependencyAssetId, int assetType, byte[] payload)
+        {
+            if (m_stageStore == null || payload == null)
+                return false;
+
+            InventoryFolderBase status = m_inventory.GetFolder(verifiedOwner,
+                OglInventoryQuarantineFolders.Case(verifiedOwner, caseId));
+            if (status == null ||
+                status.ParentID != OglInventoryQuarantineFolders.Pending(verifiedOwner))
+                return false;
+
+            return m_authority.TryConsume(proof, verifiedOwner, caseId, rootItemId,
+                       dependencyAssetId, OglQuarantineTransferAction.StageDependency) &&
+                   m_stageStore.TryStageDependency(verifiedOwner, caseId,
+                       rootItemId, dependencyAssetId, assetType, payload, out _);
         }
 
         public bool TryBegin(string proof, UUID verifiedOwner, UUID caseId,
