@@ -203,6 +203,28 @@ Both authorized remote test machines were offline when these tools were
 introduced. Actual region data or real viewer measurements were
 **not** available; no such tests should be reported as completed.
 
+## World API region and service statistics parity (15.10.2026)
+
+The .NET 10 staging branch now includes the completed production `.NET 8`
+World API change from PR #228, in addition to the earlier early-registration
+404 fix from PR #227:
+
+- `GET /api/v1/statistics/summary` enumerates registered (including offline
+  and reserved) local regions directly from the GridStore database, not just
+  regions containing logged-in users. Hypergrid links are counted separately.
+- `region_summary` distinguishes registered/online/offline/reserved counts
+  using the GridService registration flag, not a simulator network heartbeat.
+- `services.grid` and `services.asset` expose separate read-only health
+  probes, reporting unavailable/degraded states without manufacturing zeros.
+- Public data contains only non-sensitive region map metadata. Per-avatar
+  occupancy stays behind `statistics:read` authorization.
+- `tools/ci/verify_statistics_fallback.py` protects the data-quality and
+  authorization boundaries.
+
+The source change is ported; no live production GridStore/FSAssets deployment
+or .NET 10 acceptance is inferred from source parity. Full CI and the existing
+legacy keyframe/YEngine/region-state migration gates remain mandatory.
+
 ## Additional release gates
 
 - Full .NET 10 Release build, CI and API/database matrix.
