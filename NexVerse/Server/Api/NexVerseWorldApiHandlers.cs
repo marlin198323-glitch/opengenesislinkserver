@@ -5401,7 +5401,7 @@ namespace NexVerse.Server.Api
                     properties = new Dictionary<string, object>
                     {
                         ["generated_at"] = new { type = "string", format = "date-time" },
-                        ["detail_level"] = new { type = "string", @enum = new[] { "aggregate", "authenticated" } },
+                        ["detail_level"] = new { type = "string", @enum = new[] { "aggregate", "authenticated", "partial" } },
                         ["protected_details"] = new { type = "boolean" },
                         ["residents"] = new
                         {
