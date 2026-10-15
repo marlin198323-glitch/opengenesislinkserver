@@ -49,6 +49,17 @@ assert "XmlResolver = null" in asset_scanner
 assert "MaximumObjectDepth" in asset_scanner and "MaximumObjectNodes" in asset_scanner
 assert "AssetType.LSLBytecode" in asset_scanner
 assert "UTF8Encoding(false, true)" in asset_scanner
+nested = read("OpenSim/Services/HypergridService/OglHgNestedInventoryInspector.cs")
+assert "OglHgNestedInventoryInspector.TryExtract(asset, maxAssetBytes," in asset_scanner
+assert "public const int MaxNestedItems = 2048" in nested
+assert "DtdProcessing = DtdProcessing.Prohibit" in nested
+assert "XmlResolver = null" in nested
+assert "MaxCharactersInDocument = maxBytes" in nested
+assert "duplicate_nested_inventory_item_id" in nested
+assert "AssetType.LSLBytecode" in nested
+assert "HashSet<UUID> seenItems" in nested
+assert "TryReadShortValue" in nested
+assert "out OglHgNestedAssetReference[] references" in nested
 quarantine = read("OpenSim/Services/HypergridService/OglHgInventoryQuarantine.cs")
 assert 'GetBoolean("QuarantineRejectedAssets", false)' in asset_handler
 assert "OglHgInventoryQuarantine.TryCapture" not in asset_handler  # instance method
@@ -75,4 +86,4 @@ for path in (
     assert "QuarantineMaxRecords = 5000" in section.group(1), path
 
 assert "AllowLegacyPublicHGInventory = true" in read("bin/Robust.HG.ini")
-print("OGL HG InventoryGuard: metadata + asset ingress + rejected-evidence quarantine wiring verified (no avatar authorization)")
+print("OGL HG InventoryGuard: metadata, bounded nested task references, asset ingress and rejected-evidence wiring verified (no HG avatar authorization)")
