@@ -57,6 +57,7 @@ namespace OpenSim.Services.HypergridService
 //        private string m_HomeURL;
         private IUserAccountService m_UserAccountService;
         private IAvatarService m_AvatarService;
+        private readonly bool m_OglInventoryGuardEnabled;
 
 //        private UserAccountCache m_Cache;
 
@@ -72,6 +73,16 @@ namespace OpenSim.Services.HypergridService
 
             if (m_Database == null)
                 m_log.ErrorFormat("[HG SUITCASE INVENTORY SERVICE]: m_Database is null!");
+
+            // Strict item metadata checks are opt-in during 0.9.3.13 testing.
+            // These checks do NOT authorize a remote legacy HG caller.
+            IConfig guardConfig = config.Configs["OGLInventoryGuard"];
+            m_OglInventoryGuardEnabled = guardConfig != null &&
+                guardConfig.GetBoolean("Enabled", false);
+            if (m_OglInventoryGuardEnabled)
+                m_log.Warn("[OGL INVENTORY GUARD]: HG item metadata validation enabled. " +
+                    "Legacy /xinventory remains without per-avatar caller authorization; " +
+                    "asset bytes and embedded scripts are not scanned in phase 1.");
 
             //
             // Try reading the [InventoryService] section, if it exists
@@ -348,21 +359,55 @@ namespace OpenSim.Services.HypergridService
 
         public override bool AddItem(InventoryItemBase item)
         {
-            // Let's do a bit of sanity checking, more than the base service does
-            // make sure the given folder's parent folder exists under the suitcase tree of this user
+            if (item == null)
+                return false;
+
+            if (m_OglInventoryGuardEnabled)
+            {
+                if (!OglHgInventoryGuard.TryValidateItem(item, out string reason))
+                {
+                    m_log.WarnFormat("[OGL INVENTORY GUARD]: Rejected HG AddItem {0}: {1}", item.ID, reason);
+                    return false;
+                }
+
+                // Inventory IDs are globally unique in the database. A remote
+                // AddItem must not overwrite an existing item, including items
+                // belonging to a DIFFERENT avatar.
+                XInventoryItem[] existing = m_Database.GetItems(
+                    new string[] { "inventoryID" }, new string[] { item.ID.ToString() });
+                if (existing != null && existing.Length > 0)
+                {
+                    m_log.WarnFormat("[OGL INVENTORY GUARD]: Rejected duplicate HG AddItem ID {0}", item.ID);
+                    return false;
+                }
+            }
+
+            // Suitcase tree confinement is additional defense, NOT caller auth.
             if (!IsWithinSuitcaseTree(item.Owner, item.Folder))
             {
                 m_log.DebugFormat("[HG SUITCASE INVENTORY SERVICE]: AddItem: folder {0} (user {1}) is not within Suitcase tree", item.Folder, item.Owner);
                 return false;
             }
 
-            // OK, it's legit
             return base.AddItem(item);
-
         }
 
         public override bool UpdateItem(InventoryItemBase item)
         {
+            if (item == null)
+                return false;
+
+            if (m_OglInventoryGuardEnabled)
+            {
+                // Use the underlying database lookup, not the filtered HG GetItem.
+                InventoryItemBase existing = base.GetItem(item.Owner, item.ID);
+                if (!OglHgInventoryGuard.TryValidateUpdate(existing, item, out string reason))
+                {
+                    m_log.WarnFormat("[OGL INVENTORY GUARD]: Rejected HG UpdateItem {0}: {1}", item.ID, reason);
+                    return false;
+                }
+            }
+
             if (!IsWithinSuitcaseTree(item.Owner, item.Folder))
             {
                 m_log.DebugFormat("[HG SUITCASE INVENTORY SERVICE]: UpdateItem: folder {0} (user {1}) is not within Suitcase tree", item.Folder, item.Owner);
@@ -390,7 +435,8 @@ namespace OpenSim.Services.HypergridService
             foreach (InventoryItemBase item in items)
             {
                 InventoryItemBase originalItem = base.GetItem(item.Owner, item.ID);
-                if (!IsWithinSuitcaseTree(originalItem.Owner, originalItem.Folder))
+                if (originalItem == null || originalItem.Owner != principalID ||
+                    !IsWithinSuitcaseTree(originalItem.Owner, originalItem.Folder))
                 {
                     m_log.DebugFormat("[HG SUITCASE INVENTORY SERVICE]: MoveItems: folder {0} (user {1}) is not within Suitcase tree", item.Folder, item.Owner);
                     return false;
@@ -408,10 +454,10 @@ namespace OpenSim.Services.HypergridService
         public override InventoryItemBase GetItem(UUID principalID, UUID itemID)
         {
             InventoryItemBase it = base.GetItem(principalID, itemID);
-            if (it == null)
+            if (it == null || (m_OglInventoryGuardEnabled && it.Owner != principalID))
             {
-                m_log.DebugFormat("[HG SUITCASE INVENTORY SERVICE]: Unable to retrieve item {0}",
-                    itemID);
+                m_log.DebugFormat("[HG SUITCASE INVENTORY SERVICE]: Unable to retrieve item {0} for user {1}",
+                    itemID, principalID);
                 return null;
             }
 
