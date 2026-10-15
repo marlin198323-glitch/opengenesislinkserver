@@ -107,6 +107,10 @@ jobs:
         shell: bash
         run: python3 tools/ci/verify_ogl_hg_inventory_guard_09313.py
 
+      - name: Verify OGL inventory quarantine system folder wiring
+        shell: bash
+        run: python3 tools/ci/verify_ogl_quarantine_system_folders.py
+
       - name: Security - remote asset deletion must be absent
         shell: bash
         run: python3 tools/ci/verify_no_remote_asset_delete_09312.py
@@ -523,6 +527,10 @@ jobs:
       - name: Runtime regression HG InventoryGuard metadata and update validation
         shell: bash
         run: dotnet run --configuration Release --project tools/ci/OglHgInventoryGuardRegression/OglHgInventoryGuardRegression.csproj
+
+      - name: Runtime regression protected quarantine inventory folders
+        shell: bash
+        run: dotnet run --configuration Release --project tools/ci/OglQuarantineFolderRegression/OglQuarantineFolderRegression.csproj
 
       - name: Runtime regression cross-region llListen delivery (two scenes)
         shell: bash
