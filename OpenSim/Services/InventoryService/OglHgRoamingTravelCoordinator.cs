@@ -96,6 +96,27 @@ namespace OpenSim.Services.InventoryService
         public bool TryEndSession(UUID resident, UUID session) =>
             m_grants.TryRevokeSession(resident, session);
 
+        // Bulk logout caller must supply authenticated session IDs obtained
+        // before presence is cleared. Fail closed on any invalid or failed
+        // revocation; never infer a session from PresenceInfo (it has no ID).
+        public bool TryRevokeSessionsBeforeRegionLogout(
+            System.Collections.Generic.IEnumerable<(UUID Resident, UUID Session)> sessions)
+        {
+            if (sessions == null)
+                return false;
+            try
+            {
+                foreach (var entry in sessions)
+                    if (!TryRevokeOnAuthenticatedLogout(entry.Resident, entry.Session))
+                        return false;
+                return true;
+            }
+            catch (Exception)
+            {
+                return false;
+            }
+        }
+
         public bool TryRevokeResident(UUID resident) =>
             m_grants.TryRevokeResident(resident);
 
