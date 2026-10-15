@@ -362,7 +362,18 @@ namespace OpenSim.Services.HypergridService
         // Optional trusted HOME-GRID InventoryGuard integration.
         // No remote endpoint may register this callback. Configuration
         // and the owning server bootstrap must explicitly wire it.
-        public static Func<UUID, UUID, bool> InventoryGuardRevokeOnLogout { get; set; }
+        // Set only from trusted server bootstrap. A configured guard must
+        // revoke before logout; remote requests cannot replace this delegate.
+        private static Func<UUID, UUID, bool> s_inventoryGuardRevokeOnLogout;
+
+        public static bool TryRegisterInventoryGuardLogout(
+            Func<UUID, UUID, bool> revoke)
+        {
+            if (revoke == null)
+                return false;
+            return System.Threading.Interlocked.CompareExchange(
+                ref s_inventoryGuardRevokeOnLogout, revoke, null) == null;
+        }
 
         public bool IsAuthenticatedTravelDestination(UUID residentId,
             UUID sessionId, string destinationGridUri)
@@ -393,7 +404,7 @@ namespace OpenSim.Services.HypergridService
             // Revoke consent while the session still exists. On failure,
             // retain the session record and refuse to report a clean logout.
             // This hook is inactive until a trusted local bootstrap wires it.
-            Func<UUID, UUID, bool> revoke = InventoryGuardRevokeOnLogout;
+            Func<UUID, UUID, bool> revoke = s_inventoryGuardRevokeOnLogout;
             if (revoke != null)
             {
                 bool revoked;
