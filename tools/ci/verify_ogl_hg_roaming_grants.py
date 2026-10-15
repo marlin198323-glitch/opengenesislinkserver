@@ -76,3 +76,10 @@ assert "owner != resident" in coordinator
 assert "TryPurgeInactiveGrants" in repository
 assert "ValidDestination(destination)" in repository
 print("PASS: SQLite schema idempotence, active, destination, expiry, revoke; repository hooks")
+
+inventory_source = (ROOT / "OpenSim/Services/InventoryService/XInventoryService.cs").read_text()
+assert "TryRegisterForeignDeliveryValidator" in inventory_source
+assert "TryAddForeignItem(InventoryItemBase item)" in inventory_source
+assert "if (item == null || validate == null)" in inventory_source
+assert "if (!validate(item))" in inventory_source
+assert "return AddItem(item);" in inventory_source
