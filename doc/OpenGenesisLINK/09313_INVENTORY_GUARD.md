@@ -1,4 +1,4 @@
-# OpenGenesisLINK 0.9.3.13 - OGL HG InventoryGuard (Phase 1-3e, Entwicklung)
+# OpenGenesisLINK 0.9.3.13 - OGL HG InventoryGuard (Phase 1-3f, Entwicklung)
 
 Status: **Entwicklungszweig / noch nicht fuer Stable freigegeben.**
 Diese Aenderung betrifft ausschliesslich den per `HGSuitcaseInventoryService`
@@ -468,6 +468,60 @@ Objekt -> Unterobjekt -> Script, kaputte/fehlende Signaturen
 und Hash-Pins, fehlende Assets, Asset-ID-/Typ-Tausch,
 Zyklen, gemeinsame Referenzen, die kumulative Groesse,
 Rekursionstiefe, Referenzanzahl und Script-UTF8-Fehler.
+
+## Phase 3f: persistente Multi-Asset-Quarantaene und Graph-Adapter
+
+`OglQuarantineTransferStageStore` kann nun neben dem Root-Asset eines
+Vorgangs auch mehrere **untergeordnete** Assets als getrennte `*.dep.*`-
+Dateien speichern. Jeder Zusatz muss durch ein *eigenes*, kurzlebiges,
+HMAC-signiertes `StageDependency`-Ticket freigegeben sein, das an
+Bewohner, Vorgang, Root-Item und **konkrete** Asset-UUID gebunden
+ist. Fremde HG-Requests duerfen solche Tickets weiterhin NICHT
+ausstellen. Der Coordinator nimmt neue Child-Assets nur an, solange
+der sichtbare Vorgang noch unter `In Pruefung` liegt.
+
+- Root- und Child-Manifest tragen `status=staged_uninspected` bzw.
+  `status=staged_uninspected_dependency`. Wie zuvor: 0700
+  fuer den dedizierten Linux-Ordner, 0600 fuer Dateien,
+  `FileMode.CreateNew`, kein Asset-Upload an FSAssets.
+- `TryReadVerifiedBundle` liest Root und alle fuer diesen Vorgang
+  abgelegten Zusatzassets unter demselben lokalen Stage-Lock
+  und vergleicht **jeden** SHA-256, UUID, Root-Item, Besitzer,
+  Assettyp und Dateilaenge. Verwaiste Payload-/Manifestdateien,
+  ungueltige UUIDs, fehlende Paare, Duplikate und ueberschrittene
+  Gesamtlimits brechen den Vorgang ab.
+- `OglHgStagedQuarantineBundleInspector.TryInspect` wandelt die
+  verifizierten isolierten Bytes in einen **temporären Snapshot**
+  fuer die Phase-3e-Graphpruefung um. Es darf kein normaler
+  Asset-Service kontaktiert werden. Fehlen referenzierte
+  Objekte/Scripts, ist ein SHA falsch oder liegt ein
+  unerwartetes **zusaetzliches** Staging-Asset vor, scheitert
+  der gesamte Vorgang.
+- Nach einem Neustart kann der Bundle-Pruefer die Dateien
+  erneut lesen und validieren. Manipulierte oder unvollstaendige
+  Dateien gelten niemals als freigegeben.
+- Die Dateisperre ist lediglich fuer einen gemeinsamen
+  kompatiblen POSIX-Speicher gedacht. Fuer Multi-Host-
+  Deployment sind eine transaktionale Datenbank-/Snapshot-
+  Verwaltung, Versionierung und Quotas clusterweit noetig.
+
+**Wichtig:** Die SHA-256-Manifestwerte werden beim lokalen
+Staging aus **ungeprueften** Bytes gebildet. Sie beweisen also
+die unveraenderte Herkunft aus der Quarantaene, nicht
+Besitzrechte, Trust des fremden Grids oder Unbedenklichkeit.
+Die Byte- und Graphpruefung liefert nur
+`structurally_inspected_not_authorized`, KEINE Freigabe.
+TextureEntry-/Mesh-/Material-Referenzen und rechtliche
+Berechtigungen sind noch nicht vollstaendig erfasst.
+Es gibt weiterhin **keine automatische Inventarfreigabe**.
+
+Regressionen:
+`OglHgInventoryGuardRegression` testet Root->Objekt->LSL
+aus privaten Dateien, fehlende/zusätzliche Child-Assets,
+Restart, Hash-Manipulation und Fehler.
+`OglQuarantineFolderRegression` testet die separaten
+signierten Child-Tickets, Replay-Schutz und Ablehnung
+bei geschlossenem/abgelehntem Vorgang.
 
 ## Nicht implementiert - keine Sicherheitsversprechen
 
