@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Security.Cryptography;
 using System.Text.Json;
+using System.Threading;
 using System.Threading.Tasks;
 using Nini.Config;
 using OpenMetaverse;
@@ -258,6 +259,23 @@ internal static class Program
 
             Check(!coordinator.TryBegin("not.a.proof", owner, grantCase,
                 grantItem, grantAsset), "malformed proof rejected");
+            var wrongKeyAuthority = new OglQuarantineTransferGrantAuthority(
+                RandomNumberGenerator.GetBytes(32), "stadt-nexverse-hg-test", ledgerDir);
+            Check(!new OglQuarantineTransferCoordinator(wrongKeyAuthority, postRestart)
+                .TryBegin(beginProof, owner, grantCase, grantItem, grantAsset),
+                "ticket signed by another secret is rejected");
+            UUID expiredCase = UUID.Random();
+            UUID expiredItem = UUID.Random();
+            UUID expiredAsset = UUID.Random();
+            string expiredProof = authority.Issue(owner, expiredCase, expiredItem,
+                expiredAsset, OglQuarantineTransferAction.Begin,
+                TimeSpan.FromSeconds(1));
+            Thread.Sleep(2500);
+            Check(!coordinator.TryBegin(expiredProof, owner, expiredCase,
+                expiredItem, expiredAsset), "expired proof cannot create status case");
+            Check(postRestart.GetFolder(owner,
+                OglInventoryQuarantineFolders.Case(owner, expiredCase)) == null,
+                "expired proof did not create resident inventory folder");
             Check(coordinator.TryBegin(beginProof, owner, grantCase, grantItem, grantAsset),
                 "authenticated locally issued begin proof creates empty case");
             Check(postRestart.GetFolder(owner,
