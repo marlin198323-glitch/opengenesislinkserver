@@ -924,6 +924,13 @@
 ; * This restricts the access that the rest of the world has to
 ; * the assets of this world.
 ; *
+; OGL InventoryGuard 0.9.3.13 development hardening for public HG Suitcase.
+; This only checks item metadata/identity and prevents duplicate-ID overwrite.
+; NO avatar authorization, asset-byte scanning, script scanning or quarantine.
+; Enabling this can reject malformed legacy transfers and asset-changing UPDATEITEM.
+[OGLInventoryGuard]
+    Enabled = true
+
 [HGAssetService]
     ;; Use the second option if you have FSAsset service enabled
     LocalServiceModule = "OpenSim.Services.HypergridService.dll:HGAssetService"
