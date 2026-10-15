@@ -1791,6 +1791,17 @@ namespace NexVerse.Server.Api
                         scopes,
                         user.AccountStateChanged);
 
+                // A successful 200 response must NEVER omit the signed token.
+                // Fail closed before recording a session or login success if a
+                // future token implementation cannot issue a usable bearer.
+                if (string.IsNullOrWhiteSpace(accessToken))
+                {
+                    WriteError(response, HttpStatusCode.ServiceUnavailable,
+                        "session_token_unavailable",
+                        "The authentication service could not issue a session token.");
+                    return;
+                }
+
                 NexSecuritySession securitySession = m_Security?.CreateSession(
                     user.PrincipalId,
                     requireAdmin ? "native-world-api-admin" : "native-world-api");

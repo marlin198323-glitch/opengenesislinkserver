@@ -725,11 +725,14 @@ async function adminLogin(){
       method:'POST',headers:{'Content-Type':'application/json','Accept':'application/json'},
       body:JSON.stringify(body),cache:'no-store',credentials:'same-origin'
     });
-    const data=await res.json();
-    if(!res.ok)throw new Error('HTTP '+res.status+' ('+(data.error||'login_failed')+')');
+    const data=await res.json().catch(()=>null);
+    if(!res.ok)throw new Error('HTTP '+res.status+' ('+(data&&data.error||'login_failed')+')');
+    if(!data||typeof data!=='object'||Array.isArray(data)||!Number.isInteger(data.user_level))
+      throw new Error('Ungültige World-API-Login-Antwort (HTTP '+res.status+'). /api/v1/auth/session und Reverse-Proxy-Routing prüfen.');
     if(Number(data.user_level)<200)
       throw new Error('Zugriff verweigert: UserLevel 200 erforderlich.');
-    if(!data.access_token)throw new Error('Der Server hat kein Sitzungstoken zurückgegeben.');
+    if(typeof data.access_token!=='string'||data.access_token.length<24)
+      throw new Error('World API: Login-Antwort ohne gültiges access_token (HTTP '+res.status+'). Backend und Proxy prüfen.');
     adminSessionToken=data.access_token;
     adminSessionExpiry=Date.now()+Math.max(0,Number(data.expires_in||0)-30)*1000;
     if(!adminIsActive())throw new Error('Administratorsitzung bereits abgelaufen.');

@@ -33,6 +33,18 @@ must(access,
     "frame.srcdoc=html", "event.source!==frame.contentWindow",
     'frame.contentWindow.postMessage(', "token='';expires=0",
 )
+# The UI must distinguish an unrelated HTTP 200 JSON response from a
+# successful native login: Number(undefined) is NaN, not <200.
+for login_ui in (access, dashboard):
+    must(login_ui, "!Number.isInteger(data.user_level)",
+         "typeof data.access_token!=='string'",
+         "/api/v1/auth/session", "Reverse-Proxy-Routing")
+must(user,
+     '"session_token_unavailable"',
+     "if (string.IsNullOrWhiteSpace(accessToken))")
+assert api.count('"/api/v1/auth/session"') == 1, "Native session exact registration missing"
+assert api.count('"/api/v1/auth/admin/session"') == 1, "Admin session exact registration missing"
+assert api.index('"/api/v1/auth/session"') < api.index('"/api", apiGate.Wrap(userRouter.Handle)')
 assert "if(!data.administrator" not in access
 assert "window.isSecureContext" not in access
 assert "IsSecureTransport(request)" not in access
