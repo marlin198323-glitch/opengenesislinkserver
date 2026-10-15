@@ -2565,6 +2565,8 @@ namespace OpenSim.Region.Framework.Scenes
                 // copy keyframemotion
                 if (part.KeyframeMotion is not null)
                     newPart.KeyframeMotion = part.KeyframeMotion.Copy(dupe);
+                else
+                    part.CopyUnrestoredKeyframeMotionTo(newPart);
             }
 
             if (userExposed)
