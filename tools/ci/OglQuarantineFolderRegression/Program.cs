@@ -25,6 +25,31 @@ internal static class Program
         Console.WriteLine("PASS " + description);
     }
 
+    // Tests demonstrate the injectable trust contracts; real HG/roaming
+    // session evidence is NOT implemented by this fake.
+    private sealed class FakeDeliveryEvidence : IOglHgVerifiedDeliveryEvidence
+    {
+        public bool ResidentConsented = true;
+        public bool SourceAttested = true;
+        public bool RightsConfirmed = true;
+        public bool PaymentSettled = true;
+        public string ExpectedSha256;
+        public int PaymentsChecked;
+
+        public bool HasAuthenticatedResidentConsent(OglHgResidentDeliveryRequest request)
+            => ResidentConsented;
+        public bool HasAuthenticatedSourceTransfer(OglHgResidentDeliveryRequest request,
+            string sha256)
+            => SourceAttested && (ExpectedSha256 == null || ExpectedSha256 == sha256);
+        public bool HasValidPermissions(OglHgResidentDeliveryRequest request)
+            => RightsConfirmed;
+        public bool IsPurchaseSettled(OglHgResidentDeliveryRequest request)
+        {
+            PaymentsChecked++;
+            return PaymentSettled;
+        }
+    }
+
     private static XInventoryService Service(IConfigSource config)
     {
         return new XInventoryService(config);
@@ -606,6 +631,152 @@ internal static class Program
                 multiCase, multiItem, lateChild,
                 (int)AssetType.LSLText, multiChildBytes),
                 "rejected case cannot accept a late dependent asset");
+
+            // Phase 3i: purchase, take-copy and gift use the same local
+            // quarantine intake, but distinct authentic consent / rights /
+            // settled payment obligations. No legacy remote API may call this.
+            var trust = new FakeDeliveryEvidence();
+            string deliveryLedger = Path.Combine(dir, "trusted-hg-delivery-ledger");
+            string deliveryStage = Path.Combine(dir, "trusted-hg-delivery-stage");
+            var deliveryStore = new OglQuarantineTransferStageStore(
+                deliveryStage, 4096, 10, 40960);
+            var deliveryCoordinator = new OglQuarantineTransferCoordinator(
+                authority, Service(cfg), deliveryStore);
+            var intake = new OglHgResidentDeliveryIntake(trust, authority,
+                deliveryCoordinator, deliveryLedger);
+            UUID roamingSession = UUID.Random();
+            UUID foreignTransfer = UUID.Random();
+            byte[] offeredBytes = Encoding.UTF8.GetBytes(
+                "<SceneObjectGroup><RootPart><TaskInventory/></RootPart></SceneObjectGroup>");
+
+            OglHgResidentDeliveryRequest PurchaseRequest(UUID externalTransfer,
+                UUID caseID, UUID itemID, UUID assetID) =>
+                new OglHgResidentDeliveryRequest
+                {
+                    ResidentId = owner, SessionOrDelegationId = roamingSession,
+                    CaseId = caseID, ForeignTransferId = externalTransfer,
+                    InventoryItemId = itemID, AssetId = assetID,
+                    AssetType = (int)AssetType.Object,
+                    Kind = OglHgDeliveryKind.Purchase,
+                    SourceGridUri = "https://osgrid.org",
+                    PurchaseReceipt = "paid-confirmation-123", PurchaseAmount = 25
+                };
+
+            var paid = PurchaseRequest(foreignTransfer,
+                UUID.Random(), UUID.Random(), UUID.Random());
+
+            trust.ResidentConsented = false;
+            Check(!intake.TryReceive(paid, offeredBytes, out string consentFailure) &&
+                consentFailure == "delivery_resident_consent_missing",
+                "HG paid delivery requires verified resident/delegated session");
+            trust.ResidentConsented = true;
+
+            trust.SourceAttested = false;
+            Check(!intake.TryReceive(paid, offeredBytes, out string sourceFailure) &&
+                sourceFailure == "delivery_unverified_foreign_source",
+                "unverified foreign grid cannot invent purchase");
+            trust.SourceAttested = true;
+
+            trust.RightsConfirmed = false;
+            Check(!intake.TryReceive(paid, offeredBytes, out string rightsFailure) &&
+                rightsFailure == "delivery_permissions_missing",
+                "HG transfer requires verified transfer/copy rights");
+            trust.RightsConfirmed = true;
+
+            trust.PaymentSettled = false;
+            Check(!intake.TryReceive(paid, offeredBytes, out string paymentFailure) &&
+                paymentFailure == "delivery_purchase_not_settled",
+                "purchase requires settlement confirmation, not just sale metadata");
+            trust.PaymentSettled = true;
+
+            trust.ExpectedSha256 = new string('0', 64);
+            Check(!intake.TryReceive(paid, offeredBytes, out _) &&
+                Directory.GetFiles(deliveryLedger, "*.intent").Length == 0,
+                "payload hash must match remote verified delivery assertion");
+            trust.ExpectedSha256 = Convert.ToHexString(
+                SHA256.HashData(offeredBytes));
+
+            Check(intake.TryReceive(paid, offeredBytes, out string paidReason) &&
+                paidReason == "delivery_quarantined_not_released",
+                "confirmed paid item lands ONLY in private quarantine");
+            Check(trust.PaymentsChecked >= 2,
+                "purchase settlement verifier was actually invoked");
+            Check(Service(cfg).GetItem(owner, paid.InventoryItemId) == null &&
+                Service(cfg).GetFolder(owner,
+                    OglInventoryQuarantineFolders.Case(owner, paid.CaseId)).ParentID ==
+                        OglInventoryQuarantineFolders.Pending(owner),
+                "paid item visible only as empty In Pruefung case");
+
+            var repeatedBuy = PurchaseRequest(foreignTransfer,
+                UUID.Random(), UUID.Random(), UUID.Random());
+            Check(!intake.TryReceive(repeatedBuy, offeredBytes,
+                out string replayReason) &&
+                replayReason == "delivery_duplicate_or_unavailable_ledger",
+                "foreign purchase transaction cannot be replayed with new item IDs");
+            var restartIntake = new OglHgResidentDeliveryIntake(trust, authority,
+                new OglQuarantineTransferCoordinator(authority,
+                    Service(cfg), deliveryStore), deliveryLedger);
+            Check(!restartIntake.TryReceive(repeatedBuy, offeredBytes, out _),
+                "foreign purchase replay prevention survives restart");
+
+            var takeCopy = new OglHgResidentDeliveryRequest
+            {
+                ResidentId = owner, SessionOrDelegationId = roamingSession,
+                CaseId = UUID.Random(), ForeignTransferId = UUID.Random(),
+                InventoryItemId = UUID.Random(), AssetId = UUID.Random(),
+                AssetType = (int)AssetType.Object, Kind = OglHgDeliveryKind.TakeCopy,
+                SourceGridUri = "http://grid.example.net:8002"
+            };
+            int beforeCopy = trust.PaymentsChecked;
+            Check(intake.TryReceive(takeCopy, offeredBytes, out string copyReason) &&
+                copyReason == "delivery_quarantined_not_released" &&
+                trust.PaymentsChecked == beforeCopy,
+                "Take Copy requires consent, signed source and rights but no purchase");
+            Check(Service(cfg).GetItem(owner, takeCopy.InventoryItemId) == null,
+                "Take Copy item remains isolated, not executable");
+
+            var gift = new OglHgResidentDeliveryRequest
+            {
+                ResidentId = owner, SessionOrDelegationId = roamingSession,
+                CaseId = UUID.Random(), ForeignTransferId = UUID.Random(),
+                InventoryItemId = UUID.Random(), AssetId = UUID.Random(),
+                AssetType = (int)AssetType.Object, Kind = OglHgDeliveryKind.Gift,
+                SourceGridUri = "https://osgrid.org"
+            };
+            Check(intake.TryReceive(gift, offeredBytes, out _) &&
+                Service(cfg).GetItem(owner, gift.InventoryItemId) == null,
+                "consented gift is staged, never directly added to inventory");
+
+            var forgedFreePurchase = PurchaseRequest(UUID.Random(),
+                UUID.Random(), UUID.Random(), UUID.Random());
+            forgedFreePurchase = new OglHgResidentDeliveryRequest {
+                ResidentId = forgedFreePurchase.ResidentId,
+                SessionOrDelegationId = forgedFreePurchase.SessionOrDelegationId,
+                CaseId = forgedFreePurchase.CaseId,
+                ForeignTransferId = forgedFreePurchase.ForeignTransferId,
+                InventoryItemId = forgedFreePurchase.InventoryItemId,
+                AssetId = forgedFreePurchase.AssetId,
+                AssetType = forgedFreePurchase.AssetType,
+                Kind = OglHgDeliveryKind.Purchase,
+                SourceGridUri = forgedFreePurchase.SourceGridUri,
+                PurchaseAmount = 25
+            };
+            Check(!intake.TryReceive(forgedFreePurchase, offeredBytes, out _) &&
+                Directory.GetFiles(deliveryLedger, "*.intent").Length == 3,
+                "missing payment receipt cannot become a purchase intent");
+
+            foreach (string receipt in Directory.GetFiles(deliveryLedger, "*.intent"))
+            {
+                Check(File.GetUnixFileMode(receipt) ==
+                    (UnixFileMode.UserRead | UnixFileMode.UserWrite),
+                    "foreign transfer receipt is private 0600");
+                using JsonDocument audit = JsonDocument.Parse(File.ReadAllText(receipt));
+                Check(audit.RootElement.GetProperty("status").GetString() ==
+                    "intake_attempt_spent", "foreign transfer marked spent durably");
+                Check(!audit.RootElement.TryGetProperty("PurchaseReceipt", out _) &&
+                      !audit.RootElement.TryGetProperty("rawBytes", out _),
+                    "receipt exposes no payment token or raw object bytes");
+            }
 
             // Secret never comes from a source-code/config default.
             bool weakSecretRejected = false;
