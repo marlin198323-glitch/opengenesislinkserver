@@ -94,6 +94,11 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Compile Include="OglHgResidentDeliveryIntake.cs" />
+    <Compile Include="OglHgRoamingConsentAuthority.cs" />
+    <Compile Include="OglInventoryQuarantineFolders.cs" />
+    <Compile Include="OglQuarantineTransferGrants.cs" />
+    <Compile Include="OglQuarantineTransferStageStore.cs" />
     <Compile Include="OglHgPresenceSessionSource.cs" />
     <Compile Include="OglHgRoamingGrantSchema.cs" />
     <Compile Include="OglHgRoamingGrantRepository.cs" />
