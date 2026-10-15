@@ -1,4 +1,4 @@
-# OpenGenesisLINK 0.9.3.13 - OGL HG InventoryGuard (Phase 1-3c, Entwicklung)
+# OpenGenesisLINK 0.9.3.13 - OGL HG InventoryGuard (Phase 1-3d, Entwicklung)
 
 Status: **Entwicklungszweig / noch nicht fuer Stable freigegeben.**
 Diese Aenderung betrifft ausschliesslich den per `HGSuitcaseInventoryService`
@@ -373,6 +373,47 @@ signierten `Stage`-Vorgang, Avatar-/Asset-Bindung, Replay,
 Dateiberechtigungen, Manifest, Persistenz nach Neustart,
 Groessenlimit, Record-Quota, mutierte Bytes und das Verbot
 eines normalen Inventareintrags.
+
+## Phase 3d: Strukturpruefung eingebetteter Prim-Inventare
+
+`OglHgNestedInventoryInspector` ergaenzt die bestehende
+`OglHgInventoryAssetInspector.TryInspect`-Pruefung unmittelbar
+beim Import eines als `AssetType.Object` markierten HG-Assets.
+Der XML-Parser deaktiviert DTD und externe Entities und begrenzt
+die Dokumentgroesse, XML-Knoten und Tiefe.
+
+Es werden `<TaskInventory>/<TaskInventoryItem>`-Eintraege erkannt
+und die `ItemID`, `AssetID`, `Type` und `InvType`
+als **noch nicht freigegebene Referenzen** extrahiert.
+Legacy-XML mit `<AssetID><UUID>...</UUID></AssetID>`
+und einfachen UUID-Werten ist beruecksichtigt.
+
+Abgewiesen werden:
+- Fehlende oder ungueltige Item-/Asset-UUIDs, doppelte Item-IDs
+  sowie unvollstaendige Referenzfelder;
+- Ungueltige numerische Typen und fremder kompilierter
+  `LSLBytecode` auch **innerhalb** eines Prim-Inventars;
+- `TaskInventoryItem` ausserhalb eines `TaskInventory`-Containers,
+  ineinander verschachtelte Inventory-Container und mehr als
+  **2.048 TaskInventoryItem-Eintraege** pro Objekt.
+
+**Sicherheitsgrenze:** Die Klasse **laedt keine Assets nach**,
+inspiziert nicht den referenzierten Script-Quelltext, keine
+gepackten/verschachtelten Unterobjekte, Mesh-Texturen oder sonstige
+binäre Referenzen. Eine strukturell plausible Referenz beweist
+weder die Existenz des Assets noch dessen Echtheit, Besitz,
+Lizenz/Rechte oder Unbedenklichkeit. Es wird **kein Freigabestatus**
+erzeugt; die Ergebnisse duerfen niemals fuer eine automatische
+Inventarzustellung oder eine Ausfuehrung verwendet werden.
+Ein vollstaendiger transitive Dependency-Scanner mit verbindlichen
+Asset-Hashes bleibt offen und ist vor einer echten Freigabe
+erforderlich.
+
+CI-Regression: `tools/ci/OglHgInventoryGuardRegression`
+prueft gueltige TaskInventory-XML inkl. UUID-Wrappern,
+fehlende Asset-UUIDs, doppelte Item-IDs, eingebetteten Bytecode,
+fehlende Typfelder, verwaiste TaskInventoryItems und
+ueberfuellte Container.
 
 ## Nicht implementiert - keine Sicherheitsversprechen
 
