@@ -63,6 +63,21 @@ iface = read("OpenSim/Services/Interfaces/IInventoryService.cs")
 assert "TryBeginTrustedQuarantineCase" not in iface
 assert "TryRejectTrustedQuarantineCase" not in iface
 
+# The one-time HMAC proof adapter is LOCAL and cannot be issued from
+# the remote inventory connectors. Its spent record is atomically created
+# before any viewer-visible change to the pending/rejected case folders.
+grants = read("OpenSim/Services/InventoryService/OglQuarantineTransferGrants.cs")
+assert "HMACSHA256.HashData(m_secret, payloadBytes)" in grants
+assert "CryptographicOperations.FixedTimeEquals(computed, suppliedMac)" in grants
+assert "System.IO.FileMode.CreateNew" in grants
+assert "UnixCreateMode = FileModePrivate" in grants
+assert "expires - issued > 300" in grants
+assert "m_authority.TryConsume(proof" in grants
+assert grants.index("m_authority.TryConsume(proof") < grants.index("m_inventory.TryBeginTrustedQuarantineCase")
+assert "m_inventory.TryRejectTrustedQuarantineCase" in grants
+assert "TryConsume(" not in iface
+assert "TryBegin(" not in iface
+
 for path in ("bin/Robust.HG.ini", "bin/Robust.HG.ini.example",
              "bin/config-include/StandaloneHypergrid.ini"):
     data = read(path)
