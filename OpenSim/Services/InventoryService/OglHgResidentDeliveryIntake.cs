@@ -127,7 +127,10 @@ namespace OpenSim.Services.InventoryService
                      request.PurchaseAmount != 0)
                 return false;
 
-            string contentHash = Convert.ToHexString(SHA256.HashData(rawBytes));
+            // A caller may reuse or mutate its byte[] after invocation. Bind
+            // verification and staging to the SAME private byte snapshot.
+            byte[] isolatedCopy = (byte[])rawBytes.Clone();
+            string contentHash = Convert.ToHexString(SHA256.HashData(isolatedCopy));
             try
             {
                 // The checks below are independent: a grid key alone does
@@ -213,7 +216,7 @@ namespace OpenSim.Services.InventoryService
                 request.InventoryItemId, request.AssetId,
                 OglQuarantineTransferAction.Stage, TimeSpan.FromSeconds(45));
             if (!m_coordinator.TryStage(grant, request.ResidentId, request.CaseId,
-                    request.InventoryItemId, request.AssetId, request.AssetType, rawBytes))
+                    request.InventoryItemId, request.AssetId, request.AssetType, isolatedCopy))
             {
                 // Intentionally consumed and NOT retried in another context.
                 // Operator reconciliation is required for partial failures.
