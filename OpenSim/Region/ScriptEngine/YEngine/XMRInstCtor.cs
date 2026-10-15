@@ -383,18 +383,20 @@ namespace OpenSim.Region.ScriptEngine.Yengine
                     doc.LoadXml(xml);
                     LoadScriptState(doc);
                 }
-                catch
+                catch (Exception error)
                 {
-                    File.Delete(m_StateFileName);
-
-                    eventCode = ScriptEventCode.None;  // not processing any event
-
-                    // default state_entry() must initialize global variables
-                    glblVars.AllocVarArrays(m_ObjCode.glblSizes); // reset globals
-                    doGblInit = true;
-                    stateCode = 0;
-
-                    PostEvent(EventParams.StateEntryParams);
+                    // Saved .state XML may contain .NET 8 BinaryFormatter
+                    // migration frames or other incompatible script state.
+                    // Never delete or overwrite it, or silently execute
+                    // state_entry again: that could duplicate purchases,
+                    // payouts and other script-controlled world side effects.
+                    // Aborting this script's startup leaves the original
+                    // bytes available for offline migration and rollback.
+                    throw new InvalidDataException(
+                        "YEngine persisted script state could not be restored. " +
+                        "The original .state file was preserved; this script " +
+                        "was NOT reset. Investigate its state on an offline " +
+                        "backup before restarting with .NET 10.", error);
                 }
             }
 
