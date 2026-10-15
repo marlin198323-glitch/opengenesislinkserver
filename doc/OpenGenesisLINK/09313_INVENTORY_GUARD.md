@@ -751,7 +751,13 @@ Das Ticket bindet versioniert und MAC-geschuetzt:
 Die `VerifyForDelivery`-Pruefung verweigert ungueltige,
 manipulierte, falsch signierte und abgelaufene Tickets,
 abweichende Resident-/Session-/Grid-Bindungen sowie
-nicht erteilte Operationen. Der MAC wird zeitkonstant
+nicht erteilte Operationen. Zusaetzlich wird der aktuell
+**autoritative** Heimatgrid-Status durch
+`IsDelegationActive` erneut abgefragt, sodass ein
+inzwischen beendeter/widerrufener Reisezugang nicht
+allein wegen eines noch gueltigen MAC akzeptiert wird.
+Kann der Sessionspeicher nicht abgefragt werden, wird
+die Einlieferung verweigert. Der MAC wird zeitkonstant
 verglichen. `OglHgRoamingDeliveryEvidence` implementiert
 den **Bewohnerzustimmungs-Teil** des bestehenden
 `IOglHgVerifiedDeliveryEvidence`-Interfaces mit dem
@@ -788,9 +794,12 @@ Transfers innerhalb ihrer kurzen Lebensdauer nutzbar,
 wobei die bereits vorhandene, persistente
 `source_grid + foreign_transfer_id`-Quittung
 Doppelabgaben desselben Transfers verhindert.
-Ein expliziter Widerruf gestohlener, noch gueltiger
-Tickets, verbindliche PoP-Kanalbindung und ein
-verteilter SQL-basierter Session-/Replay-Store sind
+Die bereits vorgesehene lokale
+`IsDelegationActive`-Verifikation bietet den Kontrollpunkt
+fuer einen serverseitigen Widerruf. Eine reale, persistente
+Reisesessionsverwaltung mit Widerrufs-API, verbindliche
+Proof-of-Possession-Kanalbindung und ein verteilter
+SQL-basierter Session-/Replay-Store sind
 noch offen. Tickets nicht an fremde Viewer-/Regionen
 uebertragen, solange ein gesicherter Kanal nicht
 fertig ist.
