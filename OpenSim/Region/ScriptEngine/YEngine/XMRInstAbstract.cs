@@ -1731,22 +1731,32 @@ namespace OpenSim.Region.ScriptEngine.Yengine
         /**
          * @brief Use short strings for known type names.
          */
+        // Untrusted saved script state may contain array element type tags.
+        // Keep this mapping symmetric and explicit: NEVER resolve arbitrary
+        // CLR names from script/OAR data (Type.GetType can load assemblies).
         private static string SysType2String(Type type)
         {
-            if(type.IsArray && (type.GetArrayRank() == 1))
+            if (type == null)
+                throw new ArgumentNullException(nameof(type));
+
+            int depth = 0;
+            while (type.IsArray)
             {
-                string str = KnownSysType2String(type.GetElementType());
-                if(str is not null)
-                    return str + "[]";
+                if (type.GetArrayRank() != 1 || ++depth > 4)
+                    throw new NotSupportedException(
+                        "YEngine state supports only one-dimensional arrays (max depth 4)");
+                type = type.GetElementType();
             }
-            else
-            {
-                string str = KnownSysType2String(type);
-                if(str is not null)
-                    return str;
-            }
-            return type.ToString();
+
+            string tag = KnownSysType2String(type);
+            if (tag == null)
+                throw new NotSupportedException(
+                    "Unsupported YEngine state array element type: " + type.FullName);
+            for (int i = 0; i < depth; i++)
+                tag += "[]";
+            return tag;
         }
+
         private static string KnownSysType2String(Type type)
         {
             if(type == typeof(bool))
@@ -1763,6 +1773,12 @@ namespace OpenSim.Region.ScriptEngine.Yengine
                 return "in";
             if(type == typeof(LSL_List))
                 return "li";
+            if(type == typeof(LSL_Float))
+                return "lf";
+            if(type == typeof(LSL_Integer))
+                return "ln";
+            if(type == typeof(LSL_String))
+                return "lk";
             if(type == typeof(object))
                 return "ob";
             if(type == typeof(LSL_Rotation))
@@ -1777,38 +1793,45 @@ namespace OpenSim.Region.ScriptEngine.Yengine
                 return "xa";
             return null;
         }
+
         private static Type String2SysType(string str)
         {
-            if(str.EndsWith("[]"))
-                return String2SysType(str.Substring(0, str.Length - 2)).MakeArrayType();
+            // Short ASCII identifiers only; never pass input type names to
+            // reflection. The maximum 4 array ranks are nested SZ arrays.
+            if (string.IsNullOrEmpty(str) || str.Length > 16)
+                throw new InvalidDataException("Invalid YEngine array type tag");
 
-            if(str == "bo")
-                return typeof(bool);
-            if(str == "ch")
-                return typeof(char);
-            if(str == "de")
-                return typeof(Delegate);
-            if(str == "do")
-                return typeof(double);
-            if(str == "fl")
-                return typeof(float);
-            if(str == "in")
-                return typeof(int);
-            if(str == "li")
-                return typeof(LSL_List);
-            if(str == "ob")
-                return typeof(object);
-            if(str == "ro")
-                return typeof(LSL_Rotation);
-            if(str == "sc")
-                return typeof(XMRSDTypeClObj);
-            if(str == "st")
-                return typeof(string);
-            if(str == "ve")
-                return typeof(LSL_Vector);
-            if(str == "xa")
-                return typeof(XMR_Array);
-            return Type.GetType(str, true);
+            int depth = 0;
+            while (str.EndsWith("[]", StringComparison.Ordinal))
+            {
+                if (++depth > 4)
+                    throw new InvalidDataException("YEngine array nesting limit exceeded");
+                str = str.Substring(0, str.Length - 2);
+            }
+
+            Type type = str switch
+            {
+                "bo" => typeof(bool),
+                "ch" => typeof(char),
+                "de" => typeof(Delegate),
+                "do" => typeof(double),
+                "fl" => typeof(float),
+                "in" => typeof(int),
+                "li" => typeof(LSL_List),
+                "lf" => typeof(LSL_Float),
+                "ln" => typeof(LSL_Integer),
+                "lk" => typeof(LSL_String),
+                "ob" => typeof(object),
+                "ro" => typeof(LSL_Rotation),
+                "sc" => typeof(XMRSDTypeClObj),
+                "st" => typeof(string),
+                "ve" => typeof(LSL_Vector),
+                "xa" => typeof(XMR_Array),
+                _ => throw new InvalidDataException("Unsupported YEngine array type tag")
+            };
+            for (int i = 0; i < depth; i++)
+                type = type.MakeArrayType();
+            return type;
         }
 
         /**
