@@ -21,6 +21,16 @@ namespace OpenSim.Services.InventoryService
                 throw new ArgumentNullException(nameof(authoritativeTravelGrant));
         }
 
+        // Production wiring can inject the persistent, revocable grant
+        // repository. This does NOT mint a grant or authorize a remote caller.
+        public OglHgPresenceSessionSource(IPresenceService presence,
+            OglHgRoamingGrantRepository repository)
+            : this(presence, repository == null
+                ? throw new ArgumentNullException(nameof(repository))
+                : new Func<UUID, UUID, string, bool>(repository.IsActive))
+        {
+        }
+
         public bool CanDelegate(UUID residentId, UUID authenticatedSessionId,
             string destinationGridUri) =>
             Check(residentId, authenticatedSessionId, destinationGridUri);
