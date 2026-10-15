@@ -60,6 +60,25 @@ assert "AssetType.LSLBytecode" in nested
 assert "HashSet<UUID> seenItems" in nested
 assert "TryReadShortValue" in nested
 assert "out OglHgNestedAssetReference[] references" in nested
+
+graph = read("OpenSim/Services/HypergridService/OglHgQuarantineDependencyGraphVerifier.cs")
+assert "IReadOnlyDictionary<UUID, AssetBase> isolatedAssets" in graph
+assert "IReadOnlyDictionary<UUID, string> expectedSha256Pins" in graph
+assert "OglHgNestedInventoryInspector.TryExtract(asset, maxAssetBytes" in graph
+assert "OglHgInventoryAssetInspector.TryInspect(" in graph
+assert "SHA256.HashData(asset.Data)" in graph
+assert "CryptographicOperations.FixedTimeEquals(actual, pinned)" in graph
+assert "graph_dependency_missing" in graph
+assert "graph_dependency_cycle" in graph
+assert "graph_depth_limit" in graph
+assert "graph_reference_count_limit" in graph
+assert "graph_asset_hash_mismatch" in graph
+assert 'structurally_inspected_not_authorized' in graph
+assert "m_assetService.Get" not in graph
+assert "m_assetService.Store" not in graph
+assert "m_Database.StoreItem" not in graph
+assert "GetCached(" not in graph
+assert "TryRelease(" not in graph
 quarantine = read("OpenSim/Services/HypergridService/OglHgInventoryQuarantine.cs")
 assert 'GetBoolean("QuarantineRejectedAssets", false)' in asset_handler
 assert "OglHgInventoryQuarantine.TryCapture" not in asset_handler  # instance method
