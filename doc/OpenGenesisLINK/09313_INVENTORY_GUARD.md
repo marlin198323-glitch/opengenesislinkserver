@@ -119,6 +119,72 @@ von HTTP-/FSAssets-/Backup-Freigaben halten; regelmaessig externe
 Speicherauslastung ueberwachen und Datensaetze nach einer definierten
 Aufbewahrungsfrist manuell archivieren/loeschen.
 
+## Phase 2c: geschuetzte, sichtbare Inventar-Systemordner
+
+Ein weiterer Teil von PR #229 ist die optionale, serverseitig verwaltete
+Quarantaene-Ordnerhierarchie fuer **lokale** Bewohner:
+
+```text
+My Inventory
+  Quarantaene
+    In Pruefung
+    Abgelehnt
+```
+
+In den HG-Entwicklungskonfigurationen steht:
+
+```ini
+[OGLInventoryGuard]
+Enabled = true
+CreateInventorySystemFolder = true
+```
+
+`XInventoryService.CreateUserInventory` erzeugt die Hierarchie bei neuen
+Konten. `XInventoryService.GetInventorySkeleton` legt sie auch fuer
+Bestandskonten beim naechsten Inventarskelett-Abruf (typisch Login)
+an. Jede der drei UUIDs wird deterministisch aus Account-UUID und Rolle
+abgeleitet: dieselben Ordner werden bei einem Neustart nicht dupliziert.
+Eine neu erstellte DB bekommt erst beim Konto-/Skelettzugriff neue Ordner.
+
+Viewerkompatibilitaet: Diese Ordner haben `FolderType.None`, also
+eine **gewoehnliche OpenSim-Ordnerdarstellung**. OGL verwaltet sie
+serverseitig als Systemordner, Firestorm muss dafuer keine
+unbekannte FolderType-Enum unterstuetzen. Eine eigene Schutzgrafik
+oder Badge im OGL Viewer ist **noch nicht** implementiert.
+
+Im lokalen `XInventoryService` wird bei aktivem Schalter die
+Liste geschuetzter UUIDs geprueft:
+`AddFolder`, `UpdateFolder`, `MoveFolder`, `DeleteFolders`,
+`PurgeFolder`, `AddItem`, `UpdateItem`, `MoveItems`,
+`DeleteItems` und normale Inventar-Leseoperationen sperren
+Manipulation bzw. Auslieferung aus diesen Ordnern.
+Die IDs sind Marker, keine Authentisierung. Die Sperren greifen
+im Inventarservice, nicht nur in der Viewer-Darstellung.
+
+**Wichtig: Die Ordner bleiben absichtlich leer.**
+Die separate serverseitige Evidence-Quarantaene fuer abgelehnte
+HG-Asset-Uploads ist **nicht** in die Avatareingaben verlinkt. Ein
+abgelehntes externes Script/Objekt wird nicht automatisch zu einem
+inventarisierbaren Item oder in `Abgelehnt` verschoben. Ein
+ausstehender, sicher autorisierter `PendingInventoryTransfer`
+fehlt weiterhin. Die Viewer-Ordner zeigen keine administrativen
+Quarantaene-Payloads an und bieten keinerlei Freigabefunktion.
+
+**Hinweise fuer Administratoren:** Nur Codepfade, die den
+`XInventoryService` verwenden, werden durch diese Sperren
+abgedeckt. Andere Inventory-Implementierungen, SQL-Mutationen,
+direkte Script-Engine-Verwendungen und Asset-Service-Zugriffe
+sind nicht automatisch geschuetzt. Die Sicherheitsgarantie des
+Gesamtsystems benoetigt weiterhin Phase 3 mit Transaktionsstatus,
+signierter Autorisierung und einheitlicher Inventar-/Asset-Gate.
+
+SQLite-Regression mit echtem Inventardatenbank-Backend:
+
+```bash
+python3 tools/ci/verify_ogl_quarantine_system_folders.py
+dotnet run -c Release --project tools/ci/OglQuarantineFolderRegression/OglQuarantineFolderRegression.csproj
+```
+
 ## Nicht implementiert - keine Sicherheitsversprechen
 
 1. **Keine Autorisierung:** Der Legacy-Handler ermittelt aus einem
@@ -134,10 +200,11 @@ Aufbewahrungsfrist manuell archivieren/loeschen.
    referenzierten Assets, Mesh-/Texturdateiformate und Unterinventare.
    Ohne isolierten Transferstatus existiert keine atomare
    "vollstaendig geprueft vor Item-Anlage"-Garantie.
-3. **Keine Vorab-Quarantaene fuer Inventar-Transfers:** Es existiert
-   nur die optionale **forensische Quarantaene bereits abgelehnter Assets**.
-   Ein persistenter `PendingInventoryTransfer` mit Isolierung bis zur
-   Autorisierung und Freigabe fehlt weiterhin.
+3. **Keine Vorab-Quarantaene fuer Inventar-Transfers:** Es existieren
+   die optionale forensische Asset-Quarantaene und leere, geschuetzte
+   Bewohner-Systemordner. Ein persistenter `PendingInventoryTransfer`
+   mit Isolierung bis zur Autorisierung und Freigabe sowie einer
+   sicheren Verbindung beider Systeme fehlt weiterhin.
 4. **Keine Schadcode-Erkennung:** Statische Suche nach LSL-/OSSL-
    Funktionsnamen waere keine verlaessliche Aussage ueber
    Boesartigkeit. Restriktionen der Script-Engine sind getrennt
