@@ -1,0 +1,29 @@
+name: OGL HG Roaming Grants
+on:
+  pull_request:
+    paths:
+      - 'OpenSim/Services/InventoryService/**'
+      - 'tools/ci/verify_ogl_hg_roaming_grants.py'
+      - '.github/workflows/ogl-hg-roaming-grants.yml'
+  push:
+    branches:
+      - 'security/09313-inventory-guard'
+  workflow_dispatch:
+
+jobs:
+  sqlite-regression:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: SQLite schema and revocation regression
+        run: python3 tools/ci/verify_ogl_hg_roaming_grants.py
+
+  inventory-service-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - name: Compile InventoryService
+        run: dotnet build OpenSim/Services/InventoryService/OpenSim.Services.InventoryService.csproj --configuration Release --nologo
