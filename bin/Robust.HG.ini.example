@@ -935,6 +935,12 @@
     ScanInboundAssets = true
     MaxInboundAssetBytes = 33554432
     MaxInboundScriptBytes = 1048576
+    ; Rejected HG assets remain rejected even if quarantine is unavailable.
+    ; Evidence is disabled until the operator provisions a private directory.
+    QuarantineRejectedAssets = false
+    QuarantineDirectory = "/var/lib/opengenesislink/hg-rejected-assets"
+    QuarantineMaxCaptureBytes = 262144
+    QuarantineMaxRecords = 5000
 
 [HGAssetService]
     ;; Use the second option if you have FSAsset service enabled
