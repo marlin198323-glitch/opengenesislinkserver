@@ -58,6 +58,7 @@ namespace OpenSim.Services.HypergridService
         private IUserAccountService m_UserAccountService;
         private IAvatarService m_AvatarService;
         private readonly bool m_OglInventoryGuardEnabled;
+        private readonly bool m_OglInventoryGuardObserve;
         private readonly OglHgLegacyInventoryMode m_LegacyInventoryMode;
 
         // The legacy HG wire contract has no reliable per-avatar caller identity.
@@ -86,6 +87,9 @@ namespace OpenSim.Services.HypergridService
             IConfig guardConfig = config.Configs["OGLInventoryGuard"];
             m_OglInventoryGuardEnabled = guardConfig != null &&
                 guardConfig.GetBoolean("Enabled", false);
+            m_OglInventoryGuardObserve = string.Equals(
+                guardConfig?.GetString("Mode", "Enforce"), "Observe",
+                StringComparison.OrdinalIgnoreCase);
             m_LegacyInventoryMode = OglHgLegacyInventoryBoundary.Parse(
                 guardConfig?.GetString("LegacyPublicAccessMode", "LegacyCompatible") ??
                 "LegacyCompatible");
@@ -410,8 +414,11 @@ namespace OpenSim.Services.HypergridService
             {
                 if (!OglHgInventoryGuard.TryValidateItem(item, out string reason))
                 {
-                    m_log.WarnFormat("[OGL INVENTORY GUARD]: Rejected HG AddItem {0}: {1}", item.ID, reason);
-                    return false;
+                    m_log.WarnFormat("[OGL INVENTORY GUARD]: {0} HG AddItem {1}: {2}",
+                        m_OglInventoryGuardObserve ? "Observed suspicious" : "Rejected",
+                        item.ID, reason);
+                    if (!m_OglInventoryGuardObserve)
+                        return false;
                 }
 
                 // Inventory IDs are globally unique in the database. A remote
@@ -422,6 +429,7 @@ namespace OpenSim.Services.HypergridService
                 if (existing != null && existing.Length > 0)
                 {
                     m_log.WarnFormat("[OGL INVENTORY GUARD]: Rejected duplicate HG AddItem ID {0}", item.ID);
+                    // Existing IDs must never be overwritten, even in Observe mode.
                     return false;
                 }
             }
