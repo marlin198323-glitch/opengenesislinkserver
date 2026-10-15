@@ -834,7 +834,15 @@ namespace OpenSim.Services.InventoryService
             List<InventoryItemBase> ret = new();
 
             foreach (XInventoryItem x in items)
+            {
+                // Old persisted gestures must not become executable merely
+                // because they were written by an alternate database path.
+                if (IsProtectedFolder(x.parentFolderID) ||
+                    (m_OglQuarantineFolderEnabled &&
+                     OglInventoryQuarantineFolders.IsManaged(x.avatarID, x.parentFolderID)))
+                    continue;
                 ret.Add(ConvertToOpenSim(x));
+            }
 
             return ret;
         }
