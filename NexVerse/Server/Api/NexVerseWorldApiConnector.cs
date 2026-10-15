@@ -566,6 +566,13 @@ namespace NexVerse.Server.Api
                     adminMinimumLevel,
                     new PersistentNexSecurityStore(apiConfig.GetString("SecurityStorePath", "data/nexverse-security.json")));
 
+                // Admin login now POSTs to the exact same URL serving the
+                // login page, /api/v1/docs. This works even when a KeyHelp
+                // reverse proxy routes only the public docs path correctly.
+                // The endpoint still checks credentials and UserLevel >= 200,
+                // and the dashboard is still guarded by a signed bearer.
+                oglDocs.ConfigureDocsSessionLogin(userRouter.HandleControlCenterLogin);
+
                 NexEconomyApi economyApi =
                     new NexEconomyApi(
                         authenticator,
