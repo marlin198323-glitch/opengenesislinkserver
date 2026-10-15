@@ -12,6 +12,8 @@ import base64
 import binascii
 from collections import Counter
 import json
+import math
+import struct
 from pathlib import Path
 import sqlite3
 import sys
@@ -24,8 +26,75 @@ MAX_XML_BYTES = 8 * 1024 * 1024
 MAX_OAR_MEMBERS = 200_000
 
 
+def validate_typed_v1(blob: bytes) -> bool:
+    """Structurally verify OGKM v1 without constructing CLR/Python objects.
+
+    Mirrors KeyframeMotion.SafeSerialization.cs (fixed layout, bounded frames,
+    finite vectors/quaternions). A valid structure is NOT a guarantee of
+    identical game behavior; real runtime migration tests are still required.
+    """
+    if len(blob) < 8 or len(blob) > MAX_BLOB_BYTES or blob[:8] != MAGIC + b"\x01\x00\x00\x00":
+        return False
+    offset = 8
+
+    def read(fmt: str):
+        nonlocal offset
+        size = struct.calcsize(fmt)
+        if offset + size > len(blob):
+            raise ValueError("Truncated keyframe data")
+        result = struct.unpack_from(fmt, blob, offset)
+        offset += size
+        return result
+
+    def vector():
+        if not all(math.isfinite(v) for v in read("<3f")):
+            raise ValueError("Nonfinite keyframe vector")
+
+    def rotation():
+        if not all(math.isfinite(v) for v in read("<4f")):
+            raise ValueError("Nonfinite keyframe quaternion")
+
+    def frame():
+        (has_position,) = read("<B")
+        if has_position:
+            vector()
+        (has_rotation,) = read("<B")
+        if has_rotation:
+            rotation()
+        rotation()
+        read("<ii")  # TimeMS, TimeTotal (signed .NET Int32)
+        vector()  # AngularVelocity
+        vector()  # StartPosition
+
+    try:
+        (mode, data_flags) = read("<ii")
+        if not 0 <= mode <= 3 or (data_flags & ~3) != 0:
+            return False
+        read("<B")   # Running
+        read("<ii")  # Iterations, SkipLoops
+        vector()     # SerializedPosition
+        vector()     # BasePosition
+        rotation()   # BaseRotation
+        frame()      # CurrentFrame
+
+        (frame_count,) = read("<i")
+        if frame_count < 0 or frame_count > 4096:
+            return False
+        for _ in range(frame_count):
+            frame()
+
+        (template_count,) = read("<i")
+        if template_count < -1 or template_count > 4096:
+            return False
+        for _ in range(max(0, template_count)):
+            frame()
+    except (ValueError, struct.error):
+        return False
+    return offset == len(blob)
+
+
 def classify(blob: bytes) -> str:
-    """Classify a blob by its header, without parsing or executing its content."""
+    """Classify an asset header and validate the entire typed v1 structure."""
     if not blob:
         return "empty"
     if len(blob) > MAX_BLOB_BYTES:
@@ -34,9 +103,10 @@ def classify(blob: bytes) -> str:
         if len(blob) < 8:
             return "truncated-v1-header"
         version = int.from_bytes(blob[4:8], "little")
-        return "typed-v1-header" if version == 1 else "unknown-typed-version"
-    # Do not claim every non-OGKM value is a BinaryFormatter document:
-    # it may also be garbage or data from a future/third-party format.
+        if version != 1:
+            return "unknown-typed-version"
+        return "typed-v1-valid" if validate_typed_v1(blob) else "typed-v1-invalid"
+    # Never deserialize an unknown/legacy .NET object graph.
     return "non-v1-legacy-or-unknown"
 
 
@@ -156,14 +226,14 @@ def main(argv: list[str] | None = None) -> int:
     for path in args.hex_lines:
         reports.append(audit_hex_lines(path))
     invalid = {"non-v1-legacy-or-unknown", "unknown-typed-version",
-               "truncated-v1-header", "oversized", "invalid-base64",
+               "truncated-v1-header", "typed-v1-invalid", "oversized", "invalid-base64",
                "oversized-object-xml", "unsafe-object-xml",
                "unreadable-object-xml", "invalid-object-xml", "invalid-hex"}
     legacy_found = any(any(r["counts"].get(k, 0) for k in invalid)
                        for r in reports)
-    report = {"warning": "Read-only header audit; typed-v1 does NOT prove full "
-                         "payload validity; never use legacy BinaryFormatter "
-                         "on untrusted data.",
+    report = {"warning": "Read-only bounded typed-v1 structural audit; validated "
+                         "structure does NOT prove behavioral compatibility. "
+                         "Never use legacy BinaryFormatter on untrusted data.",
               "needs_migration_review": legacy_found,
               "sources": reports}
     if args.json:
@@ -174,7 +244,7 @@ def main(argv: list[str] | None = None) -> int:
             print(f"{source['kind']} {source['source']}")
             for name, count in sorted(source["counts"].items()):
                 print(f"  {name}: {count}")
-        print("REVIEW REQUIRED" if legacy_found else "No legacy-format headers detected")
+        print("REVIEW REQUIRED" if legacy_found else "No malformed/legacy headers detected")
     return 2 if args.fail_on_legacy and legacy_found else 0
 
 
