@@ -4,6 +4,7 @@ using System.IO;
 using System.Collections.Generic;
 using System.Linq;
 using System.Security.Cryptography;
+using System.Text.Json;
 using Nini.Config;
 using OpenMetaverse;
 using OpenSim.Framework;
@@ -282,8 +283,30 @@ internal static class Program
                 OglInventoryQuarantineFolders.Case(owner, grantCase)).ParentID == rejected,
                 "crypto-authorized rejection persists as folder status");
 
-            Check(Directory.GetFiles(ledgerDir, "*.spent").Length == 2,
+            string[] spentProofs = Directory.GetFiles(ledgerDir, "*.spent");
+            Check(spentProofs.Length == 2,
                 "exactly two valid proofs were consumed; invalid proofs are not spent");
+            bool verifiedAudit = false;
+            foreach (string receipt in spentProofs)
+            {
+                Check(File.GetUnixFileMode(receipt) ==
+                    (UnixFileMode.UserRead | UnixFileMode.UserWrite),
+                    "spent-proof audit record stays private");
+                using JsonDocument audit = JsonDocument.Parse(File.ReadAllText(receipt));
+                var fields = audit.RootElement;
+                Check(fields.GetProperty("status").GetString() == "proof_spent",
+                    "audit records only a consumed signed proof");
+                Check(fields.GetProperty("owner_id").GetString() == owner.ToString() &&
+                      fields.GetProperty("case_id").GetString() == grantCase.ToString() &&
+                      fields.GetProperty("item_id").GetString() == grantItem.ToString() &&
+                      fields.GetProperty("asset_id").GetString() == grantAsset.ToString(),
+                      "audit binds proof to owner, case, item and asset");
+                Check(!fields.TryGetProperty("proof", out _) &&
+                      !fields.TryGetProperty("secret", out _),
+                      "audit does not expose proof or signing secret");
+                verifiedAudit = true;
+            }
+            Check(verifiedAudit, "replay ledger has non-executable audit metadata");
 
             // Secret never comes from a source-code/config default.
             bool weakSecretRejected = false;
