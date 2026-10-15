@@ -139,6 +139,13 @@ namespace OpenSim.Services.HypergridService
                     reason = "invalid_object_xml";
                     return false;
                 }
+
+                // Phase 3d: inspect task inventory references inside prims.
+                // The dependency graph is NOT fetched here and the existence
+                // or safety of referenced scripts/assets is NOT implied.
+                if (!OglHgNestedInventoryInspector.TryExtract(asset, maxAssetBytes,
+                    out _, out reason))
+                    return false;
             }
 
             reason = null;
