@@ -415,10 +415,16 @@ namespace OpenSim.Services.InventoryService
                     new string[] { "parentFolderID"},
                     new string[] { folderID.ToString() });
 
-            foreach (XInventoryItem i in items)
+            // Managed quarantine is display-only until an authenticated
+            // release workflow exists. Never serve objects from these folders
+            // to a normal viewer, even if another code path wrote records.
+            if (!IsProtectedFolder(folderID))
             {
-                //m_log.DebugFormat("[XINVENTORY]: Adding item {0} to response", i.inventoryName);
-                inventory.Items.Add(ConvertToOpenSim(i));
+                foreach (XInventoryItem i in items)
+                {
+                    //m_log.DebugFormat("[XINVENTORY]: Adding item {0} to response", i.inventoryName);
+                    inventory.Items.Add(ConvertToOpenSim(i));
+                }
             }
 
             InventoryFolderBase f = GetFolder(principalID, folderID);
@@ -444,6 +450,8 @@ namespace OpenSim.Services.InventoryService
 
         public virtual List<InventoryItemBase> GetFolderItems(UUID principalID, UUID folderID)
         {
+            if (IsProtectedFolder(folderID))
+                return new List<InventoryItemBase>();
 //            m_log.DebugFormat("[XINVENTORY]: Fetch items for folder {0}", folderID);
 
             // Since we probably don't get a valid principal here, either ...
