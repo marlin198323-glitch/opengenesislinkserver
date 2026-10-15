@@ -1492,6 +1492,8 @@ namespace OpenSim.Region.ScriptEngine.Yengine
                 migrateOutWriter = mow;
                 migrateOutObjects = new Dictionary<object, int>();
                 migrateOutLists = new Dictionary<object[], ObjLslList>();
+                migrateOutDepth = 0;
+                migrateOutNodes = 0;
                 SendObjValue(ehArgs);
                 mow.Write(doGblInit);
                 mow.Write(stateCode);
@@ -1502,8 +1504,11 @@ namespace OpenSim.Region.ScriptEngine.Yengine
                     mow.Write("**newStateCode**");
                     mow.Write(newStateCode);
                 }
+                int frameCount = 0;
                 for(XMRStackFrame thisSF = stackFrames; thisSF is not null; thisSF = thisSF.nextSF)
                 {
+                    if (++frameCount > MaxMigrationFrames)
+                        throw new InvalidDataException("YEngine stack frame count exceeds limit");
                     mow.Write(thisSF.funcName);
                     mow.Write(thisSF.callNo);
                     SendObjValue(thisSF.objArray);
@@ -1515,6 +1520,8 @@ namespace OpenSim.Region.ScriptEngine.Yengine
                 migrateOutWriter = null;
                 migrateOutObjects = null;
                 migrateOutLists = null;
+                migrateOutDepth = 0;
+                migrateOutNodes = 0;
             }
         }
 
@@ -1525,11 +1532,22 @@ namespace OpenSim.Region.ScriptEngine.Yengine
         private BinaryWriter migrateOutWriter;
         private Dictionary<object, int> migrateOutObjects;
         private Dictionary<object[], ObjLslList> migrateOutLists;
+        private int migrateOutDepth;
+        private int migrateOutNodes;
         public void SendObjValue(object graph)
         {
-            BinaryWriter mow = migrateOutWriter;
+            if (++migrateOutNodes > MaxMigrationNodes)
+                throw new InvalidDataException("YEngine state object count exceeds limit");
+            if (++migrateOutDepth > MaxMigrationDepth)
+            {
+                --migrateOutDepth;
+                throw new InvalidDataException("YEngine state nesting depth exceeds limit");
+            }
+            try
+            {
+                BinaryWriter mow = migrateOutWriter;
 
-            // Value types (including nulls) are always output directly.
+                // Value types (including nulls) are always output directly.
             if(graph is null)
             {
                 mow.Write((byte)Ser.NULL);
@@ -1670,6 +1688,8 @@ namespace OpenSim.Region.ScriptEngine.Yengine
             }
             else if(graph is Array array)
             {
+                if (array.Length > 65536)
+                    throw new InvalidDataException("YEngine state array length exceeds limit");
                 mow.Write((byte)Ser.SYSARRAY);
                 mow.Write(SysType2String(array.GetType().GetElementType()));
                 mow.Write(array.Length);
@@ -1727,6 +1747,11 @@ namespace OpenSim.Region.ScriptEngine.Yengine
                 throw new NotSupportedException(
                     "YEngine state cannot safely serialize CLR object " +
                     graph.GetType().FullName);
+            }
+            }
+            finally
+            {
+                --migrateOutDepth;
             }
         }
 
