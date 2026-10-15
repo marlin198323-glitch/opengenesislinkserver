@@ -88,6 +88,25 @@ assert "bundle_unreferenced_staged_asset" in bundle_adapter
 assert "m_assetService.Get" not in bundle_adapter
 assert "m_assetService.Store" not in bundle_adapter
 assert "TryRelease(" not in bundle_adapter
+assert "TryInspectBound(" in bundle_adapter
+assert "TryIsBindingCurrent(" in bundle_adapter
+assert "OGL_QUARANTINE_STRUCTURAL_BINDING_V1" in bundle_adapter
+assert "writer.Write(verifiedOwner" not in bundle_adapter
+assert "writer.Write(owner.ToString())" in bundle_adapter
+assert "writer.Write(caseId.ToString())" in bundle_adapter
+assert "writer.Write(rootItemId.ToString())" in bundle_adapter
+assert "writer.Write(rootAssetId.ToString())" in bundle_adapter
+assert "writer.Write(maxAssetBytes)" in bundle_adapter
+assert "writer.Write(maxScriptBytes)" in bundle_adapter
+assert "writer.Write(maxReferences)" in bundle_adapter
+assert "writer.Write(maxDepth)" in bundle_adapter
+assert "writer.Write(maxTotalBytes)" in bundle_adapter
+assert "writer.Write(blob.AssetType)" in bundle_adapter
+assert "SHA256.HashData(blob.Data)" in bundle_adapter
+assert "bundle_changed_during_inspection" in bundle_adapter
+assert "bundle_binding_stale" in bundle_adapter
+assert "CryptographicOperations.FixedTimeEquals(expected, actual)" in bundle_adapter
+assert "structurally_inspected_not_authorized" in bundle_adapter
 quarantine = read("OpenSim/Services/HypergridService/OglHgInventoryQuarantine.cs")
 assert 'GetBoolean("QuarantineRejectedAssets", false)' in asset_handler
 assert "OglHgInventoryQuarantine.TryCapture" not in asset_handler  # instance method
