@@ -1,4 +1,4 @@
-# OpenGenesisLINK 0.9.3.13 - OGL HG InventoryGuard (Phase 1-3d, Entwicklung)
+# OpenGenesisLINK 0.9.3.13 - OGL HG InventoryGuard (Phase 1-3e, Entwicklung)
 
 Status: **Entwicklungszweig / noch nicht fuer Stable freigegeben.**
 Diese Aenderung betrifft ausschliesslich den per `HGSuitcaseInventoryService`
@@ -414,6 +414,60 @@ prueft gueltige TaskInventory-XML inkl. UUID-Wrappern,
 fehlende Asset-UUIDs, doppelte Item-IDs, eingebetteten Bytecode,
 fehlende Typfelder, verwaiste TaskInventoryItems und
 ueberfuellte Container.
+
+## Phase 3e: rekursive, hash-gebundene Abhaengigkeitspruefung (lokale API)
+
+Neu ist `OglHgQuarantineDependencyGraphVerifier.TryInspect`.
+Die Methode verlangt einen vom **vertrauenswuerdigen lokalen
+Transferkoordinator bereitgestellten, unveraenderlichen Snapshot**
+aus isolierten `AssetBase`-Datensaetzen sowie fuer **jedes** Asset
+eine separat als vertrauenswuerdig vorgesehene SHA-256-Pruefsumme.
+Sie hat **keine HTTP-, HG- oder FSAssets-Fetch-Funktion**.
+Alle Daten muessen vorab isoliert und fuer die gesamte Untersuchung
+konsistent bereitstehen; eine von einem Remote-Grid selbst gelieferte
+Pruefsumme gilt nicht als Beweis der Eigentums- oder Herkunftsrechte.
+
+Der iterative Graph-Walk besucht Objektabhaengigkeiten aus
+`TaskInventoryItem`-Verweisen, prueft auch eingebettete weitere
+Objekte und LSL-Quelltext mit dem vorhandenen Asset-Inspector und
+bricht mit eindeutigen Gruenden ab bei:
+- Fehlenden referenzierten Assets oder Hash-Pins;
+- Manipulierten Hashes, UUID-/Assettyp-Austausch und widerspruechlichen
+  Typangaben mehrerer Referenzen;
+- Schleifen (inkl. Objekt-Selbstreferenzen), zu grosser Rekursion,
+  zu vielen Assets oder Referenzen und zu grosser
+  **kumulativer** Nutzdatenmenge;
+- Fremdem LSL-Bytecode, fehlerhaften Scripts und unsicherem Objekt-XML.
+
+Richtwerte des Pruefers: maximal 1.024 unterschiedliche Assets,
+4.096 Referenzen, 12 rekursive Ebenen und 64 MiB Nutzdaten
+gesamt. Das sind Konstanten fuer den aufrufenden Dienst;
+die API erzwingt zusaetzlich obere Plausibilitaetsgrenzen.
+Das Ergebnisobjekt nennt Anzahl von Objekten/Scripts/
+Referenzen und den Status
+`structurally_inspected_not_authorized`.
+
+**WICHTIG:** Der neue Graph-Pruefer ist ein **isolierter,
+testbarer Sicherheitsbaustein**, derzeit **noch nicht** mit
+der persistenten `OglQuarantineTransferStageStore`-Verwaltung
+verbunden. Diese haelt bislang lediglich **ein Asset pro
+Quarantaenevorgang** bereit. Eine Erweiterung um zugeordnete
+Child-Assets, eine konsistente Snapshot-/Manifest-Transaktion
+und die verbindliche Verbindung mit dem authentifizierten
+Transferkoordinator sind daher noch offen.
+
+Ebenso werden hier nicht alle sonstigen Asset-Verweise innerhalb
+von Meshes, Materialien, TextureEntries oder Skripttexten
+aufgeloest. Das Verfahren ist weder Malware-Erkennung noch
+LSL-/OSSL-Semantikanalyse, weder Rechte-/Lizenzverifikation
+noch ausreichender Nachweis fuer eine sichere Freigabe.
+Es gibt weiterhin **keine** Inventar-Freigabe-API.
+
+CI: `tools/ci/OglHgInventoryGuardRegression` testet
+Objekt -> Unterobjekt -> Script, kaputte/fehlende Signaturen
+und Hash-Pins, fehlende Assets, Asset-ID-/Typ-Tausch,
+Zyklen, gemeinsame Referenzen, die kumulative Groesse,
+Rekursionstiefe, Referenzanzahl und Script-UTF8-Fehler.
 
 ## Nicht implementiert - keine Sicherheitsversprechen
 
