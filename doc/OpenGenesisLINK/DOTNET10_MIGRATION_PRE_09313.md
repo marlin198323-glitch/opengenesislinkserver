@@ -141,6 +141,25 @@ data; validation with representative real scripts and inventories;
 full on-grid bridge/physics/crossing tests; operator-tested rollback.
 A green CI build alone is **not** production approval.
 
+### Atomic YEngine saved-script state updates
+
+The two production YEngine .state write paths were previously using
+`File.Create(...)`, which **truncated the last known-good snapshot before**
+the replacement XML was fully written. The .NET 10 draft now uses a shared
+`XMRInstance.WriteStateFileAtomically` helper from both normal snapshot
+capture and imported OAR/script state: it writes a uniquely named temporary
+file in the same directory, flushes the data to disk, and replaces the
+destination with `File.Move(..., overwrite: true)`. Failed writes leave the
+previous destination intact, with best-effort temporary-file cleanup.
+Runtime regression tests exercise Unicode snapshots, replacement failure,
+previous snapshot preservation and temp cleanup. The CI contract also
+rejects direct truncating File.Create calls in either state write path.
+
+This reduces crash/interruption risk; it **does not guarantee** crash-safe
+multi-file database/script transactions or recovery of already incompatible
+legacy exception frames. The separate YEngine legacy-state audit, backup
+and real script-resume acceptance gates remain release-blocking.
+
 ### Read-only legacy KeyframeMotion inventory audit
 
 Before planning a .NET 10 production cutover, run the new **read-only**
