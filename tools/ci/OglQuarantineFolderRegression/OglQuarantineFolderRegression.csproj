@@ -15,6 +15,7 @@
     <ProjectReference Include="../../../OpenSim/Framework/OpenSim.Framework.csproj" />
     <ProjectReference Include="../../../OpenSim/Framework/Console/OpenSim.Framework.Console.csproj" />
     <ProjectReference Include="../../../OpenSim/Services/InventoryService/OpenSim.Services.InventoryService.csproj" />
+    <ProjectReference Include="../../../OpenSim/Services/HypergridService/OpenSim.Services.HypergridService.csproj" />
     <ProjectReference Include="../../../OpenSim/Data/SQLite/OpenSim.Data.SQLite.csproj" />
   </ItemGroup>
 </Project>
