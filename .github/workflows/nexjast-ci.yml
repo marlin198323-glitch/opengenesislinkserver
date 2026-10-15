@@ -545,6 +545,10 @@ jobs:
         shell: bash
         run: python3 tools/ci/verify_net10_yengine_preservation.py
 
+      - name: Verify .NET 10 opaque legacy KeyframeMotion preservation
+        shell: bash
+        run: python3 tools/ci/verify_net10_keyframe_preservation.py
+
       - name: Regression-test typed KeyframeMotion persistence
         shell: bash
         run: dotnet run --configuration Release --project tools/ci/KeyframeMotionSerializationRegression/KeyframeMotionSerializationRegression.csproj
