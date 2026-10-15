@@ -1,4 +1,4 @@
-# OpenGenesisLINK 0.9.3.13 - OGL HG InventoryGuard (Phase 1-3g, Entwicklung)
+# OpenGenesisLINK 0.9.3.13 - OGL HG InventoryGuard (Phase 1-3h, Entwicklung)
 
 Status: **Entwicklungszweig / noch nicht fuer Stable freigegeben.**
 Diese Aenderung betrifft ausschliesslich den per `HGSuitcaseInventoryService`
@@ -576,6 +576,74 @@ CI: Die `OglHgInventoryGuardRegression` prueft den
 vollstaendigen Fingerprint, unterschiedliche Regelprofile,
 Unveraendertheit nach Prozessneustart, Invalidierung
 durch nachtraegliche Abhaengigkeiten sowie manipulierte Bytes.
+
+## Phase 3h: strikte Grenze fuer das nicht-authentifizierte /xinventory
+
+`HGSuitcaseInventoryService` verfuegt jetzt ueber eine getrennte,
+explizit konfigurierbare **LegacyPublicAccessMode**-Richtlinie.
+Diese ist von den Metadaten-/Assetpruefungen und von der lokalen
+Quarantaene unabhaengig; sie wird **vor** den ungeschuetzten
+HG-Inventaroperationen ausgewertet.
+
+```ini
+[OGLInventoryGuard]
+    LegacyPublicAccessMode = LegacyCompatible
+```
+
+Drei Modi:
+
+- `LegacyCompatible` (Standard aus Ruecksicht auf bestehende
+  Hypergrid-Viewer): bisheriges Verhalten. Fremde Aufrufer koennen
+  weiterhin unzureichend autorisierte Zugriffe versuchen.
+  Dieser Modus ist **NICHT** sicher.
+- `ReadOnly`: Auf dem oeffentlichen HG-Service werden
+  `AddFolder`, `UpdateFolder`, `MoveFolder`,
+  `AddItem`, `UpdateItem`, `MoveItems`
+  blockiert. Die schon zuvor untersagten Delete-/Purge-Operationen
+  bleiben untersagt. Lesen ist auf die vorhandene
+  Suitcase-/Appearance-Sicht beschraenkt. Lesen darf dabei
+  nicht etwa Suitcase-Ordner anlegen oder alte Ordner migrieren.
+  Auch `GetMultipleItems`, `GetMultipleFoldersContent` und
+  `GetActiveGestures` werden ueber die Suitcase-Filter
+  geleitet. Beliebige allgemeine Asset-Berechtigungssummen
+  werden in diesem Modus nicht offengelegt.
+- `BlockAll`: Alle HG-Inventarreads und -writes werden auf
+  dem `HGSuitcaseInventoryService` gesperrt,
+  einschliesslich Mehrfachabfragen, Ordnerstrukturen,
+  Gesten und dem `IInventoryService.HasInventoryForUser`-
+  Kontoexistenztest. Der separate **Asset-Service**
+  und andere moegliche REST-/Grid-Connectoren sind dadurch
+  **nicht automatisch** geschuetzt.
+
+Ungueltige Werte fuehren **fail-closed** zu `BlockAll`.
+Der Operator muss einen sicheren Modus **ausdruecklich**
+waehlen und die Interoperabilitaet zuvor mit Fremdgrids testen:
+`ReadOnly` kann das Bearbeiten fremder Suitcase-Inhalte
+verhindern; `BlockAll` kann das HG-Inventar unterwegs komplett
+unbenutzbar machen.
+
+Das ist bewusst **keine neue Hypergrid-Authentifizierung**.
+Der bestehende `/xinventory`-Vertrag liefert keine verlaessliche
+avatar-gebundene Aufruferidentitaet. Auch in `ReadOnly`
+sind Anfragen nicht pro Avatar autorisiert und koennen
+Bestandsdaten ueber den fuer dieses Konto erreichbaren
+Suitcase-Bereich abfragen. Fuer wirksame Remoteberechtigungen
+braucht es einen neuen authentifizierten Endpunkt, Schutz
+vor Replay, vertrauenswuerdige Home-Grid-Bindung und eine
+Migration der Fremd-Grid-/Viewer-Nutzung. Ein gemeinsamer
+Grid-API-Key allein beweist nicht, welcher Avatar die
+Operation autorisiert hat.
+
+CI: `OglHgInventoryGuardRegression` prueft die Policy-Modi,
+unbekannte Werte, fehlende Schreibfreigabe und Read-Block.
+Der statische Verifier prueft den fruehzeitigen Gate
+aller wichtigen oeffentlichen Suitcase-Methoden.
+
+**Betriebshinweis:** Ein Merge dieses PR schaltet den Strict-Modus
+nicht automatisch ein. Die Konfigurationsbeispiele verwenden
+absichtlich noch `LegacyCompatible`, um bestehende Netze
+nicht ohne Freigabe zu beeintraechtigen. Ein Produktiveinsatz
+muss als bewusste Betriebsaenderung erfolgen.
 
 ## Nicht implementiert - keine Sicherheitsversprechen
 
