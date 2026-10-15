@@ -100,6 +100,56 @@ internal static class Program
         // A random truncated or wrong-version payload must never be interpreted as CLR objects.
         corrupt[4] = 12;
         Check(KeyframeMotion.FromData(null, corrupt) == null, "unknown version rejected");
+
+        // .NET 10 must not overwrite legacy or foreign persisted motion blobs
+        // when the owning prim is saved or exported again.
+        byte[] legacy = { 0, 1, 0, 0, 0, 255, 7, 80, 17 };
+        SceneObjectPart part = new();
+        part.LoadPersistedKeyframeMotion(null, legacy);
+        Check(part.KeyframeMotion == null, "legacy motion never becomes executable");
+        Check(part.HasPersistedKeyframeMotion, "opaque legacy motion remains persistable");
+        legacy[1] = 42;
+        byte[] firstCopy = part.SerializePersistedKeyframeMotion();
+        Check(firstCopy[1] == 1, "inbound motion bytes are defensively copied");
+        firstCopy[2] = 77;
+        Check(part.SerializePersistedKeyframeMotion()[2] == 0,
+              "outbound motion bytes are defensively copied");
+
+        SceneObjectPart duplicate = new();
+        part.CopyUnrestoredKeyframeMotionTo(duplicate);
+        Check(duplicate.HasPersistedKeyframeMotion &&
+              duplicate.SerializePersistedKeyframeMotion().AsSpan().SequenceEqual(part.SerializePersistedKeyframeMotion()),
+              "unrestored motion survives object duplication");
+        duplicate.KeyframeMotion = null;
+        Check(!duplicate.HasPersistedKeyframeMotion &&
+              duplicate.SerializePersistedKeyframeMotion().Length == 0,
+              "explicit motion deletion removes only that object's opaque bytes");
+        Check(part.HasPersistedKeyframeMotion,
+              "deleting the duplicate leaves the source's bytes intact");
+
+        part.LoadPersistedKeyframeMotion(null, saved);
+        Check(part.KeyframeMotion != null &&
+              part.SerializePersistedKeyframeMotion().AsSpan().SequenceEqual(saved),
+              "typed motion still roundtrips through SceneObjectPart");
+        Check(part.HasPersistedKeyframeMotion, "typed motion remains discoverable");
+        part.LoadPersistedKeyframeMotion(null, new byte[] { 1, 2, 3 });
+        Check(part.KeyframeMotion == null && part.HasPersistedKeyframeMotion,
+              "rejected state replaces previously loaded typed motion without loss");
+        part.KeyframeMotion = null;
+        Check(!part.HasPersistedKeyframeMotion,
+              "explicit replacement clears preserved rejected state");
+
+        bool oversizedRejected = false;
+        try
+        {
+            part.LoadPersistedKeyframeMotion(null, new byte[4 * 1024 * 1024 + 1]);
+        }
+        catch (InvalidDataException)
+        {
+            oversizedRejected = true;
+        }
+        Check(oversizedRejected, "oversized rejected state aborts loading instead of silently wiping DB data");
+
         Console.WriteLine("Safe keyframe-motion serializer: PASS (" + checks + " checks)");
         return 0;
     }
