@@ -30,7 +30,11 @@ for method, next_method in [
     ("MoveItems", "DeleteItems"),
     ("DeleteItems", "GetItem")
 ]:
-    start = source.index("public virtual bool " + method + "(")
+    signature = {
+        "DeleteFolders": "public virtual bool DeleteFolders(UUID principalID, List<UUID> folderIDs, bool onlyIfTrash)",
+        "PurgeFolder": "public virtual bool PurgeFolder(InventoryFolderBase folder, bool onlyIfTrash)",
+    }.get(method, "public virtual bool " + method + "(")
+    start = source.index(signature)
     end = source.index("public virtual ", start + 15)
     segment = source[start:end]
     assert "IsProtected" in segment or "HasProtected" in segment, method
