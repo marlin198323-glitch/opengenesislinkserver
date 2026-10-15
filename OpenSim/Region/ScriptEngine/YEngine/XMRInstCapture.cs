@@ -197,6 +197,51 @@ namespace OpenSim.Region.ScriptEngine.Yengine
             return scriptStateN;
         }
 
+        // Reader and writer share the same document limit. The offline
+        // .NET10 migration audit uses the identical 8 MiB XML ceiling.
+        internal const int MaxPersistedStateXmlBytes = 8 * 1024 * 1024;
+
+        private static XmlReaderSettings SafePersistedStateXmlSettings()
+        {
+            return new XmlReaderSettings
+            {
+                DtdProcessing = DtdProcessing.Prohibit,
+                XmlResolver = null,
+                MaxCharactersInDocument = MaxPersistedStateXmlBytes,
+                MaxCharactersFromEntities = 0,
+                CloseInput = false
+            };
+        }
+
+        internal static XmlDocument ParsePersistedStateXml(string xml)
+        {
+            if (xml == null)
+                throw new ArgumentNullException(nameof(xml));
+
+            if (System.Text.Encoding.UTF8.GetByteCount(xml) > MaxPersistedStateXmlBytes)
+                throw new InvalidDataException("YEngine state XML exceeds 8 MiB limit");
+
+            using StringReader text = new(xml);
+            using XmlReader reader = XmlReader.Create(text, SafePersistedStateXmlSettings());
+            XmlDocument doc = new() { XmlResolver = null };
+            doc.Load(reader);
+            return doc;
+        }
+
+        internal static XmlDocument ReadPersistedStateXmlFile(string path)
+        {
+            // Check input byte size before creating XML objects. XML reader
+            // separately caps decoded characters and disallows DTD/entity use.
+            using FileStream stream = new(
+                path, FileMode.Open, FileAccess.Read, FileShare.Read);
+            if (stream.Length > MaxPersistedStateXmlBytes)
+                throw new InvalidDataException("YEngine .state file exceeds 8 MiB limit");
+            using XmlReader reader = XmlReader.Create(stream, SafePersistedStateXmlSettings());
+            XmlDocument doc = new() { XmlResolver = null };
+            doc.Load(reader);
+            return doc;
+        }
+
         // Never truncate a working YEngine .state file before the new XML is
         // durable. Both snapshot persistence and OAR restore use this path.
         // Temp and destination remain in the same directory (same filesystem).
@@ -206,6 +251,8 @@ namespace OpenSim.Region.ScriptEngine.Yengine
                 throw new ArgumentException("YEngine state path is required", nameof(statePath));
             if (xml == null)
                 throw new ArgumentNullException(nameof(xml));
+            if (System.Text.Encoding.UTF8.GetByteCount(xml) > MaxPersistedStateXmlBytes)
+                throw new InvalidDataException("YEngine state XML exceeds 8 MiB limit");
 
             string temporary = statePath + ".ogl-" + Guid.NewGuid().ToString("N") + ".tmp";
             try
