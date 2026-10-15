@@ -131,6 +131,32 @@ namespace OpenSim.Services.InventoryService
             catch (OverflowException) { return false; }
         }
 
+        // Maintenance only: purge expired or revoked rows after the
+        // maximum ticket lifetime has passed. Retaining revoked rows
+        // during that window preserves the audit/revocation boundary.
+        public bool TryPurgeInactiveGrants(TimeSpan retention, out int deleted)
+        {
+            deleted = 0;
+            if (retention < TimeSpan.FromMinutes(10) ||
+                retention > TimeSpan.FromDays(365))
+                return false;
+            long cutoff = DateTimeOffset.UtcNow.ToUnixTimeSeconds() -
+                (long)retention.TotalSeconds;
+            try
+            {
+                using DbConnection connection = Open();
+                using DbCommand cmd = connection.CreateCommand();
+                cmd.CommandText = "DELETE FROM ogl_hg_roaming_grants " +
+                    "WHERE expires_utc < @cutoff " +
+                    "AND (revoked_utc IS NULL OR revoked_utc < @cutoff)";
+                Add(cmd, "@cutoff", cutoff);
+                deleted = cmd.ExecuteNonQuery();
+                return true;
+            }
+            catch (DbException) { return false; }
+            catch (InvalidOperationException) { return false; }
+        }
+
         public bool TryRevokeSession(UUID residentId, UUID sessionId)
         {
             if (residentId == UUID.Zero || sessionId == UUID.Zero)
