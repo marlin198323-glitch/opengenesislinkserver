@@ -149,6 +149,14 @@ means migration review is required, `3` means audit failure.
 A recognized typed-v1 **header alone does not prove the payload is valid**.
 Keep copies of the complete database/OAR and assets for migration and rollback.
 
+The runtime preview now also emits a throttled
+`[OGL .NET10 KEYFRAME]` warning when old or corrupted persisted
+motion data is rejected. This does **not** protect the original BLOB
+from subsequent region/object saves: unsupported motion is not restored,
+so **do not deploy the preview to production regions** before verified
+offline migration and tested rollback. The log intentionally prints
+only error type/count, not user asset contents.
+
 This tool is an **inventory and readiness aid, not a conversion utility**.
 No automatic legacy data rewriting or destructive cleanup is introduced.
 Its SQLite/OAR/MariaDB-HEX fixtures are part of the CI regression suite.
