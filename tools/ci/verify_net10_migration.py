@@ -35,5 +35,9 @@ for path in (
     assert "new BinaryFormatter(" not in body, f"Unsafe formatter restored in {path}"
 assert "AssetDiskCacheCodec.Read(stream, id)" in (root/"OpenSim/Region/CoreModules/Asset/FlotsamAssetCache.cs").read_text()
 assert "DeserializeState(data)" in (root/"OpenSim/Region/Framework/Scenes/KeyframeMotion.cs").read_text()
+keyframes=(root/"OpenSim/Region/Framework/Scenes/KeyframeMotion.cs").read_text()
+assert "[OGL .NET10 KEYFRAME]" in keyframes, "Legacy keyframe load must warn operators"
+assert "m_rejectedPersistedStateCount" in keyframes, "Keyframe warning counter missing"
+assert "may " in keyframes and "be lost on a later save" in keyframes
 assert "throw new NotSupportedException(" in (root/"OpenSim/Framework/Util.cs").read_text()
 print(f"OGL .NET 10 target: OK ({len(projects)} project files)")
