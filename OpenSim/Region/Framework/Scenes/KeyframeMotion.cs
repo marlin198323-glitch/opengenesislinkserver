@@ -178,7 +178,9 @@ namespace OpenSim.Region.Framework.Scenes
     [Serializable]
     public partial class KeyframeMotion
     {
-        //private static readonly ILog m_log = LogManager.GetLogger(MethodBase.GetCurrentMethod().DeclaringType);
+        private static readonly ILog m_log =
+            LogManager.GetLogger(MethodBase.GetCurrentMethod().DeclaringType);
+        private static int m_rejectedPersistedStateCount;
 
         public enum PlayMode : int
         {
@@ -324,10 +326,21 @@ namespace OpenSim.Region.Framework.Scenes
                 newMotion.m_waitingCrossing = false;
                 return newMotion;
             }
-            catch (Exception)
+            catch (Exception error)
             {
-                // Old BinaryFormatter data and malformed blobs fail closed.
-                // Operators must explicitly migrate legacy persisted motions.
+                // Avoid unsafe legacy BinaryFormatter deserialization. A legacy
+                // motion may be lost from DB/OAR on a subsequent object save,
+                // so loudly warn operators to stop upgrading and use the
+                // offline read-only audit before any migration attempt.
+                int rejected = Interlocked.Increment(ref m_rejectedPersistedStateCount);
+                if (rejected <= 5 || rejected % 100 == 0)
+                    m_log.WarnFormat(
+                        "[OGL .NET10 KEYFRAME]: Rejected persisted KeyframeMotion " +
+                        "(reason={0}, total={1}). This motion is NOT restored and may " +
+                        "be lost on a later save. Do not deploy the preview on " +
+                        "production regions before offline migration of legacy " +
+                        "KeyframeMotion database/OAR records.",
+                        error.GetType().Name, rejected);
                 return null;
             }
         }
