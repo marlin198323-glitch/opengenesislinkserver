@@ -65,7 +65,8 @@ assert coordinator.index("if (!m_grants.TryRevokeSession(resident, session))") <
 travel_source = (ROOT / "OpenSim/Services/HypergridService/UserAgentService.cs").read_text()
 assert "IsAuthenticatedTravelDestination" in travel_source
 assert "HypergridUri.Equivalent(stored, destinationGridUri)" in travel_source
-assert "InventoryGuardRevokeOnLogout" in travel_source
+assert "TryRegisterInventoryGuardLogout" in travel_source
+assert "Interlocked.CompareExchange" in travel_source
 assert travel_source.index("revoked = revoke(userID, sessionID)") < travel_source.index("m_Database.Delete(sessionID);")
 coordinator = (ROOT / "OpenSim/Services/InventoryService/OglHgRoamingTravelCoordinator.cs").read_text()
 assert "m_verifiedLocalTravel(resident, session, verifiedDestination)" in coordinator
