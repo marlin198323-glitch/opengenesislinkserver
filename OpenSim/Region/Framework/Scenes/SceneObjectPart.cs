@@ -389,7 +389,7 @@ namespace OpenSim.Region.Framework.Scenes
                     "Persisted KeyframeMotion exceeds the safety limit. " +
                     "The source data was not modified.");
 
-            KeyframeMotion = KeyframeMotion.FromData(group, data);
+            KeyframeMotion = OpenSim.Region.Framework.Scenes.KeyframeMotion.FromData(group, data);
             if (m_keyframeMotion == null)
                 m_unrestoredKeyframeMotion = (byte[])data.Clone();
         }
