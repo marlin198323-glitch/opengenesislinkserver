@@ -57,6 +57,8 @@ assert "TryRevokeOnAuthenticatedLogout" in coordinator
 assert "TryRevokeSessionsBeforeRegionLogout" in coordinator
 assert "TryAbortTravel" in coordinator
 assert "TryChangeAuthenticatedDestination" in coordinator
+assert "TryBeginReadOnlyTravel" in coordinator
+assert "m_grants.TryRevokeSession(resident, session)" in coordinator
 assert coordinator.index("if (!m_grants.TryRevokeSession(resident, session))") < coordinator.index("return TryBeginAuthenticatedTravel(resident, session,")
 travel_source = (ROOT / "OpenSim/Services/HypergridService/UserAgentService.cs").read_text()
 assert "IsAuthenticatedTravelDestination" in travel_source
