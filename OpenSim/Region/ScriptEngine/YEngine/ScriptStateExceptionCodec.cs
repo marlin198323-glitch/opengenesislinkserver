@@ -85,6 +85,16 @@ namespace OpenSim.Region.ScriptEngine.Yengine
 
         public static string ReadLimitedString(BinaryReader reader)
         {
+            return ReadLimitedString(reader, MaxTextLength);
+        }
+
+        // Larger limits are available only to ordinary LSL script-state
+        // strings, not CLR exception class tags or exception text.
+        public static string ReadLimitedString(BinaryReader reader, int maxCharacters)
+        {
+            if (reader == null) throw new ArgumentNullException(nameof(reader));
+            if (maxCharacters < 1 || maxCharacters > 262144)
+                throw new ArgumentOutOfRangeException(nameof(maxCharacters));
             // Read7BitEncodedInt is not exposed publicly in all targets.
             // Limit encoding length by reading individual prefix bytes, then
             // precisely the UTF-8 payload from the bounded stream.
@@ -95,13 +105,13 @@ namespace OpenSim.Region.ScriptEngine.Yengine
                 len |= (b & 0x7f) << shift;
                 if ((b & 0x80) == 0)
                 {
-                    if (len > MaxTextLength * 4)
-                        throw new InvalidDataException("Oversized YEngine exception text");
+                    if (len > maxCharacters * 4)
+                        throw new InvalidDataException("Oversized YEngine persisted text");
                     byte[] bytes = reader.ReadBytes(len);
                     if (bytes.Length != len) throw new EndOfStreamException();
                     string result = new System.Text.UTF8Encoding(false, true).GetString(bytes);
-                    if (result.Length > MaxTextLength)
-                        throw new InvalidDataException("Oversized YEngine exception text");
+                    if (result.Length > maxCharacters)
+                        throw new InvalidDataException("Oversized YEngine persisted text");
                     return result;
                 }
                 shift += 7;
