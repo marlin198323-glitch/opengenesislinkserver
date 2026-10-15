@@ -58,6 +58,13 @@ namespace OpenSim.Services.HypergridService
         private IUserAccountService m_UserAccountService;
         private IAvatarService m_AvatarService;
         private readonly bool m_OglInventoryGuardEnabled;
+        private readonly OglHgLegacyInventoryMode m_LegacyInventoryMode;
+
+        // The legacy HG wire contract has no reliable per-avatar caller identity.
+        // Deny before database reads or writes, not just at inventory validation.
+        private bool AllowLegacyRead => OglHgLegacyInventoryBoundary.AllowRead(m_LegacyInventoryMode);
+        private bool AllowLegacyWrite => OglHgLegacyInventoryBoundary.AllowWrite(m_LegacyInventoryMode);
+
 
 //        private UserAccountCache m_Cache;
 
@@ -79,6 +86,13 @@ namespace OpenSim.Services.HypergridService
             IConfig guardConfig = config.Configs["OGLInventoryGuard"];
             m_OglInventoryGuardEnabled = guardConfig != null &&
                 guardConfig.GetBoolean("Enabled", false);
+            m_LegacyInventoryMode = OglHgLegacyInventoryBoundary.Parse(
+                guardConfig?.GetString("LegacyPublicAccessMode", "LegacyCompatible") ??
+                "LegacyCompatible");
+            m_log.WarnFormat("[OGL INVENTORY GUARD]: Public legacy HG inventory policy is {0}. " +
+                "This is NOT per-avatar authentication. ReadOnly blocks HG mutations; " +
+                "BlockAll blocks all HG inventory reads and mutations.", m_LegacyInventoryMode);
+
             if (m_OglInventoryGuardEnabled)
                 m_log.Warn("[OGL INVENTORY GUARD]: HG item metadata validation enabled. " +
                     "Legacy /xinventory remains without per-avatar caller authorization; " +
@@ -124,6 +138,9 @@ namespace OpenSim.Services.HypergridService
 
         public override List<InventoryFolderBase> GetInventorySkeleton(UUID principalID)
         {
+            if (!AllowLegacyRead)
+                return null;
+
             XInventoryFolder suitcase = GetSuitcaseXFolder(principalID);
 
             if (suitcase == null)
@@ -150,6 +167,9 @@ namespace OpenSim.Services.HypergridService
 
         public override InventoryFolderBase GetRootFolder(UUID principalID)
         {
+            if (!AllowLegacyRead)
+                return null;
+
             m_log.DebugFormat("[HG SUITCASE INVENTORY SERVICE]: GetRootFolder for {0}", principalID);
 
             // Let's find out the local root folder
@@ -231,6 +251,9 @@ namespace OpenSim.Services.HypergridService
 
         public override InventoryFolderBase GetFolderForType(UUID principalID, FolderType type)
         {
+            if (!AllowLegacyRead)
+                return null;
+
             //m_log.DebugFormat("[HG INVENTORY SERVICE]: GetFolderForType for {0} {0}", principalID, type);
             XInventoryFolder suitcase = GetSuitcaseXFolder(principalID);
 
@@ -259,6 +282,9 @@ namespace OpenSim.Services.HypergridService
 
         public override InventoryCollection GetFolderContent(UUID principalID, UUID folderID)
         {
+            if (!AllowLegacyRead)
+                return new InventoryCollection();
+
             InventoryCollection coll = null;
 
             if (!IsWithinSuitcaseTree(principalID, folderID))
@@ -279,6 +305,9 @@ namespace OpenSim.Services.HypergridService
 
         public override List<InventoryItemBase> GetFolderItems(UUID principalID, UUID folderID)
         {
+            if (!AllowLegacyRead)
+                return new List<InventoryItemBase>();
+
             // Let's do a bit of sanity checking, more than the base service does
             // make sure the given folder exists under the suitcase tree of this user
             if (!IsWithinSuitcaseTree(principalID, folderID))
@@ -292,6 +321,9 @@ namespace OpenSim.Services.HypergridService
 
         public override bool AddFolder(InventoryFolderBase folder)
         {
+            if (!AllowLegacyWrite)
+                return false;
+
             //m_log.WarnFormat("[HG SUITCASE INVENTORY SERVICE]: AddFolder {0} {1}", folder.Name, folder.ParentID);
             // Let's do a bit of sanity checking, more than the base service does
             // make sure the given folder's parent folder exists under the suitcase tree of this user
@@ -317,6 +349,9 @@ namespace OpenSim.Services.HypergridService
 
         public override bool UpdateFolder(InventoryFolderBase folder)
         {
+            if (!AllowLegacyWrite)
+                return false;
+
             //m_log.DebugFormat("[HG SUITCASE INVENTORY SERVICE]: Update folder {0}, version {1}", folder.ID, folder.Version);
             if (!IsWithinSuitcaseTree(folder.Owner, folder.ID))
             {
@@ -330,6 +365,9 @@ namespace OpenSim.Services.HypergridService
 
         public override bool MoveFolder(InventoryFolderBase folder)
         {
+            if (!AllowLegacyWrite)
+                return false;
+
             if (!IsWithinSuitcaseTree(folder.Owner, folder.ID))
             {
                 m_log.DebugFormat("[HG SUITCASE INVENTORY SERVICE]: MoveFolder: folder {0} (user {1}) is not within Suitcase tree", folder.ID, folder.Owner);
@@ -359,6 +397,9 @@ namespace OpenSim.Services.HypergridService
 
         public override bool AddItem(InventoryItemBase item)
         {
+            if (!AllowLegacyWrite)
+                return false;
+
             if (item == null)
                 return false;
 
@@ -394,6 +435,9 @@ namespace OpenSim.Services.HypergridService
 
         public override bool UpdateItem(InventoryItemBase item)
         {
+            if (!AllowLegacyWrite)
+                return false;
+
             if (item == null)
                 return false;
 
@@ -419,6 +463,9 @@ namespace OpenSim.Services.HypergridService
 
         public override bool MoveItems(UUID principalID, List<InventoryItemBase> items)
         {
+            if (!AllowLegacyWrite)
+                return false;
+
             // Principal is b0rked. *sigh*
 
             // Check the items' destination folders
@@ -456,6 +503,9 @@ namespace OpenSim.Services.HypergridService
 
         public override InventoryItemBase GetItem(UUID principalID, UUID itemID)
         {
+            if (!AllowLegacyRead)
+                return null;
+
             InventoryItemBase it = base.GetItem(principalID, itemID);
             if (it == null || (m_OglInventoryGuardEnabled && it.Owner != principalID))
             {
@@ -481,8 +531,11 @@ namespace OpenSim.Services.HypergridService
             return it;
         }
 
-        public new InventoryFolderBase GetFolder(UUID principalID, UUID folderID)
+        public override InventoryFolderBase GetFolder(UUID principalID, UUID folderID)
         {
+            if (!AllowLegacyRead)
+                return null;
+
             InventoryFolderBase f = base.GetFolder(principalID, folderID);
 
             if (f != null)
@@ -505,6 +558,37 @@ namespace OpenSim.Services.HypergridService
         //public int GetAssetPermissions(UUID principalID, UUID assetID)
         //{
         //}
+
+        // The public interface also contains inherited collection and
+        // permission accessors. Override each to avoid an inherited read bypass.
+        public override InventoryCollection[] GetMultipleFoldersContent(
+            UUID principalID, UUID[] folderIDs)
+        {
+            if (!AllowLegacyRead)
+                return Array.Empty<InventoryCollection>();
+            return base.GetMultipleFoldersContent(principalID, folderIDs);
+        }
+
+        public override InventoryItemBase[] GetMultipleItems(UUID principalID, UUID[] ids)
+        {
+            if (!AllowLegacyRead)
+                return Array.Empty<InventoryItemBase>();
+            return base.GetMultipleItems(principalID, ids);
+        }
+
+        public override List<InventoryItemBase> GetActiveGestures(UUID principalID)
+        {
+            if (!AllowLegacyRead)
+                return new List<InventoryItemBase>();
+            return base.GetActiveGestures(principalID);
+        }
+
+        public override int GetAssetPermissions(UUID principalID, UUID assetID)
+        {
+            if (!AllowLegacyRead)
+                return 0;
+            return base.GetAssetPermissions(principalID, assetID);
+        }
 
         #region Auxiliary functions
         private XInventoryFolder GetXFolder(UUID userID, UUID folderID)
