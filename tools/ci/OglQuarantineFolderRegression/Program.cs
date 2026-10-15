@@ -462,6 +462,71 @@ internal static class Program
             Check(service.GetItem(owner, stageItem) == null,
                 "corruption cannot promote staged asset to inventory");
 
+            // Phase 3f: a different signed action is mandatory for each
+            // dependency, and a rejected case must never accept late assets.
+            string multiPath = Path.Combine(dir, "private-multi-staging");
+            var multiStore = new OglQuarantineTransferStageStore(
+                multiPath, 4096, 5, 20480);
+            var multiCoordinator = new OglQuarantineTransferCoordinator(
+                authority, Service(cfg), multiStore);
+            UUID multiCase = UUID.Random();
+            UUID multiItem = UUID.Random();
+            UUID multiRoot = UUID.Random();
+            UUID multiChild = UUID.Random();
+            byte[] multiRootBytes = Encoding.UTF8.GetBytes(
+                "<SceneObjectGroup><RootPart><TaskInventory/></RootPart></SceneObjectGroup>");
+            byte[] multiChildBytes = Encoding.UTF8.GetBytes(
+                "default { state_entry() {} }");
+            string multiRootProof = authority.Issue(owner, multiCase, multiItem,
+                multiRoot, OglQuarantineTransferAction.Stage, TimeSpan.FromSeconds(60));
+            string multiChildProof = authority.Issue(owner, multiCase, multiItem,
+                multiChild, OglQuarantineTransferAction.StageDependency,
+                TimeSpan.FromSeconds(60));
+            Check(!multiCoordinator.TryStageDependency(multiChildProof,
+                owner, multiCase, multiItem, multiChild,
+                (int)AssetType.LSLText, multiChildBytes),
+                "child grant cannot create a case before root staging");
+            Check(multiCoordinator.TryStage(multiRootProof, owner, multiCase,
+                multiItem, multiRoot, (int)AssetType.Object, multiRootBytes),
+                "root proof stages and registers pending case");
+            Check(!multiCoordinator.TryStageDependency(multiRootProof, owner,
+                multiCase, multiItem, multiChild, (int)AssetType.LSLText,
+                multiChildBytes), "Stage root proof cannot stage child");
+            Check(!multiCoordinator.TryStageDependency(multiChildProof, owner,
+                multiCase, multiItem, UUID.Random(), (int)AssetType.LSLText,
+                multiChildBytes), "child proof bound to exact dependent asset");
+            Check(!multiCoordinator.TryStageDependency(multiChildProof, owner,
+                multiCase, UUID.Random(), multiChild, (int)AssetType.LSLText,
+                multiChildBytes), "child proof bound to root item ID");
+            Check(multiCoordinator.TryStageDependency(multiChildProof,
+                owner, multiCase, multiItem, multiChild,
+                (int)AssetType.LSLText, multiChildBytes),
+                "authenticated per-child proof stages dependency");
+            Check(!multiCoordinator.TryStageDependency(multiChildProof,
+                owner, multiCase, multiItem, multiChild,
+                (int)AssetType.LSLText, multiChildBytes),
+                "spent dependency proof cannot be replayed");
+            Check(multiStore.TryReadVerifiedBundle(owner, multiCase, multiItem,
+                5, 20480, out OglQuarantineStagedAsset[] signedBundle,
+                out _) && signedBundle.Length == 2,
+                "authenticated multi-asset case reads root and child without inventory");
+            Check(Service(cfg).GetItem(owner, multiItem) == null,
+                "signed child staging never publishes an inventory item");
+
+            string multiRejectProof = authority.Issue(owner, multiCase, multiItem,
+                multiRoot, OglQuarantineTransferAction.Reject,
+                TimeSpan.FromSeconds(60));
+            Check(multiCoordinator.TryReject(multiRejectProof, owner, multiCase,
+                multiItem, multiRoot), "trusted rejection closes multi-asset pending case");
+            UUID lateChild = UUID.Random();
+            string lateProof = authority.Issue(owner, multiCase, multiItem,
+                lateChild, OglQuarantineTransferAction.StageDependency,
+                TimeSpan.FromSeconds(60));
+            Check(!multiCoordinator.TryStageDependency(lateProof, owner,
+                multiCase, multiItem, lateChild,
+                (int)AssetType.LSLText, multiChildBytes),
+                "rejected case cannot accept a late dependent asset");
+
             // Secret never comes from a source-code/config default.
             bool weakSecretRejected = false;
             try
