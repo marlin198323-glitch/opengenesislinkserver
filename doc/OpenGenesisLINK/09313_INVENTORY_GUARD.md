@@ -1,4 +1,4 @@
-# OpenGenesisLINK 0.9.3.13 - OGL HG InventoryGuard (Phase 1-3b, Entwicklung)
+# OpenGenesisLINK 0.9.3.13 - OGL HG InventoryGuard (Phase 1-3c, Entwicklung)
 
 Status: **Entwicklungszweig / noch nicht fuer Stable freigegeben.**
 Diese Aenderung betrifft ausschliesslich den per `HGSuitcaseInventoryService`
@@ -302,6 +302,78 @@ Avatar-/Item-/Asset-ID, Operationstrennung, Replay nach Neustart,
 maximale Gültigkeitsdauer, idempotente Quarantaene-Statuswechsel und
 konkurrierende Replay-Versuche von zwei unabhängigen Service-Instanzen.
 
+## Phase 3c: isoliertes, persistentes Staging fuer lokale, verifizierte Transfers
+
+Neu: `OglQuarantineTransferStageStore` speichert ungepruefte Payloadbytes
+als **separate, nicht ausfuehrbare Dateien** auf dem Server, bewusst
+**nicht in FSAssets oder der Inventardatenbank**.
+`OglQuarantineTransferCoordinator.TryStage(...)` verlangt zuvor einen
+gueltigen, nur einmal nutzbaren und zielgebundenen
+`OglQuarantineTransferAction.Stage`-Nachweis. Erst nach
+erfolgreicher Ablage und einer Integritaetskontrolle kann ein
+leerer Statusordner unter `In Pruefung` erscheinen. Der Nachweis
+ist eine **lokale** Eintrittsbedingung; er beweist weiterhin nicht
+die HG-Identitaet eines externen Anrufers.
+
+Die API wird **nicht ueber HTTP oder /xinventory angeboten**.
+Eine spaetere vertrauenswuerdige HG-Transferkomponente muss die
+identitaetsgebundene Ticket-Ausstellung und das Staging ausdruecklich
+aufrufen. Es gibt **noch keinen automatischen Assetimport**.
+
+Sicherheitsgrenzen und Eigenschaften:
+
+- Separater **absoluter, dedizierter Linux-Pfad**, Verzeichnisrechte
+  0700, Payload und JSON-Manifest 0600. Die direkte Verzeichnis-
+  Symlink-Nutzung wird verweigert. Keinen oeffentlichen HTTP-Pfad,
+  kein `fsassets`-Verzeichnis und keine freigegebenen Backups verwenden.
+- Opaque Dateikennung `SHA256(owner|case)` statt fremder Dateinamen.
+  Rohdatei: `<kennung>.payload`, JSON-Manifest:
+  `<kennung>.json`. Metadata: `staged_uninspected`, verifizierte
+  Bewohner-, Vorgangs-, Item- und Asset-UUID, Assettyp,
+  Laenge, voller SHA-256 und Erfassungszeit.
+- Bytes werden **unveraendert, aber ungeprueft** aufbewahrt.
+  Das ist ein Quarantaenespeicher und kein Malware-/Script-Scanner.
+  Standardwerte fuer die Store-Klasse sind maximal
+  **8 MiB je Asset, 2.000 Records und 1 GiB gesamt**.
+  Die harten Konstruktor-Obergrenzen sind 32 MiB je Asset und
+  32 GiB insgesamt. Abweichende Limits muessen bewusst vom
+  vertrauten Aufrufer uebergeben werden.
+- Eine `FileShare.None`-Dateisperre begrenzt konkurrierende
+  Schreibvorgaenge innerhalb eines gemeinsam genutzten
+  POSIX-Dateisystems. In Multi-Host-Umgebungen ist eine
+  geeignete atomare Ledger-/Quota-Datenbank erforderlich;
+  ein je-Node-lokales Dateiverzeichnis garantiert keine
+  clusterweite Deduplikation.
+- Manifest wird zuletzt geschrieben. Bricht der Dienst zwischen
+  Payload- und Manifestablage ab, bleiben moeglicherweise
+  unvollstaendige Artefakte. Diese werden **niemals automatisch
+  als geprueft angesehen** und erfordern manuelle Reconciliation.
+  Kann ein erfolgreiches Staging nicht in den sichtbaren
+  Pending-Ordner projiziert werden, bleiben die Bytes sicher
+  isoliert, waehrend der Aufruf fehlschlaegt.
+- `TryVerify(owner,case,item,asset)` vergleicht persistente
+  Identifier, Laenge und vollen SHA-256 nach Neustart, liefert
+  aber **keine** Rohbytes an Viewer oder Skripte.
+  Ein manipuliertes Asset kann damit nicht stillschweigend in
+  den Bestand gelangen.
+- Kein `TryRelease`, kein `m_assetService.Store` und kein
+  `m_Database.StoreItem` im Staging-Pfad. **Auch gueltig
+  signierte Stage-Nachweise koennen nichts ins reguläre Inventar
+  freigeben.** Eine solche Freigabe verlangt einen gesonderten,
+  erst noch zu implementierenden autorisierten und atomaren
+  Prozess. Operator-Retention/-Loeschung und sichere Behandlung
+  ausgefallener/manipulierter Records sind noch offen.
+
+Der separate, in Phase 2b eingefuehrte Speicher fuer **bereits
+abgelehnte Upload-Evidenz** ist davon unabhaengig und wird
+nicht automatisch in das neue Staging ueberfuehrt.
+
+Regression: `tools/ci/OglQuarantineFolderRegression` prueft
+signierten `Stage`-Vorgang, Avatar-/Asset-Bindung, Replay,
+Dateiberechtigungen, Manifest, Persistenz nach Neustart,
+Groessenlimit, Record-Quota, mutierte Bytes und das Verbot
+eines normalen Inventareintrags.
+
 ## Nicht implementiert - keine Sicherheitsversprechen
 
 1. **Keine Autorisierung:** Der Legacy-Handler ermittelt aus einem
@@ -317,13 +389,12 @@ konkurrierende Replay-Versuche von zwei unabhängigen Service-Instanzen.
    referenzierten Assets, Mesh-/Texturdateiformate und Unterinventare.
    Ohne isolierten Transferstatus existiert keine atomare
    "vollstaendig geprueft vor Item-Anlage"-Garantie.
-3. **Keine Vorab-Quarantaene fuer Inventar-Transfers:** Es existieren
-   die optionale forensische Asset-Quarantaene, geschuetzte
-   Bewohner-Systemordner sowie lokale, noch nicht an authentifizierte
-   Transfers gekoppelte Statusmarker. Ein persistenter,
-   autorisierter `PendingInventoryTransfer` mit Isolierung bis zur
-   Freigabe sowie der automatischen Verbindung beider Systeme
-   fehlt weiterhin.
+3. **Kein kompletter HG-Transfer-Workflow:** Es existieren
+   serverseitige forensische Evidenz, gesperrte Bewohnerordner,
+   lokale signierte Statusnachweise und isoliertes persistentes
+   Byte-Staging. Die **fremdgrid-authentifizierte** Zuordnung,
+   automatische Assetzustellung, rekursive Pruefung und atomare
+   Freigabe sind weiterhin nicht implementiert.
 4. **Keine Schadcode-Erkennung:** Statische Suche nach LSL-/OSSL-
    Funktionsnamen waere keine verlaessliche Aussage ueber
    Boesartigkeit. Restriktionen der Script-Engine sind getrennt
