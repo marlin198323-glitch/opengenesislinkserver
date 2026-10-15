@@ -186,6 +186,9 @@ namespace OpenSim.Services.HypergridService
 
             if (suitcase == null)
             {
+                // A public ReadOnly request must never create/migrate folders.
+                if (!AllowLegacyWrite)
+                    return null;
                 m_log.DebugFormat("[HG SUITCASE INVENTORY SERVICE]: User {0} does not have a Suitcase folder. Creating it...", principalID);
                 // Create the My Suitcase folder under the user's root folder.
                 // In the DB we tag it as type 100, but we use type 8 (Folder) outside, as this affects the sort order.
@@ -564,30 +567,53 @@ namespace OpenSim.Services.HypergridService
         public override InventoryCollection[] GetMultipleFoldersContent(
             UUID principalID, UUID[] folderIDs)
         {
-            if (!AllowLegacyRead)
+            if (!AllowLegacyRead || folderIDs == null)
                 return Array.Empty<InventoryCollection>();
-            return base.GetMultipleFoldersContent(principalID, folderIDs);
+            InventoryCollection[] results = new InventoryCollection[folderIDs.Length];
+            for (int i = 0; i < folderIDs.Length; i++)
+                results[i] = GetFolderContent(principalID, folderIDs[i]);
+            return results;
         }
 
         public override InventoryItemBase[] GetMultipleItems(UUID principalID, UUID[] ids)
         {
-            if (!AllowLegacyRead)
+            if (!AllowLegacyRead || ids == null)
                 return Array.Empty<InventoryItemBase>();
-            return base.GetMultipleItems(principalID, ids);
+            InventoryItemBase[] items = new InventoryItemBase[ids.Length];
+            for (int i = 0; i < ids.Length; i++)
+                items[i] = GetItem(principalID, ids[i]);
+            return items;
         }
 
         public override List<InventoryItemBase> GetActiveGestures(UUID principalID)
         {
             if (!AllowLegacyRead)
                 return new List<InventoryItemBase>();
-            return base.GetActiveGestures(principalID);
+            List<InventoryItemBase> items = new List<InventoryItemBase>();
+            foreach (InventoryItemBase gesture in base.GetActiveGestures(principalID))
+            {
+                InventoryItemBase scoped = GetItem(principalID, gesture.ID);
+                if (scoped != null)
+                    items.Add(scoped);
+            }
+            return items;
         }
 
         public override int GetAssetPermissions(UUID principalID, UUID assetID)
         {
-            if (!AllowLegacyRead)
+            // In unauthenticated read-only mode, do not expose permission
+            // unions for arbitrary local inventory beyond the HG suitcase.
+            if (!AllowLegacyWrite)
                 return 0;
             return base.GetAssetPermissions(principalID, assetID);
+        }
+
+        // XInventoryService's implementation is not virtual. Explicitly map
+        // this IInventoryService method so BlockAll cannot leak account presence
+        // via the inherited interface dispatch.
+        bool IInventoryService.HasInventoryForUser(UUID principalID)
+        {
+            return AllowLegacyRead && base.HasInventoryForUser(principalID);
         }
 
         #region Auxiliary functions
@@ -655,6 +681,10 @@ namespace OpenSim.Services.HypergridService
                     new string[] { principalID.ToString(), InventoryFolderBase.SUITCASE_FOLDER_NAME, UUID.Zero.ToString() });
             if (folders != null && folders.Length > 0)
             {
+                // Read-only public HG requests must never cause migration.
+                if (!AllowLegacyWrite)
+                    return null;
+
                 // Move it to under the root folder
                 XInventoryFolder root = GetRootXFolder(principalID);
                 folders[0].parentFolderID = root.folderID;
