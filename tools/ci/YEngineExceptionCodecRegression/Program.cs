@@ -88,6 +88,9 @@ internal static class Program
         // only the isolated RecvObjValue parser is exercised.
         XMRInstAbstract state = (XMRInstAbstract)
             RuntimeHelpers.GetUninitializedObject(typeof(XMRInstance));
+        // Uninitialized test objects have no locks or other finalizer state.
+        // Do not let the real XMRInstance finalizer run at process exit.
+        GC.SuppressFinalize(state);
         StateReader.SetValue(state, reader);
         StateObjects.SetValue(state, new Dictionary<int, object>());
         return state;
@@ -128,6 +131,9 @@ internal static class Program
         using BinaryWriter writer = new(output, Encoding.UTF8);
         XMRInstAbstract state = (XMRInstAbstract)
             RuntimeHelpers.GetUninitializedObject(typeof(XMRInstance));
+        // Uninitialized test objects have no locks or other finalizer state.
+        // Do not let the real XMRInstance finalizer run at process exit.
+        GC.SuppressFinalize(state);
         StateWriter.SetValue(state, writer);
         WriterObjects.SetValue(state, new Dictionary<object, int>());
         WriterDepth.SetValue(state, initialDepth);
