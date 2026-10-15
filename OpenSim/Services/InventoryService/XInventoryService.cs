@@ -48,6 +48,10 @@ namespace OpenSim.Services.InventoryService
         // Server-side managed inventory quarantine is a visible marker only.
         // It is not the pending asset transfer service or an authorization grant.
         protected bool m_OglQuarantineFolderEnabled;
+        // Observe is deliberately non-blocking. This does not override the
+        // independent Hypergrid suitcase / ReadOnly security policy.
+        protected bool m_OglInventoryGuardObserve;
+
 
         public XInventoryService(IConfigSource config)
             : this(config, "InventoryService")
@@ -60,6 +64,10 @@ namespace OpenSim.Services.InventoryService
                 m_ConfigName = configName;
 
             IConfig quarantineConfig = config.Configs["OGLInventoryGuard"];
+            string inventoryGuardMode = quarantineConfig?.GetString("Mode", "Enforce");
+            m_OglInventoryGuardObserve =
+                string.Equals(inventoryGuardMode, "Observe", StringComparison.OrdinalIgnoreCase);
+
             m_OglQuarantineFolderEnabled = quarantineConfig != null &&
                 quarantineConfig.GetBoolean("Enabled", false) &&
                 quarantineConfig.GetBoolean("CreateInventorySystemFolder", false);
@@ -794,20 +802,33 @@ namespace OpenSim.Services.InventoryService
 
         public bool TryAddForeignItem(InventoryItemBase item)
         {
-            Func<InventoryItemBase, bool> validate = m_foreignDeliveryValidator;
-            if (item == null || validate == null)
+            if (item == null)
                 return false;
+
+            Func<InventoryItemBase, bool> validate = m_foreignDeliveryValidator;
+            bool accepted = false;
             try
             {
-                if (!validate(item))
-                    return false;
-                return AddItem(item);
+                accepted = validate != null && validate(item);
             }
             catch (Exception e)
             {
-                m_log.Error("[INVENTORY GUARD]: Foreign delivery rejected after validation failure", e);
-                return false;
+                m_log.Error("[INVENTORY GUARD]: Foreign delivery validation failed", e);
             }
+
+            if (!accepted)
+            {
+                m_log.WarnFormat("[INVENTORY GUARD]: {0} foreign inventory item {1} for owner {2}",
+                    m_OglInventoryGuardObserve ? "Observing suspicious" : "Rejecting",
+                    item.ID, item.Owner);
+                if (!m_OglInventoryGuardObserve)
+                    return false;
+            }
+
+            // Observe mode logs the verdict but does not change the preexisting
+            // inventory AddItem rules. This entry point must be used by the
+            // authenticated HG delivery handler to have any effect.
+            return AddItem(item);
         }
 
         public virtual bool AddItem(InventoryItemBase item)
