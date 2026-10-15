@@ -113,6 +113,29 @@ assert "OglQuarantineTransferAction.StageDependency" in grants
 assert "m_stageStore.TryStageDependency(" in grants
 assert "TryStageDependency(" not in iface
 
+# Phase 3i: purchases, copies and gifts must NOT bypass remote-source
+# proof, resident consent, verified permissions, settlement or durable replay.
+delivery = read("OpenSim/Services/InventoryService/OglHgResidentDeliveryIntake.cs")
+assert "public enum OglHgDeliveryKind" in delivery
+assert "Purchase = 1" in delivery and "TakeCopy = 2" in delivery and "Gift = 3" in delivery
+assert "HasAuthenticatedResidentConsent(request)" in delivery
+assert "HasAuthenticatedSourceTransfer(request, contentHash)" in delivery
+assert "HasValidPermissions(request)" in delivery
+assert "IsPurchaseSettled(request)" in delivery
+assert "Mode = FileMode.CreateNew" in delivery
+assert "UnixCreateMode = PrivateFile" in delivery
+assert "m_grants.Issue(request.ResidentId, request.CaseId," in delivery
+assert "OglQuarantineTransferAction.Stage" in delivery
+assert "m_coordinator.TryStage(grant" in delivery
+assert delivery.index("HasAuthenticatedResidentConsent(request)") < delivery.index("m_grants.Issue(")
+assert delivery.index("FileMode.CreateNew") < delivery.index("m_grants.Issue(")
+assert "delivery_quarantined_not_released" in delivery
+assert "m_Database.StoreItem" not in delivery
+assert "m_assetService.Store" not in delivery
+assert "AddItem(" not in delivery
+assert "TryRelease(" not in delivery
+assert "OglHgResidentDeliveryIntake" not in iface
+
 for path in ("bin/Robust.HG.ini", "bin/Robust.HG.ini.example",
              "bin/config-include/StandaloneHypergrid.ini"):
     data = read(path)
