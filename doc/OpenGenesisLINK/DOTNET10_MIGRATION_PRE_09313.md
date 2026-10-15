@@ -180,6 +180,29 @@ This tool is an **inventory and readiness aid, not a conversion utility**.
 No automatic legacy data rewriting or destructive cleanup is introduced.
 Its SQLite/OAR/MariaDB-HEX fixtures are part of the CI regression suite.
 
+## Staging restore and real-region crossing acceptance
+
+The concrete offline recovery and acceptance procedure is maintained in
+[09313_STAGING_ACCEPTANCE_AND_ROLLBACK.md](09313_STAGING_ACCEPTANCE_AND_ROLLBACK.md).
+The current draft includes:
+
+- A **fail-closed** YEngine constructor: incompatible existing script
+  state is preserved, and the script does not replay state_entry or
+  silently delete its .state file. Operators must audit and recover it.
+- Read-only YEngine snapshot inventory from local .state files and OAR
+  objects; matching v11 headers do **not** certify nested graph safety.
+- A non-destructive SHA-256 manifest, verification and isolated
+  byte-identical backup staging tool for real offline copies.
+- CI-only three-way parallel soak of signed **two-process** NexBus
+  transports. This does not certify real simulator avatar crossings,
+  native physics or viewer frame-time continuity.
+- Mandatory actual .NET8 backup restore, staging .NET10 upgrade/rollback,
+  and multi-host crossing matrix before production release.
+
+Both authorized remote test machines were offline when these tools were
+introduced. Actual region data or real viewer measurements were
+**not** available; no such tests should be reported as completed.
+
 ## Additional release gates
 
 - Full .NET 10 Release build, CI and API/database matrix.
