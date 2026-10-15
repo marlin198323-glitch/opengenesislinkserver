@@ -41,6 +41,8 @@ assert "TryRevokeResident" in repository
 coordinator = (ROOT / "OpenSim/Services/InventoryService/OglHgRoamingTravelCoordinator.cs").read_text()
 assert "m_verifiedLocalTravel(resident, session, verifiedDestination)" in coordinator
 assert "TryRevokeSession(resident, session)" in coordinator
+assert "TryRevokeOnAuthenticatedLogout" in coordinator
+assert "owner != resident" in coordinator
 assert "TryPurgeInactiveGrants" in repository
 assert "ValidDestination(destination)" in repository
 print("PASS: SQLite schema idempotence, active, destination, expiry, revoke; repository hooks")
