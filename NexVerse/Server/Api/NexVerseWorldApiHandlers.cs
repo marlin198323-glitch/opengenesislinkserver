@@ -5397,7 +5397,7 @@ namespace NexVerse.Server.Api
                 ["StatisticsSummaryResponse"] = new
                 {
                     type = "object",
-                    required = new[] { "generated_at", "detail_level", "protected_details", "residents", "hypergrid", "online", "regions", "correlation_id" },
+                    required = new[] { "generated_at", "detail_level", "protected_details", "residents", "hypergrid", "online", "regions", "region_summary", "services", "correlation_id" },
                     properties = new Dictionary<string, object>
                     {
                         ["generated_at"] = new { type = "string", format = "date-time" },
@@ -5446,7 +5446,51 @@ namespace NexVerse.Server.Api
                                 }
                             }
                         },
-                        ["regions"] = new { type = "array", items = new { type = "object" } },
+                        ["regions"] = new
+                        {
+                            type = "array",
+                            description = "All locally registered GridStore regions (online, offline and reserved), excluding Hypergrid links. No internal connection endpoints.",
+                            items = new
+                            {
+                                type = "object",
+                                properties = new Dictionary<string, object>
+                                {
+                                    ["region_id"] = new { type = "string", format = "uuid" },
+                                    ["region_name"] = new { type = "string" },
+                                    ["grid_x"] = new { type = "integer" },
+                                    ["grid_y"] = new { type = "integer" },
+                                    ["size_x"] = new { type = "integer" },
+                                    ["size_y"] = new { type = "integer" },
+                                    ["online"] = new { type = "boolean" },
+                                    ["status"] = new { type = "string", @enum = new[] { "online", "offline", "reserved" } }
+                                }
+                            }
+                        },
+                        ["region_summary"] = new
+                        {
+                            type = "object",
+                            description = "GridStore RegionOnline flags represent registration state, not an independent live network probe.",
+                            properties = new Dictionary<string, object>
+                            {
+                                ["registered_total"] = new { type = "integer", nullable = true },
+                                ["online_total"] = new { type = "integer", nullable = true },
+                                ["offline_total"] = new { type = "integer", nullable = true },
+                                ["reserved_total"] = new { type = "integer", nullable = true },
+                                ["hypergrid_links"] = new { type = "integer", nullable = true },
+                                ["status_source"] = new { type = "string" }
+                            }
+                        },
+                        ["services"] = new
+                        {
+                            type = "object",
+                            description = "Read-only GridStore and AssetService checks; ok / degraded / unavailable are not host-wide health guarantees.",
+                            properties = new Dictionary<string, object>
+                            {
+                                ["grid"] = new { type = "object" },
+                                ["asset"] = new { type = "object" }
+                            }
+                        },
+                        ["region_online_users"] = new { type = "array", items = new { type = "object" } },
                         ["hypergrid_home_grids"] = new { type = "array", items = new { type = "object" } },
                         ["account_states"] = new { type = "object" },
                         ["data_quality"] = new { type = "object" },
