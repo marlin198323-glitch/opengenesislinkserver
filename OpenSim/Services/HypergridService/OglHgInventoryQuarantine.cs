@@ -46,6 +46,17 @@ namespace OpenSim.Services.HypergridService
                     "QuarantineMaxCaptureBytes must be 0..1048576 and MaxRecords 1..100000");
 
             m_directory = Path.GetFullPath(directory);
+            // Never tighten permissions on a filesystem root or a generic system directory.
+            string root = Path.GetPathRoot(m_directory);
+            if (string.Equals(m_directory, root, StringComparison.Ordinal) ||
+                string.Equals(m_directory, "/tmp", StringComparison.Ordinal) ||
+                string.Equals(m_directory, "/var", StringComparison.Ordinal) ||
+                string.Equals(m_directory, "/var/lib", StringComparison.Ordinal) ||
+                string.Equals(m_directory, "/opt", StringComparison.Ordinal) ||
+                string.Equals(m_directory, "/home", StringComparison.Ordinal) ||
+                string.Equals(m_directory, "/root", StringComparison.Ordinal))
+                throw new ArgumentException("QuarantineDirectory must be a dedicated private subdirectory");
+
             m_maxCaptureBytes = maxCaptureBytes;
             m_maxRecords = maxRecords;
 
@@ -85,7 +96,6 @@ namespace OpenSim.Services.HypergridService
                     string dataPath = Path.Combine(m_directory, id + ".payload");
                     string metaPath = Path.Combine(m_directory, id + ".json");
                     int captureLength = Math.Min(m_maxCaptureBytes, asset.Data.Length);
-                    bool sampleWritten = false;
                     try
                     {
                         if (captureLength > 0)
@@ -95,7 +105,6 @@ namespace OpenSim.Services.HypergridService
                                 file.Write(asset.Data, 0, captureLength);
                                 file.Flush(true);
                             }
-                            sampleWritten = true;
                         }
 
                         string sha256 = asset.Data.Length <= MaximumHashBytes ?
@@ -129,9 +138,14 @@ namespace OpenSim.Services.HypergridService
                     }
                     catch
                     {
-                        // No metadata commit: clean uncommitted sample.
-                        if (sampleWritten && File.Exists(dataPath))
-                            File.Delete(dataPath);
+                        // Do not leave partial or orphaned evidence files when committing
+                        // the metadata fails. Best-effort cleanup; import still rejected.
+                        try { if (File.Exists(metaPath)) File.Delete(metaPath); }
+                        catch (IOException) { }
+                        catch (UnauthorizedAccessException) { }
+                        try { if (File.Exists(dataPath)) File.Delete(dataPath); }
+                        catch (IOException) { }
+                        catch (UnauthorizedAccessException) { }
                         throw;
                     }
                 }
