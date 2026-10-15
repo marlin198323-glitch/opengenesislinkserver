@@ -36,8 +36,23 @@ db.execute("UPDATE ogl_hg_roaming_grants SET revoked_utc = ? "
            "WHERE resident_id = ? AND session_id = ? AND revoked_utc IS NULL",
            (now, resident, session))
 assert not active(now)
+# Recreate an independent session and verify resident-wide revocation.
+db.execute(
+    "INSERT INTO ogl_hg_roaming_grants VALUES (?,?,?,?,?,?,?)",
+    ("grant2", resident, "session2", destination, now + 120, None, now)
+)
+db.execute(
+    "UPDATE ogl_hg_roaming_grants SET revoked_utc = ? "
+    "WHERE resident_id = ? AND revoked_utc IS NULL",
+    (now, resident)
+)
+assert db.execute(
+    "SELECT COUNT(*) FROM ogl_hg_roaming_grants "
+    "WHERE resident_id = ? AND revoked_utc IS NULL", (resident,)
+).fetchone()[0] == 0
 assert "TryRevokeSession" in repository
 assert "TryRevokeResident" in repository
+assert "TryRevokeOnAuthenticatedLogout" in coordinator
 coordinator = (ROOT / "OpenSim/Services/InventoryService/OglHgRoamingTravelCoordinator.cs").read_text()
 assert "m_verifiedLocalTravel(resident, session, verifiedDestination)" in coordinator
 assert "TryRevokeSession(resident, session)" in coordinator
