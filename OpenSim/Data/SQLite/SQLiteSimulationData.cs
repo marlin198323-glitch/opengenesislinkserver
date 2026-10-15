@@ -1771,10 +1771,7 @@ namespace OpenSim.Data.SQLite
             if (!(row["KeyframeMotion"] is DBNull))
             {
                 Byte[] data = (byte[])row["KeyframeMotion"];
-                if (data.Length > 0)
-                    prim.KeyframeMotion = KeyframeMotion.FromData(null, data);
-                else
-                    prim.KeyframeMotion = null;
+                prim.LoadPersistedKeyframeMotion(null, data);
             }
             else
             {
@@ -2191,10 +2188,7 @@ namespace OpenSim.Data.SQLite
             row["Friction"] = (double)prim.Friction;
             row["Restitution"] = (double)prim.Restitution;
 
-            if (prim.KeyframeMotion != null)
-                row["KeyframeMotion"] = prim.KeyframeMotion.Serialize();
-            else
-                row["KeyframeMotion"] = Array.Empty<byte>();
+            row["KeyframeMotion"] = prim.SerializePersistedKeyframeMotion();
 
             row["PassTouches"] = prim.PassTouches;
             row["PassCollisions"] = prim.PassCollisions;
