@@ -60,6 +60,9 @@ namespace OpenSim.Services.HypergridService
         private UserAccountCache m_Cache;
 
         private AssetPermissions m_AssetPerms;
+        private readonly bool m_OglInventoryAssetScanEnabled;
+        private readonly int m_OglInventoryMaxAssetBytes;
+        private readonly int m_OglInventoryMaxScriptBytes;
 
         IAssetService m_assetService = null;
 
@@ -85,6 +88,33 @@ namespace OpenSim.Services.HypergridService
                 throw new Exception("[HGAssetService] No HomeURI specified");
 
             m_Cache = UserAccountCache.CreateUserAccountCache(m_UserAccountService);
+
+            // Scan HG-imported bytes BEFORE object XML is sanitized or stored.
+            // This adds structural validation only; it cannot authorize the
+            // legacy caller or guarantee the inventory item's transfer ordering.
+            IConfig guardConfig = config.Configs["OGLInventoryGuard"];
+            bool guardEnabled = guardConfig != null &&
+                guardConfig.GetBoolean("Enabled", false);
+            m_OglInventoryAssetScanEnabled = guardEnabled &&
+                guardConfig.GetBoolean("ScanInboundAssets", false);
+            m_OglInventoryMaxAssetBytes = guardConfig != null ?
+                guardConfig.GetInt("MaxInboundAssetBytes", OglHgInventoryAssetInspector.DefaultMaxAssetBytes) :
+                OglHgInventoryAssetInspector.DefaultMaxAssetBytes;
+            m_OglInventoryMaxScriptBytes = guardConfig != null ?
+                guardConfig.GetInt("MaxInboundScriptBytes", OglHgInventoryAssetInspector.DefaultMaxScriptBytes) :
+                OglHgInventoryAssetInspector.DefaultMaxScriptBytes;
+            if (m_OglInventoryAssetScanEnabled)
+            {
+                if (m_OglInventoryMaxAssetBytes < 1 || m_OglInventoryMaxAssetBytes > 256 * 1024 * 1024 ||
+                    m_OglInventoryMaxScriptBytes < 1 ||
+                    m_OglInventoryMaxScriptBytes > m_OglInventoryMaxAssetBytes)
+                    throw new ArgumentException("[OGL INVENTORY GUARD]: Invalid HG asset inspection limits");
+
+                m_log.WarnFormat("[OGL INVENTORY GUARD]: HG import payload inspection enabled " +
+                    "(max asset {0} bytes, max script {1} bytes); this is NOT avatar authorization " +
+                    "or full object-inventory/script inspection.",
+                    m_OglInventoryMaxAssetBytes, m_OglInventoryMaxScriptBytes);
+            }
 
             // Permissions
             m_AssetPerms = new AssetPermissions(assetConfig);
@@ -172,6 +202,19 @@ namespace OpenSim.Services.HypergridService
 
         public string Store(AssetBase asset)
         {
+            if (asset == null)
+                return string.Empty;
+
+            if (m_OglInventoryAssetScanEnabled &&
+                !OglHgInventoryAssetInspector.TryInspect(asset,
+                    m_OglInventoryMaxAssetBytes, m_OglInventoryMaxScriptBytes,
+                    out string reason))
+            {
+                m_log.WarnFormat("[OGL INVENTORY GUARD]: Rejected inbound HG asset {0}: {1}",
+                    asset.FullID, reason);
+                return string.Empty;
+            }
+
             if (!m_AssetPerms.AllowedImport(asset.Type))
                 return string.Empty;
 
