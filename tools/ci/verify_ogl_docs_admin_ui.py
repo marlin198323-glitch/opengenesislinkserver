@@ -38,7 +38,20 @@ must(access,
 for login_ui in (access, dashboard):
     must(login_ui, "!Number.isInteger(data.user_level)",
          "typeof data.access_token!=='string'",
-         "/api/v1/auth/session", "Reverse-Proxy-Routing")
+         "/api/v1/docs", "Der Server konnte keine Sitzung erstellen.")
+# One stable HTTPS path for the entire browser login handshake, independent
+# of KeyHelp's rules for an additional /api/v1/auth/session URL.
+must(access,
+     'public void ConfigureDocsSessionLogin(',
+     'login(request, response);',
+     'HandlePanel(request, response);',
+     "fetch('/api/v1/docs',{method:'POST'",
+     "fetch('/api/v1/docs',{headers:",
+     'if (login == null)', 'admin_login_unavailable')
+must(user,
+     'public void HandleControlCenterLogin(',
+     'HandleNativeSessionLogin(request, response, true);')
+must(api, 'oglDocs.ConfigureDocsSessionLogin(userRouter.HandleControlCenterLogin);')
 must(user,
      '"session_token_unavailable"',
      "if (string.IsNullOrWhiteSpace(accessToken))")
@@ -65,7 +78,8 @@ must(user,
     'm_Users.VerifyPassword(', 'm_Tokens.Issue(', 'user_level = user.UserLevel',
     'access_token =', 'GetUserAccount(', 'nativeClaims.SecurityStamp')
 assert user.index('m_Users.VerifyPassword(') < user.index('m_Tokens.Issue(')
-assert "const res=await fetch('/api/v1/auth/session'" in dashboard
+assert "const res=await fetch('/api/v1/docs'" in dashboard
+assert "const res=await fetch('/api/v1/auth/session'" not in dashboard
 assert "Number(data.user_level)<200" in dashboard
 assert "if(!window.isSecureContext)" not in dashboard[dashboard.index("async function adminLogin()"):dashboard.index("const $=id=>")]
 assert "data.administrator" not in dashboard
