@@ -31,6 +31,10 @@ for bound in ("MaxMigrationDepth = 64", "MaxMigrationNodes = 131072",
     assert bound in abstract, f"Missing migration safety bound: {bound}"
 assert "migrateInDepth > MaxMigrationDepth" in abstract
 assert "migrateInNodes > MaxMigrationNodes" in abstract
+assert "migrateOutNodes > MaxMigrationNodes" in abstract
+assert "migrateOutDepth > MaxMigrationDepth" in abstract
+assert "array.Length > 65536" in abstract
+assert "sg.Length > MaxMigrationStringLength" in abstract
 assert "frameHeaders > MaxMigrationFrames + 1" in abstract
 assert "ScriptStateExceptionCodec.ReadLimitedString(" in abstract
 assert "mir.ReadString()" not in abstract, "Unbounded migration string read remains"
