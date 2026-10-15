@@ -13,7 +13,8 @@ namespace OpenSim.Services.InventoryService
     public enum OglQuarantineTransferAction
     {
         Begin = 1,
-        Reject = 2
+        Reject = 2,
+        Stage = 3
     }
 
     /// <summary>
@@ -74,7 +75,8 @@ namespace OpenSim.Services.InventoryService
             if (verifiedOwner == UUID.Zero || caseId == UUID.Zero ||
                 itemId == UUID.Zero || assetId == UUID.Zero ||
                 (action != OglQuarantineTransferAction.Begin &&
-                 action != OglQuarantineTransferAction.Reject) ||
+                 action != OglQuarantineTransferAction.Reject &&
+                 action != OglQuarantineTransferAction.Stage) ||
                 lifetime < TimeSpan.FromSeconds(1) ||
                 lifetime > TimeSpan.FromMinutes(5))
                 throw new ArgumentException("Invalid or overlong quarantine grant");
@@ -217,12 +219,43 @@ namespace OpenSim.Services.InventoryService
     {
         private readonly OglQuarantineTransferGrantAuthority m_authority;
         private readonly XInventoryService m_inventory;
+        private readonly OglQuarantineTransferStageStore m_stageStore;
 
         public OglQuarantineTransferCoordinator(
             OglQuarantineTransferGrantAuthority authority, XInventoryService inventory)
+            : this(authority, inventory, null)
+        {
+        }
+
+        public OglQuarantineTransferCoordinator(
+            OglQuarantineTransferGrantAuthority authority, XInventoryService inventory,
+            OglQuarantineTransferStageStore stageStore)
         {
             m_authority = authority ?? throw new ArgumentNullException(nameof(authority));
             m_inventory = inventory ?? throw new ArgumentNullException(nameof(inventory));
+            m_stageStore = stageStore;
+        }
+
+        /// <summary>
+        /// Trusted local integration ONLY. Stage untrusted bytes in an isolated
+        /// folder with a signed, one-use Stage proof; do NOT persist to FSAssets
+        /// or regular inventory. Status is projected only AFTER durable staging.
+        /// A status failure leaves evidence isolated for operator reconciliation.
+        /// </summary>
+        public bool TryStage(string proof, UUID verifiedOwner, UUID caseId,
+            UUID itemId, UUID assetId, int assetType, byte[] payload)
+        {
+            if (m_stageStore == null || payload == null)
+                return false;
+
+            if (!m_authority.TryConsume(proof, verifiedOwner, caseId, itemId,
+                assetId, OglQuarantineTransferAction.Stage))
+                return false;
+
+            return m_stageStore.TryStage(verifiedOwner, caseId, itemId,
+                       assetId, assetType, payload, out _) &&
+                   m_stageStore.TryVerify(verifiedOwner, caseId, itemId, assetId) &&
+                   m_inventory.TryBeginTrustedQuarantineCase(verifiedOwner, caseId);
         }
 
         public bool TryBegin(string proof, UUID verifiedOwner, UUID caseId,
