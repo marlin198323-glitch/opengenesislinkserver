@@ -61,9 +61,23 @@ headers, truncation, trailing payload and oversized input.
 
 **Operational blocker: existing MySQL/SQLite `KeyframeMotion` columns and
 older OAR files may contain legacy BinaryFormatter blobs.** The new reader
-refuses to interpret them and currently returns `null` (motion unavailable).
-Back up those records and supply an offline, trusted migration/conversion path
-before any live deployment. Do not deserialize attacker-provided OAR data
+refuses to interpret them and returns `null` as an **inactive runtime motion**.
+The owning `SceneObjectPart` now independently retains the original
+opaque bytes (bounded to 4 MiB) and passes them through on ordinary
+MySQL/SQLite saves, XML2/OAR exports, and object copies. Existing unknown
+content is **never deserialized or executed**, and typed v1 objects still use
+the normal active motion path. Explicit replacement/removal of a motion
+clears the retained blob. Oversized input fails loading rather than being
+silently replaced with empty database data.
+
+Runtime and CI regressions verify unchanged bytes, defensive copies,
+duplicate/explicit-delete behavior, typed v1 compatibility and rejection of
+oversize data; the static contract checks all DB and OAR serializers.
+This removes one common **implicit data-loss path**, but it is not a legacy
+conversion or proof that every object mutation, region crossing or backup
+restores old motion. The old motion remains nonfunctional without a safe
+offline conversion. Back up those records and supply an offline, trusted
+migration/conversion path before any live deployment. Do not deserialize attacker-provided OAR data
 with an unsafe legacy serializer as a shortcut. Do not merge this change
 into production until representative existing regions and OARs have passed
 a data-preservation trial, including rollback.
