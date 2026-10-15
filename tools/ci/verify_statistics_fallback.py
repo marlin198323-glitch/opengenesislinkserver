@@ -19,7 +19,7 @@ for marker in (
     'active_last_7_days = gridUserAvailable',
     'online_now = gridUserAvailable ? hypergridOnline.Count : (int?)null',
     'total = gridUserAvailable ? allOnline.Count : (int?)null',
-    'missing_metrics = gridUserAvailable',
+    'missing_metrics = (gridUserAvailable',
     'griduser_source = gridUserAvailable ? "available" : "unavailable"',
     'complete = gridUserAvailable && completeAccountEnumeration',
 ):
@@ -42,5 +42,45 @@ assert "$('bearer').value.trim()" not in start, "Unrelated explorer bearer must 
 assert "$('apiKey').value.trim()" not in start, "Unrelated explorer API key must never break public stats"
 assert "Teilweise (Datenquelle fehlt)" in start
 assert "feh" in ui
+
+# The public region inventory must enumerate GridStore rows even with no online
+# avatars; do not fall back to the avatar-derived region breakdown.
+for marker in (
+    "IRegionData m_RegionData",
+    "IAssetService m_Assets",
+    'm_RegionData.Get("%", UUID.Zero)',
+    "GroupBy(x => x.RegionID)",
+    "RegionFlags.Hyperlink",
+    "RegionFlags.Reservation",
+    "RegionFlags.RegionOnline",
+    "region_summary = new",
+    "registered_total = regions.Registered",
+    "online_total = regions.Online",
+    "offline_total = regions.Offline",
+    "regions = regions.Rows",
+    "services = new",
+    "ReadAssetServiceStatus()",
+    "m_Assets.AssetsExist(",
+    "region_source = regions.Available",
+    "asset_service_probe = assetStatus",
+    "region_online_users = includeProtectedDetails",
+):
+    assert marker in stats, "World regions and service health contract missing: " + marker
+
+for marker in (
+    "LoadRegionData(m_Config)",
+    "LoadRegionData(config)",
+    'LoadOptionalService<IAssetService>(m_Config, "AssetService")',
+    "return ServerUtils.LoadPlugin<IRegionData>(",
+    'grid?.GetString("Realm", "regions")',
+):
+    assert marker in routes, "GridStore/AssetService load contract missing: " + marker
+
+# Verify public region detail does not accidentally publish simulator internal
+# endpoints, database connection strings, owner data, tokens or secrets.
+public_regions = stats.split("private RegionSnapshot ReadRegions()", 1)[1].split("private string ReadAssetServiceStatus()", 1)[0]
+for disallowed in ("ServerURI", "ExternalHostName", "RegionSecret", ".Token", "connectionString", "EstateOwner"):
+    assert disallowed not in public_regions, "Sensitive region field exposed: " + disallowed
+
 
 print("OGL statistics partial-data and public aggregate routing: PASS")
