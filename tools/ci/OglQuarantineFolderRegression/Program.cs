@@ -141,6 +141,86 @@ internal static class Program
             Check(newProcess.GetFolderContent(owner, pending).Items.Count == 0 &&
                   newProcess.GetFolderItems(owner, rejected).Count == 0,
                   "normal viewers see no executable content in protected folders");
+
+            // Phase 3a: a trusted local coordinator can project status as an
+            // empty *folder*, not as an uninspected inventory/asset reference.
+            UUID caseId = UUID.Random();
+            UUID secondCase = UUID.Random();
+            UUID caseFolderId = OglInventoryQuarantineFolders.Case(owner, caseId);
+            Check(!newProcess.TryRejectTrustedQuarantineCase(owner, caseId),
+                "unregistered case cannot be rejected");
+            ushort pendingVersion = newProcess.GetFolder(owner, pending).Version;
+            Check(newProcess.TryBeginTrustedQuarantineCase(owner, caseId),
+                "trusted local coordinator can register pending status");
+            Check(newProcess.GetFolder(owner, pending).Version > pendingVersion,
+                "pending version invalidated for viewer refresh");
+            Check(newProcess.TryBeginTrustedQuarantineCase(owner, caseId),
+                "case registration is idempotent");
+            Check(!newProcess.TryBeginTrustedQuarantineCase(UUID.Random(), caseId),
+                "another owner cannot claim existing case identity");
+
+            InventoryFolderBase caseFolder = newProcess.GetFolder(owner, caseFolderId);
+            Check(caseFolder != null && caseFolder.ParentID == pending &&
+                  caseFolder.Name == OglInventoryQuarantineFolders.CaseLabel(caseId),
+                  "viewer sees a safe and owner-scoped pending status folder");
+            Check(newProcess.GetFolderContent(owner, pending).Folders.Any(f =>
+                f.ID == caseFolderId), "pending status appears in folder contents");
+            Check(newProcess.GetFolderContent(owner, caseFolderId).Items.Count == 0,
+                "case folder cannot serve executable items");
+
+            var insideCase = NewItem(owner, caseFolderId, "malicious object");
+            Check(!newProcess.AddItem(insideCase),
+                "ordinary viewer cannot add executable items to case folder");
+            var attemptedChild = new InventoryFolderBase(UUID.Random(), "subfolder",
+                owner, (short)FolderType.None, caseFolderId, 1);
+            Check(!newProcess.AddFolder(attemptedChild),
+                "ordinary viewer cannot create nested case folders");
+
+            caseFolder.Name = "tampered";
+            caseFolder.Version++;
+            Check(!newProcess.UpdateFolder(caseFolder),
+                "ordinary viewer cannot rename case folder");
+            caseFolder.ParentID = objects.ID;
+            Check(!newProcess.MoveFolder(caseFolder),
+                "ordinary viewer cannot move case folder out");
+            Check(!newProcess.DeleteFolders(owner, new List<UUID> { caseFolderId }, false),
+                "ordinary viewer cannot delete case folder");
+            Check(!newProcess.PurgeFolder(new InventoryFolderBase(caseFolderId), false),
+                "ordinary viewer cannot purge case folder");
+
+            InventoryItemBase unsafeMove = (InventoryItemBase)normal.Clone();
+            unsafeMove.Folder = caseFolderId;
+            Check(!newProcess.MoveItems(owner, new List<InventoryItemBase> { unsafeMove }),
+                "ordinary item cannot be moved into case folder");
+            Check(newProcess.GetItem(owner, normal.ID).Folder == objects.ID,
+                "safe item still in original folder after blocked move");
+
+            Check(newProcess.TryBeginTrustedQuarantineCase(owner, secondCase),
+                "independent second pending case registered");
+            ushort rejectedVersion = newProcess.GetFolder(owner, rejected).Version;
+            Check(newProcess.TryRejectTrustedQuarantineCase(owner, caseId),
+                "trusted local coordinator marks case rejected");
+            Check(newProcess.TryRejectTrustedQuarantineCase(owner, caseId),
+                "repeated reject is idempotent");
+            Check(!newProcess.TryBeginTrustedQuarantineCase(owner, caseId),
+                "rejected case cannot return to pending");
+            Check(!newProcess.TryRejectTrustedQuarantineCase(UUID.Random(), caseId),
+                "wrong owner cannot reject another resident's case");
+            Check(newProcess.GetFolder(owner, rejected).Version > rejectedVersion,
+                "rejected status version invalidated for viewer refresh");
+            Check(newProcess.GetFolder(owner, caseFolderId).ParentID == rejected &&
+                  newProcess.GetFolderContent(owner, rejected).Folders.Any(f =>
+                    f.ID == caseFolderId),
+                "rejected case is visible under Abgelehnt");
+            Check(newProcess.GetFolderContent(owner, pending).Folders.Any(f =>
+                f.ID == OglInventoryQuarantineFolders.Case(owner, secondCase)),
+                "other pending cases remain unaffected");
+
+            XInventoryService postRestart = Service(cfg);
+            Check(postRestart.GetFolder(owner, caseFolderId).ParentID == rejected &&
+                  postRestart.GetFolderContent(owner, caseFolderId).Items.Count == 0,
+                "rejected case survives restart without exposing HG assets");
+
             Console.WriteLine("OGL quarantine system folder integration PASS");
             return 0;
         }
