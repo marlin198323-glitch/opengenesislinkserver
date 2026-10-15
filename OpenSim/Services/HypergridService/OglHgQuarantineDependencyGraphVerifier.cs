@@ -126,9 +126,18 @@ namespace OpenSim.Services.HypergridService
                     return false;
                 }
                 if (!expectedSha256Pins.TryGetValue(node.Id, out string hash) ||
-                    hash == null || hash.Length != 64 ||
-                    !Convert.TryFromHexString(hash, new byte[32], out int bytesWritten) ||
-                    bytesWritten != 32)
+                    hash == null || hash.Length != 64)
+                {
+                    reason = "graph_missing_or_malformed_hash_pin";
+                    return false;
+                }
+
+                byte[] pinned;
+                try
+                {
+                    pinned = Convert.FromHexString(hash);
+                }
+                catch (FormatException)
                 {
                     reason = "graph_missing_or_malformed_hash_pin";
                     return false;
@@ -143,7 +152,6 @@ namespace OpenSim.Services.HypergridService
                 // This binds each inspected asset to a hash recorded by the
                 // trusted staging coordinator, not an untrusted HG payload.
                 byte[] actual = SHA256.HashData(asset.Data);
-                byte[] pinned = Convert.FromHexString(hash);
                 if (!CryptographicOperations.FixedTimeEquals(actual, pinned))
                 {
                     reason = "graph_asset_hash_mismatch";
