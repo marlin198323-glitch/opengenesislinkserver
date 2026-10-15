@@ -153,12 +153,17 @@ python3 tools/migration/audit_legacy_keyframe.py \
 ```
 
 The audit scans SQLite `prims.KeyframeMotion` BLOBs, OAR
-`objects/*.xml` and exported MariaDB HEX lines. It classifies binary headers as
-`typed-v1-header`, `non-v1-legacy-or-unknown`, invalid or oversized;
-it **never deserializes** BinaryFormatter, executes script data or
+`objects/*.xml` and exported MariaDB HEX lines. It distinguishes
+`typed-v1-valid`, `typed-v1-invalid`, `non-v1-legacy-or-unknown`,
+invalid and oversized data. Unlike an earlier header-only audit, it
+now verifies the full bounded typed-v1 structure: mode, data flags,
+finite vectors and rotations, frame counts, required fields and
+trailing bytes, matching the new C# reader's field sequence.
+It **never deserializes** BinaryFormatter, executes script data or
 modifies the original file. Exit status `2` with `--fail-on-legacy`
 means migration review is required, `3` means audit failure.
-A recognized typed-v1 **header alone does not prove the payload is valid**.
+Structural validity does **not** establish that motion plays correctly
+or survives database and OAR roundtrip on a real simulator.
 Keep copies of the complete database/OAR and assets for migration and rollback.
 
 The runtime preview now also emits a throttled
