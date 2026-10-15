@@ -64,6 +64,61 @@ gestartet werden; ein Git-Commit allein aktiviert nichts.
   beabsichtigte Laufzeitwirkung. Texturen/Meshes erhalten bisher nur
   allgemeine Groessen-/Nichtleer-Pruefungen, keine volle Formatvalidierung.
 
+## Phase 2b: persistente Quarantaene fuer abgelehnte HG Asset-Payloads
+
+Bei aktiviertem `[OGLInventoryGuard] Enabled=true` und
+`ScanInboundAssets=true` kann `QuarantineRejectedAssets=true` zusaetzlich
+einen **Beweisdatensatz fuer bereits abgelehnte** HG-Assets ablegen.
+Code-Default und ausgelieferte Profile stehen auf `false`.
+Der normale HG-Import wird auch dann abgelehnt, wenn diese Evidence-
+Speicherung wegen Vollbelegung, Rechten oder IO-Fehlern fehlschlaegt.
+
+```ini
+[OGLInventoryGuard]
+Enabled = true
+ScanInboundAssets = true
+MaxInboundAssetBytes = 33554432
+MaxInboundScriptBytes = 1048576
+QuarantineRejectedAssets = false
+QuarantineDirectory = "/var/lib/opengenesislink/hg-rejected-assets"
+QuarantineMaxCaptureBytes = 262144
+QuarantineMaxRecords = 5000
+```
+
+- Nur dediziertes, absolutes, nicht oeffentlich ausgeliefertes
+  Linux-Verzeichnis verwenden. Der Dienstbenutzer muss dort schreiben koennen.
+  Ein fehlendes Verzeichnis wird mit Modus 0700 angelegt, die Records
+  erhalten 0600. Symlinks direkt auf den Zielordner werden verweigert.
+  Windows wird fuer diese Funktion absichtlich nicht aktiviert, bis ein
+  entsprechendes Dateisystem-ACL-Modell implementiert wurde.
+- Je Ablehnung generiert der Server eine **eigene zufaellige**
+  Evidence-ID, eine `<id>.json`-Datei und bei positiver
+  Capture-Grenze eine `<id>.payload`-Stichprobe. Dateinamen enthalten
+  keine vom HG-Sender gelieferten Werte.
+- JSON enthaelt Zeit, Ablehnungsgrund, Asset-ID/-Typ, Originalgroesse,
+  Samplegroesse, Truncation und nach Moeglichkeit den SHA-256-Hash
+  des vollstaendigen Assets. Um riesige Uploads nicht zusaetzlich
+  auszurechnen, ist der Vollhash auf Payloads bis 32 MiB begrenzt.
+  Weder Scripttext noch Creator-Felder werden in JSON aufgenommen.
+- Pro Record werden maximal 1 MiB Payload kopiert (Standard 256 KiB);
+  `0` speichert nur Metadaten. Groessere Dateien werden **nicht**
+  unlimitiert auf Platte abgelegt. Nach `QuarantineMaxRecords`
+  werden keine weiteren Records angenommen; die Ablehnung im HG-Service
+  bleibt unabhaengig davon bestehen.
+- Aufbewahrung, geloeschte Records, Datenschutz, Rechte und freier
+  Speicher sind Betreiberaufgaben. **Keine** Freigabe-/Restore-API
+  implementiert. Forensik darf untrusted Payloads nicht ausfuehren.
+- Die Quarantaene schreibt keine `fsassets`-Daten und veraendert
+  keine bestehenden Itemreferenzen. Sie ist kein Staging vor
+  `InventoryService.AddItem`, kein Zahlungsrollback und keine
+  Verifikation eines remote Avatars.
+
+**Betriebsrisiko:** Bei aktivierter Quarantaene liegen fremde Dateien
+dauerhaft auf dem Host. Verzeichnis mit restriktiven Rechten, getrennt
+von HTTP-/FSAssets-/Backup-Freigaben halten; regelmaessig externe
+Speicherauslastung ueberwachen und Datensaetze nach einer definierten
+Aufbewahrungsfrist manuell archivieren/loeschen.
+
 ## Nicht implementiert - keine Sicherheitsversprechen
 
 1. **Keine Autorisierung:** Der Legacy-Handler ermittelt aus einem
@@ -79,8 +134,10 @@ gestartet werden; ein Git-Commit allein aktiviert nichts.
    referenzierten Assets, Mesh-/Texturdateiformate und Unterinventare.
    Ohne isolierten Transferstatus existiert keine atomare
    "vollstaendig geprueft vor Item-Anlage"-Garantie.
-3. **Keine Quarantaene:** Es gibt noch keinen persistenten
-   Zwischenzustand mit Freigabe-/Ablehnungsworkflow.
+3. **Keine Vorab-Quarantaene fuer Inventar-Transfers:** Es existiert
+   nur die optionale **forensische Quarantaene bereits abgelehnter Assets**.
+   Ein persistenter `PendingInventoryTransfer` mit Isolierung bis zur
+   Autorisierung und Freigabe fehlt weiterhin.
 4. **Keine Schadcode-Erkennung:** Statische Suche nach LSL-/OSSL-
    Funktionsnamen waere keine verlaessliche Aussage ueber
    Boesartigkeit. Restriktionen der Script-Engine sind getrennt
@@ -101,7 +158,7 @@ python3 tools/ci/verify_ogl_hg_inventory_guard_09313.py
 python3 tools/ci/verify_hg_inventory_security_09312.py
 ```
 
-Ausfuehrbare Metadaten-/Asset-Regression (benoetigt den vollstaendig gebauten
+Ausfuehrbare Metadaten-/Asset-/Quarantaene-Regression (benoetigt den vollstaendig gebauten
 OpenGenesisLINK-/OpenSim-Abhaengigkeitsbaum und .NET 8):
 
 ```bash
