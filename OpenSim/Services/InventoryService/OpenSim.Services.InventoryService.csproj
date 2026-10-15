@@ -96,6 +96,7 @@
   <ItemGroup>
     <Compile Include="OglHgPresenceSessionSource.cs" />
     <Compile Include="OglHgRoamingGrantSchema.cs" />
+    <Compile Include="OglHgRoamingGrantRepository.cs" />
     <Compile Include="XInventoryService.cs">
       <SubType>Code</SubType>
     </Compile>
