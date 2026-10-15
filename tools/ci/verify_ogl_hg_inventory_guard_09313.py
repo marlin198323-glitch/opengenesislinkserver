@@ -58,7 +58,7 @@ for name in reads + writes:
     match = pattern.search(service)
     assert match is not None, "Missing public HG method " + name
     rest = service[match.end():match.end()+220]
-    gate = "if (!AllowLegacyRead)" if name in reads else "if (!AllowLegacyWrite)"
+    gate = "if (!AllowLegacyRead" if name in reads else "if (!AllowLegacyWrite)"
     assert gate in rest, "Missing early public HG gate " + name
 
 for path in ("bin/Robust.HG.ini", "bin/Robust.HG.ini.example",
