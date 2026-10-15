@@ -100,6 +100,19 @@ assert "m_Database.StoreItem" not in stage
 assert "TryRelease(" not in stage
 assert "TryStage(" not in iface
 
+multi = read("OpenSim/Services/InventoryService/OglQuarantineTransferStageStore.cs")
+assert "TryStageDependency(UUID verifiedOwner, UUID caseId," in multi
+assert "TryReadVerifiedBundle(UUID verifiedOwner, UUID caseId," in multi
+assert "staged_uninspected_dependency" in multi
+assert "CryptographicOperations.FixedTimeEquals(" in multi
+assert "bundle_incomplete_or_too_many_dependencies" in multi
+assert "bundle_dependency_corrupt" in multi
+assert "OpenStageLock()" in multi
+assert "StageDependency = 4" in grants
+assert "OglQuarantineTransferAction.StageDependency" in grants
+assert "m_stageStore.TryStageDependency(" in grants
+assert "TryStageDependency(" not in iface
+
 for path in ("bin/Robust.HG.ini", "bin/Robust.HG.ini.example",
              "bin/config-include/StandaloneHypergrid.ini"):
     data = read(path)
