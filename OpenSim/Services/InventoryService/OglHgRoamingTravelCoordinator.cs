@@ -91,6 +91,29 @@ namespace OpenSim.Services.InventoryService
             }
         }
 
+        // Read-only mode: retain travel but refuse to issue delivery scopes.
+        // Caller must not silently downgrade to an unrestricted ticket.
+        public bool TryBeginReadOnlyTravel(UUID resident, UUID session,
+            string verifiedDestination)
+        {
+            if (resident == UUID.Zero || session == UUID.Zero ||
+                string.IsNullOrWhiteSpace(verifiedDestination))
+                return false;
+            try
+            {
+                PresenceInfo presence = m_presence.GetAgent(session);
+                return presence != null &&
+                    UUID.TryParse(presence.UserID, out UUID owner) &&
+                    owner == resident &&
+                    m_verifiedLocalTravel(resident, session, verifiedDestination) &&
+                    m_grants.TryRevokeSession(resident, session);
+            }
+            catch (Exception)
+            {
+                return false;
+            }
+        }
+
         // A new destination invalidates prior session grants before any
         // replacement is issued. This prevents tickets for the previous
         // grid from remaining usable after a successful onward teleport.
