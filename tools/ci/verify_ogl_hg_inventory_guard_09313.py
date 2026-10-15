@@ -55,8 +55,8 @@ for path in (
     "bin/config-include/StandaloneHypergrid.ini",
 ):
     cfg = read(path)
-    section = re.search(r"(?ms)^\\[OGLInventoryGuard\\]\\s*\\n(.*?)(?=^\\[|\\Z)", cfg)
-    assert section and re.search(r"(?m)^\\s*ScanInboundAssets\\s*=\\s*true\\s*$", section.group(1)), path
+    section = re.search(r"(?ms)^\[OGLInventoryGuard\]\s*\n(.*?)(?=^\[|\Z)", cfg)
+    assert section and re.search(r"(?m)^\s*ScanInboundAssets\s*=\s*true\s*$", section.group(1)), path
     assert "MaxInboundAssetBytes = 33554432" in section.group(1), path
     assert "MaxInboundScriptBytes = 1048576" in section.group(1), path
 
