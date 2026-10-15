@@ -48,6 +48,17 @@ namespace NexVerse.Server.Api
 
         public void HandleLogin(IOSHttpRequest request, IOSHttpResponse response)
         {
+            // The protected panel sets its own security headers. Do not
+            // duplicate Cache-Control/nosniff when dispatching a bearer GET.
+            if (request != null &&
+                string.Equals(request.HttpMethod, "GET", StringComparison.OrdinalIgnoreCase) &&
+                (request.Headers?["Authorization"] ?? string.Empty).StartsWith(
+                    "Bearer ", StringComparison.OrdinalIgnoreCase))
+            {
+                HandlePanel(request, response);
+                return;
+            }
+
             CommonHeaders(response);
             if (request == null)
             {
@@ -77,13 +88,6 @@ namespace NexVerse.Server.Api
             if (!string.Equals(request.HttpMethod, "GET", StringComparison.OrdinalIgnoreCase))
             {
                 Reject(response, HttpStatusCode.MethodNotAllowed, "method_not_allowed");
-                return;
-            }
-
-            string auth = request.Headers?["Authorization"] ?? string.Empty;
-            if (auth.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
-            {
-                HandlePanel(request, response);
                 return;
             }
 
