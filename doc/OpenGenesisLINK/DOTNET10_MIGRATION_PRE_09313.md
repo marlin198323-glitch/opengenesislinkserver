@@ -126,8 +126,22 @@ python3 tools/migration/audit_legacy_keyframe.py \
   --json --fail-on-legacy
 ```
 
-The audit scans the SQLite `prims.KeyframeMotion` BLOBs and
-`objects/*.xml` inside OAR archives. It classifies binary headers as
+For grids using MariaDB/MySQL region storage, run a **SELECT-only**
+export on a consistent backed-up copy / test replica with a database user
+who has only SELECT permission. Do not put database passwords on the
+command line or commit any export containing private asset data:
+
+```bash
+mariadb --defaults-extra-file=/secure/path/region-readonly.cnf \
+  --database=REGION_DATABASE --batch --raw --skip-column-names \
+  -e 'SELECT HEX(KeyframeMotion) FROM prims WHERE KeyframeMotion IS NOT NULL' \
+  > /secure/backups/keyframes.hex
+python3 tools/migration/audit_legacy_keyframe.py \
+  --hex-lines /secure/backups/keyframes.hex --fail-on-legacy
+```
+
+The audit scans SQLite `prims.KeyframeMotion` BLOBs, OAR
+`objects/*.xml` and exported MariaDB HEX lines. It classifies binary headers as
 `typed-v1-header`, `non-v1-legacy-or-unknown`, invalid or oversized;
 it **never deserializes** BinaryFormatter, executes script data or
 modifies the original file. Exit status `2` with `--fail-on-legacy`
@@ -137,7 +151,7 @@ Keep copies of the complete database/OAR and assets for migration and rollback.
 
 This tool is an **inventory and readiness aid, not a conversion utility**.
 No automatic legacy data rewriting or destructive cleanup is introduced.
-Its SQLite/OAR fixtures are part of the CI regression suite.
+Its SQLite/OAR/MariaDB-HEX fixtures are part of the CI regression suite.
 
 ## Additional release gates
 
