@@ -80,6 +80,9 @@ print("PASS: SQLite schema idempotence, active, destination, expiry, revoke; rep
 inventory_source = (ROOT / "OpenSim/Services/InventoryService/XInventoryService.cs").read_text()
 assert "TryRegisterForeignDeliveryValidator" in inventory_source
 assert "TryAddForeignItem(InventoryItemBase item)" in inventory_source
-assert "if (item == null || validate == null)" in inventory_source
-assert "if (!validate(item))" in inventory_source
+assert "if (item == null)" in inventory_source
+assert 'GetString("Mode", "Enforce")' in inventory_source
+assert 'string.Equals(inventoryGuardMode, "Observe", StringComparison.OrdinalIgnoreCase)' in inventory_source
+assert "accepted = validate != null && validate(item);" in inventory_source
+assert "if (!m_OglInventoryGuardObserve)" in inventory_source
 assert "return AddItem(item);" in inventory_source
