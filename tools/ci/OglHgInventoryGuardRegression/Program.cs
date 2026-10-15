@@ -2,6 +2,8 @@
 using System;
 using System.Text;
 using System.Linq;
+using System.IO;
+using System.Text.Json;
 using OpenMetaverse;
 using OpenSim.Framework;
 using OpenSim.Services.HypergridService;
@@ -138,6 +140,71 @@ internal static class Program
 
         Expect("null asset rejected",
             !OglHgInventoryAssetInspector.TryInspect(null, 4096, 1024, out _));
+
+
+        // Linux-only private quarantine: capture a bounded sample of already
+        // rejected assets, without inserting them into the normal asset store.
+        if (!OperatingSystem.IsWindows())
+        {
+            string quarantinePath = Path.Combine(Path.GetTempPath(),
+                "ogl-hg-quarantine-regression-" + Guid.NewGuid().ToString("N"));
+            try
+            {
+                var quarantine = new OglHgInventoryQuarantine(quarantinePath, 16, 2);
+                Expect("private quarantine directory mode",
+                    File.GetUnixFileMode(quarantinePath) ==
+                    (UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute));
+
+                bool captured = quarantine.TryCapture(xmlWithDtd,
+                    "invalid_or_unsafe_object_xml", out string evidenceId);
+                Expect("rejected payload captured", captured && evidenceId != null);
+                if (captured)
+                {
+                    string metadataPath = Path.Combine(quarantinePath, evidenceId + ".json");
+                    string payloadPath = Path.Combine(quarantinePath, evidenceId + ".payload");
+                    Expect("quarantine metadata persisted", File.Exists(metadataPath));
+                    Expect("quarantine sample bounded",
+                        File.Exists(payloadPath) && new FileInfo(payloadPath).Length == 16);
+                    Expect("metadata mode private",
+                        File.GetUnixFileMode(metadataPath) ==
+                        (UnixFileMode.UserRead | UnixFileMode.UserWrite));
+                    using (JsonDocument record = JsonDocument.Parse(File.ReadAllText(metadataPath)))
+                    {
+                        Expect("quarantine status rejected only",
+                            record.RootElement.GetProperty("status").GetString() ==
+                            "rejected_evidence_only");
+                        Expect("quarantine metadata identifies asset",
+                            record.RootElement.GetProperty("asset_id").GetString() ==
+                            xmlWithDtd.FullID.ToString());
+                        Expect("quarantine does not embed script or original name",
+                            !record.RootElement.TryGetProperty("name", out _));
+                    }
+                }
+
+                Expect("second rejection accepted under quota",
+                    quarantine.TryCapture(corruptScript, "invalid_script_utf8", out _));
+                Expect("quota rejects additional evidence",
+                    !quarantine.TryCapture(bytecode, "foreign_script_bytecode", out _));
+                Expect("quota does not silently publish assets",
+                    Directory.GetFiles(quarantinePath, "*.json").Length == 2);
+            }
+            finally
+            {
+                if (Directory.Exists(quarantinePath))
+                    Directory.Delete(quarantinePath, true);
+            }
+
+            bool unsafeDirectoryRejected = false;
+            try
+            {
+                new OglHgInventoryQuarantine("/", 16, 2);
+            }
+            catch (ArgumentException)
+            {
+                unsafeDirectoryRejected = true;
+            }
+            Expect("system root cannot be a quarantine directory", unsafeDirectoryRejected);
+        }
 
         Console.WriteLine(failures == 0 ? "OGL HG InventoryGuard metadata: PASS"
                                         : "OGL HG InventoryGuard metadata: FAIL");
