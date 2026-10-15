@@ -36,6 +36,7 @@ namespace OpenSim.Services.InventoryService
             if (resident == UUID.Zero || session == UUID.Zero ||
                 lifetime <= TimeSpan.Zero || lifetime > TimeSpan.FromMinutes(10))
                 return false;
+            UUID grantId = UUID.Zero;
             try
             {
                 PresenceInfo presence = m_presence.GetAgent(session);
@@ -47,7 +48,7 @@ namespace OpenSim.Services.InventoryService
 
                 // Local travel verification is a required independent check.
                 // Never wire this delegate to a caller-supplied assertion.
-                UUID grantId = UUID.Random();
+                grantId = UUID.Random();
                 if (!m_grants.TryCreateTrustedGrant(grantId, resident, session,
                     verifiedDestination, DateTimeOffset.UtcNow.Add(lifetime)))
                     return false;
@@ -57,13 +58,14 @@ namespace OpenSim.Services.InventoryService
                     return true;
 
                 // Never leave a usable grant after ticket issuance fails.
-                m_grants.TryRevokeSession(resident, session);
+                m_grants.TryRevokeGrant(grantId, resident, session);
                 ticket = null;
                 return false;
             }
             catch (Exception)
             {
-                m_grants.TryRevokeSession(resident, session);
+                if (grantId != UUID.Zero)
+                    m_grants.TryRevokeGrant(grantId, resident, session);
                 ticket = null;
                 return false;
             }
