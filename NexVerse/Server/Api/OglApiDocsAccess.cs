@@ -202,10 +202,16 @@ form.addEventListener('submit',async event=>{
     if(form.elements.namedItem('totp').value.trim())credentials.totp=form.elements.namedItem('totp').value.trim();
     const login=await fetch('/api/v1/auth/session',{method:'POST',headers:{'Content-Type':'application/json','Accept':'application/json'},body:JSON.stringify(credentials),cache:'no-store',credentials:'same-origin'});
     form.elements.namedItem('password').value='';form.elements.namedItem('totp').value='';
-    const data=await login.json().catch(()=>({}));
-    if(!login.ok)throw Error(login.status===401?'Anmeldung fehlgeschlagen. Benutzername, Passwort oder TOTP überprüfen.':'Anmeldung fehlgeschlagen (HTTP '+login.status+').');
+    const data=await login.json().catch(()=>null);
+    if(!login.ok)throw Error(login.status===401?'Anmeldung fehlgeschlagen. Benutzername, Passwort oder TOTP überprüfen.':'Anmeldung fehlgeschlagen (HTTP '+login.status+', '+(data&&data.error||'api_error')+').');
+    // An unrelated JSON HTTP 200 (proxy fallback, stale backend, or wrong
+    // route) is NOT a successful GridUser login. Never treat a missing
+    // user_level as an administrator: Number(undefined) is NaN.
+    if(!data||typeof data!=='object'||Array.isArray(data)||!Number.isInteger(data.user_level))
+      throw Error('Ungültige World-API-Login-Antwort (HTTP '+login.status+'). Prüfe /api/v1/auth/session und das Reverse-Proxy-Routing.');
     if(Number(data.user_level)<200)throw Error('Zugriff verweigert: UserLevel 200 erforderlich.');
-    if(typeof data.access_token!=='string'||!data.access_token)throw Error('Der Server hat kein Sitzungstoken zurückgegeben.');
+    if(typeof data.access_token!=='string'||data.access_token.length<24)
+      throw Error('World API: Login-Antwort ohne gültiges access_token (HTTP '+login.status+'). Bitte Login-Backend und Proxy prüfen.');
     token=data.access_token;
     expires=Date.now()+Math.max(0,Number(data.expires_in||0)-30)*1000;
     if(!expires||expires<=Date.now())throw Error('Die Administratorsitzung ist bereits abgelaufen.');
