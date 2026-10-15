@@ -54,6 +54,8 @@ assert "TryRevokeSession" in repository
 assert "TryRevokeResident" in repository
 coordinator = (ROOT / "OpenSim/Services/InventoryService/OglHgRoamingTravelCoordinator.cs").read_text()
 assert "TryRevokeOnAuthenticatedLogout" in coordinator
+assert "TryRevokeSessionsBeforeRegionLogout" in coordinator
+assert "TryAbortTravel" in coordinator
 coordinator = (ROOT / "OpenSim/Services/InventoryService/OglHgRoamingTravelCoordinator.cs").read_text()
 assert "m_verifiedLocalTravel(resident, session, verifiedDestination)" in coordinator
 assert "TryRevokeSession(resident, session)" in coordinator
