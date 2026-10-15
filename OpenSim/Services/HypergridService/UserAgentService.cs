@@ -355,6 +355,32 @@ namespace OpenSim.Services.HypergridService
             return travel;
         }
 
+        // InventoryGuard HOME-GRID travel attestation. This reads the
+        // server-maintained travel record; it never trusts an HG caller's
+        // claimed destination. A presence check is still required by the
+        // InventoryGuard coordinator before issuing a consent ticket.
+        public bool IsAuthenticatedTravelDestination(UUID residentId,
+            UUID sessionId, string destinationGridUri)
+        {
+            if (residentId == UUID.Zero || sessionId == UUID.Zero ||
+                string.IsNullOrWhiteSpace(destinationGridUri))
+                return false;
+            try
+            {
+                HGTravelingData record = m_Database.Get(sessionId);
+                if (record == null || record.UserID != residentId ||
+                    record.Data == null ||
+                    !record.Data.TryGetValue("GridExternalName", out string stored) ||
+                    string.IsNullOrWhiteSpace(stored))
+                    return false;
+                return HypergridUri.Equivalent(stored, destinationGridUri);
+            }
+            catch (Exception)
+            {
+                return false;
+            }
+        }
+
         public void LogoutAgent(UUID userID, UUID sessionID)
         {
             m_log.DebugFormat("[USER AGENT SERVICE]: User {0} logged out", userID);
