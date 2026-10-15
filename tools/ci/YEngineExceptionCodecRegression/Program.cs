@@ -42,9 +42,9 @@ internal static class Program
 
     // Private serializer helpers are inspected through reflection to exercise
     // the actual engine implementation, not a duplicated test-only resolver.
-    private static readonly MethodInfo EncodeType = typeof(XMRInstance).GetMethod(
+    private static readonly MethodInfo EncodeType = typeof(XMRInstAbstract).GetMethod(
         "SysType2String", BindingFlags.NonPublic | BindingFlags.Static);
-    private static readonly MethodInfo DecodeType = typeof(XMRInstance).GetMethod(
+    private static readonly MethodInfo DecodeType = typeof(XMRInstAbstract).GetMethod(
         "String2SysType", BindingFlags.NonPublic | BindingFlags.Static);
 
     private static string Encode(Type t) => (string)EncodeType.Invoke(null, new object[] { t });
