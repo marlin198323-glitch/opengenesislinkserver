@@ -113,6 +113,32 @@ data; additional bounds on other script-state graphs and strings;
 full on-grid bridge/physics/crossing tests; operator-tested rollback.
 A green CI build alone is **not** production approval.
 
+### Read-only legacy KeyframeMotion inventory audit
+
+Before planning a .NET 10 production cutover, run the new **read-only**
+SQLite/OAR audit against **offline, consistent backups**, not an actively
+mutating production database:
+
+```bash
+python3 tools/migration/audit_legacy_keyframe.py \
+  --sqlite /path/to/region-snapshot.db \
+  --oar /path/to/region-backup.oar \
+  --json --fail-on-legacy
+```
+
+The audit scans the SQLite `prims.KeyframeMotion` BLOBs and
+`objects/*.xml` inside OAR archives. It classifies binary headers as
+`typed-v1-header`, `non-v1-legacy-or-unknown`, invalid or oversized;
+it **never deserializes** BinaryFormatter, executes script data or
+modifies the original file. Exit status `2` with `--fail-on-legacy`
+means migration review is required, `3` means audit failure.
+A recognized typed-v1 **header alone does not prove the payload is valid**.
+Keep copies of the complete database/OAR and assets for migration and rollback.
+
+This tool is an **inventory and readiness aid, not a conversion utility**.
+No automatic legacy data rewriting or destructive cleanup is introduced.
+Its SQLite/OAR fixtures are part of the CI regression suite.
+
 ## Additional release gates
 
 - Full .NET 10 Release build, CI and API/database matrix.
