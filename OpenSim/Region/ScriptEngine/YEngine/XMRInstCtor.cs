@@ -370,17 +370,9 @@ namespace OpenSim.Region.ScriptEngine.Yengine
             {
                 try
                 {
-                    string xml;
-                    using (FileStream fs = File.Open(m_StateFileName,
-                                          FileMode.Open,
-                                          FileAccess.Read))
-                    {
-                        using(StreamReader ss = new StreamReader(fs))
-                            xml = ss.ReadToEnd();
-                    }
-
-                    XmlDocument doc = new XmlDocument();
-                    doc.LoadXml(xml);
+                    // Do not read unbounded XML or accept DTD/remote entities.
+                    // Fail closed without overwriting the original .state file.
+                    XmlDocument doc = ReadPersistedStateXmlFile(m_StateFileName);
                     LoadScriptState(doc);
                 }
                 catch (Exception error)
