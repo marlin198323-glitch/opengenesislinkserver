@@ -64,6 +64,28 @@ def audit_sqlite(path: Path) -> dict:
     return {"kind": "sqlite", "source": str(path), "counts": dict(result)}
 
 
+def audit_hex_lines(path: Path) -> dict:
+    """Read a MariaDB/MySQL SELECT HEX(KeyframeMotion) export, never connect or write."""
+    if not path.is_file():
+        raise FileNotFoundError(path)
+    result = Counter()
+    with path.open("r", encoding="ascii") as stream:
+        for line in stream:
+            result["examined_nonnull"] += 1
+            value = line.strip()
+            if len(value) > MAX_BLOB_BYTES * 2:
+                result["oversized"] += 1
+                continue
+            try:
+                blob = bytes.fromhex(value)
+            except ValueError:
+                result["invalid-hex"] += 1
+                continue
+            result[classify(blob)] += 1
+    return {"kind": "mariadb-hex-export", "source": str(path),
+            "counts": dict(result)}
+
+
 def audit_oar(path: Path) -> dict:
     """Scan only OAR objects/*.xml streams, never extract archive members."""
     if not path.is_file():
@@ -117,22 +139,26 @@ def main(argv: list[str] | None = None) -> int:
                         help="Read-only SQLite region-store snapshot (repeatable)")
     parser.add_argument("--oar", action="append", default=[], type=Path,
                         help="OAR tar/tar.gz archive (repeatable)")
+    parser.add_argument("--hex-lines", action="append", default=[], type=Path,
+                        help="Offline HEX(KeyframeMotion) export from MariaDB (repeatable)")
     parser.add_argument("--json", action="store_true",
                         help="Emit machine-readable JSON report")
     parser.add_argument("--fail-on-legacy", action="store_true",
                         help="Return code 2 for any non-v1, invalid or oversized data")
     args = parser.parse_args(argv)
-    if not args.sqlite and not args.oar:
-        parser.error("Pass at least one --sqlite or --oar")
+    if not args.sqlite and not args.oar and not args.hex_lines:
+        parser.error("Pass at least one --sqlite, --oar or --hex-lines")
     reports = []
     for path in args.sqlite:
         reports.append(audit_sqlite(path))
     for path in args.oar:
         reports.append(audit_oar(path))
+    for path in args.hex_lines:
+        reports.append(audit_hex_lines(path))
     invalid = {"non-v1-legacy-or-unknown", "unknown-typed-version",
                "truncated-v1-header", "oversized", "invalid-base64",
                "oversized-object-xml", "unsafe-object-xml",
-               "unreadable-object-xml", "invalid-object-xml"}
+               "unreadable-object-xml", "invalid-object-xml", "invalid-hex"}
     legacy_found = any(any(r["counts"].get(k, 0) for k in invalid)
                        for r in reports)
     report = {"warning": "Read-only header audit; typed-v1 does NOT prove full "
