@@ -45,6 +45,24 @@ assert "SHA256.HashData(" in ids
 assert "FolderType.None" in source
 assert "Quarantaene" in ids and "In Pruefung" in ids and "Abgelehnt" in ids
 
+# Phase 3a: separate local-only case-status projection. The real HG
+# connector is NOT given these methods or an item-release privilege.
+assert "public bool TryBeginTrustedQuarantineCase(" in source
+assert "public bool TryRejectTrustedQuarantineCase(" in source
+assert "OglInventoryQuarantineFolders.Case(verifiedOwner, caseId)" in source
+assert 'folderName = OglInventoryQuarantineFolders.CaseLabel(caseId)' in source
+assert "m_Database.MoveFolder(id.ToString(), rejected.ToString())" in source
+assert "BumpQuarantineFolderVersion(verifiedOwner, pending)" in source
+assert "BumpQuarantineFolderVersion(verifiedOwner, rejected)" in source
+assert "HashSet<UUID> visited = new HashSet<UUID>()" in source
+assert "OglInventoryQuarantineFolders.IsManaged(owner, current)" in source
+assert "asset.Data" not in source[source.index("public bool TryBeginTrustedQuarantineCase("):
+                                  source.index("protected XInventoryFolder CreateFolder(")]
+# No corresponding remote method must be added to generic inventory contract.
+iface = read("OpenSim/Services/Interfaces/IInventoryService.cs")
+assert "TryBeginTrustedQuarantineCase" not in iface
+assert "TryRejectTrustedQuarantineCase" not in iface
+
 for path in ("bin/Robust.HG.ini", "bin/Robust.HG.ini.example",
              "bin/config-include/StandaloneHypergrid.ini"):
     data = read(path)
