@@ -28,6 +28,12 @@ namespace OpenSim.Services.InventoryService
     {
         bool CanDelegate(UUID residentId, UUID authenticatedSessionId,
             string destinationGridUri);
+
+        // At inbound transfer time, query the home-grid's revocable
+        // persisted travel-session state. A previously signed token alone
+        // is not sufficient once the delegation is no longer active.
+        bool IsDelegationActive(UUID residentId, UUID authenticatedSessionId,
+            string destinationGridUri);
     }
 
     /// <summary>
@@ -173,9 +179,25 @@ namespace OpenSim.Services.InventoryService
                     return false;
 
                 long now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
-                return issued <= now + 5 &&
-                    issued >= now - 600 && expires >= now &&
-                    expires >= issued && expires - issued <= 600;
+                if (!(issued <= now + 5 &&
+                      issued >= now - 600 && expires >= now &&
+                      expires >= issued && expires - issued <= 600))
+                    return false;
+
+                // A valid MAC cannot override a server-side session revoke.
+                // This check must use HOME-GRID authoritative session state,
+                // never merely a UUID supplied by the foreign HTTP caller.
+                try
+                {
+                    return m_sessions.IsDelegationActive(request.ResidentId,
+                        request.SessionOrDelegationId, request.SourceGridUri);
+                }
+                catch (Exception ex) when (ex is InvalidOperationException ||
+                                           ex is IOException ||
+                                           ex is UnauthorizedAccessException)
+                {
+                    return false;
+                }
             }
             catch (FormatException) { return false; }
             catch (DecoderFallbackException) { return false; }
