@@ -3,6 +3,7 @@ using System;
 using System.IO;
 using System.Collections.Generic;
 using System.Linq;
+using System.Security.Cryptography;
 using Nini.Config;
 using OpenMetaverse;
 using OpenSim.Framework;
@@ -220,6 +221,93 @@ internal static class Program
             Check(postRestart.GetFolder(owner, caseFolderId).ParentID == rejected &&
                   postRestart.GetFolderContent(owner, caseFolderId).Items.Count == 0,
                 "rejected case survives restart without exposing HG assets");
+
+            // Phase 3b: crypto-proof-based local coordinator, NO public HG
+            // route and NO automatic acceptance of remote owner claims.
+            byte[] secret = RandomNumberGenerator.GetBytes(32);
+            string ledgerDir = Path.Combine(dir, "private-spent-tokens");
+            var authority = new OglQuarantineTransferGrantAuthority(
+                secret, "stadt-nexverse-hg-test", ledgerDir);
+            var coordinator = new OglQuarantineTransferCoordinator(authority, postRestart);
+
+            UUID grantCase = UUID.Random();
+            UUID grantItem = UUID.Random();
+            UUID grantAsset = UUID.Random();
+            UUID otherOwner = UUID.Random();
+            string beginProof = authority.Issue(owner, grantCase, grantItem, grantAsset,
+                OglQuarantineTransferAction.Begin, TimeSpan.FromSeconds(60));
+            Check(!coordinator.TryBegin(beginProof, otherOwner, grantCase,
+                grantItem, grantAsset), "proof cannot be used for another resident");
+            Check(!coordinator.TryBegin(beginProof, owner, grantCase,
+                UUID.Random(), grantAsset), "proof bound to inventory item ID");
+            Check(!coordinator.TryBegin(beginProof, owner, grantCase,
+                grantItem, UUID.Random()), "proof bound to asset ID");
+            Check(!coordinator.TryReject(beginProof, owner, grantCase,
+                grantItem, grantAsset), "begin proof cannot authorize rejection");
+            string forgedProof = beginProof.Substring(0, beginProof.Length - 2) + "ZZ";
+            Check(!coordinator.TryBegin(forgedProof, owner, grantCase,
+                grantItem, grantAsset), "tampered HMAC proof rejected");
+
+            var wrongAudience = new OglQuarantineTransferGrantAuthority(
+                secret, "other-grid", ledgerDir);
+            Check(!new OglQuarantineTransferCoordinator(wrongAudience, postRestart)
+                .TryBegin(beginProof, owner, grantCase, grantItem, grantAsset),
+                "proof restricted to audience and cannot cross grids");
+
+            Check(!coordinator.TryBegin("not.a.proof", owner, grantCase,
+                grantItem, grantAsset), "malformed proof rejected");
+            Check(coordinator.TryBegin(beginProof, owner, grantCase, grantItem, grantAsset),
+                "authenticated locally issued begin proof creates empty case");
+            Check(postRestart.GetFolder(owner,
+                OglInventoryQuarantineFolders.Case(owner, grantCase)).ParentID == pending,
+                "verified proof projects pending case");
+            Check(!coordinator.TryBegin(beginProof, owner, grantCase, grantItem, grantAsset),
+                "replay prevented by spent-token ledger");
+
+            // A second server object with the same ledger still cannot replay.
+            var restartedAuthority = new OglQuarantineTransferGrantAuthority(
+                secret, "stadt-nexverse-hg-test", ledgerDir);
+            var restartedCoordinator = new OglQuarantineTransferCoordinator(
+                restartedAuthority, Service(cfg));
+            Check(!restartedCoordinator.TryBegin(beginProof, owner, grantCase,
+                grantItem, grantAsset), "replay prevention survives process restart");
+
+            string rejectionProof = authority.Issue(owner, grantCase, grantItem, grantAsset,
+                OglQuarantineTransferAction.Reject, TimeSpan.FromSeconds(60));
+            Check(coordinator.TryReject(rejectionProof, owner, grantCase,
+                grantItem, grantAsset), "verified single-use rejection transitions status");
+            Check(!coordinator.TryReject(rejectionProof, owner, grantCase,
+                grantItem, grantAsset), "rejection proof cannot be replayed");
+            Check(postRestart.GetFolder(owner,
+                OglInventoryQuarantineFolders.Case(owner, grantCase)).ParentID == rejected,
+                "crypto-authorized rejection persists as folder status");
+
+            Check(Directory.GetFiles(ledgerDir, "*.spent").Length == 2,
+                "exactly two valid proofs were consumed; invalid proofs are not spent");
+
+            // Secret never comes from a source-code/config default.
+            bool weakSecretRejected = false;
+            try
+            {
+                new OglQuarantineTransferGrantAuthority(new byte[16],
+                    "stadt-nexverse-hg-test", Path.Combine(dir, "weak-ledger"));
+            }
+            catch (ArgumentException)
+            {
+                weakSecretRejected = true;
+            }
+            Check(weakSecretRejected, "weak signing key refused");
+            bool excessiveLifetimeRejected = false;
+            try
+            {
+                authority.Issue(owner, UUID.Random(), UUID.Random(), UUID.Random(),
+                    OglQuarantineTransferAction.Begin, TimeSpan.FromMinutes(6));
+            }
+            catch (ArgumentException)
+            {
+                excessiveLifetimeRejected = true;
+            }
+            Check(excessiveLifetimeRejected, "proof lifetime capped to five minutes");
 
             Console.WriteLine("OGL quarantine system folder integration PASS");
             return 0;
