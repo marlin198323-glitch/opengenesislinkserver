@@ -94,6 +94,13 @@ namespace OpenSim.Services.HypergridService
                     continue;
                 }
 
+                // Enforce the longest encountered path as well, including
+                // shared dependencies that were already checked on a short path.
+                if (node.Depth > maxDepth)
+                {
+                    reason = "graph_depth_limit";
+                    return false;
+                }
                 if (visiting.Contains(node.Id))
                 {
                     reason = "graph_dependency_cycle";
@@ -101,12 +108,6 @@ namespace OpenSim.Services.HypergridService
                 }
                 if (finished.Contains(node.Id))
                     continue;
-
-                if (node.Depth > maxDepth)
-                {
-                    reason = "graph_depth_limit";
-                    return false;
-                }
                 if (outcome.AssetsInspected >= maxAssets)
                 {
                     reason = "graph_asset_count_limit";
