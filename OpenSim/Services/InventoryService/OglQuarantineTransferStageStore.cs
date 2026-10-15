@@ -2,6 +2,7 @@
 // NOT callable through the inventory wire API; NOT the main asset service.
 // Payloads remain inaccessible to normal inventory readers and script engines.
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Security.Cryptography;
 using System.Text;
