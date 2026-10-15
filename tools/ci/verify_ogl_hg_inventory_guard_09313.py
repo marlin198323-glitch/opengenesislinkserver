@@ -79,6 +79,15 @@ assert "m_assetService.Store" not in graph
 assert "m_Database.StoreItem" not in graph
 assert "GetCached(" not in graph
 assert "TryRelease(" not in graph
+
+bundle_adapter = read("OpenSim/Services/HypergridService/OglHgStagedQuarantineBundleInspector.cs")
+assert "store.TryReadVerifiedBundle(" in bundle_adapter
+assert "OglHgQuarantineDependencyGraphVerifier.TryInspect(" in bundle_adapter
+assert "report.AssetsInspected != staged.Length" in bundle_adapter
+assert "bundle_unreferenced_staged_asset" in bundle_adapter
+assert "m_assetService.Get" not in bundle_adapter
+assert "m_assetService.Store" not in bundle_adapter
+assert "TryRelease(" not in bundle_adapter
 quarantine = read("OpenSim/Services/HypergridService/OglHgInventoryQuarantine.cs")
 assert 'GetBoolean("QuarantineRejectedAssets", false)' in asset_handler
 assert "OglHgInventoryQuarantine.TryCapture" not in asset_handler  # instance method
