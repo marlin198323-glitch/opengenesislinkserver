@@ -161,8 +161,10 @@ Manipulation bzw. Auslieferung aus diesen Ordnern.
 Die IDs sind Marker, keine Authentisierung. Die Sperren greifen
 im Inventarservice, nicht nur in der Viewer-Darstellung.
 
-**Wichtig: Die Ordner bleiben absichtlich leer.**
-Die separate serverseitige Evidence-Quarantaene fuer abgelehnte
+**Wichtig: Die Ordner enthalten keine Assets oder Inventargegenstaende.**
+Es koennen nur harmlose, leere Vorgangs-Unterordner als
+Statusmarker angezeigt werden (siehe Phase 3a). Die separate
+serverseitige Evidence-Quarantaene fuer abgelehnte
 HG-Asset-Uploads ist **nicht** in die Avatareingaben verlinkt. Ein
 abgelehntes externes Script/Objekt wird nicht automatisch zu einem
 inventarisierbaren Item oder in `Abgelehnt` verschoben. Ein
@@ -185,6 +187,55 @@ python3 tools/ci/verify_ogl_quarantine_system_folders.py
 dotnet run -c Release --project tools/ci/OglQuarantineFolderRegression/OglQuarantineFolderRegression.csproj
 ```
 
+## Phase 3a: sichere STATUS-Anzeige je Vorgang (lokale API)
+
+Die `XInventoryService`-Implementierung unterstuetzt jetzt **nur fuer
+vertrauenswuerdige lokale Serverkomponenten** zwei neue Aufrufe:
+
+- `TryBeginTrustedQuarantineCase(verifiedOwner, caseId)`: legt
+  einen leeren, nicht ausfuehrbaren `Vorgang XXXXXXXX`-Unterordner
+  in `Quarantaene / In Pruefung` an.
+- `TryRejectTrustedQuarantineCase(verifiedOwner, caseId)`: verschiebt
+  ausschliesslich einen bestehenden solchen Vorgang nach
+  `Quarantaene / Abgelehnt`. Das ist ein dauerhaft ablehnender
+  Status, **keine Freigabe**. Wiederholtes Ablehnen ist idempotent.
+
+Vorgangsordner-IDs werden stabil aus verifiziertem Bewohnerkonto und
+Transaktions-UUID abgeleitet. Die Vorgangsordner enthalten
+**keinerlei Inventarobjekt, Script, Asset oder herunterladbare Datei**.
+Ein untrusted HG-Name/Asset-Inhalt wird nicht in einen Ordnernamen
+uebernommen. Versionszaehler der Elternordner werden bei Aenderungen
+aktualisiert, damit Viewer den neuen Status nachladen koennen.
+
+Die Hierarchie-Sperre gilt jetzt auch fuer alle Vorgangsordner und
+darunterliegende Elemente. Die regulären `AddFolder`-/`MoveFolder`-/
+`DeleteFolders`-/`AddItem`-/`MoveItems`- und Leseoperationen
+koennen diese Bereiche nicht normal veraendern oder dort liegende
+Gegenstaende ausliefern.
+
+**Verbindliche Sicherheitsgrenze:** `verifiedOwner` muss vom
+AUFRUFENDEN, vertrauenswuerdigen Transferkoordinator authentifiziert
+werden. Diese Methoden gehoeren absichtlich **nicht** zur
+`IInventoryService`-Schnittstelle und erscheinen nicht im
+`/xinventory`-Remoteprotokoll. Das ist eine serverinterne
+Projektions-API, **noch keine** implementierte Authentifizierungs-
+oder Hypergrid-Eingangslogik. Weder rohe HG-Item-Metadaten noch
+ein Dateiname der Evidence-Quarantaene koennen damit bereits
+automatisch auf ein Bewohnerkonto abgebildet werden.
+
+**Aktueller Automatik-Stand:** Der Code *kann* sichere Statusmarker
+anzeigen, sobald ein spaeterer verifizierter Transferkoordinator
+die APIs aufruft. Kein fremdes Grid kann mit den normalen
+Remoteinventarmethoden selbst solche Marker anlegen. Die
+automatische Verknuepfung der HG-Transfers und eine erfolgreiche
+Freigabe/Zustellung bleiben als Phase 3b offen.
+
+SQLite-Regression: `tools/ci/OglQuarantineFolderRegression`
+prueft zwei unabhängige Vorgänge, doppelte Registrierung,
+erlaubte Pending->Rejected-Transition, verbotenen Ruecksprung,
+Nichtmanipulierbarkeit, Versionszaehler und Persistenz nach
+einem neuen Serviceprozess.
+
 ## Nicht implementiert - keine Sicherheitsversprechen
 
 1. **Keine Autorisierung:** Der Legacy-Handler ermittelt aus einem
@@ -201,10 +252,12 @@ dotnet run -c Release --project tools/ci/OglQuarantineFolderRegression/OglQuaran
    Ohne isolierten Transferstatus existiert keine atomare
    "vollstaendig geprueft vor Item-Anlage"-Garantie.
 3. **Keine Vorab-Quarantaene fuer Inventar-Transfers:** Es existieren
-   die optionale forensische Asset-Quarantaene und leere, geschuetzte
-   Bewohner-Systemordner. Ein persistenter `PendingInventoryTransfer`
-   mit Isolierung bis zur Autorisierung und Freigabe sowie einer
-   sicheren Verbindung beider Systeme fehlt weiterhin.
+   die optionale forensische Asset-Quarantaene, geschuetzte
+   Bewohner-Systemordner sowie lokale, noch nicht an authentifizierte
+   Transfers gekoppelte Statusmarker. Ein persistenter,
+   autorisierter `PendingInventoryTransfer` mit Isolierung bis zur
+   Freigabe sowie der automatischen Verbindung beider Systeme
+   fehlt weiterhin.
 4. **Keine Schadcode-Erkennung:** Statische Suche nach LSL-/OSSL-
    Funktionsnamen waere keine verlaessliche Aussage ueber
    Boesartigkeit. Restriktionen der Script-Engine sind getrennt
