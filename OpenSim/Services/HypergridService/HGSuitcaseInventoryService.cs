@@ -775,6 +775,11 @@ namespace OpenSim.Services.HypergridService
 
         private AvatarAppearance GetAppearance(UUID principalID)
         {
+            // In a deliberately minimal/unauthenticated HG service the avatar
+            // provider may be absent. Missing context MUST NOT permit bypassing
+            // the suitcase check or crash the public service.
+            if (m_AvatarService == null)
+                return null;
             AvatarAppearance a = null;
             if (m_Appearances.TryGetValue(principalID, out a))
                 return a;
