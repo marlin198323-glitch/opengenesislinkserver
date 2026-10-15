@@ -77,7 +77,16 @@ Without credentials, the endpoint returns a privacy-safe aggregate view when the
 
 When privileged World API authentication is enabled, a Bearer token or `X-NexVerse-Api-Key` with `statistics:read` may request the protected detail view. Protected credentials must only be used over TLS or an equivalent trusted transport.
 
-If credentials are supplied while privileged authentication is disabled, the server returns a controlled service/authentication error rather than silently ignoring the credential or falling back to an anonymous response. A missing statistics data backend returns `503 statistics_data_unavailable`; the route itself must not disappear as a 404 merely because privileged endpoints are disabled.
+If credentials are supplied while privileged authentication is disabled, the server returns a controlled service/authentication error rather than silently ignoring the credential or falling back to an anonymous response. If **UserAccountService** cannot be loaded, the route still returns
+`503 statistics_data_unavailable`. If the optional GridUser history provider
+is missing or its query fails, but authoritative UserAccount enumeration still
+works, the route returns `200` with available resident-account totals,
+`data_quality.complete=false`, `griduser_source="unavailable"` and
+`null` for historical, Hypergrid and other unavailable metrics.
+`null` means **unknown**, never a fabricated count of zero.
+If **both** GridUser history and account enumeration fail, a controlled
+`503 statistics_unavailable` remains correct. The route itself must not
+disappear as a 404 merely because privileged endpoints are disabled.
 
 The response reports its effective privacy level through:
 
