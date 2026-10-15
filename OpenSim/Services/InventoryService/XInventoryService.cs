@@ -209,17 +209,143 @@ namespace OpenSim.Services.InventoryService
             });
         }
 
-        // Do not trust the caller-supplied principal or owner fields. Resolve
-        // the stored owner before recognizing a protected folder identity.
+        /// <summary>
+        /// Local trusted-service hook: display an EMPTY quarantine case under
+        /// the resident's In Pruefung folder. NEVER call from raw HG inbound
+        /// metadata, xinventory or any user-supplied owner claim: only an
+        /// authenticated transfer coordinator may supply the verified owner.
+        /// This method is intentionally absent from IInventoryService / wire APIs.
+        /// </summary>
+        public bool TryBeginTrustedQuarantineCase(UUID verifiedOwner, UUID caseId)
+        {
+            if (!m_OglQuarantineFolderEnabled || verifiedOwner == UUID.Zero ||
+                caseId == UUID.Zero)
+                return false;
+
+            InventoryFolderBase root = GetRootFolder(verifiedOwner);
+            if (root == null || root.Owner != verifiedOwner ||
+                !EnsureQuarantineFolders(verifiedOwner, root.ID))
+                return false;
+
+            UUID id = OglInventoryQuarantineFolders.Case(verifiedOwner, caseId);
+            UUID pending = OglInventoryQuarantineFolders.Pending(verifiedOwner);
+            UUID rejected = OglInventoryQuarantineFolders.Rejected(verifiedOwner);
+            XInventoryFolder[] existing = m_Database.GetFolders(
+                new string[] { "folderID" }, new string[] { id.ToString() });
+            if (existing != null && existing.Length > 0)
+            {
+                XInventoryFolder saved = existing[0];
+                return saved.agentID == verifiedOwner &&
+                    saved.folderName == OglInventoryQuarantineFolders.CaseLabel(caseId) &&
+                    saved.type == (int)FolderType.None &&
+                    saved.parentFolderID == pending;
+                // A rejected case can never be reset to pending by this API.
+            }
+
+            bool created = m_Database.StoreFolder(new XInventoryFolder
+            {
+                folderID = id,
+                agentID = verifiedOwner,
+                parentFolderID = pending,
+                type = (int)FolderType.None,
+                folderName = OglInventoryQuarantineFolders.CaseLabel(caseId),
+                version = 1
+            });
+
+            if (created)
+                BumpQuarantineFolderVersion(verifiedOwner, pending);
+            return created;
+        }
+
+        /// <summary>
+        /// Local trusted-service hook. Only existing pending cases may be
+        /// marked rejected. The folder remains EMPTY and non-executable.
+        /// No public restore/accept transition exists until full authorization,
+        /// asset validation and atomic inventory commit have been implemented.
+        /// </summary>
+        public bool TryRejectTrustedQuarantineCase(UUID verifiedOwner, UUID caseId)
+        {
+            if (!m_OglQuarantineFolderEnabled || verifiedOwner == UUID.Zero ||
+                caseId == UUID.Zero)
+                return false;
+
+            UUID id = OglInventoryQuarantineFolders.Case(verifiedOwner, caseId);
+            XInventoryFolder[] existing = m_Database.GetFolders(
+                new string[] { "folderID" }, new string[] { id.ToString() });
+            if (existing == null || existing.Length == 0)
+                return false;
+
+            XInventoryFolder saved = existing[0];
+            UUID pending = OglInventoryQuarantineFolders.Pending(verifiedOwner);
+            UUID rejected = OglInventoryQuarantineFolders.Rejected(verifiedOwner);
+            if (saved.agentID != verifiedOwner ||
+                saved.folderName != OglInventoryQuarantineFolders.CaseLabel(caseId) ||
+                saved.type != (int)FolderType.None)
+                return false;
+
+            if (saved.parentFolderID == rejected)
+                return true; // idempotent, NOT a release.
+            if (saved.parentFolderID != pending)
+                return false;
+
+            bool moved = m_Database.MoveFolder(id.ToString(), rejected.ToString());
+            if (moved)
+            {
+                BumpQuarantineFolderVersion(verifiedOwner, pending);
+                BumpQuarantineFolderVersion(verifiedOwner, rejected);
+            }
+            return moved;
+        }
+
+        private void BumpQuarantineFolderVersion(UUID owner, UUID id)
+        {
+            XInventoryFolder[] folders = m_Database.GetFolders(
+                new string[] { "folderID" }, new string[] { id.ToString() });
+            if (folders != null && folders.Length > 0 &&
+                folders[0].agentID == owner &&
+                folders[0].version < int.MaxValue)
+            {
+                folders[0].version++;
+                m_Database.StoreFolder(folders[0]);
+            }
+        }
+
+        // Protect not only the known parent folders but every status-case
+        // descendant. Otherwise a viewer could move or fetch a case subfolder
+        // as if it were an ordinary empty inventory folder.
+        // An invalid cycle fails closed rather than allowing mutators.
         private bool IsProtectedFolder(UUID folderID)
         {
             if (!m_OglQuarantineFolderEnabled || folderID == UUID.Zero)
                 return false;
 
-            XInventoryFolder[] matches = m_Database.GetFolders(
-                new string[] { "folderID" }, new string[] { folderID.ToString() });
-            return matches != null && matches.Length > 0 &&
-                   OglInventoryQuarantineFolders.IsManaged(matches[0].agentID, folderID);
+            HashSet<UUID> visited = new HashSet<UUID>();
+            UUID current = folderID;
+            UUID owner = UUID.Zero;
+            for (int depth = 0; current != UUID.Zero && depth < 64; depth++)
+            {
+                if (!visited.Add(current))
+                    return true;
+
+                XInventoryFolder[] matches = m_Database.GetFolders(
+                    new string[] { "folderID" }, new string[] { current.ToString() });
+                if (matches == null || matches.Length == 0)
+                    return false;
+
+                XInventoryFolder folder = matches[0];
+                if (owner == UUID.Zero)
+                    owner = folder.agentID;
+                else if (folder.agentID != owner)
+                    return true;
+
+                if (OglInventoryQuarantineFolders.IsManaged(owner, current))
+                    return true;
+
+                current = folder.parentFolderID;
+            }
+
+            // Oversized or corrupt folder ancestry is not a writable target.
+            return current != UUID.Zero;
         }
 
         private bool HasProtectedImmediateChild(UUID folderID)
