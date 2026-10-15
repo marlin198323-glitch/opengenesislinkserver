@@ -254,10 +254,15 @@ einem neuen Serviceprozess.
   an Avatar B eingesetzt werden.
 - Jedes gueltige Ticket wird beim Verbrauch im isolierten Linux-Verzeichnis
   durch `FileMode.CreateNew` (atomar auf einem lokalen Dateisystem)
-  als `SHA256(ticket).spent` vermerkt. Kein Ticket darf erneut
-  verwendet werden, auch nicht nach einem Dienstneustart. Dateimodus
-  0600, Verzeichnis 0700; ein unbeschreibbares Verzeichnis fuehrt
-  zum **Abbruch**. Kann nach erfolgreichem Verbrauch der Viewer-Status
+  als `SHA256(ticket).spent` vermerkt. Die JSON-Auditdatei
+  enthaelt bewusst **nur** die verifizierte Grid-Audience,
+  Operation, Vorgangs-/Bewohner-/Item-/Asset-UUID sowie
+  Ausstellungs-/Ablauf-/Verbrauchszeit; sie speichert **kein**
+  Ticket, keine Schluessel und keine fremden Assetbytes.
+  Kein Ticket darf erneut verwendet werden, auch nicht nach
+  einem Dienstneustart. Dateimodus 0600, Verzeichnis 0700;
+  ein unbeschreibbares Verzeichnis fuehrt zum **Abbruch**.
+  Kann nach erfolgreichem Verbrauch der Viewer-Status
   nicht geschrieben werden, bleibt das Ticket bewusst verbraucht;
   Wiederherstellung erfordert einen neuen, separat autorisierten
   Vorgang, nicht einen unsicheren Replay.
