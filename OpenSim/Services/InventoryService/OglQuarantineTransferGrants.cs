@@ -5,6 +5,7 @@ using System;
 using System.IO;
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.Json;
 using OpenMetaverse;
 
 namespace OpenSim.Services.InventoryService
@@ -157,8 +158,22 @@ namespace OpenSim.Services.InventoryService
                         UnixCreateMode = FileModePrivate,
                         Options = FileOptions.WriteThrough
                     });
-                byte[] data = StrictUtf8.GetBytes("spent " +
-                    DateTimeOffset.UtcNow.ToString("O") + "\n");
+                // Durable, non-executable audit metadata binds the consumed
+                // proof to one transfer case. No secret/token or payload bytes
+                // are stored here; a truncated crash record remains spent.
+                byte[] data = JsonSerializer.SerializeToUtf8Bytes(new
+                {
+                    status = "proof_spent",
+                    consumed_utc = DateTimeOffset.UtcNow.ToString("O"),
+                    audience = m_audience,
+                    action = action.ToString(),
+                    owner_id = verifiedOwner.ToString(),
+                    case_id = caseId.ToString(),
+                    item_id = itemId.ToString(),
+                    asset_id = assetId.ToString(),
+                    issued_unix = issued,
+                    expires_unix = expires
+                });
                 stream.Write(data, 0, data.Length);
                 stream.Flush(true);
                 return true;
