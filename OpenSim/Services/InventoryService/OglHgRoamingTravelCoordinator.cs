@@ -69,6 +69,28 @@ namespace OpenSim.Services.InventoryService
             }
         }
 
+        // Home-grid logout integration contract: call BEFORE removing the
+        // authenticated presence. An absent/invalid session is denied.
+        // A failed DB revoke is an operational failure, not a success.
+        public bool TryRevokeOnAuthenticatedLogout(UUID resident, UUID session)
+        {
+            if (resident == UUID.Zero || session == UUID.Zero)
+                return false;
+            try
+            {
+                PresenceInfo current = m_presence.GetAgent(session);
+                if (current == null ||
+                    !UUID.TryParse(current.UserID, out UUID owner) ||
+                    owner != resident)
+                    return false;
+                return m_grants.TryRevokeSession(resident, session);
+            }
+            catch (Exception)
+            {
+                return false;
+            }
+        }
+
         // Called by trusted local logout/teleport-abort path. The caller
         // must treat false as revocation failure and escalate operationally.
         public bool TryEndSession(UUID resident, UUID session) =>
