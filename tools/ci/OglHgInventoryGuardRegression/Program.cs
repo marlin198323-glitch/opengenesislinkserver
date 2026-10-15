@@ -3,6 +3,8 @@ using System;
 using System.Text;
 using System.Linq;
 using System.IO;
+using System.Collections.Generic;
+using System.Security.Cryptography;
 using System.Text.Json;
 using OpenMetaverse;
 using OpenSim.Framework;
@@ -37,6 +39,50 @@ internal static class Program
         }
         else
             Console.WriteLine("PASS " + name);
+    }
+
+    private static AssetBase GraphAsset(UUID id, AssetType type, string body)
+    {
+        AssetBase asset = new AssetBase(id, "isolated graph test",
+            (sbyte)type, UUID.Random().ToString());
+        asset.Data = Encoding.UTF8.GetBytes(body);
+        return asset;
+    }
+
+    private static string GraphNestedItem(UUID assetId, AssetType type)
+    {
+        return "<TaskInventoryItem><ItemID>" + UUID.Random() + "</ItemID>" +
+            "<AssetID>" + assetId + "</AssetID>" +
+            "<Type>" + (int)type + "</Type><InvType>0</InvType></TaskInventoryItem>";
+    }
+
+    private static string GraphObject(params string[] refs)
+    {
+        return "<SceneObjectGroup><RootPart><TaskInventory>" +
+            string.Concat(refs) +
+            "</TaskInventory></RootPart></SceneObjectGroup>";
+    }
+
+    private static Dictionary<UUID, string> Pins(
+        Dictionary<UUID, AssetBase> assets)
+    {
+        Dictionary<UUID, string> pins = new Dictionary<UUID, string>();
+        foreach (KeyValuePair<UUID, AssetBase> pair in assets)
+            pins[pair.Key] = Convert.ToHexString(SHA256.HashData(pair.Value.Data));
+        return pins;
+    }
+
+    private static bool CheckGraph(UUID root, int rootType,
+        IReadOnlyDictionary<UUID, AssetBase> assets,
+        IReadOnlyDictionary<UUID, string> pins,
+        out OglHgDependencyGraphReport report, out string reason,
+        int maxAssets = 32, int maxRefs = 32, int maxDepth = 8,
+        long maxTotalBytes = 1024 * 1024)
+    {
+        return OglHgQuarantineDependencyGraphVerifier.TryInspect(
+            root, rootType, assets, pins, 65536, 8192,
+            maxAssets, maxRefs, maxDepth, maxTotalBytes,
+            out report, out reason);
     }
 
     public static int Main()
@@ -223,6 +269,134 @@ internal static class Program
         Expect("null asset rejected",
             !OglHgInventoryAssetInspector.TryInspect(null, 4096, 1024, out _));
 
+
+        // Phase 3e: no network / normal AssetService fallback is possible.
+        // Every nested asset must be available in a trusted, hash-pinned
+        // isolated snapshot, including scripts and nested objects.
+        UUID graphRoot = UUID.Random();
+        UUID graphChild = UUID.Random();
+        UUID graphScript = UUID.Random();
+        Dictionary<UUID, AssetBase> graph = new Dictionary<UUID, AssetBase>
+        {
+            [graphRoot] = GraphAsset(graphRoot, AssetType.Object,
+                GraphObject(GraphNestedItem(graphChild, AssetType.Object))),
+            [graphChild] = GraphAsset(graphChild, AssetType.Object,
+                GraphObject(GraphNestedItem(graphScript, AssetType.LSLText))),
+            [graphScript] = GraphAsset(graphScript, AssetType.LSLText,
+                "default { state_entry() { llOwnerSay(\"checked only, not runnable\"); } }")
+        };
+        Dictionary<UUID, string> graphPins = Pins(graph);
+        Expect("nested object > script dependency graph inspected",
+            CheckGraph(graphRoot, (int)AssetType.Object, graph, graphPins,
+                out OglHgDependencyGraphReport graphReport, out _) &&
+            graphReport.AssetsInspected == 3 &&
+            graphReport.ObjectAssetsInspected == 2 &&
+            graphReport.ScriptSourcesInspected == 1 &&
+            graphReport.NestedReferences == 2 &&
+            graphReport.Status == "structurally_inspected_not_authorized");
+
+        var missingChild = new Dictionary<UUID, AssetBase>(graph);
+        missingChild.Remove(graphScript);
+        Expect("unresolved nested script fails closed",
+            !CheckGraph(graphRoot, (int)AssetType.Object, missingChild,
+                graphPins, out _, out string missingReason) &&
+            missingReason == "graph_dependency_missing");
+
+        var missingPin = new Dictionary<UUID, string>(graphPins);
+        missingPin.Remove(graphChild);
+        Expect("missing trusted hash pin fails closed",
+            !CheckGraph(graphRoot, (int)AssetType.Object, graph, missingPin,
+                out _, out string pinReason) &&
+            pinReason == "graph_missing_or_malformed_hash_pin");
+
+        var wrongPin = new Dictionary<UUID, string>(graphPins);
+        wrongPin[graphScript] = new string('0', 64);
+        Expect("tampered script hash pin fails closed",
+            !CheckGraph(graphRoot, (int)AssetType.Object, graph, wrongPin,
+                out _, out string hashReason) &&
+            hashReason == "graph_asset_hash_mismatch");
+
+        var spoiledAsset = new Dictionary<UUID, AssetBase>(graph);
+        spoiledAsset[graphChild] = GraphAsset(UUID.Random(), AssetType.Object,
+            GraphObject(GraphNestedItem(graphScript, AssetType.LSLText)));
+        Expect("asset substitution by UUID rejected",
+            !CheckGraph(graphRoot, (int)AssetType.Object, spoiledAsset,
+                graphPins, out _, out string identityReason) &&
+            identityReason == "graph_asset_identity_or_type_mismatch");
+
+        var wrongTypeRoot = new Dictionary<UUID, AssetBase>(graph);
+        wrongTypeRoot[graphChild] = GraphAsset(graphChild, AssetType.Texture,
+            "texture body");
+        var wrongTypePins = Pins(wrongTypeRoot);
+        Expect("nested reference asset type mismatch rejected",
+            !CheckGraph(graphRoot, (int)AssetType.Object, wrongTypeRoot,
+                wrongTypePins, out _, out string typeReason) &&
+            typeReason == "graph_asset_identity_or_type_mismatch");
+
+        Expect("maximum recursive depth enforced",
+            !CheckGraph(graphRoot, (int)AssetType.Object, graph, graphPins,
+                out _, out string depthReason, maxDepth: 1) &&
+            depthReason == "graph_depth_limit");
+
+        Expect("maximum total dependency assets enforced",
+            !CheckGraph(graphRoot, (int)AssetType.Object, graph, graphPins,
+                out _, out string countReason, maxAssets: 2) &&
+            countReason == "graph_asset_count_limit");
+
+        Expect("cumulative byte budget enforced",
+            !CheckGraph(graphRoot, (int)AssetType.Object, graph, graphPins,
+                out _, out string sizeReason, maxTotalBytes: 50) &&
+            sizeReason == "graph_total_or_single_asset_size_limit");
+
+        Expect("total nested reference count enforced",
+            !CheckGraph(graphRoot, (int)AssetType.Object, graph, graphPins,
+                out _, out string refReason, maxRefs: 1) &&
+            refReason == "graph_reference_count_limit");
+
+        var cycle = new Dictionary<UUID, AssetBase>(graph);
+        cycle[graphChild] = GraphAsset(graphChild, AssetType.Object,
+            GraphObject(GraphNestedItem(graphRoot, AssetType.Object)));
+        Expect("recursive object back-edge fails closed",
+            !CheckGraph(graphRoot, (int)AssetType.Object, cycle,
+                Pins(cycle), out _, out string cycleReason) &&
+            cycleReason == "graph_dependency_cycle");
+
+        var shared = new Dictionary<UUID, AssetBase>(graph);
+        shared[graphRoot] = GraphAsset(graphRoot, AssetType.Object,
+            GraphObject(GraphNestedItem(graphChild, AssetType.Object),
+                GraphNestedItem(graphScript, AssetType.LSLText)));
+        Expect("shared dependencies may be verified once",
+            CheckGraph(graphRoot, (int)AssetType.Object, shared,
+                Pins(shared), out OglHgDependencyGraphReport sharedReport, out _) &&
+            sharedReport.AssetsInspected == 3 &&
+            sharedReport.NestedReferences == 3);
+
+        var conflicting = new Dictionary<UUID, AssetBase>(graph);
+        conflicting[graphRoot] = GraphAsset(graphRoot, AssetType.Object,
+            GraphObject(GraphNestedItem(graphScript, AssetType.LSLText),
+                GraphNestedItem(graphScript, AssetType.Texture)));
+        Expect("conflicting embedded asset type declarations rejected",
+            !CheckGraph(graphRoot, (int)AssetType.Object, conflicting,
+                Pins(conflicting), out _, out string conflictReason) &&
+            conflictReason == "graph_conflicting_asset_types");
+
+        var brokenScript = new Dictionary<UUID, AssetBase>(graph);
+        AssetBase invalidScript = GraphAsset(graphScript, AssetType.LSLText, "ignored");
+        invalidScript.Data = new byte[] { 0xC3, 0x28 };
+        brokenScript[graphScript] = invalidScript;
+        Expect("malformed nested LSL UTF8 rejected even if hash-pinned",
+            !CheckGraph(graphRoot, (int)AssetType.Object, brokenScript,
+                Pins(brokenScript), out _, out string scriptReason) &&
+            scriptReason == "graph_asset_inspection_invalid_script_utf8");
+
+        var bytecodeGraph = new Dictionary<UUID, AssetBase>(graph);
+        bytecodeGraph[graphRoot] = GraphAsset(graphRoot, AssetType.Object,
+            GraphObject(GraphNestedItem(graphScript, AssetType.LSLBytecode)));
+        bytecodeGraph[graphScript] = GraphAsset(graphScript, AssetType.LSLBytecode,
+            "compiled foreign bytecode");
+        Expect("foreign executable nested bytecode never accepted",
+            !CheckGraph(graphRoot, (int)AssetType.Object, bytecodeGraph,
+                Pins(bytecodeGraph), out _, out _));
 
         // Linux-only private quarantine: capture a bounded sample of already
         // rejected assets, without inserting them into the normal asset store.
