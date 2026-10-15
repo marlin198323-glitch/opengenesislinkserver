@@ -779,6 +779,37 @@ namespace OpenSim.Services.InventoryService
             return true;
         }
 
+        // Trusted local ingestion boundary for foreign inventory deliveries.
+        // Not an HTTP endpoint. A configured validator must explicitly accept
+        // each item; normal local inventory operations remain unchanged.
+        private Func<InventoryItemBase, bool> m_foreignDeliveryValidator;
+
+        public bool TryRegisterForeignDeliveryValidator(Func<InventoryItemBase, bool> validator)
+        {
+            if (validator == null)
+                return false;
+            return System.Threading.Interlocked.CompareExchange(
+                ref m_foreignDeliveryValidator, validator, null) == null;
+        }
+
+        public bool TryAddForeignItem(InventoryItemBase item)
+        {
+            Func<InventoryItemBase, bool> validate = m_foreignDeliveryValidator;
+            if (item == null || validate == null)
+                return false;
+            try
+            {
+                if (!validate(item))
+                    return false;
+                return AddItem(item);
+            }
+            catch (Exception e)
+            {
+                m_log.Error("[INVENTORY GUARD]: Foreign delivery rejected after validation failure", e);
+                return false;
+            }
+        }
+
         public virtual bool AddItem(InventoryItemBase item)
         {
             if (item == null || IsProtectedFolder(item.Folder) ||
