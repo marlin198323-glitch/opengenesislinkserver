@@ -52,6 +52,7 @@ assert db.execute(
 ).fetchone()[0] == 0
 assert "TryRevokeSession" in repository
 assert "TryRevokeResident" in repository
+coordinator = (ROOT / "OpenSim/Services/InventoryService/OglHgRoamingTravelCoordinator.cs").read_text()
 assert "TryRevokeOnAuthenticatedLogout" in coordinator
 coordinator = (ROOT / "OpenSim/Services/InventoryService/OglHgRoamingTravelCoordinator.cs").read_text()
 assert "m_verifiedLocalTravel(resident, session, verifiedDestination)" in coordinator
