@@ -17,7 +17,13 @@ assert "ScriptStateExceptionCodec.ReadLimitedString(" in abstract
 assert "throw new NotSupportedException(" in abstract
 assert "GetType().FullName" in abstract
 assert "Type.GetType(" not in codec
+# Reject assembly-qualified type resolution from untrusted script/OAR array tags.
+assert "Type.GetType(" not in abstract
+assert "Unsupported YEngine array type tag" in abstract
+assert "YEngine array nesting limit exceeded" in abstract
+assert "Unsupported YEngine state array element type" in abstract
+assert "if (length < 0 || length > 65536)" in abstract
 assert "new BinaryFormatter" not in codec
 assert "Formatters.Binary" not in codec
 assert "MaxTextLength = 16384" in codec
-print("YEngine script state serialization rejects BinaryFormatter and unknown CLR types: OK")
+print("YEngine script state rejects BinaryFormatter, unknown CLR types and unsafe array type tags: OK")
