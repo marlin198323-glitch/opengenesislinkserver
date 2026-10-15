@@ -1,6 +1,8 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Reflection;
+using System.Runtime.CompilerServices;
 using System.Text;
 using OpenSim.Region.ScriptEngine.Yengine;
 
@@ -64,6 +66,50 @@ internal static class Program
     {
         Check(Encode(expected) == wireTag, "array serializer tag " + wireTag);
         Check(Decode(wireTag) == expected, "array deserializer tag " + wireTag);
+    }
+
+    private static readonly FieldInfo StateReader = typeof(XMRInstAbstract).GetField(
+        "migrateInReader", BindingFlags.NonPublic | BindingFlags.Instance);
+    private static readonly FieldInfo StateObjects = typeof(XMRInstAbstract).GetField(
+        "migrateInObjects", BindingFlags.NonPublic | BindingFlags.Instance);
+    private static readonly FieldInfo StateDepth = typeof(XMRInstAbstract).GetField(
+        "migrateInDepth", BindingFlags.NonPublic | BindingFlags.Instance);
+    private static readonly FieldInfo StateNodes = typeof(XMRInstAbstract).GetField(
+        "migrateInNodes", BindingFlags.NonPublic | BindingFlags.Instance);
+    private static readonly Type TokenEnum = typeof(XMRInstAbstract).GetNestedType(
+        "Ser", BindingFlags.NonPublic);
+
+    private static byte Token(string name) =>
+        Convert.ToByte(Enum.Parse(TokenEnum, name));
+
+    private static XMRInstAbstract NewStateReader(BinaryReader reader)
+    {
+        // This intentionally bypasses the live region script constructor;
+        // only the isolated RecvObjValue parser is exercised.
+        XMRInstAbstract state = (XMRInstAbstract)
+            RuntimeHelpers.GetUninitializedObject(typeof(XMRInstance));
+        StateReader.SetValue(state, reader);
+        StateObjects.SetValue(state, new Dictionary<int, object>());
+        return state;
+    }
+
+    private static object ParseState(byte[] data, int initialDepth = 0,
+                                     int initialNodes = 0)
+    {
+        using MemoryStream bytes = new(data, false);
+        using BinaryReader reader = new(bytes, Encoding.UTF8);
+        XMRInstAbstract state = NewStateReader(reader);
+        StateDepth.SetValue(state, initialDepth);
+        StateNodes.SetValue(state, initialNodes);
+        return state.RecvObjValue();
+    }
+
+    private static byte[] CreateState(Action<BinaryWriter> write)
+    {
+        using MemoryStream bytes = new();
+        using (BinaryWriter writer = new(bytes, Encoding.UTF8, true))
+            write(writer);
+        return bytes.ToArray();
     }
 
     private static int Main()
@@ -157,6 +203,77 @@ internal static class Program
         RejectType(() => Encode(typeof(Uri[])), "unlisted CLR array element");
         RejectType(() => Encode(typeof(string[,])), "multidimensional array output");
         RejectType(() => Encode(typeof(object[][][][][])), "excessive array output");
+
+        Check(TokenEnum != null && StateReader != null && StateObjects != null &&
+              StateDepth != null && StateNodes != null,
+              "real YEngine saved-state parser fields and tokens present");
+
+        byte[] integers = CreateState(w =>
+        {
+            w.Write(Token("SYSARRAY"));
+            w.Write("in");
+            w.Write(2);
+            w.Write(Token("SYSINT"));
+            w.Write(42);
+            w.Write(Token("SYSINT"));
+            w.Write(-7);
+        });
+        int[] decodedInts = (int[])ParseState(integers);
+        Check(decodedInts.Length == 2 && decodedInts[0] == 42 &&
+              decodedInts[1] == -7, "real persisted integer array roundtrip");
+
+        byte[] cyclic = CreateState(w =>
+        {
+            w.Write(Token("SYSARRAY"));
+            w.Write("ob");
+            w.Write(1);
+            w.Write(Token("DUPREF"));
+            w.Write(0);
+        });
+        object[] cyclicValue = (object[])ParseState(cyclic);
+        Check(ReferenceEquals(cyclicValue, cyclicValue[0]),
+            "reference-preserving circular array decoded");
+
+        byte[] scalar = CreateState(w => w.Write(Token("NULL")));
+        Invalid(() => ParseState(scalar, initialDepth: 64),
+            "saved-state recursion cap");
+        Invalid(() => ParseState(scalar, initialNodes: 131072),
+            "saved-state node cap");
+
+        byte[] invalidArray = CreateState(w =>
+        {
+            w.Write(Token("SYSARRAY"));
+            w.Write("System.IO.FileInfo");
+            w.Write(1);
+            w.Write(Token("NULL"));
+        });
+        Invalid(() => ParseState(invalidArray),
+            "saved-state CLR type resolution blocked");
+
+        byte[] oversizedArray = CreateState(w =>
+        {
+            w.Write(Token("SYSARRAY"));
+            w.Write("ob");
+            w.Write(65537);
+        });
+        Invalid(() => ParseState(oversizedArray),
+            "saved-state array element allocation capped");
+
+        string longerText = new string('L', 20000);
+        byte[] ordinaryString = CreateState(w =>
+        {
+            w.Write(Token("SYSSTR"));
+            w.Write(longerText);
+        });
+        Check((string)ParseState(ordinaryString) == longerText,
+            "legacy-compatible long LSL script string under new cap");
+        byte[] hugeText = CreateState(w =>
+        {
+            w.Write(Token("SYSSTR"));
+            w.Write(new string('L', 262145));
+        });
+        Invalid(() => ParseState(hugeText),
+            "oversized persisted LSL script string blocked");
 
         Console.WriteLine("YEngine exception state codec: PASS (" + checks + " checks)");
         return 0;
