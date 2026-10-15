@@ -18,6 +18,21 @@ namespace OpenSim.Services.InventoryService
         public static UUID Pending(UUID owner) => FolderId(owner, "pending");
         public static UUID Rejected(UUID owner) => FolderId(owner, "rejected");
 
+        // Per-transaction status subfolders contain NO executable assets.
+        // They are not created from unauthenticated HG inventory requests.
+        public static UUID Case(UUID owner, UUID caseId)
+        {
+            if (owner == UUID.Zero || caseId == UUID.Zero)
+                return UUID.Zero;
+
+            return FolderId(owner, "case/" + caseId);
+        }
+
+        public static string CaseLabel(UUID caseId)
+        {
+            return "Vorgang " + caseId.ToString().Substring(0, 8).ToUpperInvariant();
+        }
+
         public static bool IsManaged(UUID owner, UUID id)
         {
             if (owner == UUID.Zero || id == UUID.Zero)
