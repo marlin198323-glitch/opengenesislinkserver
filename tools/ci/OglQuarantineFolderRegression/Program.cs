@@ -50,6 +50,21 @@ internal static class Program
         }
     }
 
+    // This fake represents the LOCAL login/session authority. The production
+    // login connector must validate active/resident-owned authenticated
+    // sessions before calling IssueForAuthenticatedSession.
+    private sealed class FakeHomeGridSessions : IOglHgAuthenticatedResidentSessionSource
+    {
+        public UUID Resident;
+        public UUID Session;
+        public string Destination;
+        public bool Enabled = true;
+        public bool CanDelegate(UUID residentId, UUID authenticatedSessionId,
+            string destinationGridUri) =>
+            Enabled && residentId == Resident && authenticatedSessionId == Session &&
+            string.Equals(destinationGridUri, Destination, StringComparison.Ordinal);
+    }
+
     private static XInventoryService Service(IConfigSource config)
     {
         return new XInventoryService(config);
@@ -777,6 +792,156 @@ internal static class Program
                       !audit.RootElement.TryGetProperty("rawBytes", out _),
                     "receipt exposes no payment token or raw object bytes");
             }
+
+            // Phase 3j: the home grid delegates ONLY after its own trusted
+            // session authenticator recognizes this resident and actual login.
+            // A valid delegation does not bypass the independent source,
+            // permissions or settlement checks.
+            UUID delegatedOwner = owner;
+            UUID delegatedSession = UUID.Random();
+            var liveSessions = new FakeHomeGridSessions
+            {
+                Resident = delegatedOwner, Session = delegatedSession,
+                Destination = "https://osgrid.org"
+            };
+            byte[] roamingKey = RandomNumberGenerator.GetBytes(32);
+            var homeIssuer = new OglHgRoamingConsentAuthority(
+                roamingKey, "stadt-nexverse-home-test", liveSessions);
+            var deniedSessions = new FakeHomeGridSessions
+            {
+                Resident = delegatedOwner, Session = UUID.Random(),
+                Destination = "https://osgrid.org"
+            };
+            var deniedIssuer = new OglHgRoamingConsentAuthority(
+                roamingKey, "stadt-nexverse-home-test", deniedSessions);
+            Check(!deniedIssuer.TryIssueForAuthenticatedSession(
+                delegatedOwner, delegatedSession, "https://osgrid.org",
+                OglHgRoamingDeliveryScopes.Purchase, TimeSpan.FromMinutes(3),
+                out _), "unauthenticated resident travel session cannot mint consent");
+
+            liveSessions.Enabled = false;
+            Check(!homeIssuer.TryIssueForAuthenticatedSession(
+                delegatedOwner, delegatedSession, "https://osgrid.org",
+                OglHgRoamingDeliveryScopes.Purchase, TimeSpan.FromMinutes(3),
+                out _), "disabled session authority refuses delegation");
+            liveSessions.Enabled = true;
+            Check(!homeIssuer.TryIssueForAuthenticatedSession(
+                delegatedOwner, delegatedSession, "https://osgrid.org",
+                (OglHgRoamingDeliveryScopes)8, TimeSpan.FromMinutes(3),
+                out _), "unknown delivery scopes not allowed");
+            Check(!homeIssuer.TryIssueForAuthenticatedSession(
+                delegatedOwner, delegatedSession, "https://osgrid.org",
+                OglHgRoamingDeliveryScopes.Purchase, TimeSpan.FromMinutes(11),
+                out _), "roaming consent validity capped to ten minutes");
+
+            Check(homeIssuer.TryIssueForAuthenticatedSession(
+                delegatedOwner, delegatedSession, "https://osgrid.org",
+                OglHgRoamingDeliveryScopes.Purchase | OglHgRoamingDeliveryScopes.Gift,
+                TimeSpan.FromMinutes(3), out string signedTravel),
+                "signed roaming delegation issued only for authenticated home session");
+
+            OglHgResidentDeliveryRequest RoamingRequest(OglHgDeliveryKind kind,
+                UUID resident, UUID session, string grid, string ticket) =>
+                new OglHgResidentDeliveryRequest
+                {
+                    ResidentId = resident, SessionOrDelegationId = session,
+                    CaseId = UUID.Random(), ForeignTransferId = UUID.Random(),
+                    InventoryItemId = UUID.Random(), AssetId = UUID.Random(),
+                    AssetType = (int)AssetType.Object, Kind = kind,
+                    SourceGridUri = grid, RoamingConsentTicket = ticket,
+                    PurchaseReceipt = kind == OglHgDeliveryKind.Purchase ?
+                        "trusted-settlement-receipt" : null,
+                    PurchaseAmount = kind == OglHgDeliveryKind.Purchase ? 25 : 0
+                };
+
+            var roamingPurchase = RoamingRequest(OglHgDeliveryKind.Purchase,
+                delegatedOwner, delegatedSession, "https://osgrid.org", signedTravel);
+            Check(homeIssuer.VerifyForDelivery(roamingPurchase),
+                "signed roaming consent verifies resident/session/grid/purchase scope");
+            Check(!homeIssuer.VerifyForDelivery(RoamingRequest(
+                OglHgDeliveryKind.Purchase, UUID.Random(), delegatedSession,
+                "https://osgrid.org", signedTravel)),
+                "consent cannot authorize another resident");
+            Check(!homeIssuer.VerifyForDelivery(RoamingRequest(
+                OglHgDeliveryKind.Purchase, delegatedOwner, UUID.Random(),
+                "https://osgrid.org", signedTravel)),
+                "consent cannot authorize another authenticated login session");
+            Check(!homeIssuer.VerifyForDelivery(RoamingRequest(
+                OglHgDeliveryKind.Purchase, delegatedOwner, delegatedSession,
+                "https://grid.example.com", signedTravel)),
+                "delegation cannot be reused at another visited grid");
+            Check(!homeIssuer.VerifyForDelivery(RoamingRequest(
+                OglHgDeliveryKind.TakeCopy, delegatedOwner, delegatedSession,
+                "https://osgrid.org", signedTravel)),
+                "purchase+gift delegation cannot authorize Take Copy");
+            Check(homeIssuer.VerifyForDelivery(RoamingRequest(
+                OglHgDeliveryKind.Gift, delegatedOwner, delegatedSession,
+                "https://osgrid.org", signedTravel)),
+                "explicitly allowed gift scope works for same travel session");
+            Check(!homeIssuer.VerifyForDelivery(RoamingRequest(
+                OglHgDeliveryKind.Purchase, delegatedOwner, delegatedSession,
+                "https://osgrid.org", signedTravel.Substring(0,
+                    signedTravel.Length - 3) + "abc")),
+                "tampered home-grid HMAC ticket rejected");
+            var unrelatedSigner = new OglHgRoamingConsentAuthority(
+                RandomNumberGenerator.GetBytes(32), "stadt-nexverse-home-test",
+                liveSessions);
+            Check(!unrelatedSigner.VerifyForDelivery(roamingPurchase),
+                "ticket signed by different home-grid secret rejected");
+            var otherIssuer = new OglHgRoamingConsentAuthority(
+                roamingKey, "unrelated-home-grid", liveSessions);
+            Check(!otherIssuer.VerifyForDelivery(roamingPurchase),
+                "home-grid issuer domain separation enforced");
+
+            // These intentionally use the real integration intake with a
+            // consent verifier, but mock independent remote-transfer evidence.
+            var wrappedEvidence = new OglHgRoamingDeliveryEvidence(homeIssuer, trust);
+            var roamingIntake = new OglHgResidentDeliveryIntake(wrappedEvidence,
+                authority, deliveryCoordinator, deliveryLedger);
+            trust.SourceAttested = false;
+            Check(!roamingIntake.TryReceive(roamingPurchase, offeredBytes,
+                out string rejectedSignedForeign) &&
+                rejectedSignedForeign == "delivery_unverified_foreign_source",
+                "valid HOME delegation alone cannot approve untrusted foreign source");
+            trust.SourceAttested = true;
+            trust.PaymentSettled = false;
+            Check(!roamingIntake.TryReceive(roamingPurchase, offeredBytes,
+                out string rejectedSignedPurchase) &&
+                rejectedSignedPurchase == "delivery_purchase_not_settled",
+                "valid HOME delegation alone cannot approve unpaid purchase");
+            trust.PaymentSettled = true;
+            Check(roamingIntake.TryReceive(roamingPurchase, offeredBytes,
+                out string consentBoundReason) &&
+                consentBoundReason == "delivery_quarantined_not_released",
+                "verified HOME consent plus separate trust checks stages only");
+            Check(Service(cfg).GetItem(owner, roamingPurchase.InventoryItemId) == null,
+                "roaming ticket never directly unlocks buyer inventory");
+            Check(!roamingIntake.TryReceive(roamingPurchase, offeredBytes,
+                out string replayedTravelTransfer) &&
+                replayedTravelTransfer == "delivery_duplicate_or_unavailable_ledger",
+                "foreign transaction remains single-use within valid roaming ticket");
+
+            var signedCopyDenied = RoamingRequest(OglHgDeliveryKind.TakeCopy,
+                delegatedOwner, delegatedSession, "https://osgrid.org", signedTravel);
+            Check(!roamingIntake.TryReceive(signedCopyDenied, offeredBytes,
+                out string forbiddenCopy) &&
+                forbiddenCopy == "delivery_resident_consent_missing",
+                "missing TakeCopy scope rejected before remote checks or staging");
+
+            Check(homeIssuer.TryIssueForAuthenticatedSession(
+                delegatedOwner, delegatedSession, "https://osgrid.org",
+                OglHgRoamingDeliveryScopes.TakeCopy, TimeSpan.FromSeconds(1),
+                out string tinyTravel), "one-second local consent issued");
+            var shortRequest = RoamingRequest(OglHgDeliveryKind.TakeCopy,
+                delegatedOwner, delegatedSession, "https://osgrid.org", tinyTravel);
+            Check(homeIssuer.VerifyForDelivery(shortRequest),
+                "new one-second delegation is initially valid");
+            Thread.Sleep(2500);
+            Check(!homeIssuer.VerifyForDelivery(shortRequest) &&
+                  !roamingIntake.TryReceive(shortRequest, offeredBytes,
+                      out string expiredConsent) &&
+                  expiredConsent == "delivery_resident_consent_missing",
+                "expired travel delegation cannot authorize HG item receipt");
 
             // Secret never comes from a source-code/config default.
             bool weakSecretRejected = false;
