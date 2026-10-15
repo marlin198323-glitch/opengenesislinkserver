@@ -7,7 +7,11 @@ staging grid have been verified.
 ## Release-blocking legacy data
 
 - The .NET10 typed KeyframeMotion reader deliberately rejects old .NET8
-  BinaryFormatter BLOBs from region databases and OARs.
+  BinaryFormatter BLOBs from region databases and OARs. The .NET10 branch
+  now retains rejected bytes separately on the owning prim and passes them
+  through normal SQLite/MariaDB saves and XML2/OAR exports; this does not
+  enable old motion playback. Explicit script/user motion changes can clear
+  the retained data, and unknown snapshots still require offline migration.
 - YEngine old SYSERIAL / THROWNEX tokens are not supported by .NET10.
 - The updated YEngine now **preserves an incompatible .state file and aborts
   that script's startup** rather than deleting the file and replaying
