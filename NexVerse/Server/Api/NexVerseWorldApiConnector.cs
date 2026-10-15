@@ -33,6 +33,76 @@ namespace NexVerse.Server.Api
         private static readonly object s_OfflineImMailRelaySync = new object();
         private static NexOfflineImMailRelay s_OfflineImMailRelay;
 
+        // The HTTP route must exist even if later privileged connector startup
+        // fails (e.g. an unavailable optional service). The public-only
+        // fallback is loaded on demand; no authorization is bypassed.
+        private sealed class EarlyStatisticsRoute
+        {
+            private readonly IConfigSource m_Config;
+            private readonly object m_Sync = new object();
+            private NexStatisticsApi m_PublicApi;
+            private NexStatisticsApi m_PrivilegedApi;
+
+            public EarlyStatisticsRoute(IConfigSource config)
+            {
+                m_Config = config;
+            }
+
+            public void AttachPrivileged(NexStatisticsApi api)
+            {
+                if (api == null)
+                    throw new ArgumentNullException(nameof(api));
+
+                System.Threading.Volatile.Write(ref m_PrivilegedApi, api);
+            }
+
+            public void Summary(IOSHttpRequest request, IOSHttpResponse response)
+            {
+                NexStatisticsApi api = System.Threading.Volatile.Read(ref m_PrivilegedApi);
+                if (api != null)
+                {
+                    api.Summary(request, response);
+                    return;
+                }
+
+                // During bootstrap or when privileged services cannot start,
+                // never return OpenSim's misleading HTML 404 for this route.
+                // Anonymous requests get only public aggregates; requests
+                // carrying credentials fail closed without an authenticator.
+                lock (m_Sync)
+                {
+                    api = System.Threading.Volatile.Read(ref m_PrivilegedApi);
+                    if (api == null)
+                    {
+                        if (m_PublicApi == null)
+                        {
+                            try
+                            {
+                                m_PublicApi = new NexStatisticsApi(
+                                    LoadOptionalService<IUserAccountService>(m_Config, "UserAccountService"),
+                                    LoadGridUserData(m_Config),
+                                    LoadOptionalService<IPresenceService>(m_Config, "PresenceService"),
+                                    LoadOptionalService<IGridService>(m_Config, "GridService"),
+                                    null,
+                                    true);
+                            }
+                            catch (Exception e)
+                            {
+                                m_Log.Error("[NEX-STATS]: Public statistics data source failed to initialize.", e);
+                                // Retry provider initialization on the next request.
+                                api = new NexStatisticsApi(null, null, null, null, null, true);
+                            }
+                        }
+
+                        if (api == null)
+                            api = m_PublicApi;
+                    }
+                }
+
+                api.Summary(request, response);
+            }
+        }
+
         public NexVerseWorldApiConnector(IConfigSource config, IHttpServer server, string configName)
             : base(config, server, configName)
         {
@@ -223,6 +293,16 @@ namespace NexVerse.Server.Api
             server.AddSimpleStreamHandler(new SimpleStreamHandler("/api/v1/chatgpt-buergerportal.md", apiGate.Wrap(chatGptInstructions.HandleCitizen), "NexVerse ChatGPT Citizen Portal Instructions"));
             server.AddSimpleStreamHandler(new SimpleStreamHandler("/api/v1/chatgpt-admin.md", apiGate.Wrap(chatGptInstructions.HandleAdmin), "NexVerse ChatGPT Admin Instructions"));
             server.AddSimpleStreamHandler(new SimpleStreamHandler("/api/v1/health", apiGate.Wrap(handlers.Health), "NexVerse World API Health"));
+            // Register statistics before the much larger privileged service graph.
+            // A failure later in connector startup must never silently remove
+            // this public endpoint or fall through to OpenSim's default 404.
+            EarlyStatisticsRoute statisticsRoute = new EarlyStatisticsRoute(config);
+            server.AddSimpleStreamHandler(new SimpleStreamHandler(
+                "/api/v1/statistics/summary",
+                apiGate.Wrap(statisticsRoute.Summary),
+                "NexVerse statistics summary"));
+            m_Log.Info("[NEX-WORLD-API]: Statistics summary route registered.");
+
             server.AddSimpleStreamHandler(new SimpleStreamHandler("/api/v1/version", apiGate.Wrap(handlers.Version), "NexVerse World API Version"));
             server.AddSimpleStreamHandler(new SimpleStreamHandler("/api/v1/capabilities", apiGate.Wrap(handlers.Capabilities), "NexVerse World API Capabilities"));
             server.AddSimpleStreamHandler(new SimpleStreamHandler("/api/v1/openapi.json", apiGate.Wrap(handlers.OpenApi), "NexVerse World API OpenAPI"));
@@ -937,10 +1017,9 @@ namespace NexVerse.Server.Api
                     m_Log.Info("[NEX-WEBPROFILE-V3]: WebProfileV3 enabled using the authoritative UserProfilesService store.");
                 }
 
-                server.AddSimpleStreamHandler(new SimpleStreamHandler(
-                    "/api/v1/statistics/summary",
-                    apiGate.Wrap(statisticsApi.Summary),
-                    "NexVerse statistics summary"));
+                // Preserve authenticated statistics: the early route now delegates
+                // to the fully initialized, scope-enforcing administrator service.
+                statisticsRoute.AttachPrivileged(statisticsApi);
 
                 if (nativeTokens != null && oauthStore != null && oidcSigner != null)
                 {
@@ -1015,36 +1094,8 @@ namespace NexVerse.Server.Api
             }
             else
             {
-                IUserAccountService statisticsUserAccounts =
-                    LoadOptionalService<IUserAccountService>(
-                        config,
-                        "UserAccountService");
-                IGridUserData statisticsGridUsers =
-                    LoadGridUserData(config);
-                IPresenceService statisticsPresence =
-                    LoadOptionalService<IPresenceService>(
-                        config,
-                        "PresenceService");
-                IGridService statisticsGrid =
-                    LoadOptionalService<IGridService>(
-                        config,
-                        "GridService");
-
-                NexStatisticsApi publicStatisticsApi =
-                    new NexStatisticsApi(
-                        statisticsUserAccounts,
-                        statisticsGridUsers,
-                        statisticsPresence,
-                        statisticsGrid,
-                        null,
-                        true);
-
-                server.AddSimpleStreamHandler(
-                    new SimpleStreamHandler(
-                        "/api/v1/statistics/summary",
-                        apiGate.Wrap(publicStatisticsApi.Summary),
-                        "NexVerse aggregate statistics summary"));
-
+                // The already-registered route lazily loads the same public
+                // aggregate services; no duplicate handler or database plugin.
                 m_Log.Info(
                     "[NEX-WORLD-API]: Privileged endpoints are disabled; privacy-safe aggregate statistics remain available.");
             }
