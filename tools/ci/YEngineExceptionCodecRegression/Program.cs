@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Reflection;
 using System.Text;
 using OpenSim.Region.ScriptEngine.Yengine;
 
@@ -37,6 +38,32 @@ internal static class Program
         Exception value = ScriptStateExceptionCodec.Read(br);
         Check(buffer.Position == buffer.Length, "no extra bytes on roundtrip");
         return value;
+    }
+
+    // Private serializer helpers are inspected through reflection to exercise
+    // the actual engine implementation, not a duplicated test-only resolver.
+    private static readonly MethodInfo EncodeType = typeof(XMRInstance).GetMethod(
+        "SysType2String", BindingFlags.NonPublic | BindingFlags.Static);
+    private static readonly MethodInfo DecodeType = typeof(XMRInstance).GetMethod(
+        "String2SysType", BindingFlags.NonPublic | BindingFlags.Static);
+
+    private static string Encode(Type t) => (string)EncodeType.Invoke(null, new object[] { t });
+    private static Type Decode(string tag) => (Type)DecodeType.Invoke(null, new object[] { tag });
+
+    private static void RejectType(Action action, string description)
+    {
+        ++checks;
+        try { action(); }
+        catch (TargetInvocationException e)
+            when (e.InnerException is InvalidDataException ||
+                  e.InnerException is NotSupportedException) { return; }
+        throw new Exception("YEngine accepted unsafe CLR type: " + description);
+    }
+
+    private static void CheckType(Type expected, string wireTag)
+    {
+        Check(Encode(expected) == wireTag, "array serializer tag " + wireTag);
+        Check(Decode(wireTag) == expected, "array deserializer tag " + wireTag);
     }
 
     private static int Main()
@@ -110,6 +137,27 @@ internal static class Program
             Check(ScriptStateExceptionCodec.ReadLimitedString(reader) == "thrown-event",
                 "ScriptThrownException bounded message roundtrip");
         }
+        // Script-state arrays must not load arbitrary types or assemblies
+        // from attacker-supplied OAR / script-state bytes.
+        Check(EncodeType != null && DecodeType != null, "array codec methods present");
+        CheckType(typeof(bool), "bo");
+        CheckType(typeof(int[]), "in[]");
+        CheckType(typeof(string[]), "st[]");
+        CheckType(typeof(object[][]), "ob[][]");
+        CheckType(typeof(object[][][][]), "ob[][][][]");
+        CheckType(typeof(OpenSim.Region.ScriptEngine.Shared.LSL_Types.LSLFloat[]), "lf[]");
+        CheckType(typeof(OpenSim.Region.ScriptEngine.Shared.LSL_Types.LSLInteger[]), "ln[]");
+        CheckType(typeof(OpenSim.Region.ScriptEngine.Shared.LSL_Types.LSLString[]), "lk[]");
+        RejectType(() => Decode("System.IO.FileInfo"), "reflection-qualified type");
+        RejectType(() => Decode("System.String, System.Private.CoreLib"), "assembly type");
+        RejectType(() => Decode("st[][][][][]"), "excessive array nesting");
+        RejectType(() => Decode("st[, ]"), "multidimensional array");
+        RejectType(() => Decode(""), "empty type");
+        RejectType(() => Decode(new string('x', 100)), "oversized type string");
+        RejectType(() => Encode(typeof(Uri[])), "unlisted CLR array element");
+        RejectType(() => Encode(typeof(string[,])), "multidimensional array output");
+        RejectType(() => Encode(typeof(object[][][][][])), "excessive array output");
+
         Console.WriteLine("YEngine exception state codec: PASS (" + checks + " checks)");
         return 0;
     }
