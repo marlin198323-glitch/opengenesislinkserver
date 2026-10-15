@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Security.Cryptography;
 using System.Text.Json;
+using System.Threading.Tasks;
 using Nini.Config;
 using OpenMetaverse;
 using OpenSim.Framework;
@@ -283,9 +284,28 @@ internal static class Program
                 OglInventoryQuarantineFolders.Case(owner, grantCase)).ParentID == rejected,
                 "crypto-authorized rejection persists as folder status");
 
+            UUID concurrentCase = UUID.Random();
+            UUID concurrentItem = UUID.Random();
+            UUID concurrentAsset = UUID.Random();
+            string oneProof = authority.Issue(owner, concurrentCase, concurrentItem,
+                concurrentAsset, OglQuarantineTransferAction.Begin,
+                TimeSpan.FromSeconds(60));
+            // FileMode.CreateNew must allow exactly ONE successful consumer,
+            // including when another inventory service races it.
+            Task<bool> a = Task.Run(() => coordinator.TryBegin(oneProof, owner,
+                concurrentCase, concurrentItem, concurrentAsset));
+            Task<bool> b = Task.Run(() => restartedCoordinator.TryBegin(oneProof, owner,
+                concurrentCase, concurrentItem, concurrentAsset));
+            Task.WaitAll(a, b);
+            Check((a.Result ? 1 : 0) + (b.Result ? 1 : 0) == 1,
+                "concurrent cross-instance proof replay admits exactly one");
+            Check(postRestart.GetFolder(owner,
+                OglInventoryQuarantineFolders.Case(owner, concurrentCase)) != null,
+                "winning concurrent proof creates exactly one pending case");
+
             string[] spentProofs = Directory.GetFiles(ledgerDir, "*.spent");
-            Check(spentProofs.Length == 2,
-                "exactly two valid proofs were consumed; invalid proofs are not spent");
+            Check(spentProofs.Length == 3,
+                "exactly three valid proofs were consumed; invalid proofs are not spent");
             bool verifiedAudit = false;
             foreach (string receipt in spentProofs)
             {
