@@ -13,6 +13,8 @@ using OpenMetaverse;
 using OpenSim.Framework;
 using OpenSim.Framework.Console;
 using OpenSim.Services.InventoryService;
+using OpenSim.Services.HypergridService;
+using OpenSim.Services.Interfaces;
 
 internal static class Program
 {
@@ -146,6 +148,84 @@ internal static class Program
             Check(newProcess.GetFolderContent(owner, pending).Items.Count == 0 &&
                   newProcess.GetFolderItems(owner, rejected).Count == 0,
                   "normal viewers see no executable content in protected folders");
+
+            // Strict policy regression against an actual HG Suitcase service
+            // backed by SQLite, with no remote request principal assumed.
+            UUID suitcaseID = UUID.Random();
+            var suitcaseFolder = new InventoryFolderBase(suitcaseID,
+                InventoryFolderBase.SUITCASE_FOLDER_NAME, owner,
+                (short)FolderType.Suitcase,
+                newProcess.GetRootFolder(owner).ID, 1);
+            Check(newProcess.AddFolder(suitcaseFolder),
+                "resident has an existing HG suitcase");
+            var suitcaseChild = new InventoryFolderBase(UUID.Random(),
+                "Public Outfit", owner, (short)FolderType.None, suitcaseID, 1);
+            Check(newProcess.AddFolder(suitcaseChild),
+                "suitcase has a pre-existing child without read side effects");
+            InventoryItemBase suitcaseItem = NewItem(owner, suitcaseID,
+                "Allowed read-only suitcase item");
+            Check(newProcess.AddItem(suitcaseItem),
+                "legitimate local item stored in suitcase");
+
+            guard.Set("LegacyPublicAccessMode", "ReadOnly");
+            var readonlyHg = new HGSuitcaseInventoryService(cfg,
+                "HGPolicyRegressionNoExternalService");
+            IInventoryService readonlyApi = readonlyHg;
+            Check(readonlyApi.GetRootFolder(owner)?.ID == suitcaseID,
+                "ReadOnly public HG can view pre-existing suitcase");
+            Check(readonlyApi.GetItem(owner, suitcaseItem.ID)?.ID == suitcaseItem.ID,
+                "ReadOnly HG can read suitcase-scoped item");
+            Check(readonlyApi.GetItem(owner, normal.ID) == null,
+                "ReadOnly HG cannot fetch arbitrary resident inventory item");
+            InventoryItemBase[] scoped = readonlyApi.GetMultipleItems(owner,
+                new UUID[] { suitcaseItem.ID, normal.ID });
+            Check(scoped.Length == 2 && scoped[0]?.ID == suitcaseItem.ID &&
+                scoped[1] == null, "ReadOnly HG batch query remains suitcase-scoped");
+            var folderCollections = readonlyApi.GetMultipleFoldersContent(owner,
+                new UUID[] { suitcaseID, objects.ID });
+            Check(folderCollections.Length == 2 &&
+                folderCollections[0].Items.Any(i => i.ID == suitcaseItem.ID) &&
+                (folderCollections[1].Items == null ||
+                 folderCollections[1].Items.Count == 0),
+                "ReadOnly HG folder batch query does not bypass scope");
+            Check(!readonlyApi.AddItem(NewItem(owner, suitcaseID, "HG injection")),
+                "ReadOnly HG blocks public AddItem");
+            Check(!readonlyApi.AddFolder(new InventoryFolderBase(UUID.Random(),
+                "HG injection", owner, (short)FolderType.None, suitcaseID, 1)),
+                "ReadOnly HG blocks public AddFolder");
+            Check(!readonlyApi.UpdateItem(suitcaseItem) &&
+                  !readonlyApi.MoveItems(owner, new List<InventoryItemBase>
+                  { suitcaseItem }), "ReadOnly HG blocks public update and move");
+            Check(readonlyApi.GetAssetPermissions(owner, suitcaseItem.AssetID) == 0,
+                "ReadOnly HG hides general inventory asset permission union");
+
+            guard.Set("LegacyPublicAccessMode", "BlockAll");
+            var blockedHg = new HGSuitcaseInventoryService(cfg,
+                "HGPolicyRegressionNoExternalService");
+            IInventoryService blockedApi = blockedHg;
+            Check(blockedApi.GetRootFolder(owner) == null &&
+                  blockedApi.GetItem(owner, suitcaseItem.ID) == null &&
+                  blockedApi.GetFolder(owner, suitcaseID) == null,
+                "BlockAll HG rejects single inventory reads");
+            Check(blockedApi.GetMultipleItems(owner, new UUID[]
+                  { suitcaseItem.ID }).Length == 0 &&
+                  blockedApi.GetMultipleFoldersContent(owner,
+                  new UUID[] { suitcaseID }).Length == 0 &&
+                  blockedApi.GetActiveGestures(owner).Count == 0,
+                "BlockAll HG rejects batch and gestures reads");
+            Check(!blockedApi.HasInventoryForUser(owner),
+                "BlockAll HG does not disclose resident inventory existence");
+            Check(!blockedApi.AddItem(NewItem(owner, suitcaseID, "HG blocked")) &&
+                  !blockedApi.UpdateFolder(suitcaseFolder),
+                "BlockAll HG denies mutations");
+
+            guard.Set("LegacyPublicAccessMode", "not-recognized");
+            var invalidHg = new HGSuitcaseInventoryService(cfg,
+                "HGPolicyRegressionNoExternalService");
+            Check(((IInventoryService)invalidHg).GetRootFolder(owner) == null,
+                "invalid policy is BlockAll, not legacy public access");
+            guard.Set("LegacyPublicAccessMode", "LegacyCompatible");
+
 
             // Phase 3a: a trusted local coordinator can project status as an
             // empty *folder*, not as an uninspected inventory/asset reference.
