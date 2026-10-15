@@ -359,6 +359,11 @@ namespace OpenSim.Services.HypergridService
         // server-maintained travel record; it never trusts an HG caller's
         // claimed destination. A presence check is still required by the
         // InventoryGuard coordinator before issuing a consent ticket.
+        // Optional trusted HOME-GRID InventoryGuard integration.
+        // No remote endpoint may register this callback. Configuration
+        // and the owning server bootstrap must explicitly wire it.
+        public static Func<UUID, UUID, bool> InventoryGuardRevokeOnLogout { get; set; }
+
         public bool IsAuthenticatedTravelDestination(UUID residentId,
             UUID sessionId, string destinationGridUri)
         {
@@ -384,6 +389,26 @@ namespace OpenSim.Services.HypergridService
         public void LogoutAgent(UUID userID, UUID sessionID)
         {
             m_log.DebugFormat("[USER AGENT SERVICE]: User {0} logged out", userID);
+
+            // Revoke consent while the session still exists. On failure,
+            // retain the session record and refuse to report a clean logout.
+            // This hook is inactive until a trusted local bootstrap wires it.
+            Func<UUID, UUID, bool> revoke = InventoryGuardRevokeOnLogout;
+            if (revoke != null)
+            {
+                bool revoked;
+                try { revoked = revoke(userID, sessionID); }
+                catch (Exception e)
+                {
+                    m_log.Error("[INVENTORY GUARD]: Logout grant revocation failed", e);
+                    return;
+                }
+                if (!revoked)
+                {
+                    m_log.ErrorFormat("[INVENTORY GUARD]: Refusing logout cleanup after failed grant revocation for session {0}", sessionID);
+                    return;
+                }
+            }
 
             m_Database.Delete(sessionID);
 
