@@ -26,6 +26,8 @@ namespace NexVerse.Server.Api
         private readonly IGridUserData m_GridUsers;
         private readonly IPresenceService m_Presence;
         private readonly IGridService m_Grid;
+        private readonly IRegionData m_RegionData;
+        private readonly IAssetService m_Assets;
         private readonly NexApiAuthenticator m_Authenticator;
         private readonly bool m_AllowPublicAggregates;
 
@@ -35,12 +37,16 @@ namespace NexVerse.Server.Api
             IPresenceService presence,
             IGridService grid,
             NexApiAuthenticator authenticator,
-            bool allowPublicAggregates)
+            bool allowPublicAggregates,
+            IRegionData regionData = null,
+            IAssetService assets = null)
         {
             m_UserAccounts = userAccounts;
             m_GridUsers = gridUsers;
             m_Presence = presence;
             m_Grid = grid;
+            m_RegionData = regionData;
+            m_Assets = assets;
             m_Authenticator = authenticator;
             m_AllowPublicAggregates = allowPublicAggregates;
         }
@@ -298,6 +304,9 @@ namespace NexVerse.Server.Api
             // online counts remain meaningful, otherwise report unknown.
             bool residentOnlineKnown = gridUserAvailable || presenceAvailable;
 
+            RegionSnapshot regions = ReadRegions();
+            string assetStatus = ReadAssetServiceStatus();
+
             string correlationId = Correlation(response);
 
             WriteJson(response, new
@@ -359,7 +368,35 @@ namespace NexVerse.Server.Api
                         : Array.Empty<object>()
                 },
                 account_states = accountStates,
-                regions = includeProtectedDetails
+                // Grid region registration is public map metadata, not an
+                // online-avatar breakdown. Include offline and reserved local
+                // regions; never expose simulator internal endpoints or secrets.
+                regions = regions.Rows,
+                region_summary = new
+                {
+                    registered_total = regions.Registered,
+                    online_total = regions.Online,
+                    offline_total = regions.Offline,
+                    reserved_total = regions.Reserved,
+                    hypergrid_links = regions.HypergridLinks,
+                    status_source = "GridStore RegionOnline flag (registration state, not an active network probe)"
+                },
+                services = new
+                {
+                    grid = new
+                    {
+                        status = m_Grid == null
+                            ? "unavailable"
+                            : regions.Available ? "ok" : "degraded",
+                        data_available = regions.Available
+                    },
+                    asset = new
+                    {
+                        status = assetStatus,
+                        probe = "read_only_missing_asset_existence_query"
+                    }
+                },
+                region_online_users = includeProtectedDetails
                     ? regionBreakdown
                     : Array.Empty<object>(),
                 hypergrid_home_grids = includeProtectedDetails
@@ -367,11 +404,16 @@ namespace NexVerse.Server.Api
                     : Array.Empty<object>(),
                 data_quality = new
                 {
-                    complete = gridUserAvailable && completeAccountEnumeration,
+                    complete = gridUserAvailable && completeAccountEnumeration && regions.Available && assetStatus == "ok",
                     griduser_source = gridUserAvailable ? "available" : "unavailable",
-                    missing_metrics = gridUserAvailable
+                    region_source = regions.Available ? "GridStore" : "unavailable",
+                    asset_service_probe = assetStatus,
+                    missing_metrics = (gridUserAvailable
                         ? Array.Empty<string>()
-                        : new[] { "activity_history", "hypergrid_visitors", "hypergrid_online", "total_online" },
+                        : new[] { "activity_history", "hypergrid_visitors", "hypergrid_online", "total_online" })
+                        .Concat(regions.Available ? Array.Empty<string>() : new[] { "registered_regions", "online_regions" })
+                        .Concat(assetStatus == "ok" ? Array.Empty<string>() : new[] { "asset_service_health" })
+                        .ToArray(),
                     registered_source =
                         completeAccountEnumeration
                             ? "UserAccountService aggregate"
@@ -391,6 +433,114 @@ namespace NexVerse.Server.Api
                 },
                 correlation_id = correlationId
             });
+        }
+
+
+        // Use the authoritative GridStore instead of deriving regions from
+        // avatar presence: empty grids still have registered/offline regions.
+        private RegionSnapshot ReadRegions()
+        {
+            if (m_RegionData == null)
+                return new RegionSnapshot();
+
+            try
+            {
+                List<RegionData> rows = m_RegionData.Get("%", UUID.Zero);
+                if (rows == null)
+                    return new RegionSnapshot();
+
+                RegionData[] distinct = rows
+                    .Where(x => x != null && !x.RegionID.IsZero())
+                    .GroupBy(x => x.RegionID)
+                    .Select(group => group.First())
+                    .ToArray();
+
+                int online = 0, reserved = 0, links = 0;
+                List<object> visible = new List<object>();
+                foreach (RegionData region in distinct)
+                {
+                    int flags = 0;
+                    if (region.Data != null &&
+                        region.Data.TryGetValue("flags", out object raw))
+                        int.TryParse(Convert.ToString(raw), out flags);
+
+                    bool isLink =
+                        (flags & (int)OpenSim.Framework.RegionFlags.Hyperlink) != 0;
+                    if (isLink)
+                    {
+                        links++;
+                        continue;
+                    }
+
+                    bool isReserved =
+                        (flags & (int)OpenSim.Framework.RegionFlags.Reservation) != 0;
+                    bool isOnline = !isReserved &&
+                        (flags & (int)OpenSim.Framework.RegionFlags.RegionOnline) != 0;
+                    if (isReserved)
+                        reserved++;
+                    if (isOnline)
+                        online++;
+
+                    visible.Add(new
+                    {
+                        region_id = region.RegionID.ToString(),
+                        region_name = region.RegionName ?? string.Empty,
+                        grid_x = region.posX / 256,
+                        grid_y = region.posY / 256,
+                        size_x = region.sizeX,
+                        size_y = region.sizeY,
+                        online = isOnline,
+                        status = isReserved ? "reserved" : isOnline ? "online" : "offline"
+                    });
+                }
+
+                return new RegionSnapshot
+                {
+                    Available = true,
+                    Registered = visible.Count,
+                    Online = online,
+                    Offline = visible.Count - online - reserved,
+                    Reserved = reserved,
+                    HypergridLinks = links,
+                    Rows = visible
+                        .ToArray()
+                };
+            }
+            catch (Exception e)
+            {
+                m_Log.Warn("[NEX-STATS]: GridStore region inventory unavailable; other statistics remain accessible.", e);
+                return new RegionSnapshot();
+            }
+        }
+
+        // A read-only query for a known missing UUID tests the actual asset
+        // datastore. A false existence result is SUCCESS; no asset is changed.
+        private string ReadAssetServiceStatus()
+        {
+            if (m_Assets == null)
+                return "unavailable";
+            try
+            {
+                bool[] found = m_Assets.AssetsExist(
+                    new[] { UUID.Zero.ToString() });
+                return found != null && found.Length == 1 ? "ok" : "degraded";
+            }
+            catch (Exception e)
+            {
+                m_Log.Warn("[NEX-STATS]: AssetService read-only health probe failed.", e);
+                return "degraded";
+            }
+        }
+
+        private sealed class RegionSnapshot
+        {
+            public bool Available;
+            public int? Registered;
+            public int? Online;
+            public int? Offline;
+            public int? Reserved;
+            public int? HypergridLinks;
+            public object[] Rows = Array.Empty<object>();
         }
 
         private List<UserAccount> LoadAccounts(
