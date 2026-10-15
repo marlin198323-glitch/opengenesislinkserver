@@ -52,7 +52,7 @@ writes = ["AddFolder", "UpdateFolder", "MoveFolder", "AddItem",
 for name in reads + writes:
     import re as _re
     pattern = _re.compile(
-        r"public override [^{};]{0,300}\\b" + _re.escape(name) + r"\\s*\\([^)]*\\)\\s*\\{",
+        r"public override [^{};]{0,300}\b" + _re.escape(name) + r"\s*\([^)]*\)\s*\{",
         _re.MULTILINE,
     )
     match = pattern.search(service)
