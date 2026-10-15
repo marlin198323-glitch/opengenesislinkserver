@@ -63,6 +63,19 @@ internal static class Program
             guard.Set("Enabled", "true");
             guard.Set("CreateInventorySystemFolder", "true");
             XInventoryService service = Service(cfg);
+
+            // Reserved folder IDs are protected even before the resident's
+            // first skeleton/login has actually created those folders.
+            UUID unbornOwner = UUID.Random();
+            Check(!service.AddItem(NewItem(unbornOwner,
+                OglInventoryQuarantineFolders.Pending(unbornOwner), "injection")),
+                "cannot preseed a reserved folder item before registration");
+            var preseededChild = new InventoryFolderBase(UUID.Random(),
+                "unexpected", unbornOwner, (short)FolderType.None,
+                OglInventoryQuarantineFolders.Root(unbornOwner), 1);
+            Check(!service.AddFolder(preseededChild),
+                "cannot preseed a reserved folder child before registration");
+
             var oldInventory = service.GetInventorySkeleton(previousOwner);
             Check(oldInventory.Count == before + 3,
                 "existing resident receives three folders on next inventory skeleton");
