@@ -1,5 +1,7 @@
 // Runtime regression tests for OGL HG InventoryGuard metadata validation.
 using System;
+using System.Text;
+using System.Linq;
 using OpenMetaverse;
 using OpenSim.Framework;
 using OpenSim.Services.HypergridService;
@@ -83,6 +85,59 @@ internal static class Program
 
         Expect("missing original rejected",
             !OglHgInventoryGuard.TryValidateUpdate(null, valid, out _));
+
+
+        // Phase 2: verify the actual HG asset-byte inspection contract.
+        AssetBase validObject = new AssetBase(UUID.Random(), "HG object",
+            (sbyte)AssetType.Object, valid.CreatorIdentification);
+        validObject.Data = Encoding.UTF8.GetBytes(
+            "<SceneObjectGroup><RootPart><Name>Safe</Name></RootPart></SceneObjectGroup>");
+        Expect("valid object XML accepted",
+            OglHgInventoryAssetInspector.TryInspect(validObject, 4096, 1024, out _));
+
+        AssetBase xmlWithDtd = new AssetBase(UUID.Random(), "XML DTD",
+            (sbyte)AssetType.Object, valid.CreatorIdentification);
+        xmlWithDtd.Data = Encoding.UTF8.GetBytes(
+            "<!DOCTYPE x [<!ENTITY explode SYSTEM 'file:///etc/passwd'>]>" +
+            "<SceneObjectGroup>&explode;</SceneObjectGroup>");
+        Expect("DTD/entity rejected",
+            !OglHgInventoryAssetInspector.TryInspect(xmlWithDtd, 4096, 1024, out _));
+
+        AssetBase deeplyNested = new AssetBase(UUID.Random(), "nested",
+            (sbyte)AssetType.Object, valid.CreatorIdentification);
+        deeplyNested.Data = Encoding.UTF8.GetBytes(
+            new string(' ', 0) + string.Concat(
+                System.Linq.Enumerable.Repeat("<n>", 70)) +
+            string.Concat(System.Linq.Enumerable.Repeat("</n>", 70)));
+        Expect("excessive XML depth rejected",
+            !OglHgInventoryAssetInspector.TryInspect(deeplyNested, 4096, 1024, out _));
+
+        AssetBase oversized = new AssetBase(UUID.Random(), "oversized",
+            (sbyte)AssetType.Texture, valid.CreatorIdentification);
+        oversized.Data = new byte[128];
+        Expect("oversized asset rejected",
+            !OglHgInventoryAssetInspector.TryInspect(oversized, 64, 32, out _));
+
+        AssetBase validScript = new AssetBase(UUID.Random(), "script",
+            (sbyte)AssetType.LSLText, valid.CreatorIdentification);
+        validScript.Data = Encoding.UTF8.GetBytes("default { state_entry() { llSay(0, \"hello\"); } }");
+        Expect("valid UTF8 LSL source accepted",
+            OglHgInventoryAssetInspector.TryInspect(validScript, 4096, 1024, out _));
+
+        AssetBase corruptScript = new AssetBase(UUID.Random(), "broken script",
+            (sbyte)AssetType.LSLText, valid.CreatorIdentification);
+        corruptScript.Data = new byte[] { 0xC3, 0x28 };
+        Expect("invalid script encoding rejected",
+            !OglHgInventoryAssetInspector.TryInspect(corruptScript, 4096, 1024, out _));
+
+        AssetBase bytecode = new AssetBase(UUID.Random(), "foreign bytecode",
+            (sbyte)AssetType.LSLBytecode, valid.CreatorIdentification);
+        bytecode.Data = new byte[] { 0x01, 0x02, 0x03 };
+        Expect("foreign executable bytecode rejected",
+            !OglHgInventoryAssetInspector.TryInspect(bytecode, 4096, 1024, out _));
+
+        Expect("null asset rejected",
+            !OglHgInventoryAssetInspector.TryInspect(null, 4096, 1024, out _));
 
         Console.WriteLine(failures == 0 ? "OGL HG InventoryGuard metadata: PASS"
                                         : "OGL HG InventoryGuard metadata: FAIL");
