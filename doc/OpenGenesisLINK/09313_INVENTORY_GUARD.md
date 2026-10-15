@@ -1,4 +1,4 @@
-# OpenGenesisLINK 0.9.3.13 - OGL HG InventoryGuard (Phase 1-3f, Entwicklung)
+# OpenGenesisLINK 0.9.3.13 - OGL HG InventoryGuard (Phase 1-3g, Entwicklung)
 
 Status: **Entwicklungszweig / noch nicht fuer Stable freigegeben.**
 Diese Aenderung betrifft ausschliesslich den per `HGSuitcaseInventoryService`
@@ -522,6 +522,60 @@ Restart, Hash-Manipulation und Fehler.
 `OglQuarantineFolderRegression` testet die separaten
 signierten Child-Tickets, Replay-Schutz und Ablehnung
 bei geschlossenem/abgelehntem Vorgang.
+
+## Phase 3g: strukturgebundener Snapshot-Fingerprint gegen veraltete Pruefungen
+
+`OglHgStagedQuarantineBundleInspector.TryInspectBound` erzeugt nach
+erfolgreicher **struktureller**, rekursiver Pruefung einen
+`OglHgQuarantineInspectionBinding`-Datensatz mit SHA-256-Fingerprint.
+Dieser ist an alle Bestandteile des konkreten Pruefvorgangs gebunden:
+
+- Verifiziertes lokales Bewohnerkonto, Vorgangs-UUID, Root-Item-UUID und
+  Root-Asset-UUID;
+- **alle** Root- und Child-Assets (kanonisch nach UUID sortiert),
+  jeweils Asset-ID, Assettyp, Laenge und SHA-256 ueber die
+  tatsaechlich gelesenen Bytes;
+- Alle wirksamen Grenzwerte der strukturellen Pruefung: maximaler
+  Einzelasset-/Scriptumfang, Assetanzahl, Referenzanzahl,
+  Verschachtelungstiefe sowie aggregierter Byteumfang.
+
+Der Fingerprint verwendet eine versionierte, laengenpraefixierte
+Binaerkodierung, damit unterschiedliche Listen oder Felder nicht
+den gleichen einfachen Textverkettungs-Eingang ergeben.
+Ein weiterer kompletter lokaler Staging-Snapshot nach der
+Graphanalyse entdeckt Aenderungen **waehrend** der Pruefung.
+`TryIsBindingCurrent` kann nach Neustart oder vor einer spaeteren
+administrativen Entscheidung einen frischen Snapshot inklusive
+aller Dateien mit dem alten Fingerprint vergleichen.
+
+Fuegt ein Prozess nach einer Pruefung ein weiteres Asset hinzu,
+aendert er die Referenzen, tauscht er Bytes aus, entfernt er
+Manifest- oder Payload-Dateien oder veraendert sich das
+Pruefprofil, ist der alte Fingerprint **nicht mehr gueltig**.
+Die Pruefung muss auf dem neuen vollstaendigen Snapshot erneut
+durchgefuehrt werden. Nicht mehr lesbare oder geaenderte
+Staging-Datensaetze fuehren zum Abbruch.
+
+**Kein Sicherheitsattest und KEINE Freigabe:** Dies ist
+ein lokaler, **nicht signierter Diagnose-Fingerprint**.
+Die im Quarantaene-Manifest erzeugten Hashes weisen nur
+Unveraendertheit seit der lokalen Ablage nach, nicht
+Vertrauenswuerdigkeit des fremden Grids oder Besitzrechte.
+Der Rueckgabestatus bleibt ausschliesslich
+`structurally_inspected_not_authorized`.
+Zwischen erneuter Fingerprint-Pruefung und einem irgendwann
+implementierten Upload koennte ohne atomare Sperre weiterhin
+ein TOCTOU-Rennen auftreten. Bei echter Produktivfreigabe
+muss die finale Graph-, Rechte- und Authentizitaetspruefung
+innerhalb **derselben transaktionalen Freigabesperre** wie
+der abschliessende Inventory-/Asset-Commit stattfinden.
+Aktuell gibt es keine Freigabe-API und keine automatischen
+HG-Transferverknuepfungen.
+
+CI: Die `OglHgInventoryGuardRegression` prueft den
+vollstaendigen Fingerprint, unterschiedliche Regelprofile,
+Unveraendertheit nach Prozessneustart, Invalidierung
+durch nachtraegliche Abhaengigkeiten sowie manipulierte Bytes.
 
 ## Nicht implementiert - keine Sicherheitsversprechen
 
