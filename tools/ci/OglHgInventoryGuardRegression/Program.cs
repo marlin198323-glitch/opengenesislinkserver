@@ -447,6 +447,31 @@ internal static class Program
                     bundleReport.ScriptSourcesInspected == 1 &&
                     bundleReport.NestedReferences == 2);
 
+                Expect("multi-asset binding: diagnostic inspection binds all files",
+                    OglHgStagedQuarantineBundleInspector.TryInspectBound(store,
+                        stagingOwner, stagingCase, stagingRootItem,
+                        16384, 4096, 8, 16, 8, 65536,
+                        out OglHgQuarantineInspectionBinding inspectionBinding,
+                        out OglHgDependencyGraphReport boundReport, out _) &&
+                    inspectionBinding != null &&
+                    inspectionBinding.RootAssetId == graphRoot &&
+                    inspectionBinding.Owner == stagingOwner &&
+                    inspectionBinding.CaseId == stagingCase &&
+                    inspectionBinding.Status == "structurally_inspected_not_authorized" &&
+                    boundReport.AssetsInspected == 3 &&
+                    inspectionBinding.SnapshotSha256.Length == 64);
+
+                Expect("multi-asset binding: freshly checked snapshot is current",
+                    OglHgStagedQuarantineBundleInspector.TryIsBindingCurrent(
+                        store, inspectionBinding, out _));
+                Expect("multi-asset binding: different policy has different fingerprint",
+                    OglHgStagedQuarantineBundleInspector.TryInspectBound(store,
+                        stagingOwner, stagingCase, stagingRootItem,
+                        16384, 4096, 8, 15, 8, 65536,
+                        out OglHgQuarantineInspectionBinding differentPolicy,
+                        out _, out _) &&
+                    differentPolicy.SnapshotSha256 != inspectionBinding.SnapshotSha256);
+
                 var afterRestart = new OglQuarantineTransferStageStore(
                     stagedPath, 16384, 8, 65536);
                 Expect("multi-asset stage: hash-pinned bundle survives restart",
@@ -455,6 +480,10 @@ internal static class Program
                         16384, 4096, 8, 16, 8, 65536,
                         out OglHgDependencyGraphReport restartReport, out _) &&
                     restartReport.AssetsInspected == 3);
+                Expect("multi-asset binding: persisted snapshot remains current after restart",
+                    OglHgStagedQuarantineBundleInspector.TryIsBindingCurrent(
+                        afterRestart, inspectionBinding, out _));
+
 
                 Expect("multi-asset stage: owner mismatch denied",
                     !OglHgStagedQuarantineBundleInspector.TryInspect(afterRestart,
@@ -474,6 +503,17 @@ internal static class Program
                 Expect("multi-asset stage: unreferenced extra asset blocks case",
                     !BundleInspect(out _, out string extraReason) &&
                     extraReason == "bundle_unreferenced_staged_asset");
+                Expect("multi-asset binding: late dependent asset makes prior scan stale",
+                    !OglHgStagedQuarantineBundleInspector.TryIsBindingCurrent(
+                        afterRestart, inspectionBinding, out string staleReason) &&
+                    staleReason == "bundle_binding_stale");
+
+                Expect("multi-asset binding: no successful renewed scan with surplus blob",
+                    !OglHgStagedQuarantineBundleInspector.TryInspectBound(store,
+                        stagingOwner, stagingCase, stagingRootItem,
+                        16384, 4096, 8, 16, 8, 65536,
+                        out OglHgQuarantineInspectionBinding noBinding, out _, out _) &&
+                    noBinding == null);
 
                 string[] scriptFiles = Directory.GetFiles(stagedPath,
                     "*.dep." + graphScript + ".payload");
@@ -486,6 +526,9 @@ internal static class Program
                         !store.TryReadVerifiedBundle(stagingOwner, stagingCase,
                             stagingRootItem, 8, 65536, out _, out string corruptedReason) &&
                         corruptedReason == "bundle_dependency_corrupt");
+                    Expect("multi-asset binding: tampered bytes invalidate prior inspection",
+                        !OglHgStagedQuarantineBundleInspector.TryIsBindingCurrent(
+                            store, inspectionBinding, out _));
                 }
             }
             finally
