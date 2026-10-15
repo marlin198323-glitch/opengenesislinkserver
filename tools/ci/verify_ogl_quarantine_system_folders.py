@@ -39,7 +39,7 @@ for method, next_method in [
     segment = source[start:end]
     assert "IsProtected" in segment or "HasProtected" in segment, method
 
-assert "if (!IsProtectedFolder(folderID))" in source
+assert "if (!IsProtectedFolder(folderID) &&" in source
 assert "IsProtectedFolder(items[0].parentFolderID)" in source
 assert "SHA256.HashData(" in ids
 assert "FolderType.None" in source
