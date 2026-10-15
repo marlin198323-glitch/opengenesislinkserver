@@ -377,6 +377,80 @@ internal static class Program
             Directory.Delete(stateDir, recursive: true);
         }
 
+
+        // The real .state and OAR XML parsers must share strict limits and
+        // reject DTD, oversized text and malformed snapshots before writing.
+        MethodInfo parseState = typeof(XMRInstance).GetMethod(
+            "ParsePersistedStateXml", BindingFlags.NonPublic | BindingFlags.Static);
+        MethodInfo readState = typeof(XMRInstance).GetMethod(
+            "ReadPersistedStateXmlFile", BindingFlags.NonPublic | BindingFlags.Static);
+        Check(parseState != null && readState != null,
+              "bounded YEngine saved-state readers are available");
+        string safeXml = "<ScriptState Engine=\"YEngine\"><Snapshot>test</Snapshot></ScriptState>";
+        System.Xml.XmlDocument parsed = (System.Xml.XmlDocument)
+            parseState.Invoke(null, new object[] { safeXml });
+        Check(parsed.DocumentElement.Name == "ScriptState",
+              "read-only bounded XML parser accepts legitimate scripts");
+        string dtdXml = "<!DOCTYPE ScriptState [<!ENTITY a 'unsafe'>]>" +
+            "<ScriptState Engine=\"YEngine\"><Snapshot>&a;</Snapshot></ScriptState>";
+        bool dtdRejected = false;
+        try { parseState.Invoke(null, new object[] { dtdXml }); }
+        catch (TargetInvocationException e) when (e.InnerException is System.Xml.XmlException)
+        { dtdRejected = true; }
+        Check(dtdRejected, "DTD and custom entities are rejected");
+        bool oversizedXmlRejected = false;
+        try
+        {
+            parseState.Invoke(null, new object[] {
+                "<ScriptState><Snapshot>" + new string('s', 8 * 1024 * 1024) +
+                "</Snapshot></ScriptState>" });
+        }
+        catch (TargetInvocationException e) when (e.InnerException is InvalidDataException)
+        { oversizedXmlRejected = true; }
+        Check(oversizedXmlRejected, "oversized imported XML state rejected before parse");
+
+        // The original stateDir was removed by the preceding test, so use
+        // another isolated directory for file-reader and writer limits.
+        string boundedDir = Path.Combine(
+            Path.GetTempPath(), "ogl-yengine-xml-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(boundedDir);
+        try
+        {
+            string file = Path.Combine(boundedDir, "bounded.state");
+            File.WriteAllText(file, safeXml);
+            System.Xml.XmlDocument loaded = (System.Xml.XmlDocument)
+                readState.Invoke(null, new object[] { file });
+            Check(loaded.DocumentElement.Name == "ScriptState",
+                  "file reader accepts legitimate YEngine .state");
+            File.WriteAllText(file, dtdXml);
+            bool fileDtdRejected = false;
+            try { readState.Invoke(null, new object[] { file }); }
+            catch (TargetInvocationException e) when (e.InnerException is System.Xml.XmlException)
+            { fileDtdRejected = true; }
+            Check(fileDtdRejected, "file reader blocks XML DTD");
+            File.WriteAllText(file, safeXml);
+            bool oversizedWriteRejected = false;
+            try
+            {
+                stateSave.Invoke(null, new object[] { file,
+                    "<ScriptState>" + new string('q', 8 * 1024 * 1024) +
+                    "</ScriptState>" });
+            }
+            catch (TargetInvocationException e) when (e.InnerException is InvalidDataException)
+            { oversizedWriteRejected = true; }
+            Check(oversizedWriteRejected && File.ReadAllText(file) == safeXml,
+                  "oversized save cannot destroy previous script state");
+            File.WriteAllBytes(file, new byte[8 * 1024 * 1024 + 1]);
+            bool oversizedFileRejected = false;
+            try { readState.Invoke(null, new object[] { file }); }
+            catch (TargetInvocationException e) when (e.InnerException is InvalidDataException)
+            { oversizedFileRejected = true; }
+            Check(oversizedFileRejected, "oversized on-disk XML blocked before allocation");
+        }
+        finally
+        {
+            Directory.Delete(boundedDir, recursive: true);
+        }
         Console.WriteLine("YEngine exception state codec: PASS (" + checks + " checks)");
         return 0;
     }
