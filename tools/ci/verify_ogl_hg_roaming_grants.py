@@ -86,3 +86,10 @@ assert 'string.Equals(inventoryGuardMode, "Observe", StringComparison.OrdinalIgn
 assert "accepted = validate != null && validate(item);" in inventory_source
 assert "if (!m_OglInventoryGuardObserve)" in inventory_source
 assert "return AddItem(item);" in inventory_source
+
+suitcase_source = (ROOT / "OpenSim/Services/HypergridService/HGSuitcaseInventoryService.cs").read_text()
+assert 'guardConfig?.GetString("Mode", "Enforce")' in suitcase_source
+assert 'm_OglInventoryGuardObserve ? "Observed suspicious" : "Rejected"' in suitcase_source
+assert 'if (!m_OglInventoryGuardObserve)' in suitcase_source
+assert 'if (!AllowLegacyWrite)' in suitcase_source
+assert 'if (!IsWithinSuitcaseTree(item.Owner, item.Folder))' in suitcase_source
