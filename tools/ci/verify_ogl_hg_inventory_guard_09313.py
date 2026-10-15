@@ -49,6 +49,17 @@ assert "XmlResolver = null" in asset_scanner
 assert "MaximumObjectDepth" in asset_scanner and "MaximumObjectNodes" in asset_scanner
 assert "AssetType.LSLBytecode" in asset_scanner
 assert "UTF8Encoding(false, true)" in asset_scanner
+quarantine = read("OpenSim/Services/HypergridService/OglHgInventoryQuarantine.cs")
+assert 'GetBoolean("QuarantineRejectedAssets", false)' in asset_handler
+assert "OglHgInventoryQuarantine.TryCapture" not in asset_handler  # instance method
+assert "m_OglInventoryQuarantine.TryCapture(asset, reason" in asset_handler
+assert "return string.Empty;" in asset_handler.split("m_OglInventoryQuarantine.TryCapture(asset, reason", 1)[1]
+assert "FileMode.CreateNew" in quarantine
+assert "UnixCreateMode = PrivateFileMode" in quarantine
+assert "File.SetUnixFileMode(m_directory, PrivateDirectoryMode)" in quarantine
+assert "SHA256.HashData(asset.Data)" in quarantine
+assert '"rejected_evidence_only"' in quarantine
+assert "MaxCaptureBytes" in quarantine
 for path in (
     "bin/Robust.HG.ini",
     "bin/Robust.HG.ini.example",
@@ -59,6 +70,9 @@ for path in (
     assert section and re.search(r"(?m)^\s*ScanInboundAssets\s*=\s*true\s*$", section.group(1)), path
     assert "MaxInboundAssetBytes = 33554432" in section.group(1), path
     assert "MaxInboundScriptBytes = 1048576" in section.group(1), path
+    assert "QuarantineRejectedAssets = false" in section.group(1), path
+    assert "QuarantineMaxCaptureBytes = 262144" in section.group(1), path
+    assert "QuarantineMaxRecords = 5000" in section.group(1), path
 
 assert "AllowLegacyPublicHGInventory = true" in read("bin/Robust.HG.ini")
-print("OGL HG InventoryGuard phase 1+2: static integration verified (authorization and quarantine NOT implemented)")
+print("OGL HG InventoryGuard: metadata + asset ingress + rejected-evidence quarantine wiring verified (no avatar authorization)")
