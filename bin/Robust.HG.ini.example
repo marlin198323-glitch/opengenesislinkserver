@@ -159,11 +159,12 @@
     HeloServiceInConnector = "${Const|PublicPort}/OpenSim.Server.Handlers.dll:HeloServiceInConnector"
     HGFriendsServerConnector = "${Const|PublicPort}/OpenSim.Server.Handlers.dll:HGFriendsServerConnector"
     InstantMessageServerConnector = "${Const|PublicPort}/OpenSim.Server.Handlers.dll:InstantMessageServerConnector"
-    ; OGL-SECURITY: Öffentlichen HG-Inventardienst NICHT registrieren.
-    ; Ohne Avatar-Authentifizierung muss die Route deaktiviert bleiben (404).
-    ; Zusätzliche C#-Notfallsperre antwortet bei alten Konfigurationen 403.
-    ; Der private InventoryInConnector bleibt weiterhin verfügbar.
-    ; HGInventoryServiceConnector = "HGInventoryService@${Const|PublicPort}/OpenSim.Server.Handlers.dll:XInventoryInConnector"
+    ; OGL 0.9.3.13 TEMPORAER: Legacy-HG-Inventar fuer HG-Kaeufe / Suitcase aktiv.
+    ; WARNUNG: Das alte Protokoll liefert keine sichere Avatar-Autorisierung.
+    ; Fremde Server koennen ggf. unerlaubte Inventaroperationen ausfuehren.
+    ; Zum Sperren diese Connector-Zeile auskommentieren UND die Option
+    ; AllowLegacyPublicHGInventory in [HGInventoryService] auf false setzen.
+    HGInventoryServiceConnector = "HGInventoryService@${Const|PublicPort}/OpenSim.Server.Handlers.dll:XInventoryInConnector"
     HGAssetServiceConnector = "HGAssetService@${Const|PublicPort}/OpenSim.Server.Handlers.dll:AssetServiceConnector"
     ;; Uncomment this if you want Groups V2, HG to work
     HGGroupsServiceConnector = "${Const|PublicPort}/OpenSim.Addons.Groups.dll:HGGroupsServiceRobustConnector"
@@ -896,6 +897,9 @@
 ; * those simulators will know about the user's inventory.
 ; *
 [HGInventoryService]
+    ; TEMPORAERE LEGACY-KOMPATIBILITAET: NICHT als sicher ansehen.
+    ; Entfernen oder auf false setzen, wenn eine autorisierte HG-Loesung existiert.
+    AllowLegacyPublicHGInventory = true
     ; For the InventoryServiceInConnector
     LocalServiceModule    = "OpenSim.Services.HypergridService.dll:HGSuitcaseInventoryService"
     ;; alternatives:
