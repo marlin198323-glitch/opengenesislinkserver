@@ -28,6 +28,10 @@ namespace OpenSim.Services.InventoryService
         public int AssetType { get; init; }
         public OglHgDeliveryKind Kind { get; init; }
         public string SourceGridUri { get; init; }
+        // HOME-GRID signed, session/grids/scopes/time-bound delegation.
+        // A remote HG sender cannot mint this. Not sufficient without
+        // independently verified source, rights and payment evidence.
+        public string RoamingConsentTicket { get; init; }
         public string PurchaseReceipt { get; init; }
         public long PurchaseAmount { get; init; }
     }
