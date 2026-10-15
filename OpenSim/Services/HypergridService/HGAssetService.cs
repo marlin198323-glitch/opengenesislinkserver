@@ -63,6 +63,7 @@ namespace OpenSim.Services.HypergridService
         private readonly bool m_OglInventoryAssetScanEnabled;
         private readonly int m_OglInventoryMaxAssetBytes;
         private readonly int m_OglInventoryMaxScriptBytes;
+        private readonly OglHgInventoryQuarantine m_OglInventoryQuarantine;
 
         IAssetService m_assetService = null;
 
@@ -114,6 +115,21 @@ namespace OpenSim.Services.HypergridService
                     "(max asset {0} bytes, max script {1} bytes); this is NOT avatar authorization " +
                     "or full object-inventory/script inspection.",
                     m_OglInventoryMaxAssetBytes, m_OglInventoryMaxScriptBytes);
+            }
+
+            // Optional, isolated evidence for ALREADY rejected inbound HG assets.
+            // No auto-release, and no claims of pre-inventory transfer staging.
+            if (m_OglInventoryAssetScanEnabled &&
+                guardConfig.GetBoolean("QuarantineRejectedAssets", false))
+            {
+                m_OglInventoryQuarantine = new OglHgInventoryQuarantine(
+                    guardConfig.GetString("QuarantineDirectory", string.Empty),
+                    guardConfig.GetInt("QuarantineMaxCaptureBytes",
+                        OglHgInventoryQuarantine.DefaultMaxCaptureBytes),
+                    guardConfig.GetInt("QuarantineMaxRecords",
+                        OglHgInventoryQuarantine.DefaultMaxRecords));
+                m_log.Warn("[OGL INVENTORY GUARD]: Rejected HG asset evidence quarantine enabled; " +
+                    "the private path must not be served publicly. No automatic release is available.");
             }
 
             // Permissions
@@ -210,8 +226,19 @@ namespace OpenSim.Services.HypergridService
                     m_OglInventoryMaxAssetBytes, m_OglInventoryMaxScriptBytes,
                     out string reason))
             {
-                m_log.WarnFormat("[OGL INVENTORY GUARD]: Rejected inbound HG asset {0}: {1}",
-                    asset.FullID, reason);
+                if (m_OglInventoryQuarantine != null)
+                {
+                    if (m_OglInventoryQuarantine.TryCapture(asset, reason, out string recordId))
+                        m_log.WarnFormat("[OGL INVENTORY GUARD]: Rejected inbound HG asset {0}: {1}; evidence {2}",
+                            asset.FullID, reason, recordId);
+                    else
+                        m_log.WarnFormat("[OGL INVENTORY GUARD]: Rejected inbound HG asset {0}: {1}; " +
+                            "quarantine evidence unavailable (quota, I/O or permissions).",
+                            asset.FullID, reason);
+                }
+                else
+                    m_log.WarnFormat("[OGL INVENTORY GUARD]: Rejected inbound HG asset {0}: {1}",
+                        asset.FullID, reason);
                 return string.Empty;
             }
 
