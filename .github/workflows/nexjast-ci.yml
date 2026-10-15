@@ -529,6 +529,18 @@ jobs:
         shell: bash
         run: python3 tools/ci/verify_legacy_keyframe_audit.py
 
+      - name: Verify byte-identical .NET10 backup and isolated restore staging
+        shell: bash
+        run: python3 tools/ci/verify_net10_backup_gate.py
+
+      - name: Inventory legacy YEngine snapshots in offline state and OAR fixtures
+        shell: bash
+        run: python3 tools/ci/verify_net10_yengine_audit.py
+
+      - name: Refuse destructive YEngine script state reset on migration failure
+        shell: bash
+        run: python3 tools/ci/verify_net10_yengine_preservation.py
+
       - name: Regression-test typed KeyframeMotion persistence
         shell: bash
         run: dotnet run --configuration Release --project tools/ci/KeyframeMotionSerializationRegression/KeyframeMotionSerializationRegression.csproj
