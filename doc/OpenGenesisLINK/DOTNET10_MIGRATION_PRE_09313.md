@@ -188,9 +188,11 @@ and register the legacy HG inventory endpoint, **without per-avatar
 authentication**. This is an acknowledged risk, not a vulnerability fix.
 A .NET runtime migration does not address avatar authorization.
 
-**The .NET 10 draft is behind main (PR #224) and must reconcile its code,
-HG config, documentation and CI gates before eventual merge.** Do not
-replace the new operator setting with the old 403/404-only assumptions.
+**The HG inventory changes from main (PR #224) have been reconciled
+into this .NET 10 draft and its Git history.** Before eventual release,
+check for any newer main commits and keep the opt-in plus its rollback
+contract intact. Do not replace this operator setting with the older
+403/404-only assumptions.
 Keep the default behavior when the option is absent fail-closed, and
 document how to revoke the override. Follow issue #219 for an
 authenticated, interoperable replacement.
