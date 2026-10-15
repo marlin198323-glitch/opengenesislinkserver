@@ -37,6 +37,33 @@ explizit. Eigene Live-Konfigurationen werden durch Git nicht zwingend
 aktualisiert. ROBUST/Standalone muessen **mit einer neu gebauten Binary**
 gestartet werden; ein Git-Commit allein aktiviert nichts.
 
+## Phase 2a: implementierte HG Asset-Eingangspruefung (keine Quarantaene)
+
+- `[OGLInventoryGuard] ScanInboundAssets = true` aktiviert bei ebenfalls
+  gesetztem `Enabled = true` die Pruefung am
+  `HGAssetService.Store(AssetBase)`-Pfad **vor** `m_assetService.Store`.
+  Der Code-Default fuer die Einzeloption ist `false`.
+- `MaxInboundAssetBytes = 33554432` (32 MiB) und
+  `MaxInboundScriptBytes = 1048576` (1 MiB) begrenzen Payloads und LSL-Text.
+  Gueltige kleinere Assets koennen weiter importiert werden.
+- Null-/leere Assets oder fehlende Asset-UUID werden abgewiesen.
+- `Object`-Assets muessen syntaktisch gueltiges XML sein; XML-Reader ist
+  streaming, mit `DtdProcessing.Prohibit`, `XmlResolver=null`,
+  einer Dokumentgroessen-, Tiefen- und Knotenzahlgrenze.
+- `LSLText` braucht gueltiges UTF-8, darf kein NUL enthalten.
+  `LSLBytecode` als eingehendes fremdes Ausfuehrungsformat wird
+  vorsorglich abgewiesen. Das ist kein Beweis fuer boesartige Scripts.
+- `HGAssetService.Store` lehnt bei Guard-Fehlern mit leerem Ergebnis ab.
+  Reject-Grund wird im Serverlog ohne Assetinhalt protokolliert.
+- Ein Inventar-Item kann ueber andere Wege geschrieben werden oder bevor
+  die referenzierten Assetbytes uebertragen sind. Phase 2a blockiert nur
+  die Payload am HGAssetService-Eingang, **nicht** jeden potentiellen
+  Inventareintrag und nicht die internen Asset-Dienste.
+- Der Objekt-XML-Parser prueft nur die Struktursicherheit des Containers,
+  nicht alle referenzierten Assets, enthaltenen Scripts/Objekte oder die
+  beabsichtigte Laufzeitwirkung. Texturen/Meshes erhalten bisher nur
+  allgemeine Groessen-/Nichtleer-Pruefungen, keine volle Formatvalidierung.
+
 ## Nicht implementiert - keine Sicherheitsversprechen
 
 1. **Keine Autorisierung:** Der Legacy-Handler ermittelt aus einem
@@ -45,10 +72,13 @@ gestartet werden; ein Git-Commit allein aktiviert nichts.
    Ein Angreifer kann Besitzer-IDs faelschen. Diese Phase verhindert
    insbesondere weder alle fremden Schreiboperationen noch alle
    Lesoperationen.
-2. **Kein Asset-Scanner:** Die `AssetID` referenziert separate Daten;
-   `AddItem` sieht keine vollstaendigen Objektbytes. Meshes,
-   Texturen, XML-Objekte, Scripts und verschachtelte Inventare
-   werden derzeit NICHT geprueft.
+2. **Keine vollstaendige rekursive Content-Inspektion:** Die `AssetID`
+   referenziert separate Daten, die ein `AddItem` nicht sieht. Die
+   HGAssetService-Eingangskontrolle validiert Objekt-XML nur strukturell,
+   prueft aber weder eingebettete Script-Faehigkeiten noch alle
+   referenzierten Assets, Mesh-/Texturdateiformate und Unterinventare.
+   Ohne isolierten Transferstatus existiert keine atomare
+   "vollstaendig geprueft vor Item-Anlage"-Garantie.
 3. **Keine Quarantaene:** Es gibt noch keinen persistenten
    Zwischenzustand mit Freigabe-/Ablehnungsworkflow.
 4. **Keine Schadcode-Erkennung:** Statische Suche nach LSL-/OSSL-
@@ -64,14 +94,14 @@ gestartet werden; ein Git-Commit allein aktiviert nichts.
 
 ## Tests
 
-Statische Verkabelungspruefung:
+Statische Verkabelungspruefung (Metadaten- und Asset-Eingangspruefung):
 
 ```bash
 python3 tools/ci/verify_ogl_hg_inventory_guard_09313.py
 python3 tools/ci/verify_hg_inventory_security_09312.py
 ```
 
-Ausfuehrbare Metadaten-Regression (benoetigt den vollstaendig gebauten
+Ausfuehrbare Metadaten-/Asset-Regression (benoetigt den vollstaendig gebauten
 OpenGenesisLINK-/OpenSim-Abhaengigkeitsbaum und .NET 8):
 
 ```bash
