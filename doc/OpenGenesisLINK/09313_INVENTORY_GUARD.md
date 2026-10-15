@@ -1,4 +1,4 @@
-# OpenGenesisLINK 0.9.3.13 - OGL HG InventoryGuard (Phase 1, Entwicklung)
+# OpenGenesisLINK 0.9.3.13 - OGL HG InventoryGuard (Phase 1-3b, Entwicklung)
 
 Status: **Entwicklungszweig / noch nicht fuer Stable freigegeben.**
 Diese Aenderung betrifft ausschliesslich den per `HGSuitcaseInventoryService`
@@ -299,7 +299,8 @@ Regressionstest:
 `dotnet run -c Release --project tools/ci/OglQuarantineFolderRegression/OglQuarantineFolderRegression.csproj`
 prueft gueltige und gefaelschte Tickets, falsche Audience/
 Avatar-/Item-/Asset-ID, Operationstrennung, Replay nach Neustart,
-maximale Gültigkeitsdauer und idempotente Quarantaene-Statuswechsel.
+maximale Gültigkeitsdauer, idempotente Quarantaene-Statuswechsel und
+konkurrierende Replay-Versuche von zwei unabhängigen Service-Instanzen.
 
 ## Nicht implementiert - keine Sicherheitsversprechen
 
