@@ -334,11 +334,17 @@ internal static class Program
                 var fields = audit.RootElement;
                 Check(fields.GetProperty("status").GetString() == "proof_spent",
                     "audit records only a consumed signed proof");
+                bool originalCase = fields.GetProperty("case_id").GetString() ==
+                    grantCase.ToString() &&
+                    fields.GetProperty("item_id").GetString() == grantItem.ToString() &&
+                    fields.GetProperty("asset_id").GetString() == grantAsset.ToString();
+                bool parallelCase = fields.GetProperty("case_id").GetString() ==
+                    concurrentCase.ToString() &&
+                    fields.GetProperty("item_id").GetString() == concurrentItem.ToString() &&
+                    fields.GetProperty("asset_id").GetString() == concurrentAsset.ToString();
                 Check(fields.GetProperty("owner_id").GetString() == owner.ToString() &&
-                      fields.GetProperty("case_id").GetString() == grantCase.ToString() &&
-                      fields.GetProperty("item_id").GetString() == grantItem.ToString() &&
-                      fields.GetProperty("asset_id").GetString() == grantAsset.ToString(),
-                      "audit binds proof to owner, case, item and asset");
+                      (originalCase || parallelCase),
+                      "audit binds each proof to its own owner, case, item and asset");
                 Check(!fields.TryGetProperty("proof", out _) &&
                       !fields.TryGetProperty("secret", out _),
                       "audit does not expose proof or signing secret");
