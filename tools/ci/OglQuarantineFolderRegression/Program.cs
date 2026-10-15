@@ -63,6 +63,9 @@ internal static class Program
             string destinationGridUri) =>
             Enabled && residentId == Resident && authenticatedSessionId == Session &&
             string.Equals(destinationGridUri, Destination, StringComparison.Ordinal);
+        public bool IsDelegationActive(UUID residentId, UUID authenticatedSessionId,
+            string destinationGridUri) =>
+            CanDelegate(residentId, authenticatedSessionId, destinationGridUri);
     }
 
     private static XInventoryService Service(IConfigSource config)
@@ -858,6 +861,12 @@ internal static class Program
                 delegatedOwner, delegatedSession, "https://osgrid.org", signedTravel);
             Check(homeIssuer.VerifyForDelivery(roamingPurchase),
                 "signed roaming consent verifies resident/session/grid/purchase scope");
+            liveSessions.Enabled = false;
+            Check(!homeIssuer.VerifyForDelivery(roamingPurchase),
+                "server-side revoked home-grid travel session invalidates signed ticket");
+            liveSessions.Enabled = true;
+            Check(homeIssuer.VerifyForDelivery(roamingPurchase),
+                "valid local session state permits earlier signed ticket again");
             Check(!homeIssuer.VerifyForDelivery(RoamingRequest(
                 OglHgDeliveryKind.Purchase, UUID.Random(), delegatedSession,
                 "https://osgrid.org", signedTravel)),
