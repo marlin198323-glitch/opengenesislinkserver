@@ -136,6 +136,31 @@ assert "AddItem(" not in delivery
 assert "TryRelease(" not in delivery
 assert "OglHgResidentDeliveryIntake" not in iface
 
+# Phase 3j: home-grid-issued session, grid and operation scoped consent
+# cannot substitute for independently verified source/rights/settlement.
+roaming = read("OpenSim/Services/InventoryService/OglHgRoamingConsentAuthority.cs")
+assert "IOglHgAuthenticatedResidentSessionSource" in roaming
+assert "CanDelegate(residentId, authenticatedSessionId," in roaming
+assert "HMACSHA256.HashData(m_secret, bytes)" in roaming
+assert "CryptographicOperations.FixedTimeEquals(expected, received)" in roaming
+assert "fields[2] != request.ResidentId.ToString()" in roaming
+assert "fields[3] != request.SessionOrDelegationId.ToString()" in roaming
+assert "request.SourceGridUri" in roaming
+assert "(scopes & required) != required" in roaming
+assert "lifetime > TimeSpan.FromMinutes(10)" in roaming
+assert "expires - issued <= 600" in roaming
+assert "VerifyForDelivery(OglHgResidentDeliveryRequest request)" in roaming
+assert "m_homeConsent.VerifyForDelivery(request)" in roaming
+assert "m_foreignEvidence.HasAuthenticatedSourceTransfer(request, sha256)" in roaming
+assert "m_foreignEvidence.HasValidPermissions(request)" in roaming
+assert "m_foreignEvidence.IsPurchaseSettled(request)" in roaming
+assert "public string RoamingConsentTicket { get; init; }" in delivery
+assert "TryReceive(" not in roaming
+assert "TryRelease(" not in roaming
+assert "m_assetService.Store" not in roaming
+assert "AddItem(" not in roaming
+assert "OglHgRoamingConsentAuthority" not in iface
+
 for path in ("bin/Robust.HG.ini", "bin/Robust.HG.ini.example",
              "bin/config-include/StandaloneHypergrid.ini"):
     data = read(path)
