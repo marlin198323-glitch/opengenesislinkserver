@@ -45,6 +45,9 @@ namespace OpenSim.Services.InventoryService
         protected IXInventoryData m_Database;
         protected bool m_AllowDelete = true;
         protected string m_ConfigName = "InventoryService";
+        // Server-side managed inventory quarantine is a visible marker only.
+        // It is not the pending asset transfer service or an authorization grant.
+        protected bool m_OglQuarantineFolderEnabled;
 
         public XInventoryService(IConfigSource config)
             : this(config, "InventoryService")
@@ -55,6 +58,11 @@ namespace OpenSim.Services.InventoryService
         {
             if (configName != string.Empty)
                 m_ConfigName = configName;
+
+            IConfig quarantineConfig = config.Configs["OGLInventoryGuard"];
+            m_OglQuarantineFolderEnabled = quarantineConfig != null &&
+                quarantineConfig.GetBoolean("Enabled", false) &&
+                quarantineConfig.GetBoolean("CreateInventorySystemFolder", false);
 
             string dllName = String.Empty;
             string connString = String.Empty;
@@ -158,7 +166,85 @@ namespace OpenSim.Services.InventoryService
             if (!Array.Exists(sysFolders, delegate (XInventoryFolder f) { if (f.type == (int)FolderType.Settings) return true; return false; }))
                 CreateFolder(principalID, rootFolder.ID, (int)FolderType.Settings, "Settings");
 
+            // Protect new and previously registered accounts. A later skeleton
+            // request also repairs missing managed folders for existing users.
+            if (m_OglQuarantineFolderEnabled && !EnsureQuarantineFolders(principalID, rootFolder.ID))
+                m_log.WarnFormat("[OGL INVENTORY GUARD]: Unable to ensure quarantine folders for {0}", principalID);
+
             return result;
+        }
+
+        // Stable UUIDs prevent duplicate folders across registrations, logins and
+        // multiple service instances. Ordinary type is required for old Firestorm.
+        private bool EnsureQuarantineFolders(UUID owner, UUID inventoryRoot)
+        {
+            if (owner == UUID.Zero || inventoryRoot == UUID.Zero)
+                return false;
+
+            UUID root = OglInventoryQuarantineFolders.Root(owner);
+            if (!EnsureQuarantineFolder(owner, inventoryRoot, root, OglInventoryQuarantineFolders.RootName))
+                return false;
+            return EnsureQuarantineFolder(owner, root, OglInventoryQuarantineFolders.Pending(owner),
+                       OglInventoryQuarantineFolders.PendingName) &&
+                   EnsureQuarantineFolder(owner, root, OglInventoryQuarantineFolders.Rejected(owner),
+                       OglInventoryQuarantineFolders.RejectedName);
+        }
+
+        private bool EnsureQuarantineFolder(UUID owner, UUID parent, UUID id, string name)
+        {
+            XInventoryFolder[] existing = m_Database.GetFolders(
+                new string[] { "folderID" }, new string[] { id.ToString() });
+            if (existing != null && existing.Length > 0)
+                return existing[0].agentID == owner && existing[0].parentFolderID == parent
+                    && existing[0].type == (int)FolderType.None;
+
+            return m_Database.StoreFolder(new XInventoryFolder
+            {
+                folderID = id,
+                agentID = owner,
+                parentFolderID = parent,
+                type = (int)FolderType.None,
+                folderName = name,
+                version = 1
+            });
+        }
+
+        // Do not trust the caller-supplied principal or owner fields. Resolve
+        // the stored owner before recognizing a protected folder identity.
+        private bool IsProtectedFolder(UUID folderID)
+        {
+            if (!m_OglQuarantineFolderEnabled || folderID == UUID.Zero)
+                return false;
+
+            XInventoryFolder[] matches = m_Database.GetFolders(
+                new string[] { "folderID" }, new string[] { folderID.ToString() });
+            return matches != null && matches.Length > 0 &&
+                   OglInventoryQuarantineFolders.IsManaged(matches[0].agentID, folderID);
+        }
+
+        private bool HasProtectedImmediateChild(UUID folderID)
+        {
+            if (!m_OglQuarantineFolderEnabled)
+                return false;
+
+            XInventoryFolder[] children = m_Database.GetFolders(
+                new string[] { "parentFolderID" }, new string[] { folderID.ToString() });
+            if (children != null)
+                foreach (XInventoryFolder child in children)
+                    if (OglInventoryQuarantineFolders.IsManaged(child.agentID, child.folderID))
+                        return true;
+            return false;
+        }
+
+        private bool IsProtectedItem(UUID itemID)
+        {
+            if (!m_OglQuarantineFolderEnabled)
+                return false;
+
+            XInventoryItem[] items = m_Database.GetItems(
+                new string[] { "inventoryID" }, new string[] { itemID.ToString() });
+            return items != null && items.Length > 0 &&
+                   IsProtectedFolder(items[0].parentFolderID);
         }
 
         protected XInventoryFolder CreateFolder(UUID principalID, UUID parentID, int type, string name)
@@ -207,6 +293,16 @@ namespace OpenSim.Services.InventoryService
 
         public virtual List<InventoryFolderBase> GetInventorySkeleton(UUID principalID)
         {
+            // Called during resident login: existing accounts gain the managed
+            // folders without re-running CreateUserInventory or recreating root.
+            if (m_OglQuarantineFolderEnabled)
+            {
+                InventoryFolderBase actualRoot = GetRootFolder(principalID);
+                if (actualRoot != null &&
+                    !EnsureQuarantineFolders(principalID, actualRoot.ID))
+                    m_log.WarnFormat("[OGL INVENTORY GUARD]: Quarantine folder provision failed for {0}", principalID);
+            }
+
             XInventoryFolder[] allFolders = m_Database.GetFolders(
                     new string[] { "agentID" },
                     new string[] { principalID.ToString() });
@@ -366,6 +462,13 @@ namespace OpenSim.Services.InventoryService
 
         public virtual bool AddFolder(InventoryFolderBase folder)
         {
+            if (folder == null)
+                return false;
+            if (m_OglQuarantineFolderEnabled &&
+                (OglInventoryQuarantineFolders.IsManaged(folder.Owner, folder.ID) ||
+                 IsProtectedFolder(folder.ID) || IsProtectedFolder(folder.ParentID)))
+                return false;
+
 //            m_log.DebugFormat("[XINVENTORY]: Add folder {0} type {1} in parent {2}", folder.Name, folder.Type, folder.ParentID);
 
             InventoryFolderBase check = GetFolder(folder.Owner, folder.ID);
@@ -408,6 +511,11 @@ namespace OpenSim.Services.InventoryService
 
         public virtual bool UpdateFolder(InventoryFolderBase folder)
         {
+            if (folder == null)
+                return false;
+            if (IsProtectedFolder(folder.ID) || IsProtectedFolder(folder.ParentID))
+                return false;
+
 //            m_log.DebugFormat("[XINVENTORY]: Update folder {0} {1} ({2})", folder.Name, folder.Type, folder.ID);
 
             XInventoryFolder xFolder = ConvertFromOpenSim(folder);
@@ -415,6 +523,9 @@ namespace OpenSim.Services.InventoryService
 
             if (check == null)
                 return AddFolder(folder);
+
+            if (IsProtectedFolder(check.ParentID))
+                return false;
 
             if ((check.Type != (short)FolderType.None || xFolder.type != (short)FolderType.None)
                 && (check.Type != (short)FolderType.Outfit || xFolder.type != (short)FolderType.Outfit))
@@ -454,6 +565,10 @@ namespace OpenSim.Services.InventoryService
 
         public virtual bool MoveFolder(InventoryFolderBase folder)
         {
+            if (folder == null || IsProtectedFolder(folder.ID) ||
+                IsProtectedFolder(folder.ParentID))
+                return false;
+
             return m_Database.MoveFolder(folder.ID.ToString(), folder.ParentID.ToString());
         }
 
@@ -473,6 +588,8 @@ namespace OpenSim.Services.InventoryService
             //
             foreach (UUID id in folderIDs)
             {
+                if (IsProtectedFolder(id) || HasProtectedImmediateChild(id))
+                    return false;
                 //if (onlyIfTrash && !ParentIsTrash(id))
                 if (onlyIfTrash && !ParentIsTrashOrLost(id))
                     continue;
@@ -492,7 +609,8 @@ namespace OpenSim.Services.InventoryService
 
         public virtual bool PurgeFolder(InventoryFolderBase folder, bool onlyIfTrash)
         {
-            if (!m_AllowDelete)
+            if (folder == null || !m_AllowDelete ||
+                IsProtectedFolder(folder.ID) || HasProtectedImmediateChild(folder.ID))
                 return false;
 
             //if (onlyIfTrash && !ParentIsTrash(folder.ID))
@@ -516,6 +634,8 @@ namespace OpenSim.Services.InventoryService
 
         public virtual bool AddItem(InventoryItemBase item)
         {
+            if (item == null || IsProtectedFolder(item.Folder))
+                return false;
 //            m_log.DebugFormat(
 //                "[XINVENTORY SERVICE]: Adding item {0} {1} to folder {2} for {3}", item.Name, item.ID, item.Folder, item.Owner);
 
@@ -524,6 +644,9 @@ namespace OpenSim.Services.InventoryService
 
         public virtual bool UpdateItem(InventoryItemBase item)
         {
+            if (item == null || IsProtectedFolder(item.Folder) ||
+                IsProtectedItem(item.ID))
+                return false;
             if (!m_AllowDelete)
                 if (item.AssetType == (sbyte)AssetType.Link || item.AssetType == (sbyte)AssetType.LinkFolder)
                     return false;
@@ -585,6 +708,13 @@ namespace OpenSim.Services.InventoryService
         {
             // Principal is b0rked. *sigh*
             //
+            // Validate the entire batch before modifying any item.
+            if (items == null)
+                return false;
+            foreach (InventoryItemBase i in items)
+                if (i == null || IsProtectedFolder(i.Folder) || IsProtectedItem(i.ID))
+                    return false;
+
             foreach (InventoryItemBase i in items)
             {
                 m_Database.MoveItem(i.ID.ToString(), i.Folder.ToString());
@@ -595,6 +725,12 @@ namespace OpenSim.Services.InventoryService
 
         public virtual bool DeleteItems(UUID principalID, List<UUID> itemIDs)
         {
+            if (itemIDs == null)
+                return false;
+            foreach (UUID id in itemIDs)
+                if (IsProtectedItem(id))
+                    return false;
+
             if (!m_AllowDelete)
             {
                 // We must still allow links and links to folders to be deleted, otherwise they will build up
@@ -630,7 +766,7 @@ namespace OpenSim.Services.InventoryService
                     new string[] { "inventoryID" },
                     new string[] { itemID.ToString() });
 
-            if (items.Length == 0)
+            if (items.Length == 0 || IsProtectedFolder(items[0].parentFolderID))
                 return null;
 
             return ConvertToOpenSim(items[0]);
