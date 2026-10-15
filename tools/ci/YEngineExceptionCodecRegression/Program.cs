@@ -112,6 +112,31 @@ internal static class Program
         return bytes.ToArray();
     }
 
+    private static readonly FieldInfo StateWriter = typeof(XMRInstAbstract).GetField(
+        "migrateOutWriter", BindingFlags.NonPublic | BindingFlags.Instance);
+    private static readonly FieldInfo WriterObjects = typeof(XMRInstAbstract).GetField(
+        "migrateOutObjects", BindingFlags.NonPublic | BindingFlags.Instance);
+    private static readonly FieldInfo WriterDepth = typeof(XMRInstAbstract).GetField(
+        "migrateOutDepth", BindingFlags.NonPublic | BindingFlags.Instance);
+    private static readonly FieldInfo WriterNodes = typeof(XMRInstAbstract).GetField(
+        "migrateOutNodes", BindingFlags.NonPublic | BindingFlags.Instance);
+
+    private static byte[] EncodeSavedState(object value,
+                                            int initialDepth = 0, int initialNodes = 0)
+    {
+        using MemoryStream output = new();
+        using BinaryWriter writer = new(output, Encoding.UTF8);
+        XMRInstAbstract state = (XMRInstAbstract)
+            RuntimeHelpers.GetUninitializedObject(typeof(XMRInstance));
+        StateWriter.SetValue(state, writer);
+        WriterObjects.SetValue(state, new Dictionary<object, int>());
+        WriterDepth.SetValue(state, initialDepth);
+        WriterNodes.SetValue(state, initialNodes);
+        state.SendObjValue(value);
+        writer.Flush();
+        return output.ToArray();
+    }
+
     private static int Main()
     {
         Exception[] samples = {
@@ -274,6 +299,31 @@ internal static class Program
         });
         Invalid(() => ParseState(hugeText),
             "oversized persisted LSL script string blocked");
+
+        Check(StateWriter != null && WriterObjects != null &&
+              WriterDepth != null && WriterNodes != null,
+              "real YEngine saved-state writer fields present");
+        int[] roundtripInts = (int[])ParseState(EncodeSavedState(
+            new int[] { 42, -7 }));
+        Check(roundtripInts.Length == 2 && roundtripInts[0] == 42 &&
+              roundtripInts[1] == -7, "native graph writer-to-reader roundtrip");
+        object[] recursiveArray = new object[1];
+        recursiveArray[0] = recursiveArray;
+        object[] restoredRecursive = (object[])ParseState(
+            EncodeSavedState(recursiveArray));
+        Check(ReferenceEquals(restoredRecursive, restoredRecursive[0]),
+            "writer/reader preserve circular references");
+        Invalid(() => EncodeSavedState(null, initialNodes: 131072),
+            "writer node cap");
+        Invalid(() => EncodeSavedState(null, initialDepth: 64),
+            "writer nesting cap");
+        Invalid(() => EncodeSavedState(new object[65537]),
+            "writer array allocation cap");
+        Invalid(() => EncodeSavedState(new string('Q', 262145)),
+            "writer string length cap");
+        Check((string)ParseState(EncodeSavedState(
+            new string('Q', 20000))) == new string('Q', 20000),
+            "writer/reader preserve valid long script strings");
 
         Console.WriteLine("YEngine exception state codec: PASS (" + checks + " checks)");
         return 0;
