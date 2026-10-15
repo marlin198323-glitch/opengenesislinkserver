@@ -28,7 +28,12 @@ for marker in (
 assert "m_UserAccounts == null || m_GridUsers == null" not in stats
 assert stats.index('if (m_UserAccounts == null)') < stats.index('BuildSummary(response, includeProtectedDetails);')
 assert '"/api/v1/statistics/summary"' in routes
-assert routes.count('"/api/v1/statistics/summary"') == 2, "Statistics route must work with and without privileged API"
+assert routes.count('"/api/v1/statistics/summary"') == 1, "One early statistics route must serve both auth modes"
+assert routes.index('"/api/v1/statistics/summary"') < routes.index('bool privilegedEndpoints ='), "Statistics must register before privileged service initialization"
+assert 'statisticsRoute.AttachPrivileged(statisticsApi);' in routes, "Protected statistics must preserve scope-enforcing authenticator"
+assert 'System.Threading.Volatile.Read(ref m_PrivilegedApi)' in routes
+assert 'LoadOptionalService<IUserAccountService>(m_Config, "UserAccountService")' in routes
+assert 'new NexStatisticsApi(null, null, null, null, null, true)' in routes, "Provider errors must result in JSON 503, not HTML 404"
 
 start = ui.split("async function loadStatistics(){", 1)[1].split("\nfunction ", 1)[0]
 assert "const bearer=$('statsBearer').value.trim()||adminAuthToken();" in start
