@@ -78,6 +78,28 @@ assert "m_inventory.TryRejectTrustedQuarantineCase" in grants
 assert "TryConsume(" not in iface
 assert "TryBegin(" not in iface
 
+# 3c isolated byte staging: HMAC single-use Stage proof before touching
+# raw payload. No direct store to FSAssets or inventory and no release API.
+stage = read("OpenSim/Services/InventoryService/OglQuarantineTransferStageStore.cs")
+assert "Stage = 3" in grants
+assert "OglQuarantineTransferAction.Stage" in grants
+assert "m_authority.TryConsume(proof, verifiedOwner, caseId, itemId," in grants
+assert "m_stageStore.TryStage(verifiedOwner, caseId, itemId," in grants
+assert "m_stageStore.TryVerify(verifiedOwner, caseId, itemId, assetId)" in grants
+assert grants.index("m_stageStore.TryStage(") < grants.index("m_inventory.TryBeginTrustedQuarantineCase(verifiedOwner, caseId)", grants.index("m_stageStore.TryStage("))
+assert "staged_uninspected" in stage
+assert "FileMode.CreateNew" in stage
+assert "FileShare.None" in stage
+assert "UnixCreateMode = PrivateFile" in stage
+assert "File.SetUnixFileMode(m_directory, PrivateDir)" in stage
+assert "SHA256.HashData(payload)" in stage
+assert "SHA256.HashData(file)" in stage
+assert "TryVerify(" in stage and "TryStage(" in stage
+assert "m_assetService.Store" not in stage
+assert "m_Database.StoreItem" not in stage
+assert "TryRelease(" not in stage
+assert "TryStage(" not in iface
+
 for path in ("bin/Robust.HG.ini", "bin/Robust.HG.ini.example",
              "bin/config-include/StandaloneHypergrid.ini"):
     data = read(path)
