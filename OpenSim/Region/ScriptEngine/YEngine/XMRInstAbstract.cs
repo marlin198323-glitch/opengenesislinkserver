@@ -1678,6 +1678,8 @@ namespace OpenSim.Region.ScriptEngine.Yengine
             }
             else if(graph is string sg)
             {
+                if (sg.Length > MaxMigrationStringLength)
+                    throw new InvalidDataException("YEngine state string exceeds limit");
                 mow.Write((byte)Ser.SYSSTR);
                 mow.Write(sg);
             }
@@ -1837,12 +1839,24 @@ namespace OpenSim.Region.ScriptEngine.Yengine
         /**
          * @brief Read state in from a stream.
          */
+        // Saved YEngine state can originate from other grids or OAR imports.
+        // These limits constrain parser work and allocations independently
+        // of the upstream network or region file size.
+        private const int MaxMigrationDepth = 64;
+        private const int MaxMigrationNodes = 131072;
+        private const int MaxMigrationFrames = 4096;
+        private const int MaxMigrationStringLength = 262144;
+        private int migrateInDepth;
+        private int migrateInNodes;
+
         public void MigrateIn(BinaryReader mir)
         {
             try
             {
                 migrateInReader = mir;
                 migrateInObjects = new Dictionary<int, object>();
+                migrateInDepth = 0;
+                migrateInNodes = 0;
                 ehArgs = (object[])RecvObjValue();
                 doGblInit = mir.ReadBoolean();
                 stateCode = mir.ReadInt32();
@@ -1851,8 +1865,12 @@ namespace OpenSim.Region.ScriptEngine.Yengine
                 glblVars.RecvArrays(RecvObjValue);
                 XMRStackFrame lastSF = null;
                 string funcName;
-                while((funcName = mir.ReadString()) != "")
+                int frameHeaders = 0;
+                while((funcName = ScriptStateExceptionCodec.ReadLimitedString(mir)) != "")
                 {
+                    // Include the optional **newStateCode** marker in the budget.
+                    if (++frameHeaders > MaxMigrationFrames + 1)
+                        throw new InvalidDataException("YEngine stack frame count exceeds limit");
                     if(funcName == "**newStateCode**")
                     {
                         newStateCode = mir.ReadInt32();
@@ -1873,6 +1891,8 @@ namespace OpenSim.Region.ScriptEngine.Yengine
             {
                 migrateInReader = null;
                 migrateInObjects = null;
+                migrateInDepth = 0;
+                migrateInNodes = 0;
             }
         }
 
@@ -1884,11 +1904,20 @@ namespace OpenSim.Region.ScriptEngine.Yengine
         private Dictionary<int, object> migrateInObjects;
         public object RecvObjValue()
         {
-            BinaryReader mir = this.migrateInReader;
-            int ident = this.migrateInObjects.Count;
-            Ser code = (Ser)mir.ReadByte();
-            switch(code)
+            if (++migrateInNodes > MaxMigrationNodes)
+                throw new InvalidDataException("YEngine state object count exceeds limit");
+            if (++migrateInDepth > MaxMigrationDepth)
             {
+                --migrateInDepth;
+                throw new InvalidDataException("YEngine state nesting depth exceeds limit");
+            }
+            try
+            {
+                BinaryReader mir = this.migrateInReader;
+                int ident = this.migrateInObjects.Count;
+                Ser code = (Ser)mir.ReadByte();
+                switch(code)
+                {
                 case Ser.NULL:
                     return null;
 
@@ -1964,7 +1993,8 @@ namespace OpenSim.Region.ScriptEngine.Yengine
                     return mir.ReadChar();
 
                 case Ser.SYSSTR:
-                    string s = mir.ReadString();
+                    string s = ScriptStateExceptionCodec.ReadLimitedString(
+                        mir, MaxMigrationStringLength);
                     this.migrateInObjects.Add(ident, s);
                     return s;
 
@@ -1990,8 +2020,8 @@ namespace OpenSim.Region.ScriptEngine.Yengine
 
                 case Ser.DELEGATE:
                     this.migrateInObjects.Add(ident, null);  // placeholder
-                    string name = mir.ReadString();         // function name
-                    string sig = mir.ReadString();         // delegate type
+                    string name = ScriptStateExceptionCodec.ReadLimitedString(mir);
+                    string sig = ScriptStateExceptionCodec.ReadLimitedString(mir);
                     object targ = this.RecvObjValue();      // 'this' object
                     Delegate del = this.GetScriptMethodDelegate(name, sig, targ);
                     this.migrateInObjects[ident] = del;       // actual value
@@ -2027,7 +2057,12 @@ namespace OpenSim.Region.ScriptEngine.Yengine
                 }
 
                 default:
-                    throw new Exception("bad stream code " + code.ToString());
+                    throw new InvalidDataException("bad stream code " + code.ToString());
+                }
+            }
+            finally
+            {
+                --migrateInDepth;
             }
         }
 
