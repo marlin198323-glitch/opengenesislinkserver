@@ -525,6 +525,10 @@ jobs:
         shell: bash
         run: dotnet run --configuration Release --project tools/ci/AssetDiskCacheRegression/AssetDiskCacheRegression.csproj
 
+      - name: Read-only SQLite/OAR legacy keyframe audit regression
+        shell: bash
+        run: python3 tools/ci/verify_legacy_keyframe_audit.py
+
       - name: Regression-test typed KeyframeMotion persistence
         shell: bash
         run: dotnet run --configuration Release --project tools/ci/KeyframeMotionSerializationRegression/KeyframeMotionSerializationRegression.csproj
