@@ -164,6 +164,7 @@ namespace OpenSim.Services.InventoryService
                     fields[3] != request.SessionOrDelegationId.ToString() ||
                     fields[4] != UrlEncode(StrictUtf8.GetBytes(request.SourceGridUri)) ||
                     fields[8].Length != 32 ||
+                    !IsUpperHexNonce(fields[8]) ||
                     !int.TryParse(fields[5], System.Globalization.NumberStyles.None,
                         System.Globalization.CultureInfo.InvariantCulture, out int mask))
                     return false;
@@ -203,6 +204,20 @@ namespace OpenSim.Services.InventoryService
             catch (DecoderFallbackException) { return false; }
             catch (OverflowException) { return false; }
             catch (ArgumentException) { return false; }
+        }
+
+        // Reject malformed nonce fields even if the token has a valid MAC.
+        // The issuer generates exactly 16 cryptographically random bytes
+        // encoded as 32 uppercase hexadecimal characters.
+        private static bool IsUpperHexNonce(string nonce)
+        {
+            if (nonce == null || nonce.Length != 32)
+                return false;
+            foreach (char ch in nonce)
+                if (!((ch >= '0' && ch <= '9') ||
+                      (ch >= 'A' && ch <= 'F')))
+                    return false;
+            return true;
         }
 
         private static bool ValidScopes(OglHgRoamingDeliveryScopes scopes)
