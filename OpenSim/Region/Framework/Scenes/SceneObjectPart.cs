@@ -356,9 +356,68 @@ namespace OpenSim.Region.Framework.Scenes
 
         private PhysicsInertiaData m_physicsInertia;
 
+        private KeyframeMotion m_keyframeMotion;
+        private byte[] m_unrestoredKeyframeMotion;
+
+        // A legacy DB/OAR payload cannot be safely interpreted on .NET 10.
+        // Preserve its exact bytes, without activating the motion. Explicit
+        // script/user replacement or removal clears the archived bytes.
         public KeyframeMotion KeyframeMotion
         {
-            get; set;
+            get => m_keyframeMotion;
+            set
+            {
+                m_keyframeMotion = value;
+                m_unrestoredKeyframeMotion = null;
+            }
+        }
+
+        public void LoadPersistedKeyframeMotion(SceneObjectGroup group, byte[] data)
+        {
+            if (data == null || data.Length == 0)
+            {
+                KeyframeMotion = null;
+                return;
+            }
+
+            // Never pin arbitrarily large foreign OAR/DB payloads in memory.
+            // Throw before loading the object instead of silently wiping its
+            // keyframe column when oversized data would be discarded.
+            const int MaxUnrestoredMotionBytes = 4 * 1024 * 1024;
+            if (data.Length > MaxUnrestoredMotionBytes)
+                throw new System.IO.InvalidDataException(
+                    "Persisted KeyframeMotion exceeds the safety limit. " +
+                    "The source data was not modified.");
+
+            KeyframeMotion = KeyframeMotion.FromData(group, data);
+            if (m_keyframeMotion == null)
+                m_unrestoredKeyframeMotion = (byte[])data.Clone();
+        }
+
+        public bool HasPersistedKeyframeMotion =>
+            m_keyframeMotion != null || m_unrestoredKeyframeMotion != null;
+
+        public byte[] SerializePersistedKeyframeMotion()
+        {
+            if (m_keyframeMotion != null)
+                return m_keyframeMotion.Serialize();
+
+            return m_unrestoredKeyframeMotion == null
+                ? Array.Empty<byte>()
+                : (byte[])m_unrestoredKeyframeMotion.Clone();
+        }
+
+        // Duplicating an object must not erase its unresolved motion state.
+        // Duplicated motion remains inactive until a trusted migration.
+        public void CopyUnrestoredKeyframeMotionTo(SceneObjectPart destination)
+        {
+            if (destination == null)
+                throw new ArgumentNullException(nameof(destination));
+
+            destination.m_unrestoredKeyframeMotion =
+                m_unrestoredKeyframeMotion == null
+                    ? null
+                    : (byte[])m_unrestoredKeyframeMotion.Clone();
         }
 
 
