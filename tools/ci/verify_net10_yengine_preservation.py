@@ -34,4 +34,31 @@ for marker in ("complete UTF-8 script state atomically replaces previous snapsho
                "failed writer cleans temporary snapshots"):
     assert marker in runtime, "missing YEngine atomic writer regression: " + marker
 
+constructor = (root / "OpenSim/Region/ScriptEngine/YEngine/XMRInstCtor.cs").read_text(encoding="utf-8")
+for marker in (
+    "DtdProcessing = DtdProcessing.Prohibit",
+    "XmlResolver = null",
+    "MaxCharactersInDocument = MaxPersistedStateXmlBytes",
+    "MaxPersistedStateXmlBytes = 8 * 1024 * 1024",
+    "Encoding.UTF8.GetByteCount(xml) > MaxPersistedStateXmlBytes",
+    "ReadPersistedStateXmlFile(string path)",
+    "ParsePersistedStateXml(string xml)",
+    "stream.Length > MaxPersistedStateXmlBytes",
+):
+    assert marker in capture, "unsafe YEngine XML handling: " + marker
+assert "ReadPersistedStateXmlFile(m_StateFileName)" in constructor, (
+    "persisted .state read must use bounded XML parser")
+assert "doc.LoadXml(xml)" not in constructor, "unbounded YEngine .state loader reintroduced"
+assert "XMRInstance.ParsePersistedStateXml(xml)" in engine, (
+    "imported OAR/crossing state must use bounded XML parser")
+assert "doc.LoadXml(xml)" not in engine, "unbounded imported state parser reintroduced"
+for marker in (
+    "DTD and custom entities are rejected",
+    "oversized imported XML state rejected before parse",
+    "file reader blocks XML DTD",
+    "oversized save cannot destroy previous script state",
+    "oversized on-disk XML blocked before allocation",
+):
+    assert marker in runtime, "missing actual YEngine XML security regression: " + marker
+
 print("YEngine .state preservation and no-restart gate: PASS")
