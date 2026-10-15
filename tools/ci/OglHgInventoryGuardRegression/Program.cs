@@ -97,6 +97,88 @@ internal static class Program
         Expect("valid object XML accepted",
             OglHgInventoryAssetInspector.TryInspect(validObject, 4096, 1024, out _));
 
+        // Phase 3d: nested prim inventory references are inspected without
+        // downloading, running or publishing any referenced asset.
+        UUID nestedItemId = UUID.Random();
+        UUID nestedScriptId = UUID.Random();
+        string embeddedInventory =
+            "<SceneObjectGroup><RootPart><TaskInventory><TaskInventoryItem>" +
+            "<ItemID><UUID>" + nestedItemId + "</UUID></ItemID>" +
+            "<AssetID><UUID>" + nestedScriptId + "</UUID></AssetID>" +
+            "<Type>" + (int)AssetType.LSLText + "</Type>" +
+            "<InvType>" + (int)InventoryType.LSL + "</InvType>" +
+            "</TaskInventoryItem></TaskInventory></RootPart></SceneObjectGroup>";
+        AssetBase nestedObject = new AssetBase(UUID.Random(), "nested script reference",
+            (sbyte)AssetType.Object, valid.CreatorIdentification);
+        nestedObject.Data = Encoding.UTF8.GetBytes(embeddedInventory);
+        bool nestedPassed = OglHgNestedInventoryInspector.TryExtract(nestedObject,
+            16384, out OglHgNestedAssetReference[] nestedRefs, out _);
+        Expect("embedded script asset reference extracted",
+            nestedPassed && nestedRefs.Length == 1 &&
+            nestedRefs[0].ItemId == nestedItemId &&
+            nestedRefs[0].AssetId == nestedScriptId &&
+            nestedRefs[0].AssetType == (int)AssetType.LSLText);
+        Expect("well-formed nested references structurally valid",
+            OglHgInventoryAssetInspector.TryInspect(nestedObject, 16384, 4096, out _));
+
+        AssetBase missingNestedId = new AssetBase(UUID.Random(), "missing nested asset",
+            (sbyte)AssetType.Object, valid.CreatorIdentification);
+        missingNestedId.Data = Encoding.UTF8.GetBytes(
+            embeddedInventory.Replace(nestedScriptId.ToString(), UUID.Zero.ToString()));
+        Expect("nested zero asset reference fails closed",
+            !OglHgInventoryAssetInspector.TryInspect(missingNestedId, 16384, 4096, out _));
+
+        AssetBase duplicateNestedId = new AssetBase(UUID.Random(), "duplicate nested id",
+            (sbyte)AssetType.Object, valid.CreatorIdentification);
+        string itemFragment =
+            "<TaskInventoryItem><ItemID>" + nestedItemId + "</ItemID>" +
+            "<AssetID>" + nestedScriptId + "</AssetID><Type>10</Type><InvType>10</InvType>" +
+            "</TaskInventoryItem>";
+        duplicateNestedId.Data = Encoding.UTF8.GetBytes(
+            "<SceneObjectGroup><TaskInventory>" + itemFragment + itemFragment +
+            "</TaskInventory></SceneObjectGroup>");
+        Expect("duplicate embedded inventory ItemID rejected",
+            !OglHgInventoryAssetInspector.TryInspect(duplicateNestedId, 16384, 4096, out _));
+
+        AssetBase executableNested = new AssetBase(UUID.Random(), "bytecode task inventory",
+            (sbyte)AssetType.Object, valid.CreatorIdentification);
+        executableNested.Data = Encoding.UTF8.GetBytes(
+            embeddedInventory.Replace("<Type>" + (int)AssetType.LSLText + "</Type>",
+            "<Type>" + (int)AssetType.LSLBytecode + "</Type>"));
+        Expect("embedded script bytecode reference rejected",
+            !OglHgInventoryAssetInspector.TryInspect(executableNested, 16384, 4096, out _));
+
+        AssetBase incompleteNested = new AssetBase(UUID.Random(), "missing invtype",
+            (sbyte)AssetType.Object, valid.CreatorIdentification);
+        incompleteNested.Data = Encoding.UTF8.GetBytes(
+            embeddedInventory.Replace("<InvType>" + (int)InventoryType.LSL +
+            "</InvType>", ""));
+        Expect("incomplete embedded item rejected",
+            !OglHgInventoryAssetInspector.TryInspect(incompleteNested, 16384, 4096, out _));
+
+        AssetBase misplacedNested = new AssetBase(UUID.Random(), "inventory outside task",
+            (sbyte)AssetType.Object, valid.CreatorIdentification);
+        misplacedNested.Data = Encoding.UTF8.GetBytes(
+            "<SceneObjectGroup>" + itemFragment + "</SceneObjectGroup>");
+        Expect("unparented embedded task inventory item rejected",
+            !OglHgInventoryAssetInspector.TryInspect(misplacedNested, 16384, 4096, out _));
+
+        AssetBase overfilledNested = new AssetBase(UUID.Random(), "too many nested items",
+            (sbyte)AssetType.Object, valid.CreatorIdentification);
+        var itemsXml = new StringBuilder("<SceneObjectGroup><TaskInventory>");
+        for (int k = 0; k <= OglHgNestedInventoryInspector.MaxNestedItems; k++)
+        {
+            itemsXml.Append("<TaskInventoryItem><ItemID>").Append(UUID.Random())
+                .Append("</ItemID><AssetID>").Append(UUID.Random())
+                .Append("</AssetID><Type>0</Type><InvType>0</InvType></TaskInventoryItem>");
+        }
+        itemsXml.Append("</TaskInventory></SceneObjectGroup>");
+        overfilledNested.Data = Encoding.UTF8.GetBytes(itemsXml.ToString());
+        Expect("nested task inventory item count capped",
+            !OglHgNestedInventoryInspector.TryExtract(overfilledNested,
+                4 * 1024 * 1024, out _, out string cappedReason) &&
+            cappedReason == "nested_inventory_item_limit");
+
         AssetBase xmlWithDtd = new AssetBase(UUID.Random(), "XML DTD",
             (sbyte)AssetType.Object, valid.CreatorIdentification);
         xmlWithDtd.Data = Encoding.UTF8.GetBytes(
