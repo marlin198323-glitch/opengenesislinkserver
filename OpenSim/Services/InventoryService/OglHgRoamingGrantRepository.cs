@@ -180,6 +180,31 @@ namespace OpenSim.Services.InventoryService
             catch (InvalidOperationException) { return false; }
         }
 
+        // Roll back only the grant created by the failed ticket issuance.
+        // Never revoke unrelated grants belonging to the same session.
+        public bool TryRevokeGrant(UUID grantId, UUID residentId, UUID sessionId)
+        {
+            if (grantId == UUID.Zero || residentId == UUID.Zero ||
+                sessionId == UUID.Zero)
+                return false;
+            try
+            {
+                using DbConnection connection = Open();
+                using DbCommand cmd = connection.CreateCommand();
+                cmd.CommandText = "UPDATE ogl_hg_roaming_grants SET revoked_utc = @now " +
+                    "WHERE grant_id = @id AND resident_id = @resident " +
+                    "AND session_id = @session AND revoked_utc IS NULL";
+                Add(cmd, "@id", grantId.ToString());
+                Add(cmd, "@resident", residentId.ToString());
+                Add(cmd, "@session", sessionId.ToString());
+                Add(cmd, "@now", DateTimeOffset.UtcNow.ToUnixTimeSeconds());
+                cmd.ExecuteNonQuery();
+                return true;
+            }
+            catch (DbException) { return false; }
+            catch (InvalidOperationException) { return false; }
+        }
+
         public bool TryRevokeSession(UUID residentId, UUID sessionId)
         {
             if (residentId == UUID.Zero || sessionId == UUID.Zero)
