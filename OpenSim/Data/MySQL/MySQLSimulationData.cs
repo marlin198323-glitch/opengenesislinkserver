@@ -1145,10 +1145,7 @@ namespace OpenSim.Data.MySQL
             if (row["KeyframeMotion"] is not DBNull)
             {
                 byte[] data = (byte[])row["KeyframeMotion"];
-                if (data.Length > 0)
-                    prim.KeyframeMotion = KeyframeMotion.FromData(null, data);
-                else
-                    prim.KeyframeMotion = null;
+                prim.LoadPersistedKeyframeMotion(null, data);
             }
             else
             {
@@ -1584,10 +1581,7 @@ namespace OpenSim.Data.MySQL
             cmd.Parameters.AddWithValue("AttachedPosY", prim.AttachedPos.Y);
             cmd.Parameters.AddWithValue("AttachedPosZ", prim.AttachedPos.Z);
 
-            if (prim.KeyframeMotion != null)
-                cmd.Parameters.AddWithValue("KeyframeMotion", prim.KeyframeMotion.Serialize());
-            else
-                cmd.Parameters.AddWithValue("KeyframeMotion", Array.Empty<byte>());
+            cmd.Parameters.AddWithValue("KeyframeMotion", prim.SerializePersistedKeyframeMotion());
 
             if (prim.PhysicsInertia != null)
                 cmd.Parameters.AddWithValue("PhysInertia", prim.PhysicsInertia.ToXml2());
