@@ -1211,11 +1211,7 @@ namespace OpenSim.Region.ScriptEngine.Yengine
 
             // Write out the .state file with the <ScriptState ...>...</ScriptState> XML text
             string statePath = XMRInstance.GetStateFileName(m_ScriptBasePath, itemID);
-            using (FileStream ss = File.Create(statePath))
-            {
-                using (StreamWriter sw = new(ss))
-                    sw.Write(scriptStateN.OuterXml);
-            }
+            XMRInstance.WriteStateFileAtomically(statePath, scriptStateN.OuterXml);
 
             return true;
         }
