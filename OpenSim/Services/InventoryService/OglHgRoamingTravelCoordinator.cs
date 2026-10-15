@@ -91,6 +91,12 @@ namespace OpenSim.Services.InventoryService
             }
         }
 
+        // Called by the trusted travel pipeline if a teleport fails or
+        // the destination changes. A previously issued ticket becomes
+        // unusable after successful session-wide revocation.
+        public bool TryAbortTravel(UUID resident, UUID session) =>
+            m_grants.TryRevokeSession(resident, session);
+
         // Called by trusted local logout/teleport-abort path. The caller
         // must treat false as revocation failure and escalate operationally.
         public bool TryEndSession(UUID resident, UUID session) =>
