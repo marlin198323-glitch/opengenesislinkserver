@@ -88,6 +88,36 @@ internal static class Program
 
     public static int Main()
     {
+        // Public legacy HG has no authenticated avatar principal. These
+        // modes intentionally deny untrusted remote inventory operations.
+        var compatible = OglHgLegacyInventoryBoundary.Parse("LegacyCompatible");
+        var readOnly = OglHgLegacyInventoryBoundary.Parse("ReadOnly");
+        var closed = OglHgLegacyInventoryBoundary.Parse("BlockAll");
+        Expect("legacy mode retains compatibility only when explicitly selected",
+            compatible == OglHgLegacyInventoryMode.LegacyCompatible &&
+            OglHgLegacyInventoryBoundary.AllowRead(compatible) &&
+            OglHgLegacyInventoryBoundary.AllowWrite(compatible));
+        Expect("read-only HG permits suitcase reads but NO mutations",
+            readOnly == OglHgLegacyInventoryMode.ReadOnly &&
+            OglHgLegacyInventoryBoundary.AllowRead(readOnly) &&
+            !OglHgLegacyInventoryBoundary.AllowWrite(readOnly));
+        Expect("BlockAll HG denies all read/write operations",
+            closed == OglHgLegacyInventoryMode.BlockAll &&
+            !OglHgLegacyInventoryBoundary.AllowRead(closed) &&
+            !OglHgLegacyInventoryBoundary.AllowWrite(closed));
+        Expect("invalid or blank HG security mode fails closed",
+            OglHgLegacyInventoryBoundary.Parse("unexpected-mode") ==
+                OglHgLegacyInventoryMode.BlockAll &&
+            OglHgLegacyInventoryBoundary.Parse("") ==
+                OglHgLegacyInventoryMode.BlockAll &&
+            OglHgLegacyInventoryBoundary.Parse(null) ==
+                OglHgLegacyInventoryMode.BlockAll);
+        Expect("HG legacy mode parsing is case insensitive",
+            OglHgLegacyInventoryBoundary.Parse("readonly") ==
+                OglHgLegacyInventoryMode.ReadOnly &&
+            OglHgLegacyInventoryBoundary.Parse("BLOCKALL") ==
+                OglHgLegacyInventoryMode.BlockAll);
+
         InventoryItemBase valid = ValidItem();
         Expect("valid metadata", OglHgInventoryGuard.TryValidateItem(valid, out _));
         Expect("null rejected", !OglHgInventoryGuard.TryValidateItem(null, out _));
