@@ -26,4 +26,15 @@ assert "if (length < 0 || length > 65536)" in abstract
 assert "new BinaryFormatter" not in codec
 assert "Formatters.Binary" not in codec
 assert "MaxTextLength = 16384" in codec
+for bound in ("MaxMigrationDepth = 64", "MaxMigrationNodes = 131072",
+              "MaxMigrationFrames = 4096", "MaxMigrationStringLength = 262144"):
+    assert bound in abstract, f"Missing migration safety bound: {bound}"
+assert "migrateInDepth > MaxMigrationDepth" in abstract
+assert "migrateInNodes > MaxMigrationNodes" in abstract
+assert "frameHeaders > MaxMigrationFrames + 1" in abstract
+assert "ScriptStateExceptionCodec.ReadLimitedString(" in abstract
+assert "mir.ReadString()" not in abstract, "Unbounded migration string read remains"
+assert "ReadLimitedString(BinaryReader reader, int maxCharacters)" in codec
+assert "if (len > maxCharacters * 4)" in codec
+
 print("YEngine script state rejects BinaryFormatter, unknown CLR types and unsafe array type tags: OK")
