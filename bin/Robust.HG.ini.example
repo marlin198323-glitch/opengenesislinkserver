@@ -930,6 +930,12 @@
 ; Enabling this can reject malformed legacy transfers and asset-changing UPDATEITEM.
 [OGLInventoryGuard]
     Enabled = true
+    ; Rollout: Observe logs suspicious items at the trusted foreign-delivery
+    ; entry point without blocking them. Enforce rejects failed validations.
+    ; This setting does not weaken or replace LegacyPublicAccessMode.
+    ; IMPORTANT: Observations require wiring the HG delivery handler to
+    ; TryAddForeignItem and registering its validator at service startup.
+    Mode = Observe
     ; Public legacy HG /xinventory does NOT authenticate the avatar owner.
     ; LegacyCompatible: previous behavior (insecure, preserves HG interoperability).
     ; ReadOnly: block public HG inventory mutations, allow suitcase-scoped reads.
