@@ -4,6 +4,7 @@ on:
     paths:
       - 'OpenSim/Services/InventoryService/**'
       - 'tools/ci/verify_ogl_hg_roaming_grants.py'
+      - 'OpenSim/Services/HypergridService/**'
       - '.github/workflows/ogl-hg-roaming-grants.yml'
   push:
     branches:
@@ -31,3 +32,5 @@ jobs:
           ./runprebuild.sh
       - name: Compile InventoryService
         run: dotnet build OpenSim/Services/InventoryService/OpenSim.Services.InventoryService.csproj --configuration Release --nologo
+      - name: Compile HypergridService
+        run: dotnet build OpenSim/Services/HypergridService/OpenSim.Services.HypergridService.csproj --configuration Release --nologo
