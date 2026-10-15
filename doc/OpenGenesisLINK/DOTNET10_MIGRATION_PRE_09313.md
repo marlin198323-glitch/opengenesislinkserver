@@ -112,9 +112,11 @@ graphs with more than 131072 object tokens or 64 levels of recursion,
 limits frame headers to 4097 (one may be the state marker), and bounds
 strings before allocation. Normal serialized LSL state strings may be up
 to 262144 UTF-16 code units; exception text still has its stricter
-16384-character limit. The writer rejects oversized plain CLR strings
-so it will not emit a state the reader cannot load. Tests exercise the
-actual YEngine state decoder, including large valid strings,
+16384-character limit. The writer also applies matching graph-node, recursion-depth,
+array-element, frame-count and plain-string limits. This prevents new
+.NET 10 scripts from generating migration streams that the new reader
+would immediately reject. Runtime regressions exercise both the actual
+YEngine encoder and decoder, including large valid strings,
 self-referencing arrays and malicious nested or oversized values.
 These are **compatibility limits** and may reject unusually large
 historical snapshots; do not migrate production regions blindly.
