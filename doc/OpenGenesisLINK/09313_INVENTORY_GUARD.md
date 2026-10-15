@@ -1,4 +1,4 @@
-# OpenGenesisLINK 0.9.3.13 - OGL HG InventoryGuard (Phase 1-3h, Entwicklung)
+# OpenGenesisLINK 0.9.3.13 - OGL HG InventoryGuard (Phase 1-3i, Entwicklung)
 
 Status: **Entwicklungszweig / noch nicht fuer Stable freigegeben.**
 Diese Aenderung betrifft ausschliesslich den per `HGSuitcaseInventoryService`
@@ -644,6 +644,89 @@ nicht automatisch ein. Die Konfigurationsbeispiele verwenden
 absichtlich noch `LegacyCompatible`, um bestehende Netze
 nicht ohne Freigabe zu beeintraechtigen. Ein Produktiveinsatz
 muss als bewusste Betriebsaenderung erfolgen.
+
+## Phase 3i: getrennte Annahme fuer fremde HG-Kaeufe, Kopien und Geschenke
+
+Neu: `OglHgResidentDeliveryIntake.TryReceive` mit den klar getrennten
+`OglHgDeliveryKind`-Werten `Purchase`, `TakeCopy` und `Gift`.
+Diese Klasse ist bewusst **nur lokal aufrufbar** und implementiert
+**keinen HTTP-HG-Endpunkt**. Sie dient als abgesicherte
+Integrationsschnittstelle fuer einen kuenftigen authentifizierten
+Transferkanal.
+
+Die Aufnahme in die Quarantaene verlangt VOR Ausstellung eines
+`Stage`-Grants zwingend vier voneinander unabhaengige Nachweise
+ueber das Interface `IOglHgVerifiedDeliveryEvidence`:
+
+1. `HasAuthenticatedResidentConsent`: ein gueltiges
+   Bewohner-Login oder explizit ausgestelltes, avatar-gebundenes
+   HG-Reisedelegationsticket fuer genau diesen Vorgang.
+2. `HasAuthenticatedSourceTransfer(request,sha256)`: ein
+   nachweisbarer fremder Grid-Transfer, gebunden an den Source-Grid-
+   Endpunkt, Transfer-ID, Besitzer, Ziel-Item, Asset und tatsaechliche
+   Nutzdatenpruefsumme.
+3. `HasValidPermissions`: fuer `TakeCopy` etwa nachgewiesenes
+   Kopierrecht, fuer `Gift` Uebertragungsrecht und Zustimmung,
+   fuer `Purchase` die zum angebotenen Verkaufsmodus passenden
+   Rechte. Die jeweilige Fremd-Grid-Rechtepruefung ist **noch nicht**
+   implementiert.
+4. `IsPurchaseSettled` nur bei `Purchase`: eine separate,
+   durch die zustaendige Wirtschaftstransaktion attestierte Zahlung.
+   Ein vom Verkaufsobjekt nur behaupteter Preis oder Status darf
+   diesen Nachweis nicht ersetzen. Auch Nullpreis-Kaeufe
+   erfordern eine vertrauenswuerdig bestaetigte Kauftransaktion.
+
+Beim Empfang mit erfolgreich verifizierten Nachweisen wird zunaechst
+eine einmalige **gesperrte Transferquittung** auf dem lokalen
+Linux-Speicher angelegt (`FileMode.CreateNew`, 0600,
+Verzeichnis 0700). Ihr Schluessel bindet den kanonischen fremden
+Grid-Endpunkt und die fremde Transfer-ID. Damit koennen zwei
+konkurrierende Aufrufe nicht dieselbe Fremdtransaktion
+unter unterschiedlichen Case-/Item-IDs einliefern; auch nach
+einem Neustart bleibt diese ID bereits verwendet.
+Das lokale System erstellt erst danach einen kurzlebigen,
+separaten HMAC-`Stage`-Nachweis und ruft den bestehenden
+isolierten Staging-Coordinator auf. Die Quittung enthaelt
+nur Metadaten und den SHA-256-Hash, niemals Rohbytes,
+geheime Signierschluessel oder das Zahlungsgeheimnis.
+
+Rueckgabestatus `delivery_quarantined_not_released`:
+**Der Gegenstand wurde in Quarantaene gespeichert, nicht
+gekauft, zugestellt, aktiviert oder freigegeben.** Ist die
+Staging-Ablage fehlgeschlagen, bleibt die Einlieferungsquittung
+aus Sicherheitsgruenden verbraucht; dies muss ein Administrator
+manuell reconciliieren. Es existiert kein automatisches
+Retry mit denselben Fremd-ID-Daten.
+
+**Zentraler Integrationsblocker:** Die vier Trust-Methoden
+sind **nur Contracts** und haben derzeit KEINE produktiven
+Implementierungen fuer OpenSim-/OSgrid-/andere Fremdgrids.
+Es ist nicht legitim, die vom fremden Grid gelieferten Werte
+einfach als geprueft zu markieren. Ein HG-Besucher nutzt
+beim Aufenthalt ausserhalb des Heimatgrids gegebenenfalls
+keine aktive Heimsitzung; daher muss die Home-Grid-Komponente
+ein kurzlebiges Reisedelegationsticket ausstellen und den
+fremden Transfer kanalgebunden attestieren. Andere Grids
+muessen diesen neuen Kanal unterstuetzen oder ueber einen
+ausdruecklichen, kontrollierten Kompatibilitaetsadapter laufen.
+Ein blosser Moduswechsel `LegacyCompatible -> ReadOnly`
+macht fremde Kaeufe **noch nicht wieder funktionsfaehig**.
+
+Auch nach sicherer Quarantaene ist die separate Phase
+der finalen Asset-/Rechtepruefung und atomaren Freigabe
+ins lokale Bewohnerinventar offen. Andere fremde Asset-
+Services und nicht dokumentierte Viewer-/Simulatorpfade
+werden durch diesen Intake-Adapter nicht automatisch
+umgeschaltet.
+
+Regression: `OglQuarantineFolderRegression` prueft
+gegen SQLite und isoliertes Staging:
+abgewiesene fehlende Bewohnerzustimmung, unbekannte
+Fremdquelle, fehlende Transferrechte, unbestaetigte
+Zahlung, Hashabweichung, erfolgreiche reine
+Quarantaene-Einlieferung fuer Purchase/TakeCopy/Gift,
+abweichende Bezahlpflicht, ausbleibende
+Inventarzustellung und Replay auch nach Neustart.
 
 ## Nicht implementiert - keine Sicherheitsversprechen
 
