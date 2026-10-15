@@ -91,6 +91,24 @@ namespace OpenSim.Services.InventoryService
             }
         }
 
+        // A new destination invalidates prior session grants before any
+        // replacement is issued. This prevents tickets for the previous
+        // grid from remaining usable after a successful onward teleport.
+        // A failed revoke denies the new ticket.
+        public bool TryChangeAuthenticatedDestination(UUID resident,
+            UUID session, string verifiedDestination,
+            OglHgRoamingDeliveryScopes scopes, TimeSpan lifetime,
+            out string ticket)
+        {
+            ticket = null;
+            if (resident == UUID.Zero || session == UUID.Zero)
+                return false;
+            if (!m_grants.TryRevokeSession(resident, session))
+                return false;
+            return TryBeginAuthenticatedTravel(resident, session,
+                verifiedDestination, scopes, lifetime, out ticket);
+        }
+
         // Called by the trusted travel pipeline if a teleport fails or
         // the destination changes. A previously issued ticket becomes
         // unusable after successful session-wide revocation.
