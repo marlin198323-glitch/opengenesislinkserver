@@ -98,12 +98,19 @@ unknown application exceptions fail instead of being serialized.
 The new codec is covered by positive and malformed-payload tests,
 but those tests do not prove arbitrary persisted script snapshots work.
 
-**Remaining production blockers:** Real OAR/region migrations and the
-untrusted YEngine graph/array limits still need a security review.
-`String2SysType` currently has a general-purpose `Type.GetType`
-fallback for script arrays, which also deserves restriction to allowed
-types before exposing untrusted saved scripts. Full on-grid bridge/physics/
-crossing tests and an operator-tested rollback remain prerequisites.
+**Further YEngine hardening in this draft:** `String2SysType` no longer
+uses `Type.GetType` on script-controlled persisted array element names.
+Only an explicit set of built-in and LSL wrapper types is supported;
+nested one-dimensional arrays are limited to depth four. Writes now
+reject unrecognized CLR array element types instead of emitting
+arbitrary CLR names. CI verifies the guard, and runtime regressions cover
+valid and malicious type tags. This reduces type-loading risk, but does
+**not** prove that all historic script states remain loadable.
+
+**Remaining production blockers:** A safe, tested migration/reinitialization
+strategy for legacy KeyframeMotion and YEngine state in real OAR/region
+data; additional bounds on other script-state graphs and strings;
+full on-grid bridge/physics/crossing tests; operator-tested rollback.
 A green CI build alone is **not** production approval.
 
 ## Additional release gates
@@ -132,9 +139,18 @@ The production OGL binaries require the **10.x runtime**. Do not
 replace a working production .NET 8 installation before these
 compatibility gates pass.
 
-## Hypergrid security
+## Hypergrid security and temporary legacy exception
 
-The unauthenticated public HG inventory connector stays disabled.
+The operator explicitly requested temporary legacy HG Suitcase interoperability
+for cross-grid purchases; this exception was merged to `main` in PR #224.
+The shipped HG profiles now set `AllowLegacyPublicHGInventory = true`
+and register the legacy HG inventory endpoint, **without per-avatar
+authentication**. This is an acknowledged risk, not a vulnerability fix.
 A .NET runtime migration does not address avatar authorization.
-Re-enabling it would restore unauthorized read/write operations.
-See issue #219 for an authenticated transfer replacement.
+
+**The .NET 10 draft is behind main (PR #224) and must reconcile its code,
+HG config, documentation and CI gates before eventual merge.** Do not
+replace the new operator setting with the old 403/404-only assumptions.
+Keep the default behavior when the option is absent fail-closed, and
+document how to revoke the override. Follow issue #219 for an
+authenticated, interoperable replacement.
