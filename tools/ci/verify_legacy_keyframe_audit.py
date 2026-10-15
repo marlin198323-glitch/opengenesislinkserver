@@ -60,7 +60,20 @@ with tempfile.TemporaryDirectory() as td:
     assert oar_counts["non-v1-legacy-or-unknown"] == 1, oar_counts
     assert oar_counts["invalid-object-xml"] == 1, oar_counts
     assert tar_path.read_bytes() == tar_before, "audit modified OAR!"
+    hex_file = folder / "mariadb-keyframes.hex"
+    hex_file.write_text(HEADER.hex() + "\n" + LEGACY.hex() +
+                        "\n" + "not-hex\n", encoding="ascii")
+    hex_before = hex_file.read_bytes()
+    mysql_counts = audit.audit_hex_lines(hex_file)["counts"]
+    assert mysql_counts["examined_nonnull"] == 3, mysql_counts
+    assert mysql_counts["typed-v1-header"] == 1, mysql_counts
+    assert mysql_counts["non-v1-legacy-or-unknown"] == 1, mysql_counts
+    assert mysql_counts["invalid-hex"] == 1, mysql_counts
+    assert hex_file.read_bytes() == hex_before, "audit modified MariaDB export!"
+    assert audit.main(["--hex-lines", str(hex_file),
+                       "--fail-on-legacy"]) == 2
+
     assert audit.main(["--sqlite", str(db), "--oar", str(tar_path),
                        "--json", "--fail-on-legacy"]) == 2
 
-print("Legacy keyframe SQLite/OAR read-only audit: PASS")
+print("Legacy keyframe SQLite/OAR/MariaDB read-only audit: PASS")
