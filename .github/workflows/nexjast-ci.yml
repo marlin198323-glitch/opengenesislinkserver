@@ -293,6 +293,10 @@ jobs:
         shell: bash
         run: python3 tools/ci/verify_region_mutations.py
 
+      - name: Verify World API public statistics degraded-mode correctness
+        shell: bash
+        run: python3 tools/ci/verify_statistics_fallback.py
+
       - name: Verify World API online region listing
         shell: bash
         run: python3 tools/ci/verify_region_listing.py
@@ -1139,6 +1143,15 @@ jobs:
 
           curl --silent --fail --max-time 2 http://127.0.0.1:19090/api/v1/docs > /tmp/nexverse-api-docs.html
           grep -F 'OpenGenesisLINK – Control Center' /tmp/nexverse-api-docs.html
+          # Same-path POST must reach the dedicated auth handler, never return
+          # the HTML login shell with a misleading HTTP 200. This synthetic
+          # smoke runs in public-only mode, so real admin login is disabled.
+          DOCS_LOGIN_STATUS="$(curl --silent --max-time 3 --output /tmp/ogl-docs-login.json --write-out '%{http_code}' \
+            -X POST -H 'Content-Type: application/json' \
+            --data '{"username":"ci-user","password":"not-a-real-password"}' \
+            http://127.0.0.1:19090/api/v1/docs)"
+          test "$DOCS_LOGIN_STATUS" = 503
+          grep -F '"error":"admin_login_unavailable"' /tmp/ogl-docs-login.json
           # Full Control Center HTML must never be returned without a
           # server-verified local administrator token, regardless of UI scripts.
           DOCS_STATUS="$(curl --silent --output /tmp/ogl-docs-denied.txt --write-out '%{http_code}' --max-time 3 http://127.0.0.1:19090/api/v1/docs/panel)"

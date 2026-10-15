@@ -1660,6 +1660,16 @@ namespace NexVerse.Server.Api
             });
         }
 
+        // Dedicated Control Center route: user name and Grid password,
+        // local UserLevel >= 200, then the existing signed session. This is
+        // called by POST /api/v1/docs to keep the admin UI on one proxy path.
+        public void HandleControlCenterLogin(
+            IOSHttpRequest request,
+            IOSHttpResponse response)
+        {
+            HandleNativeSessionLogin(request, response, true);
+        }
+
         private void HandleNativeSessionLogin(
             IOSHttpRequest request,
             IOSHttpResponse response,

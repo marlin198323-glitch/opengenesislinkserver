@@ -99,15 +99,21 @@ namespace NexVerse.Server.Api
                 return;
             }
 
-            if (m_UserAccounts == null || m_GridUsers == null)
+            if (m_UserAccounts == null)
             {
                 WriteError(
                     response,
                     HttpStatusCode.ServiceUnavailable,
                     "statistics_data_unavailable",
-                    "UserAccount or GridUser statistics storage is not available.");
+                    "UserAccount statistics storage is not available.");
                 return;
             }
+
+            // A GridUser storage issue must not take down the entire public
+            // statistics endpoint when authoritative resident account totals
+            // can still be read. Mark activity/visitor metrics as unknown.
+            // If account enumeration ALSO fails, return 503 instead of
+            // inventing a grid with zero registered users.
 
             try
             {
@@ -133,7 +139,21 @@ namespace NexVerse.Server.Api
             DateTimeOffset weekCutoff = now.AddDays(-7);
             DateTimeOffset monthCutoff = now.AddDays(-30);
 
-            GridUserData[] rawRows = m_GridUsers.GetAll(string.Empty) ?? Array.Empty<GridUserData>();
+            bool gridUserAvailable = m_GridUsers != null;
+            GridUserData[] rawRows = Array.Empty<GridUserData>();
+            if (gridUserAvailable)
+            {
+                try
+                {
+                    rawRows = m_GridUsers.GetAll(string.Empty) ?? Array.Empty<GridUserData>();
+                }
+                catch (Exception e)
+                {
+                    m_Log.Warn("[NEX-STATS]: GridUser statistics unavailable; serving partial account aggregates.", e);
+                    gridUserAvailable = false;
+                }
+            }
+
             List<ActivityRecord> parsed = rawRows.Select(ParseActivity).Where(x => x != null).ToList();
 
             Dictionary<string, ActivityRecord> localActivity =
@@ -153,6 +173,9 @@ namespace NexVerse.Server.Api
                     .ToDictionary(x => x.Key, x => MostRecent(x), StringComparer.OrdinalIgnoreCase);
 
             List<UserAccount> accounts = LoadAccounts(localActivity, out bool completeAccountEnumeration);
+            if (!gridUserAvailable && !completeAccountEnumeration)
+                throw new InvalidOperationException(
+                    "Both GridUser history and complete UserAccount enumeration are unavailable.");
 
             Dictionary<string, UserAccount> accountById =
                 accounts.GroupBy(x => x.PrincipalID.ToString(), StringComparer.OrdinalIgnoreCase)
@@ -262,12 +285,18 @@ namespace NexVerse.Server.Api
                         StringComparer.OrdinalIgnoreCase)
                     .ToDictionary(x => x.Key, x => x.Count(), StringComparer.OrdinalIgnoreCase);
 
-            int neverLoggedIn =
-                accounts.Count(account =>
-                {
-                    string id = account.PrincipalID.ToString();
-                    return !localActivity.TryGetValue(id, out ActivityRecord record) || !record.LoginAt.HasValue;
-                });
+            int? neverLoggedIn = gridUserAvailable
+                ? accounts.Count(account =>
+                  {
+                      string id = account.PrincipalID.ToString();
+                      return !localActivity.TryGetValue(id, out ActivityRecord record) || !record.LoginAt.HasValue;
+                  })
+                : null;
+
+            // A missing GridUser history alone does not imply that everybody
+            // is offline. If the PresenceService is authoritative, resident
+            // online counts remain meaningful, otherwise report unknown.
+            bool residentOnlineKnown = gridUserAvailable || presenceAvailable;
 
             string correlationId = Correlation(response);
 
@@ -283,39 +312,48 @@ namespace NexVerse.Server.Api
                         accounts.Count(x => IsRecent(FromUnix(x.Created), weekCutoff)),
                     registrations_last_30_days =
                         accounts.Count(x => IsRecent(FromUnix(x.Created), monthCutoff)),
-                    online_now = residentsOnline.Count,
-                    active_last_24_hours =
-                        accounts.Count(x => HasRecentActivity(x, localActivity, dayCutoff)),
-                    active_last_7_days =
-                        accounts.Count(x => HasRecentActivity(x, localActivity, weekCutoff)),
-                    active_last_30_days =
-                        accounts.Count(x => HasRecentActivity(x, localActivity, monthCutoff)),
+                    online_now = residentOnlineKnown ? residentsOnline.Count : (int?)null,
+                    active_last_24_hours = gridUserAvailable
+                        ? accounts.Count(x => HasRecentActivity(x, localActivity, dayCutoff))
+                        : (int?)null,
+                    active_last_7_days = gridUserAvailable
+                        ? accounts.Count(x => HasRecentActivity(x, localActivity, weekCutoff))
+                        : (int?)null,
+                    active_last_30_days = gridUserAvailable
+                        ? accounts.Count(x => HasRecentActivity(x, localActivity, monthCutoff))
+                        : (int?)null,
                     never_logged_in = neverLoggedIn
                 },
                 hypergrid = new
                 {
-                    online_now = hypergridOnline.Count,
-                    known_visitors_total = knownHypergrid.Count,
-                    visitors_last_7_days =
-                        knownHypergrid.Count(x => IsRecent(x.LastActivityAt, weekCutoff)),
-                    visitors_last_30_days =
-                        knownHypergrid.Count(x => IsRecent(x.LastActivityAt, monthCutoff)),
-                    known_home_grids =
-                        knownHypergrid.Select(x => x.HomeGrid)
-                            .Where(x => !string.IsNullOrWhiteSpace(x))
-                            .Distinct(StringComparer.OrdinalIgnoreCase)
-                            .Count(),
-                    home_grids_online_now =
-                        hypergridOnline.Select(x => x.HomeGrid)
+                    online_now = gridUserAvailable ? hypergridOnline.Count : (int?)null,
+                    known_visitors_total = gridUserAvailable ? knownHypergrid.Count : (int?)null,
+                    visitors_last_7_days = gridUserAvailable
+                        ? knownHypergrid.Count(x => IsRecent(x.LastActivityAt, weekCutoff))
+                        : (int?)null,
+                    visitors_last_30_days = gridUserAvailable
+                        ? knownHypergrid.Count(x => IsRecent(x.LastActivityAt, monthCutoff))
+                        : (int?)null,
+                    known_home_grids = gridUserAvailable
+                        ? knownHypergrid.Select(x => x.HomeGrid)
                             .Where(x => !string.IsNullOrWhiteSpace(x))
                             .Distinct(StringComparer.OrdinalIgnoreCase)
                             .Count()
+                        : (int?)null,
+                    home_grids_online_now = gridUserAvailable
+                        ? hypergridOnline.Select(x => x.HomeGrid)
+                            .Where(x => !string.IsNullOrWhiteSpace(x))
+                            .Distinct(StringComparer.OrdinalIgnoreCase)
+                            .Count()
+                        : (int?)null
                 },
-                detail_level = includeProtectedDetails ? "authenticated" : "aggregate",
+                detail_level = !gridUserAvailable
+                    ? "partial"
+                    : includeProtectedDetails ? "authenticated" : "aggregate",
                 protected_details = includeProtectedDetails,
                 online = new
                 {
-                    total = allOnline.Count,
+                    total = gridUserAvailable ? allOnline.Count : (int?)null,
                     users = includeProtectedDetails
                         ? allOnline.Select(OnlinePayload).ToArray()
                         : Array.Empty<object>()
@@ -329,18 +367,26 @@ namespace NexVerse.Server.Api
                     : Array.Empty<object>(),
                 data_quality = new
                 {
+                    complete = gridUserAvailable && completeAccountEnumeration,
+                    griduser_source = gridUserAvailable ? "available" : "unavailable",
+                    missing_metrics = gridUserAvailable
+                        ? Array.Empty<string>()
+                        : new[] { "activity_history", "hypergrid_visitors", "hypergrid_online", "total_online" },
                     registered_source =
                         completeAccountEnumeration
                             ? "UserAccountService aggregate"
                             : "GridUser/UserAccount fallback",
-                    online_source =
-                        presenceAvailable
-                            ? "PresenceService"
-                            : "GridUser Online flag with five-day stale guard",
-                    historical_activity =
-                        "Unique identities use the latest GridUser Login/Logout timestamps.",
-                    hypergrid_history =
-                        "Known Hypergrid counts are distinct visitor/home-grid identities, not cumulative visit sessions.",
+                    online_source = presenceAvailable
+                        ? "PresenceService"
+                        : gridUserAvailable
+                            ? "GridUser Online flag with five-day stale guard"
+                            : "unavailable",
+                    historical_activity = gridUserAvailable
+                        ? "Unique identities use the latest GridUser Login/Logout timestamps."
+                        : "unavailable",
+                    hypergrid_history = gridUserAvailable
+                        ? "Known Hypergrid counts are distinct visitor/home-grid identities, not cumulative visit sessions."
+                        : "unavailable",
                     exact_visit_sessions_available = false
                 },
                 correlation_id = correlationId

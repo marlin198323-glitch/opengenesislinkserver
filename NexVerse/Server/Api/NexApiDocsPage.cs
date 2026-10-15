@@ -585,7 +585,7 @@ Archivprüfungen bleiben auch für freigegebene Importe aktiv.</div>
 <button class="action" id="adminLoginSubmit">Als Administrator anmelden</button>
 <button class="action" id="adminLoginLogout" disabled>Abmelden</button>
 </div>
-<p class="authnote" id="adminLoginMessage" role="status">Der Login verwendet die Grid-Benutzeranmeldung <code>POST /api/v1/auth/session</code> und prüft den UserLevel auf dem Server. Das Access-Token wird nur im Arbeitsspeicher dieser Seite gehalten, nicht als Cookie oder im Browserspeicher abgelegt.</p>
+<p class="authnote" id="adminLoginMessage" role="status">Der Login prüft Grid-Benutzername, Passwort und UserLevel ab 200 direkt am OGL-Server. Das Access-Token wird nur im Arbeitsspeicher dieser Seite gehalten, nicht als Cookie oder im Browserspeicher abgelegt.</p>
 </div>
 </section>
 
@@ -721,18 +721,18 @@ async function adminLogin(){
   try{
     const body={username,password};
     if(totp)body.totp=totp;
-    const res=await fetch('/api/v1/auth/session',{
+    const res=await fetch('/api/v1/docs',{
       method:'POST',headers:{'Content-Type':'application/json','Accept':'application/json'},
       body:JSON.stringify(body),cache:'no-store',credentials:'same-origin'
     });
     const data=await res.json().catch(()=>null);
     if(!res.ok)throw new Error('HTTP '+res.status+' ('+(data&&data.error||'login_failed')+')');
     if(!data||typeof data!=='object'||Array.isArray(data)||!Number.isInteger(data.user_level))
-      throw new Error('Ungültige World-API-Login-Antwort (HTTP '+res.status+'). /api/v1/auth/session und Reverse-Proxy-Routing prüfen.');
+      throw new Error('Die Anmeldung konnte nicht bestätigt werden. Der Server liefert keine gültige Benutzerantwort.');
     if(Number(data.user_level)<200)
       throw new Error('Zugriff verweigert: UserLevel 200 erforderlich.');
     if(typeof data.access_token!=='string'||data.access_token.length<24)
-      throw new Error('World API: Login-Antwort ohne gültiges access_token (HTTP '+res.status+'). Backend und Proxy prüfen.');
+      throw new Error('Anmeldung nicht möglich: Der Server konnte keine Sitzung erstellen.');
     adminSessionToken=data.access_token;
     adminSessionExpiry=Date.now()+Math.max(0,Number(data.expires_in||0)-30)*1000;
     if(!adminIsActive())throw new Error('Administratorsitzung bereits abgelaufen.');
@@ -998,6 +998,9 @@ function renderStatistics(data){
     erzeugt_am:data.generated_at,
     kontostatus:states,
     datenqualitaet:{
+      vollstaendig:quality.complete,
+      griduser_datenquelle:quality.griduser_source,
+      fehlende_kennzahlen:quality.missing_metrics||[],
       registrierungsquelle:qv(quality.registered_source),
       online_quelle:qv(quality.online_source),
       historische_aktivitaet:qv(quality.historical_activity),
@@ -1008,8 +1011,12 @@ function renderStatistics(data){
 }
 async function loadStatistics(){
   const headers={'Accept':'application/json'};
-  const bearer=$('statsBearer').value.trim()||$('bearer').value.trim()||adminAuthToken();
-  const key=$('statsApiKey').value.trim()||$('apiKey').value.trim();
+  // Do not reuse arbitrary credentials typed into the API Explorer:
+  // expired/incorrect bearer or API keys turn otherwise public aggregates
+  // into 401/403. Only the verified admin session or explicit stats
+  // credentials should be sent to the statistics endpoint.
+  const bearer=$('statsBearer').value.trim()||adminAuthToken();
+  const key=$('statsApiKey').value.trim();
   if(bearer)headers.Authorization='Bearer '+bearer;
   if(key)headers['X-NexVerse-Api-Key']=key;
   $('statsStatus').textContent='Lade Statistik…';$('statsDot').className='dot';
@@ -1023,7 +1030,7 @@ async function loadStatistics(){
       return;
     }
     renderStatistics(data||{});
-    $('statsStatus').textContent='Live · '+(data.protected_details?'Details':'Aggregiert')+' · '+formatStatDate(data.generated_at);
+    $('statsStatus').textContent='Live · '+(data.data_quality&&data.data_quality.complete===false?'Teilweise (Datenquelle fehlt)':data.protected_details?'Details':'Aggregiert')+' · '+formatStatDate(data.generated_at);
     $('statsDot').className='dot good';
   }catch(err){
     $('statsStatus').textContent='Statistik nicht erreichbar';$('statsDot').className='dot bad';$('statsQuality').textContent=String(err);

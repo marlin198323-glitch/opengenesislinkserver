@@ -8,39 +8,93 @@
 - **Stadt-NexVerse / NexVerse:** nur Eigenname eines Grids, das OpenGenesisLINK betreibt. Das Admin-Interface darf keinen festen Grid-Namen als Produktname einsetzen.
 - Die bestehenden C#-Namespaces `NexVerse.*`, die REST-Routen `/api/v1/*`, Header `X-NexVerse-Api-Key`, Umweltvariablen `NEXVERSE_*`, Datenbanknamen und Protokollfelder bleiben zur **Rückwärtskompatibilität** bestehen. Ein technischer API-Vertragswechsel erfordert eine gesonderte, versionierte Migrationsphase und Client-/Viewer-Tests.
 
-## Browser-Oberfläche
+## Browser-Oberfläche / einfache Anmeldung
 
-`GET /api/v1/docs` gibt nur die **OGL-Administrator-Anmeldung** aus. Das vollständige Dashboard mit Übersicht, Statistik, Grid-Planer, Simulatoren, Roadmap, API-Explorer und Schlüsselverwaltung liegt unter:
+Die Startadresse für Stadt-NexVerse lautet
+`https://world.stadt-nexverse.de/api/v1/docs`.
 
-`GET /api/v1/docs/panel`
+Der Browser verwendet für **den gesamten Login und das Laden des
+Control Centers denselben Pfad**:
 
-Dieser zweite Endpunkt liefert **kein Dashboard-HTML**, bevor der Server eine gültige lokale Administrator-Session geprüft hat.
+1. `GET /api/v1/docs`: Anmeldeformular mit Grid-Benutzername (z. B.
+   `Sleimer.Akina`) und Passwort anzeigen.
+2. `POST /api/v1/docs`: dieselben zwei Eingaben serverseitig im
+   bestehenden GridUser-/AuthenticationService prüfen, danach
+   `UserLevel >= 200` und freigegebenen Account bestätigen.
+   Sofern dieses Konto aktiv TOTP nutzt, wird auch dessen bestehende
+   Sicherheitsprüfung eingehalten.
+3. Bei gültigen Daten wird intern ein signiertes, zeitlich begrenztes
+   Session-Token erstellt. Die UI zeigt keine technische Token-Eingabe.
+4. `GET /api/v1/docs` mit `Authorization: Bearer ...`: vollständiges
+   Control Center, nur nach erneuter Prüfung des lokalen Accounts.
+5. Logout entfernt das Token und den eingeblendeten Admin-Frame.
 
-Design: dunkles Glas-/Neon-Layout, cyan-violette Rahmenbeleuchtung, animierter Aurora-Hintergrund, Rastereffekt, schwebende Cards, responsive Sidebar. `prefers-reduced-motion` deaktiviert die Animationen. Keine externen JavaScript-/Font-/Bild-CDNs.
+**Kompatibilität:** `GET /api/v1/docs/panel`,
+`POST /api/v1/auth/session` und
+`POST /api/v1/auth/admin/session` bleiben für vorhandene Clients
+weiterhin verfügbar. Die Web-Anmeldeseite benötigt diese zusätzlichen
+Pfade jedoch nicht mehr.
 
-## Authentifizierung (serverseitig)
+**Sicherheit:** Unangemeldete Besucher bekommen niemals das
+geschützte Dashboard. Weder Passwörter noch signierte Tokens werden
+in HTML gespeichert oder in URL-Parametern übertragen. Der Browser
+bewahrt sein Token ausschließlich im Arbeitsspeicher auf. Anfragen
+werden per HTTPS und mit `Cache-Control: no-store` ausgeführt.
+Geschützte Daten bleiben an `LoginAllowed`, den lokalen
+`UserLevel >= 200`, die Principal-ID und die serverseitig
+berechneten Administratorscopes gebunden.
 
-1. Die Login-Maske sendet über **HTTPS** `POST /api/v1/auth/admin/session` mit `username`, `password`, bei aktiviertem MFA `totp`. Der bereits bestehende OGL-Admin-Login lehnt Nicht-Administratoren **vor** einer Tokenerstellung ab.
-2. Für die vollständige Oberfläche sendet der Browser `Authorization: Bearer <token>` an `/api/v1/docs/panel`.
-3. Der Server verifiziert das Access-Token kryptografisch und prüft die aktuelle Kontenlage über `NexApiAuthenticator`, nicht anhand von Browserdaten: gültiger lokal eingeloggter GridUser (keine API-Key-/Service-Identität), `LoginAllowed`, `UserLevel >= max(200, AdminMinimumUserLevel)`, `admin:*`, korrekte Principal-ID.
-4. Bei jedem neu angefragten Dashboard ist diese Prüfung erneut erforderlich. Token im Browser nur **im Arbeitsspeicher**, keine LocalStorage-/SessionStorage-/Cookie-Persistierung durch die Oberfläche. Der Login-Shell-Frame empfängt Dashboard-HTML erst nach erfolgreichem authentifiziertem Fetch. `Cache-Control: no-store`.
-5. Bei 401/fehlendem Rechteumfang wird kein Admin-HTML geliefert. Die API-Zugriffsrechte aller übrigen Endpunkte bleiben unabhängig geschützt, und bestehende Maschinen-API-Keys funktionieren für ihre bisherigen Endpunkte weiter.
+### KeyHelp Reverse Proxy
 
-**Wichtig:** Der Administrator-Login setzt für die Ausgabe eigener Access-Tokens `[NexVerseWorldApi] EnableNativeTokens = true` mit produktionsgeeignetem Signing-Key und der bestehenden OAuth-/Token-Konfiguration voraus. Diese Konfiguration wird **nicht** automatisch durch die UI aktiviert. Als Reverse-Proxy HTTPS korrekt terminieren und die Anmeldung nicht über unverschlüsseltes HTTP erlauben. Bei einer Reverse-Proxy-Verbindung erkennt die Dashboard-Route `X-Forwarded-Proto: https` ausschließlich von einem lokalen Loopback-Peer an.
+Für `world.stadt-nexverse.de` muss KeyHelp HTTPS für die Domain
+terminieren und **alle Methoden** (GET/POST) sowie den unveränderten
+Pfad `/api/v1/docs` an den laufenden ROBUST-HTTP-Port weiterreichen.
+Insbesondere den `Authorization`-Header bei GET nicht unterdrücken.
+Für die restlichen Dashboard-Funktionen müssen auch `/api/v1/*`
+weitergeleitet werden. Die genutzte ROBUST-Portnummer hängt von der
+vorhandenen Konfiguration ab; hier wird keine neue Portnummer vorgegeben.
 
-Beispiel **nur für das Berechtigungsniveau**:
+In der ROBUST-Konfiguration:
 
-```ini
+~~~ini
 [NexVerseWorldApi]
+Enabled = true
+EnablePrivilegedEndpoints = true
 AdminMinimumUserLevel = 200
-```
+EnableNativeTokens = true
+PublicBaseUrl = "https://world.stadt-nexverse.de"
+NativeTokenIssuer = "https://world.stadt-nexverse.de"
+~~~
 
-Der Zugangslevel ist eine **Untergrenze** und kann mit einem höheren bereits eingestellten Wert nicht abgesenkt werden.
+Außerdem muss `NativeTokenSigningKey` auf das bestehende geschützte
+Secret (mindestens 32 UTF-8-Bytes) verweisen. Keinen Schlüssel in
+GitHub oder Chat kopieren. Die bereits ausgelieferte
+`bin/Robust.HG.ini` enthält die betreffenden Einstellungen.
+
+**Prüfung ohne echte Zugangsdaten:**
+
+~~~bash
+curl -si https://world.stadt-nexverse.de/api/v1/docs
+curl -si -H 'Content-Type: application/json' \
+  --data '{"username":"ungueltig","password":"ungueltig"}' \
+  https://world.stadt-nexverse.de/api/v1/docs
+~~~
+
+Erwartet: die erste Anfrage zeigt das Formular (`HTTP 200`);
+die zweite darf bei aktivem Admin-Backend **niemals HTTP 200** liefern.
+Sie muss das falsche Passwort mit `HTTP 401` und JSON ablehnen.
+Bei inaktivem Admin-Backend wird `HTTP 503` zurückgegeben.
+Ein `HTTP 200` mit Login-HTML oder fremdem JSON bei POST bedeutet,
+dass die Domain noch an eine falsche/stale Anwendung oder KeyHelp-Regel
+gebunden ist. In diesem Fall lässt sich der Fehler **nicht allein durch
+Code auf GitHub** korrigieren.
 
 ## Manuelle Sicherheits-/Browser-Abnahme
 
 - Unangemeldet `GET /api/v1/docs`: Login-Formular sichtbar, Admin-Oberfläche noch nicht heruntergeladen.
 - `GET /api/v1/docs/panel` ohne Bearer und mit ungültigem Bearer: **401, kein HTML**.
+- `GET /api/v1/docs` mit ungültigem Bearer: **401 oder 403, niemals Dashboard-HTML**.
+- `POST /api/v1/docs` mit falschem Passwort: **401 als JSON**, nicht 200.
 - GridUser Level 0 / 100: Anmeldung **403**; kein Admin-Token.
 - GridUser Level 200 mit `admin:*`, korrektem Passwort und gegebenenfalls TOTP: Dashboard zugänglich.
 - Level 200 ohne effektives `admin:*`, gesperrter User oder nachträglich gesenkter UserLevel: Zugang verweigert.
