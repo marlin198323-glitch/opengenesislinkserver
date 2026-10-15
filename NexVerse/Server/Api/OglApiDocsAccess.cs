@@ -19,6 +19,7 @@ namespace NexVerse.Server.Api
     {
         private readonly NexApiDocsPage m_Docs = new();
         private volatile NexApiAuthenticator m_Authenticator;
+        private Action<IOSHttpRequest, IOSHttpResponse> m_DocsSessionLogin;
         private const int MinimumLevel = 200;
 
         public OglApiDocsAccess() { }
@@ -32,13 +33,57 @@ namespace NexVerse.Server.Api
                 throw new ArgumentNullException(nameof(authenticator));
         }
 
+        /// <summary>
+        /// The same URL handles the login page, password login and authenticated
+        /// dashboard. This avoids relying on a separate /auth/session proxy
+        /// rewrite for the login page hosted at a KeyHelp reverse-proxy domain.
+        /// A signed, short-lived bearer is still required for all admin data.
+        /// </summary>
+        public void ConfigureDocsSessionLogin(
+            Action<IOSHttpRequest, IOSHttpResponse> sessionLogin)
+        {
+            m_DocsSessionLogin = sessionLogin ??
+                throw new ArgumentNullException(nameof(sessionLogin));
+        }
+
         public void HandleLogin(IOSHttpRequest request, IOSHttpResponse response)
         {
             CommonHeaders(response);
-            if (request == null ||
-                !string.Equals(request.HttpMethod, "GET", StringComparison.OrdinalIgnoreCase))
+            if (request == null)
             {
                 Reject(response, HttpStatusCode.MethodNotAllowed, "method_not_allowed");
+                return;
+            }
+
+            if (string.Equals(request.HttpMethod, "POST", StringComparison.OrdinalIgnoreCase))
+            {
+                Action<IOSHttpRequest, IOSHttpResponse> login = m_DocsSessionLogin;
+                if (login == null)
+                {
+                    response.StatusCode = (int)HttpStatusCode.ServiceUnavailable;
+                    response.ContentType = "application/json; charset=utf-8";
+                    response.RawBuffer = Encoding.UTF8.GetBytes(
+                        "{\"error\":\"admin_login_unavailable\"}");
+                    return;
+                }
+
+                // Native authentication performs the actual GridUser password,
+                // UserLevel 200, login state and optional account MFA checks.
+                // No alternate authentication scheme or public admin bypass.
+                login(request, response);
+                return;
+            }
+
+            if (!string.Equals(request.HttpMethod, "GET", StringComparison.OrdinalIgnoreCase))
+            {
+                Reject(response, HttpStatusCode.MethodNotAllowed, "method_not_allowed");
+                return;
+            }
+
+            string auth = request.Headers?["Authorization"] ?? string.Empty;
+            if (auth.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
+            {
+                HandlePanel(request, response);
                 return;
             }
 
@@ -200,7 +245,7 @@ form.addEventListener('submit',async event=>{
   try{
     const credentials={username:form.elements.namedItem('username').value.trim(),password:form.elements.namedItem('password').value};
     if(form.elements.namedItem('totp').value.trim())credentials.totp=form.elements.namedItem('totp').value.trim();
-    const login=await fetch('/api/v1/auth/session',{method:'POST',headers:{'Content-Type':'application/json','Accept':'application/json'},body:JSON.stringify(credentials),cache:'no-store',credentials:'same-origin'});
+    const login=await fetch('/api/v1/docs',{method:'POST',headers:{'Content-Type':'application/json','Accept':'application/json'},body:JSON.stringify(credentials),cache:'no-store',credentials:'same-origin'});
     form.elements.namedItem('password').value='';form.elements.namedItem('totp').value='';
     const data=await login.json().catch(()=>null);
     if(!login.ok)throw Error(login.status===401?'Anmeldung fehlgeschlagen. Benutzername, Passwort oder TOTP überprüfen.':'Anmeldung fehlgeschlagen (HTTP '+login.status+', '+(data&&data.error||'api_error')+').');
@@ -208,14 +253,14 @@ form.addEventListener('submit',async event=>{
     // route) is NOT a successful GridUser login. Never treat a missing
     // user_level as an administrator: Number(undefined) is NaN.
     if(!data||typeof data!=='object'||Array.isArray(data)||!Number.isInteger(data.user_level))
-      throw Error('Ungültige World-API-Login-Antwort (HTTP '+login.status+'). Prüfe /api/v1/auth/session und das Reverse-Proxy-Routing.');
+      throw Error('Die Anmeldung konnte nicht bestätigt werden. Der Server liefert keine gültige Benutzerantwort.');
     if(Number(data.user_level)<200)throw Error('Zugriff verweigert: UserLevel 200 erforderlich.');
     if(typeof data.access_token!=='string'||data.access_token.length<24)
-      throw Error('World API: Login-Antwort ohne gültiges access_token (HTTP '+login.status+'). Bitte Login-Backend und Proxy prüfen.');
+      throw Error('Anmeldung nicht möglich: Der Server konnte keine Sitzung erstellen.');
     token=data.access_token;
     expires=Date.now()+Math.max(0,Number(data.expires_in||0)-30)*1000;
     if(!expires||expires<=Date.now())throw Error('Die Administratorsitzung ist bereits abgelaufen.');
-    const panel=await fetch('/api/v1/docs/panel',{headers:{'Authorization':'Bearer '+token,'Accept':'text/html'},cache:'no-store',credentials:'same-origin'});
+    const panel=await fetch('/api/v1/docs',{headers:{'Authorization':'Bearer '+token,'Accept':'text/html'},cache:'no-store',credentials:'same-origin'});
     if(!panel.ok){
       const errorCode=panel.headers.get('X-OGL-Docs-Error')||'';
       const messages={
