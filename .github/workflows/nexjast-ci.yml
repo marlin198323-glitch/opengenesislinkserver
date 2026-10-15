@@ -103,12 +103,9 @@ jobs:
         shell: bash
         run: python3 tools/ci/verify_hg_inventory_security_09312.py
 
-      - name: Verify HG InventoryGuard metadata filter and update protection
+      - name: Verify HG InventoryGuard source and configuration wiring
         shell: bash
-        run: |
-          set -euo pipefail
-          python3 tools/ci/verify_ogl_hg_inventory_guard_09313.py
-          dotnet run --configuration Release --project tools/ci/OglHgInventoryGuardRegression/OglHgInventoryGuardRegression.csproj
+        run: python3 tools/ci/verify_ogl_hg_inventory_guard_09313.py
 
       - name: Security - remote asset deletion must be absent
         shell: bash
@@ -522,6 +519,10 @@ jobs:
       - name: Build Release
         shell: bash
         run: dotnet build --configuration Release OpenSim.sln
+
+      - name: Runtime regression HG InventoryGuard metadata and update validation
+        shell: bash
+        run: dotnet run --configuration Release --project tools/ci/OglHgInventoryGuardRegression/OglHgInventoryGuardRegression.csproj
 
       - name: Runtime regression cross-region llListen delivery (two scenes)
         shell: bash
