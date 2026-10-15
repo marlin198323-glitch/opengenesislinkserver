@@ -19,4 +19,19 @@ assert "was NOT reset" in method and "original .state file was preserved" in met
 # Also ensure no restart in the failed-existing-state branch.
 failure_branch = method.split("catch (Exception error)", 1)[1]
 assert "PostEvent(EventParams.StateEntryParams)" not in failure_branch
+capture = (root / "OpenSim/Region/ScriptEngine/YEngine/XMRInstCapture.cs").read_text(encoding="utf-8")
+engine = (root / "OpenSim/Region/ScriptEngine/YEngine/XMREngine.cs").read_text(encoding="utf-8")
+runtime = (root / "tools/ci/YEngineExceptionCodecRegression/Program.cs").read_text(encoding="utf-8")
+assert "WriteStateFileAtomically(m_StateFileName, scriptStateN.OuterXml);" in capture
+assert "XMRInstance.WriteStateFileAtomically(statePath, scriptStateN.OuterXml);" in engine
+assert "File.Create(m_StateFileName)" not in capture, "snapshot writing must not truncate the old .state"
+assert "File.Create(statePath)" not in engine, "OAR script restore must not truncate the old .state"
+helper = capture.split("internal static void WriteStateFileAtomically(", 1)[1].split("        /**", 1)[0]
+for marker in ("FileMode.CreateNew", "FileShare.None", "Guid.NewGuid()", "writer.Flush()", "stream.Flush(flushToDisk: true)", "File.Move(temporary, statePath, overwrite: true)", "File.Delete(temporary)"):
+    assert marker in helper, "atomic YEngine writer missing: " + marker
+for marker in ("complete UTF-8 script state atomically replaces previous snapshot",
+               "failed replacement leaves the previous snapshot intact",
+               "failed writer cleans temporary snapshots"):
+    assert marker in runtime, "missing YEngine atomic writer regression: " + marker
+
 print("YEngine .state preservation and no-restart gate: PASS")
