@@ -4,6 +4,7 @@ using System.IO;
 using System.Collections.Generic;
 using System.Linq;
 using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
@@ -351,6 +352,115 @@ internal static class Program
                 verifiedAudit = true;
             }
             Check(verifiedAudit, "replay ledger has non-executable audit metadata");
+
+            // Phase 3c: raw HG bytes stay in a separate non-executable,
+            // durable store; no normal inventory item or FSAssets is created.
+            string stagePath = Path.Combine(dir, "private-transfer-staging");
+            var staging = new OglQuarantineTransferStageStore(stagePath, 4096, 2, 8192);
+            var stageCoordinator = new OglQuarantineTransferCoordinator(
+                authority, Service(cfg), staging);
+            UUID stageCase = UUID.Random();
+            UUID stageItem = UUID.Random();
+            UUID stageAsset = UUID.Random();
+            byte[] rawUntrustedAsset = Encoding.UTF8.GetBytes(
+                "<SceneObjectGroup><RootPart>Untrusted</RootPart></SceneObjectGroup>");
+            string stageProof = authority.Issue(owner, stageCase, stageItem, stageAsset,
+                OglQuarantineTransferAction.Stage, TimeSpan.FromSeconds(60));
+            Check(!stageCoordinator.TryStage(stageProof, otherOwner, stageCase,
+                stageItem, stageAsset, (int)AssetType.Object, rawUntrustedAsset),
+                "untrusted Stage proof cannot change resident owner");
+            Check(!stageCoordinator.TryStage(stageProof, owner, stageCase,
+                stageItem, UUID.Random(), (int)AssetType.Object, rawUntrustedAsset),
+                "stage proof cannot change asset ID");
+            Check(!stageCoordinator.TryStage(beginProof, owner, stageCase,
+                stageItem, stageAsset, (int)AssetType.Object, rawUntrustedAsset),
+                "Begin proof cannot stage untrusted bytes");
+            Check(stageCoordinator.TryStage(stageProof, owner, stageCase,
+                stageItem, stageAsset, (int)AssetType.Object, rawUntrustedAsset),
+                "valid signed Stage proof persists isolated bytes");
+            Check(!stageCoordinator.TryStage(stageProof, owner, stageCase,
+                stageItem, stageAsset, (int)AssetType.Object, rawUntrustedAsset),
+                "stage proof is single-use after first successful staging");
+            Check(service.GetItem(owner, stageItem) == null,
+                "staged foreign asset never becomes a live inventory item");
+            UUID projectedStageCase = OglInventoryQuarantineFolders.Case(owner, stageCase);
+            Check(service.GetFolder(owner, projectedStageCase).ParentID == pending &&
+                service.GetFolderContent(owner, projectedStageCase).Items.Count == 0,
+                "staging produces empty pending status marker, not executable asset");
+            Check(staging.TryVerify(owner, stageCase, stageItem, stageAsset),
+                "staged asset survives disk checksum verification");
+            Check(!staging.TryVerify(otherOwner, stageCase, stageItem, stageAsset),
+                "cross-owner staged evidence lookup denied");
+            Check(File.GetUnixFileMode(stagePath) ==
+                (UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute),
+                "stage directory is private 0700");
+            string[] payloadFiles = Directory.GetFiles(stagePath, "*.payload");
+            string[] manifestFiles = Directory.GetFiles(stagePath, "*.json");
+            Check(payloadFiles.Length == 1 && manifestFiles.Length == 1,
+                "one staged asset creates exactly one manifest and one payload");
+            Check(File.GetUnixFileMode(payloadFiles[0]) ==
+                (UnixFileMode.UserRead | UnixFileMode.UserWrite) &&
+                File.GetUnixFileMode(manifestFiles[0]) ==
+                (UnixFileMode.UserRead | UnixFileMode.UserWrite),
+                "isolated staged payload and manifest use private 0600 permissions");
+            using (JsonDocument stageManifest = JsonDocument.Parse(
+                File.ReadAllText(manifestFiles[0])))
+            {
+                Check(stageManifest.RootElement.GetProperty("status").GetString() ==
+                      "staged_uninspected", "stage never claims validated or released");
+                Check(stageManifest.RootElement.GetProperty("asset_id").GetString() ==
+                      stageAsset.ToString(), "stage manifest binds foreign asset ID");
+            }
+
+            var stagedAfterRestart = new OglQuarantineTransferStageStore(
+                stagePath, 4096, 2, 8192);
+            Check(stagedAfterRestart.TryVerify(owner, stageCase, stageItem, stageAsset),
+                "stage metadata and byte integrity survive service restart");
+            Check(!stagedAfterRestart.TryStage(owner, stageCase, stageItem, stageAsset,
+                (int)AssetType.Object, rawUntrustedAsset, out _),
+                "duplicate staged case is not silently overwritten");
+
+            UUID oversizedStageCase = UUID.Random();
+            UUID oversizedStageItem = UUID.Random();
+            UUID oversizedStageAsset = UUID.Random();
+            byte[] tooLarge = new byte[4097];
+            string sizeProof = authority.Issue(owner, oversizedStageCase, oversizedStageItem,
+                oversizedStageAsset, OglQuarantineTransferAction.Stage, TimeSpan.FromSeconds(60));
+            Check(!stageCoordinator.TryStage(sizeProof, owner, oversizedStageCase,
+                oversizedStageItem, oversizedStageAsset, (int)AssetType.Texture, tooLarge),
+                "oversized foreign asset rejected before writing staged bytes");
+            Check(service.GetFolder(owner,
+                OglInventoryQuarantineFolders.Case(owner, oversizedStageCase)) == null,
+                "oversized stage created no viewer status marker");
+
+            UUID quotaCase = UUID.Random();
+            UUID quotaItem = UUID.Random();
+            UUID quotaAsset = UUID.Random();
+            byte[] smallPayload = Encoding.UTF8.GetBytes("second opaque test payload");
+            string quotaProof = authority.Issue(owner, quotaCase, quotaItem, quotaAsset,
+                OglQuarantineTransferAction.Stage, TimeSpan.FromSeconds(60));
+            Check(stageCoordinator.TryStage(quotaProof, owner, quotaCase, quotaItem,
+                quotaAsset, (int)AssetType.Texture, smallPayload),
+                "second staged asset accepted under record quota");
+            UUID deniedCase = UUID.Random();
+            UUID deniedItem = UUID.Random();
+            UUID deniedAsset = UUID.Random();
+            string deniedProof = authority.Issue(owner, deniedCase, deniedItem,
+                deniedAsset, OglQuarantineTransferAction.Stage, TimeSpan.FromSeconds(60));
+            Check(!stageCoordinator.TryStage(deniedProof, owner, deniedCase,
+                deniedItem, deniedAsset, (int)AssetType.Texture, smallPayload),
+                "third staging attempt blocked by record quota");
+            Check(service.GetFolder(owner,
+                OglInventoryQuarantineFolders.Case(owner, deniedCase)) == null,
+                "quota rejection does not create executable or visible pending item");
+
+            // Corrupted evidence remains unusable for future authorization;
+            // there is deliberately no release endpoint to import bytes.
+            File.WriteAllText(payloadFiles[0], "corrupted");
+            Check(!stagedAfterRestart.TryVerify(owner, stageCase, stageItem, stageAsset),
+                "modified staged bytes fail full integrity check");
+            Check(service.GetItem(owner, stageItem) == null,
+                "corruption cannot promote staged asset to inventory");
 
             // Secret never comes from a source-code/config default.
             bool weakSecretRejected = false;
