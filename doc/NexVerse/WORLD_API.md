@@ -73,7 +73,11 @@ These endpoints are public and read-only.
 
 `GET /api/v1/statistics/summary` is registered independently of `EnablePrivilegedEndpoints`.
 
-Without credentials, the endpoint returns a privacy-safe aggregate view when the configured account/GridUser data services are available. Aggregate mode contains headline counts such as registered residents, current total presence, recent activity and Hypergrid totals, but deliberately omits individual names, principal IDs, concrete online-region rows and Hypergrid home-grid detail lists.
+Without credentials, the endpoint returns resident/Hypergrid aggregates plus **all locally registered regions from authoritative GridStore** (including offline and reserved records). Public region metadata includes only region UUID, name, position, size and GridStore online flag; it never includes avatars, personal identities, estate owners, simulator connection endpoints or region secrets. Hypergrid link entries are counted separately and excluded from local region totals. The pre-existing avatar-based region online-population breakdown is available only as `region_online_users` with `statistics:read` authentication. Hypergrid home-grid identity details remain protected.
+
+`region_summary` gives `registered_total`, `online_total`, `offline_total`, `reserved_total` and `hypergrid_links`. Count fields are `null` when GridStore cannot be read, rather than a misleading 0. `RegionOnline` reflects **GridService registration state**; it is not a separate live network heartbeat and may be stale after a sudden simulator crash. VAR regions count once by region UUID, not by their occupied 256m map cells.
+
+`services.grid.status` and `services.asset.status` report `ok`, `degraded` or `unavailable`. Grid service `ok` requires the local GridService and successful GridStore inventory access. Asset service `ok` requires successful read-only `AssetsExist` datastore probing with a nonexistent UUID (both `true` and `false` are valid answers). These checks do not guarantee remote simulator reachability, upload success, disk space or end-to-end asset delivery. Probe failures leave the resident statistics available but set `data_quality.complete=false` and list missing metrics.
 
 When privileged World API authentication is enabled, a Bearer token or `X-NexVerse-Api-Key` with `statistics:read` may request the protected detail view. Protected credentials must only be used over TLS or an equivalent trusted transport.
 
@@ -90,7 +94,7 @@ disappear as a 404 merely because privileged endpoints are disabled.
 
 The response reports its effective privacy level through:
 
-- `detail_level=aggregate|authenticated`
+- `detail_level=aggregate|authenticated|partial`
 - `protected_details=false|true`
 
 ## LunaTexture diagnostics projection
