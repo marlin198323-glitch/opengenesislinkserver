@@ -29,6 +29,43 @@ assert "existing.Owner != incoming.Owner" in guard
 assert "existing.Folder != incoming.Folder" in guard
 assert "Legacy /xinventory remains without per-avatar caller authorization" in service
 
+# Strict legacy public HG boundary: no caller principal can be trusted from
+# unauthenticated xinventory. Verify that all inherited collection methods and
+# mutation methods have a gate BEFORE reading or writing the database.
+boundary = read("OpenSim/Services/HypergridService/OglHgLegacyInventoryBoundary.cs")
+assert "LegacyCompatible = 0" in boundary
+assert "ReadOnly = 1" in boundary
+assert "BlockAll = 2" in boundary
+assert "return OglHgLegacyInventoryMode.BlockAll;" in boundary
+assert 'GetString("LegacyPublicAccessMode", "LegacyCompatible")' in service
+assert "bool IInventoryService.HasInventoryForUser(UUID principalID)" in service
+assert "public override InventoryFolderBase GetFolder(UUID principalID, UUID folderID)" in service
+assert "return base.GetMultipleItems(principalID, ids)" not in service
+
+reads = [
+    "GetInventorySkeleton", "GetRootFolder", "GetFolderForType",
+    "GetFolderContent", "GetFolderItems", "GetItem", "GetFolder",
+    "GetMultipleFoldersContent", "GetMultipleItems", "GetActiveGestures"
+]
+writes = ["AddFolder", "UpdateFolder", "MoveFolder", "AddItem",
+          "UpdateItem", "MoveItems"]
+for name in reads + writes:
+    import re as _re
+    pattern = _re.compile(
+        r"public override [^\\n]+\\b" + name + r"\\s*\\([^)]*\\)\\s*\\{",
+        _re.MULTILINE,
+    )
+    match = pattern.search(service)
+    assert match is not None, "Missing public HG method " + name
+    rest = service[match.end():match.end()+220]
+    gate = "if (!AllowLegacyRead)" if name in reads else "if (!AllowLegacyWrite)"
+    assert gate in rest, "Missing early public HG gate " + name
+
+for path in ("bin/Robust.HG.ini", "bin/Robust.HG.ini.example",
+             "bin/config-include/StandaloneHypergrid.ini"):
+    config = read(path)
+    assert "LegacyPublicAccessMode = LegacyCompatible" in config, path
+
 for path in (
     "bin/Robust.HG.ini",
     "bin/Robust.HG.ini.example",
