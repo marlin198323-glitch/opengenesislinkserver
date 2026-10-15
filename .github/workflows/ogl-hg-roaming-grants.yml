@@ -25,5 +25,9 @@ jobs:
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '8.0.x'
+      - name: Generate OpenSim build prerequisites
+        run: |
+          chmod +x runprebuild.sh
+          ./runprebuild.sh
       - name: Compile InventoryService
         run: dotnet build OpenSim/Services/InventoryService/OpenSim.Services.InventoryService.csproj --configuration Release --nologo
