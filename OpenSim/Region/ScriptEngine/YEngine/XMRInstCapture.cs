@@ -192,13 +192,52 @@ namespace OpenSim.Region.ScriptEngine.Yengine
 
             // scriptStateN represents the contents of the .state file so
             // write the .state file while we are here.
-            using(FileStream fs = File.Create(m_StateFileName))
-            {
-                using(StreamWriter sw = new StreamWriter(fs))
-                    sw.Write(scriptStateN.OuterXml);
-            }
+            WriteStateFileAtomically(m_StateFileName, scriptStateN.OuterXml);
 
             return scriptStateN;
+        }
+
+        // Never truncate a working YEngine .state file before the new XML is
+        // durable. Both snapshot persistence and OAR restore use this path.
+        // Temp and destination remain in the same directory (same filesystem).
+        internal static void WriteStateFileAtomically(string statePath, string xml)
+        {
+            if (string.IsNullOrWhiteSpace(statePath))
+                throw new ArgumentException("YEngine state path is required", nameof(statePath));
+            if (xml == null)
+                throw new ArgumentNullException(nameof(xml));
+
+            string temporary = statePath + ".ogl-" + Guid.NewGuid().ToString("N") + ".tmp";
+            try
+            {
+                using (FileStream stream = new(
+                    temporary, FileMode.CreateNew, FileAccess.Write, FileShare.None))
+                {
+                    using (StreamWriter writer = new(
+                        stream, new System.Text.UTF8Encoding(false), 4096, true))
+                    {
+                        writer.Write(xml);
+                        writer.Flush();
+                        stream.Flush(flushToDisk: true);
+                    }
+                }
+
+                File.Move(temporary, statePath, overwrite: true);
+            }
+            finally
+            {
+                // An interrupted write must leave the last known-good state
+                // untouched and not accumulate per-script temporary files.
+                try
+                {
+                    if (File.Exists(temporary))
+                        File.Delete(temporary);
+                }
+                catch (IOException)
+                {
+                    // Never mask the original I/O failure during cleanup.
+                }
+            }
         }
 
         /**
