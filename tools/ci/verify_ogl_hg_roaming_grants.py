@@ -56,6 +56,9 @@ coordinator = (ROOT / "OpenSim/Services/InventoryService/OglHgRoamingTravelCoord
 assert "TryRevokeOnAuthenticatedLogout" in coordinator
 assert "TryRevokeSessionsBeforeRegionLogout" in coordinator
 assert "TryAbortTravel" in coordinator
+travel_source = (ROOT / "OpenSim/Services/HypergridService/UserAgentService.cs").read_text()
+assert "IsAuthenticatedTravelDestination" in travel_source
+assert "HypergridUri.Equivalent(stored, destinationGridUri)" in travel_source
 coordinator = (ROOT / "OpenSim/Services/InventoryService/OglHgRoamingTravelCoordinator.cs").read_text()
 assert "m_verifiedLocalTravel(resident, session, verifiedDestination)" in coordinator
 assert "TryRevokeSession(resident, session)" in coordinator
