@@ -141,6 +141,7 @@ assert "OglHgResidentDeliveryIntake" not in iface
 roaming = read("OpenSim/Services/InventoryService/OglHgRoamingConsentAuthority.cs")
 assert "IOglHgAuthenticatedResidentSessionSource" in roaming
 assert "CanDelegate(residentId, authenticatedSessionId," in roaming
+assert "IsDelegationActive(request.ResidentId," in roaming
 assert "HMACSHA256.HashData(m_secret, bytes)" in roaming
 assert "CryptographicOperations.FixedTimeEquals(expected, received)" in roaming
 assert "fields[2] != request.ResidentId.ToString()" in roaming
