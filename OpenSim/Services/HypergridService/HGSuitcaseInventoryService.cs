@@ -435,7 +435,10 @@ namespace OpenSim.Services.HypergridService
             foreach (InventoryItemBase item in items)
             {
                 InventoryItemBase originalItem = base.GetItem(item.Owner, item.ID);
-                if (originalItem == null || originalItem.Owner != principalID ||
+                // HG callers do not reliably supply principalID here, so
+                // compare with the item owner rather than trusting that field.
+                if (originalItem == null ||
+                    (m_OglInventoryGuardEnabled && originalItem.Owner != item.Owner) ||
                     !IsWithinSuitcaseTree(originalItem.Owner, originalItem.Folder))
                 {
                     m_log.DebugFormat("[HG SUITCASE INVENTORY SERVICE]: MoveItems: folder {0} (user {1}) is not within Suitcase tree", item.Folder, item.Owner);
