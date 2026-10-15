@@ -84,7 +84,9 @@ namespace NexVerse.Server.Api
                                     LoadOptionalService<IPresenceService>(m_Config, "PresenceService"),
                                     LoadOptionalService<IGridService>(m_Config, "GridService"),
                                     null,
-                                    true);
+                                    true,
+                                    LoadRegionData(m_Config),
+                                    LoadOptionalService<IAssetService>(m_Config, "AssetService"));
                             }
                             catch (Exception e)
                             {
@@ -914,7 +916,9 @@ namespace NexVerse.Server.Api
                     presence,
                     grid,
                     authenticator,
-                    true);
+                    true,
+                    LoadRegionData(config),
+                    assets);
 
                 INexSecurityStore securityStore =
                     new PersistentNexSecurityStore(
@@ -1218,6 +1222,43 @@ namespace NexVerse.Server.Api
             }
 
             return headers;
+        }
+
+        // GridStore contains *all* locally registered regions, including
+        // offline records. GridService.GetOnlineRegions alone is insufficient.
+        private static IRegionData LoadRegionData(IConfigSource config)
+        {
+            IConfig database = config.Configs["DatabaseService"];
+            IConfig grid = config.Configs["GridService"];
+            string provider = grid?.GetString(
+                "StorageProvider",
+                database?.GetString("StorageProvider", string.Empty)) ??
+                database?.GetString("StorageProvider", string.Empty) ?? string.Empty;
+            string connection = grid?.GetString(
+                "ConnectionString",
+                database?.GetString("ConnectionString", string.Empty)) ??
+                database?.GetString("ConnectionString", string.Empty) ?? string.Empty;
+            string realm = grid?.GetString("Realm", "regions") ?? "regions";
+
+            if (string.IsNullOrWhiteSpace(provider))
+            {
+                m_Log.Warn("[NEX-WORLD-API]: GridStore statistics source has no StorageProvider.");
+                return null;
+            }
+
+            try
+            {
+                return ServerUtils.LoadPlugin<IRegionData>(
+                    provider,
+                    new object[] { connection, realm });
+            }
+            catch (Exception e)
+            {
+                m_Log.WarnFormat(
+                    "[NEX-WORLD-API]: GridStore statistics source unavailable: {0}",
+                    e.Message);
+                return null;
+            }
         }
 
         private static IGridUserData LoadGridUserData(IConfigSource config)
