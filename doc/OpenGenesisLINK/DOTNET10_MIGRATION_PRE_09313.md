@@ -107,9 +107,21 @@ arbitrary CLR names. CI verifies the guard, and runtime regressions cover
 valid and malicious type tags. This reduces type-loading risk, but does
 **not** prove that all historic script states remain loadable.
 
+**Additional script-state limits (draft):** YEngine now rejects input
+graphs with more than 131072 object tokens or 64 levels of recursion,
+limits frame headers to 4097 (one may be the state marker), and bounds
+strings before allocation. Normal serialized LSL state strings may be up
+to 262144 UTF-16 code units; exception text still has its stricter
+16384-character limit. The writer rejects oversized plain CLR strings
+so it will not emit a state the reader cannot load. Tests exercise the
+actual YEngine state decoder, including large valid strings,
+self-referencing arrays and malicious nested or oversized values.
+These are **compatibility limits** and may reject unusually large
+historical snapshots; do not migrate production regions blindly.
+
 **Remaining production blockers:** A safe, tested migration/reinitialization
 strategy for legacy KeyframeMotion and YEngine state in real OAR/region
-data; additional bounds on other script-state graphs and strings;
+data; validation with representative real scripts and inventories;
 full on-grid bridge/physics/crossing tests; operator-tested rollback.
 A green CI build alone is **not** production approval.
 
