@@ -160,6 +160,26 @@ multi-file database/script transactions or recovery of already incompatible
 legacy exception frames. The separate YEngine legacy-state audit, backup
 and real script-resume acceptance gates remain release-blocking.
 
+### Bounded YEngine XML import and resume
+
+The .NET 10 preview now shares a strict XML reader across existing `.state`
+files and incoming `SetXMLState` import/crossing snapshots. Inputs larger
+than **8 MiB UTF-8 / file bytes** are rejected, DTDs and external entity
+resolution are prohibited, and the parser also caps decoded character count.
+The atomic file writer enforces the same byte limit so it cannot create a
+state file that the next startup would reject. An incompatible existing state
+fails closed, remains unchanged, and does **not** trigger a fresh
+`state_entry` that could duplicate in-world payments or other side effects.
+Malformed imported XML returns a failed import and does not overwrite
+existing state. Runtime regression tests exercise accepted state XML, DTD
+refusal, oversized import/file refusal and preservation of existing state
+when a write is rejected.
+
+The limit is a deliberate compatibility policy: unusually large existing
+scripts/snapshots may require offline review rather than being migrated
+automatically. This does not yet validate pre-.NET10 BinaryFormatter graph
+content or certify a complete OAR/inventory roundtrip.
+
 ### Read-only legacy KeyframeMotion inventory audit
 
 Before planning a .NET 10 production cutover, run the new **read-only**
