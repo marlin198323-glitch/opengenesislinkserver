@@ -15,7 +15,21 @@ mysql --batch --raw --skip-column-names --database=YOUR_DB \
 PostgreSQL:
 
 ```bash
-psql -X -A -t -F $'\\t' --dbname=YOUR_DB \
+psql -X -v ON_ERROR_STOP=1 -A -t -F  \
+  -f addons/OGLAssetService.Migration/sql/postgresql-export.sql \
+  > /private/snapshot/uuid-hash.tsv
+```
+
+Confirm the SQL table name and provider schema before running; adjust the MySQL table identifier for a nondefault Realm. Never place credentials in Git or command arguments. The PostgreSQL command uses `ON_ERROR_STOP=1` so SQL errors do not silently produce an incomplete export. Check the export row count against a separately captured SQL snapshot count before cutover.
+
+Verify the snapshot:
+
+```bash
+dotnet run --project addons/OGLAssetService.Migration/OGLAssetService.Migration.csproj -c Release -- --verify-metadata /private/snapshot/fsassets /private/snapshot/uuid-hash.tsv
+```
+
+Add `--osgrid` only when `UseOsgridFormat=true`. The verifier is read-only; it does not migrate SQL metadata, prove that the export is complete, or perform cutover/rollback. A successful audit alone does not authorize production switchover.
+\\t' --dbname=YOUR_DB \
   -f addons/OGLAssetService.Migration/sql/postgresql-export.sql \
   > /private/snapshot/uuid-hash.tsv
 ```
