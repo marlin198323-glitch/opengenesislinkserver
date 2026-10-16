@@ -14,6 +14,8 @@ namespace OpenGenesisLINK.Addons.AssetService
     public sealed class OGLAssetConnector : FSAssetConnector, IAssetService
     {
         private readonly OGLObjectCache cache;
+        private readonly OGLDiskCache diskCache;
+        private readonly object cacheSync = new object();
         public OGLAssetConnector(IConfigSource config)
             : base(config)
         {
@@ -26,10 +28,83 @@ namespace OpenGenesisLINK.Addons.AssetService
             if (cacheMiB < 0 || cacheMiB > 4096)
                 throw new ArgumentOutOfRangeException("MemoryCacheMiB", "Must be between 0 and 4096 MiB.");
             cache = new OGLObjectCache((long)cacheMiB * 1024 * 1024);
+            if (settings.GetBoolean("DiskCacheEnabled", false))
+                diskCache = new OGLDiskCache(settings.GetString("DiskCacheDirectory", ""));
 
             string mode = settings.GetString("Mode", "compatibility");
             if (!String.Equals(mode, "compatibility", StringComparison.OrdinalIgnoreCase))
                 throw new NotSupportedException(
                     "OGL AssetService currently supports only Mode = compatibility. Distributed storage is not implemented.");
         }
+
+        byte[] IAssetService.GetData(string id)
+        {
+            lock (cacheSync)
+            {
+                if (cache.TryGet(id, out byte[] result)) return result;
+                if (diskCache != null)
+                {
+                    try
+                    {
+                        if (diskCache.TryGet(id, out result))
+                        {
+                            cache.Put(id, result);
+                            return result;
+                        }
+                    }
+                    catch (System.IO.IOException) { }
+                    catch (UnauthorizedAccessException) { }
+                }
+                result = base.GetData(id);
+                if (result != null && !String.IsNullOrEmpty(id))
+                {
+                    cache.Put(id, result);
+                    try { diskCache?.Put(id, result); }
+                    catch (System.IO.IOException) { }
+                    catch (UnauthorizedAccessException) { }
+                }
+                return result;
+            }
+        }
+
+        bool IAssetService.UpdateContent(string id, byte[] data)
+        {
+            lock (cacheSync)
+            {
+                cache.Invalidate(id);
+                try { diskCache?.Invalidate(id); }
+                catch (System.IO.IOException) { }
+                catch (UnauthorizedAccessException) { }
+                return base.UpdateContent(id, data);
+            }
+        }
+
+        bool IAssetService.Delete(string id)
+        {
+            lock (cacheSync)
+            {
+                cache.Invalidate(id);
+                try { diskCache?.Invalidate(id); }
+                catch (System.IO.IOException) { }
+                catch (UnauthorizedAccessException) { }
+                return base.Delete(id);
+            }
+        }
+
+        string IAssetService.Store(AssetBase asset)
+        {
+            lock (cacheSync)
+            {
+                string id = base.Store(asset);
+                if (!String.IsNullOrEmpty(id))
+                {
+                    cache.Invalidate(id);
+                    try { diskCache?.Invalidate(id); }
+                    catch (System.IO.IOException) { }
+                    catch (UnauthorizedAccessException) { }
+                }
+                return id;
+            }
+        }
     }
+}
