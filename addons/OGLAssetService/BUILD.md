@@ -1,6 +1,6 @@
 # OGL AssetService — first runnable compatibility module
 
-This first increment is a separately compiled .NET 8 DLL that inherits the existing FSAssetConnector. It **does not yet implement** the distributed object store, caching, World API metrics or JPEG2000 validation. All existing asset behavior remains delegated to FSAssetConnector.
+This separately compiled .NET 8 DLL inherits the existing FSAssetConnector. It implements experimental RAM and SSD read-through caching for interface-dispatched GetData; it **does not** implement a distributed object store, World API metrics or JPEG2000 validation. All existing asset behavior remains delegated to FSAssetConnector.
 
 Build from repository root:
 
@@ -65,7 +65,7 @@ dotnet build addons/OGLAssetService/OGLAssetService.csproj -c Release
 dotnet run --project addons/OGLAssetService.Tests/OGLAssetService.Tests.csproj -c Release
 ```
 
-No successful build or runtime test has yet been observed for these changes.
+The addon build and isolated smoke-test workflows have passed on GitHub Actions. A running ROBUST integration test has not yet been performed.
 
 ## Migration metadata dependency and cutover gate
 
@@ -96,7 +96,7 @@ dotnet run --project addons/OGLAssetService.Migration/OGLAssetService.Migration.
 dotnet run --project addons/OGLAssetService.Migration/OGLAssetService.Migration.csproj -c Release -- /path/to/offline/fsassets /path/to/separate/target --copy
 ```
 
-The CLI returns exit code 1 on any reported file copy failure or unhandled exception and prints JSON counts. It does not copy SQL metadata or switch live service configuration. Take a consistent database backup and stop the FSAssets writer before any copy. The standalone tool and CI workflow have been committed but their successful execution has not yet been verified.
+The CLI returns exit code 1 on any reported file copy failure or unhandled exception and prints JSON counts. It does not copy SQL metadata or switch live service configuration. Take a consistent database backup and stop the FSAssets writer before any copy. The standalone CLI and its isolated CI tests have passed; this does not constitute production readback verification.
 
 ## Offline FSAssets metadata hash audit
 
@@ -114,8 +114,20 @@ The command returns nonzero for missing, mismatched or invalid hashes. It suppor
 Export the `id` and `hash` columns from a **consistent** snapshot of the configured FSAssets realm into a UTF-8, tab-separated file with **no header**, one asset UUID and SHA-256 content hash per line. Do not use a live changing database export. Validate the actual realm/schema and column types for the chosen provider before generating the export.
 
 ```bash
-dotnet run --project addons/OGLAssetService.Migration/OGLAssetService.Migration.csproj -c Release -- --verify-metadata /offline/fsassets/base /offline/uuid-hash.tsv
+dotnet run --project addons/OGLAssetService.Migration/OGLAssetService.Migration.csproj -c Release -- --verify-metadata /offline/fsassets/base /offline/uuid-hash.tsv --expected-rows EXPECTED_SQL_ROW_COUNT
 # Append --osgrid if UseOsgridFormat=true.
 ```
 
-The command checks UUID/hash formatting, conflicting UUID mappings, and unique referenced payloads. A nonzero exit code indicates a failed audit. It does not copy or modify database rows, does not detect rows absent from the export, and cannot prove snapshot consistency without an external database backup and quiesced spool. Full database migration, rollback and service-level readback tests remain release blockers.
+The command checks UUID/hash formatting, duplicate and conflicting UUID mappings, and unique referenced payloads. A nonzero exit code indicates a failed audit. It does not copy or modify database rows, does not detect rows absent from the export, and cannot prove snapshot consistency without an external database backup and quiesced spool. Full database migration, rollback and service-level readback tests remain release blockers.
+
+## Main branch build-only integration (disabled by default)
+
+This addon may be included in the repository and built without enabling it in any ROBUST configuration. The existing FSAssetConnector remains the default. Do **not** change `LocalServiceModule` or set `[OGLAssetService] Enabled=true` on a live instance until staging readback, cache coherency and rollback tests are completed. The current compatibility module is not a drop-in production storage replacement.
+
+```bash
+dotnet build addons/OGLAssetService/OGLAssetService.csproj -c Release
+dotnet run --project addons/OGLAssetService.Tests/OGLAssetService.Tests.csproj -c Release
+dotnet build addons/OGLAssetService.Migration/OGLAssetService.Migration.csproj -c Release
+```
+
+See [CUTOVER-ROLLBACK.md](../OGLAssetService.Migration/CUTOVER-ROLLBACK.md) for the required production acceptance gates.
