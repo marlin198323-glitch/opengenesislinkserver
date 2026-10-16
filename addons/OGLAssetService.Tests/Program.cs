@@ -50,3 +50,21 @@ try
 }
 finally { if (Directory.Exists(root)) Directory.Delete(root, true); }
 Console.WriteLine("OGL cache smoke tests passed");
+
+string migrationRoot = Path.Combine(Path.GetTempPath(), "ogl-migration-test-" + Guid.NewGuid().ToString("N"));
+try
+{
+    string source = Path.Combine(migrationRoot, "source");
+    string target = Path.Combine(migrationRoot, "target");
+    Directory.CreateDirectory(Path.Combine(source, "ab"));
+    File.WriteAllBytes(Path.Combine(source, "ab", "asset.bin"), new byte[] { 1, 2, 3 });
+    var migrator = new OGLFsassetsMigrator();
+    var preview = migrator.Run(source, target, true);
+    Check(preview.FilesScanned == 1 && !Directory.Exists(target), "Dry run must not write");
+    var migrated = migrator.Run(source, target, false);
+    Check(migrated.FilesCopied == 1 && migrated.FilesVerified == 1 && migrated.Failures == 0, "Verified copy");
+    Check(File.ReadAllBytes(Path.Combine(target, "ab", "asset.bin")).SequenceEqual(new byte[] { 1, 2, 3 }), "Payload preserved");
+    var resumed = migrator.Run(source, target, false);
+    Check(resumed.FilesCopied == 0 && resumed.FilesVerified == 1, "Resumable verified copy");
+}
+finally { if (Directory.Exists(migrationRoot)) Directory.Delete(migrationRoot, true); }
