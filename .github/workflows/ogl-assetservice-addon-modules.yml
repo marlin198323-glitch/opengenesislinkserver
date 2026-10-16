@@ -19,6 +19,11 @@ jobs:
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '8.0.x'
+      - name: Generate OpenSim solution and build dependencies
+        run: |
+          chmod +x runprebuild.sh
+          ./runprebuild.sh
+          dotnet build -c Release OpenSim.sln
       - name: Build and stage OGL AssetService
         run: bash addon-modules/OGLAssetService/build.sh Release
       - name: Verify staged addon
