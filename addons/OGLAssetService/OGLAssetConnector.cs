@@ -16,6 +16,12 @@ namespace OpenGenesisLINK.Addons.AssetService
         private readonly OGLObjectCache cache;
         private readonly OGLDiskCache diskCache;
         private readonly object cacheSync = new object();
+        public long MemoryCacheHits => cache.Hits;
+        public long MemoryCacheMisses => cache.Misses;
+        public long MemoryCacheUsedBytes => cache.UsedBytes;
+        public long DiskCacheHits => diskCache?.Hits ?? 0;
+        public long DiskCacheMisses => diskCache?.Misses ?? 0;
+        public long DiskCacheEvictions => diskCache?.Evictions ?? 0;
         public OGLAssetConnector(IConfigSource config)
             : base(config)
         {
@@ -46,6 +52,7 @@ namespace OpenGenesisLINK.Addons.AssetService
 
         byte[] IAssetService.GetData(string id)
         {
+            if (String.IsNullOrWhiteSpace(id)) return base.GetData(id);
             lock (cacheSync)
             {
                 if (cache.TryGet(id, out byte[] result)) return result;
