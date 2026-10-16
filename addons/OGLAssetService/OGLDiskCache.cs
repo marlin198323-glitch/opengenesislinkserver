@@ -14,11 +14,18 @@ namespace OpenGenesisLINK.Addons.AssetService
     {
         private readonly string root;
         private readonly object sync = new object();
+        private readonly long maxBytes;
+        private long hits, misses, evictions;
+        public long Hits { get { lock(sync) return hits; } }
+        public long Misses { get { lock(sync) return misses; } }
+        public long Evictions { get { lock(sync) return evictions; } }
 
-        public OGLDiskCache(string directory)
+        public OGLDiskCache(string directory, long maxBytes = 0)
         {
             if (String.IsNullOrWhiteSpace(directory))
                 throw new ArgumentException("Cache directory is required.", nameof(directory));
+            if (maxBytes < 0) throw new ArgumentOutOfRangeException(nameof(maxBytes));
+            this.maxBytes = maxBytes;
             root = Path.GetFullPath(directory);
             Directory.CreateDirectory(root);
         }
@@ -53,6 +60,7 @@ namespace OpenGenesisLINK.Addons.AssetService
                         stream.ReadExactly(payload);
                         if (!CryptographicOperations.FixedTimeEquals(digest, SHA256.HashData(payload)))
                         {
+                            misses++;
                             TryDelete(path);
                             return false;
                         }
@@ -69,6 +77,7 @@ namespace OpenGenesisLINK.Addons.AssetService
         {
             if (data == null)
                 throw new ArgumentNullException(nameof(data));
+            if (maxBytes > 0 && data.LongLength > maxBytes - 32) return;
             string path = EntryPath(key);
             lock (sync)
             {
@@ -87,6 +96,30 @@ namespace OpenGenesisLINK.Addons.AssetService
                     File.Move(temp, path, true);
                 }
                 finally { TryDelete(temp); }
+            }
+        }
+
+        // Best-effort LRU by last-write timestamp, confined to this cache directory.
+        // A dedicated directory and a single writer process are required.
+        private void TrimToBudget()
+        {
+            var files = new System.Collections.Generic.List<FileInfo>();
+            long total = 0;
+            foreach (string file in Directory.EnumerateFiles(root, "*.cache", SearchOption.AllDirectories))
+            {
+                var info = new FileInfo(file);
+                if (!info.Exists) continue;
+                files.Add(info);
+                total += info.Length;
+            }
+            if (total <= maxBytes) return;
+            files.Sort((a, b) => a.LastWriteTimeUtc.CompareTo(b.LastWriteTimeUtc));
+            foreach (FileInfo info in files)
+            {
+                if (total <= maxBytes) break;
+                try { info.Delete(); total -= info.Length; evictions++; }
+                catch (IOException) { }
+                catch (UnauthorizedAccessException) { }
             }
         }
 
