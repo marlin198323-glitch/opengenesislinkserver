@@ -1,0 +1,28 @@
+name: OGL AssetService Cache and Migration Tests
+on:
+  push:
+    branches: [feature/ogl-assetservice-addon]
+    paths:
+      - 'addons/OGLAssetService/**'
+      - 'addons/OGLAssetService.Tests/**'
+      - '.github/workflows/ogl-assetservice-tests.yml'
+  pull_request:
+    paths:
+      - 'addons/OGLAssetService/**'
+      - 'addons/OGLAssetService.Tests/**'
+      - '.github/workflows/ogl-assetservice-tests.yml'
+permissions:
+  contents: read
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - name: Build isolated cache and migration tests
+        run: dotnet build addons/OGLAssetService.Tests/OGLAssetService.Tests.csproj --configuration Release
+      - name: Run isolated cache and migration tests
+        run: dotnet run --project addons/OGLAssetService.Tests/OGLAssetService.Tests.csproj --configuration Release --no-build
