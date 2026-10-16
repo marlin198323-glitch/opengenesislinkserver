@@ -86,3 +86,14 @@ In this mode, `IAssetService.GetData` bypasses both local caches and reads FSAss
 Redis revision increment failures no longer change the return value of an already completed authoritative FSAssets write. The connector exposes `RedisInvalidationFailures` as an in-process diagnostic counter. **This is not a durable retry mechanism**: failed invalidations can be lost and therefore shared Redis/local caches must stay disabled. Redis-enabled `GetData` deliberately bypasses the caches.
 
 The migration copier now checks existing destination path components for symlinks and rejects symlink source entries. This does not protect against concurrent path substitution (TOCTOU); run only against quiesced, access-controlled staging directories. Do not treat file copying as a replacement for the metadata database migration.
+
+## Standalone offline migration CLI
+
+The independent .NET 8 console application does not start ROBUST or load FSAssets SQL credentials. Dry-run is the default; only `--copy` writes to the separate target.
+
+```bash
+dotnet run --project addons/OGLAssetService.Migration/OGLAssetService.Migration.csproj -c Release -- /path/to/offline/fsassets /path/to/separate/target
+dotnet run --project addons/OGLAssetService.Migration/OGLAssetService.Migration.csproj -c Release -- /path/to/offline/fsassets /path/to/separate/target --copy
+```
+
+The CLI returns exit code 1 on any reported file copy failure or unhandled exception and prints JSON counts. It does not copy SQL metadata or switch live service configuration. Take a consistent database backup and stop the FSAssets writer before any copy. The standalone tool and CI workflow have been committed but their successful execution has not yet been verified.
