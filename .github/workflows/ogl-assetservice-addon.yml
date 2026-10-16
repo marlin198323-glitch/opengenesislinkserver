@@ -1,0 +1,25 @@
+name: OGL AssetService Addon
+on:
+  push:
+    branches: [feature/ogl-assetservice-addon]
+    paths:
+      - 'addons/OGLAssetService/**'
+      - 'addons/OGLAssetService.Tests/**'
+      - '.github/workflows/ogl-assetservice-addon.yml'
+  pull_request:
+    paths:
+      - 'addons/OGLAssetService/**'
+      - 'addons/OGLAssetService.Tests/**'
+      - '.github/workflows/ogl-assetservice-addon.yml'
+  workflow_dispatch:
+
+jobs:
+  cache-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - name: Run independent cache tests
+        run: dotnet run --project addons/OGLAssetService.Tests/OGLAssetService.Tests.csproj -c Release

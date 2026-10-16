@@ -1,0 +1,65 @@
+#!/usr/bin/env bash
+# Isolated metadata export -> restore -> export comparison, never production.
+set -euo pipefail
+provider="${1:-}"
+if [[ "$provider" != "mysql" && "$provider" != "postgres" ]]; then
+  echo "Usage: $0 mysql|postgres" >&2
+  exit 2
+fi
+root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+work="$(mktemp -d)"
+trap 'rm -rf "$work"' EXIT
+id1='123e4567-e89b-12d3-a456-426614174000'
+id2='123e4567-e89b-12d3-a456-426614174001'
+hash1="$(printf 'asset-one' | sha256sum | cut -d' ' -f1)"
+hash2="$(printf 'asset-two' | sha256sum | cut -d' ' -f1)"
+mkdir -p "$work/fsassets"
+for item in 1 2; do
+  if [[ "$item" == 1 ]]; then hash="$hash1"; data='asset-one'; else hash="$hash2"; data='asset-two'; fi
+  folder="$work/fsassets/${hash:0:2}/${hash:2:2}/${hash:4:2}/${hash:6:4}"
+  mkdir -p "$folder"
+  printf '%s' "$data" > "$folder/$hash"
+done
+if [[ "$provider" == "mysql" ]]; then
+  : "${MYSQL_PWD:?MYSQL_PWD must be set for disposable test database}"
+  mysql=(mysql --protocol=tcp --host=127.0.0.1 --port=3306 --user=root --batch --raw --skip-column-names)
+  "${mysql[@]}" -e 'CREATE DATABASE IF NOT EXISTS ogl_assetservice_test;'
+  trap '"${mysql[@]}" -e "DROP DATABASE IF EXISTS ogl_assetservice_test; DROP DATABASE IF EXISTS ogl_assetservice_restored;" || true; rm -rf "$work"' EXIT
+  "${mysql[@]}" ogl_assetservice_test -e 'CREATE TABLE fsassets (id CHAR(36) PRIMARY KEY, name VARCHAR(255) NOT NULL, description TEXT NOT NULL, type SMALLINT NOT NULL, hash CHAR(64) NOT NULL, asset_flags INT NOT NULL, create_time BIGINT NOT NULL, access_time BIGINT NOT NULL);'
+  "${mysql[@]}" ogl_assetservice_test -e "INSERT INTO fsassets (id,name,description,type,hash,asset_flags,create_time,access_time) VALUES ('$id1','Asset One','Test payload one',0,'$hash1',1,1720000000,1720000100),('$id2','Asset Two','Test payload two',1,'$hash2',2,1720000200,1720000300);"
+  "${mysql[@]}" ogl_assetservice_test < "$root/addons/OGLAssetService.Migration/sql/mysql-mariadb-export.sql" > "$work/before.tsv"
+  # Exercise native backup/restore into a separate disposable database, not a table copy.
+  mariadb-dump --protocol=tcp --host=127.0.0.1 --port=3306 --user=root --single-transaction --skip-lock-tables ogl_assetservice_test > "$work/native-backup.sql"
+  "${mysql[@]}" -e 'CREATE DATABASE ogl_assetservice_restored;'
+  "${mysql[@]}" ogl_assetservice_restored < "$work/native-backup.sql"
+  "${mysql[@]}" ogl_assetservice_restored -e 'SELECT * FROM fsassets ORDER BY id;' > "$work/full-restored.tsv"
+  "${mysql[@]}" ogl_assetservice_test -e 'SELECT * FROM fsassets ORDER BY id;' > "$work/full-source.tsv"
+  cmp "$work/full-source.tsv" "$work/full-restored.tsv"
+  "${mysql[@]}" ogl_assetservice_test -e 'CREATE TABLE restored LIKE fsassets; INSERT INTO restored SELECT * FROM fsassets; TRUNCATE TABLE fsassets; INSERT INTO fsassets SELECT * FROM restored;'
+  "${mysql[@]}" ogl_assetservice_test -e 'SELECT * FROM fsassets ORDER BY id;' > "$work/full-after.tsv"
+  "${mysql[@]}" ogl_assetservice_test -e 'SELECT * FROM restored ORDER BY id;' > "$work/full-before.tsv"
+  cmp "$work/full-before.tsv" "$work/full-after.tsv"
+  "${mysql[@]}" ogl_assetservice_test < "$root/addons/OGLAssetService.Migration/sql/mysql-mariadb-export.sql" > "$work/after.tsv"
+else
+  : "${PGPASSWORD:?PGPASSWORD must be set for disposable test database}"
+  psql=(psql -X -v ON_ERROR_STOP=1 --host=127.0.0.1 --port=5432 --username=postgres --dbname=postgres)
+  "${psql[@]}" -c 'DROP TABLE IF EXISTS fsassets; CREATE TABLE fsassets (id UUID PRIMARY KEY, type SMALLINT NOT NULL, hash VARCHAR(64) NOT NULL, asset_flags INT NOT NULL, create_time BIGINT NOT NULL, access_time BIGINT NOT NULL);'
+  trap '"${psql[@]}" -c "DROP TABLE IF EXISTS fsassets;" || true; "${psql[@]}" -c "DROP DATABASE IF EXISTS ogl_assetservice_restored;" || true; rm -rf "$work"' EXIT
+  "${psql[@]}" -c "INSERT INTO fsassets (id,type,hash,asset_flags,create_time,access_time) VALUES ('$id1',0,'$hash1',1,1720000000,1720000100),('$id2',1,'$hash2',2,1720000200,1720000300);"
+  "${psql[@]}" -A -t -F "$(printf '\t')" -f "$root/addons/OGLAssetService.Migration/sql/postgresql-export.sql" > "$work/before.tsv"
+  pg_dump --host=127.0.0.1 --port=5432 --username=postgres --dbname=postgres --table=public.fsassets --no-owner --no-privileges --format=plain > "$work/native-backup.sql"
+  # Restore the isolated dump into its own disposable database rather than the live test table.
+  "${psql[@]}" -c 'CREATE DATABASE ogl_assetservice_restored;'
+  psql -X -v ON_ERROR_STOP=1 --host=127.0.0.1 --port=5432 --username=postgres --dbname=ogl_assetservice_restored -f "$work/native-backup.sql" >/dev/null
+  psql -X -v ON_ERROR_STOP=1 --host=127.0.0.1 --port=5432 --username=postgres --dbname=ogl_assetservice_restored -A -t -F '|' -c 'SELECT * FROM fsassets ORDER BY id;' > "$work/full-restored.tsv"
+  "${psql[@]}" -A -t -F '|' -c 'SELECT * FROM fsassets ORDER BY id;' > "$work/full-source.tsv"
+  cmp "$work/full-source.tsv" "$work/full-restored.tsv"
+  "${psql[@]}" -A -t -F '|' -c 'SELECT * FROM fsassets ORDER BY id;' > "$work/full-before.tsv"
+  "${psql[@]}" -c 'BEGIN; CREATE TEMP TABLE restored AS TABLE fsassets; TRUNCATE fsassets; INSERT INTO fsassets SELECT * FROM restored; COMMIT;'
+  "${psql[@]}" -A -t -F '|' -c 'SELECT * FROM fsassets ORDER BY id;' > "$work/full-after.tsv"
+  cmp "$work/full-before.tsv" "$work/full-after.tsv"
+  "${psql[@]}" -A -t -F "$(printf '\t')" -f "$root/addons/OGLAssetService.Migration/sql/postgresql-export.sql" > "$work/after.tsv"
+fi
+cmp "$work/before.tsv" "$work/after.tsv"
+dotnet run --project "$root/addons/OGLAssetService.Migration/OGLAssetService.Migration.csproj" -c Release --no-build -- --verify-metadata "$work/fsassets" "$work/after.tsv" --expected-rows 2
+echo "$provider metadata roundtrip passed"
