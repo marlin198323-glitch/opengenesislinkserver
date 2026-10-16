@@ -8,5 +8,6 @@
     <Compile Include="../OGLAssetService/OGLObjectCache.cs" Link="OGLObjectCache.cs" />
     <Compile Include="../OGLAssetService/OGLDiskCache.cs" Link="OGLDiskCache.cs" />
     <Compile Include="../OGLAssetService/OGLFsassetsMigrator.cs" Link="OGLFsassetsMigrator.cs" />
+    <Compile Include="../OGLAssetService/OGLFsassetsHashAudit.cs" Link="OGLFsassetsHashAudit.cs" />
   </ItemGroup>
 </Project>
