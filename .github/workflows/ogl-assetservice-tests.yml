@@ -63,7 +63,7 @@ jobs:
           folder="$base/${hash:0:2}/${hash:2:2}/${hash:4:2}/${hash:6:4}"
           mkdir -p "$folder"
           cp "$RUNNER_TEMP/asset-payload" "$folder/$hash"
-          printf '123e4567-e89b-12d3-a456-426614174000\\t%s\\n' "$hash" > "$RUNNER_TEMP/metadata-valid.tsv"
+          printf '123e4567-e89b-12d3-a456-426614174000\t%s\n' "$hash" > "$RUNNER_TEMP/metadata-valid.tsv"
           dotnet run --project addons/OGLAssetService.Migration/OGLAssetService.Migration.csproj -c Release --no-build -- --verify-metadata "$base" "$RUNNER_TEMP/metadata-valid.tsv" --expected-rows 1
       - name: Run isolated cache and migration tests
         run: dotnet run --project addons/OGLAssetService.Tests/OGLAssetService.Tests.csproj --configuration Release --no-build
