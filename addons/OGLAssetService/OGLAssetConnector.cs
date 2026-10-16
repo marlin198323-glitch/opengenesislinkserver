@@ -18,6 +18,8 @@ namespace OpenGenesisLINK.Addons.AssetService
         private readonly object cacheSync = new object();
         private readonly OGLRedisAssetCoordinator redis;
         private readonly bool redisEnabled;
+        private long redisInvalidationFailures;
+        public long RedisInvalidationFailures => System.Threading.Interlocked.Read(ref redisInvalidationFailures);
         public long MemoryCacheHits => cache.Hits;
         public long MemoryCacheMisses => cache.Misses;
         public long MemoryCacheUsedBytes => cache.UsedBytes;
@@ -59,6 +61,18 @@ namespace OpenGenesisLINK.Addons.AssetService
             if (!String.Equals(mode, "compatibility", StringComparison.OrdinalIgnoreCase))
                 throw new NotSupportedException(
                     "OGL AssetService currently supports only Mode = compatibility. Distributed storage is not implemented.");
+        }
+
+        private void TryInvalidateRedis(string id)
+        {
+            if (!redisEnabled || String.IsNullOrWhiteSpace(id)) return;
+            try { redis.InvalidateAsync(id).GetAwaiter().GetResult(); }
+            catch (Exception)
+            {
+                // The authoritative write already succeeded. Never report it as failed.
+                // Distributed caches remain disabled until a durable outbox exists.
+                System.Threading.Interlocked.Increment(ref redisInvalidationFailures);
+            }
         }
 
         byte[] IAssetService.GetData(string id)
@@ -105,8 +119,7 @@ namespace OpenGenesisLINK.Addons.AssetService
                 catch (System.IO.IOException) { }
                 catch (UnauthorizedAccessException) { }
                 bool updated = base.UpdateContent(id, data);
-                if (updated && redisEnabled && !String.IsNullOrWhiteSpace(id))
-                    redis.InvalidateAsync(id).GetAwaiter().GetResult();
+                if (updated) TryInvalidateRedis(id);
                 return updated;
             }
         }
@@ -120,8 +133,7 @@ namespace OpenGenesisLINK.Addons.AssetService
                 catch (System.IO.IOException) { }
                 catch (UnauthorizedAccessException) { }
                 bool deleted = base.Delete(id);
-                if (deleted && redisEnabled && !String.IsNullOrWhiteSpace(id))
-                    redis.InvalidateAsync(id).GetAwaiter().GetResult();
+                if (deleted) TryInvalidateRedis(id);
                 return deleted;
             }
         }
@@ -138,8 +150,7 @@ namespace OpenGenesisLINK.Addons.AssetService
                     catch (System.IO.IOException) { }
                     catch (UnauthorizedAccessException) { }
                 }
-                if (redisEnabled && !String.IsNullOrWhiteSpace(id))
-                    redis.InvalidateAsync(id).GetAwaiter().GetResult();
+                TryInvalidateRedis(id);
                 return id;
             }
         }
