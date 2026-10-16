@@ -37,4 +37,4 @@ Stop before cutover on any unexpected SQL row-count difference, failed database 
 - [ ] Rollback exercised against a disposable staging environment
 - [ ] Rollback window, ownership and post-cutover write policy approved
 
-Current CI validates isolated schema fixtures and file/hash auditing, **not** the production schema, spool consistency, staging service readback or a production rollback.
+Current CI includes disposable native MariaDB and PostgreSQL SQL backup/restore fixtures, provider-specific metadata comparisons and file/hash auditing. These fixtures **do not** validate the production schema, spool consistency, staging service readback or a production rollback.
