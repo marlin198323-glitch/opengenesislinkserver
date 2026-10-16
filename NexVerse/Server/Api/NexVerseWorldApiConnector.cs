@@ -648,6 +648,15 @@ namespace NexVerse.Server.Api
                     adminMinimumLevel,
                     new PersistentNexSecurityStore(apiConfig.GetString("SecurityStorePath", "data/nexverse-security.json")));
 
+                // Register the authenticated fallback immediately after its router is ready.
+                // Later optional services must not prevent users/me, users, auth and
+                // other core endpoints from being routed at all. The router retains
+                // its existing authorization and HTTP-method checks.
+                server.AddSimpleStreamHandler(
+                    new SimpleStreamHandler("/api", apiGate.Wrap(userRouter.Handle),
+                        "NexVerse World API privileged router"), true);
+                m_Log.Info("[NEX-WORLD-API]: Core privileged /api router registered.");
+
                 // Admin login now POSTs to the exact same URL serving the
                 // login page, /api/v1/docs. This works even when a KeyHelp
                 // reverse proxy routes only the public docs path correctly.
@@ -1089,10 +1098,6 @@ namespace NexVerse.Server.Api
                     "/api/v1/auth/admin/session",
                     apiGate.Wrap(userRouter.Handle),
                     "OpenGenesisLINK native administrator session"));
-
-                server.AddSimpleStreamHandler(
-                    new SimpleStreamHandler("/api", apiGate.Wrap(userRouter.Handle), "NexVerse World API privileged router"),
-                    true);
 
                 m_Log.Warn("[NEX-WORLD-API]: Privileged endpoints are enabled. Use only over a transport that protects bearer tokens.");
             }
