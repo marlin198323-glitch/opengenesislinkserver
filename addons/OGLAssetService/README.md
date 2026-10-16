@@ -1,49 +1,33 @@
-# OGL AssetService Addon (development branch)
+# OGL AssetService addon — buildable compatibility preview
 
-This directory defines an independently deployable asset-service plugin for OpenGenesisLINK.
+The addon builds as a separate .NET 8 assembly and leaves the original FSAssetService and existing FSAssets authoritative. It is **disabled by default** and is not automatically loaded by ROBUST. No migration or service switchover occurs by building it.
 
-## Components
+## Implemented
 
-- **OGL AssetService**: a ROBUST-side `IAssetService` implementation, loaded through the existing `[AssetService] LocalServiceModule` configuration.
-- **OGL Storage Agent**: an optional simulator-host process exposing authenticated object storage operations.
-- **OGL Asset Directory**: maps asset UUIDs to immutable content hashes and verified storage replicas.
-- **Legacy FSAssets adapter**: reads existing `fsassets` without changing their layout, UUIDs, metadata or payload bytes.
+- `OGLAssetConnector` extending the existing `FSAssetConnector` in `Mode=compatibility`.
+- Optional bounded RAM cache and SHA-256-verified SSD cache for interface-dispatched `GetData`; interface-dispatched writes invalidate local cache entries.
+- Experimental Redis revision invalidation. **Do not enable it in production:** cross-process coherence, durable invalidation and failure recovery are not implemented.
+- Offline FSAssets file copier with dry-run and SHA-256 verification.
+- Offline UUID-to-hash metadata audit, duplicate detection and MariaDB/PostgreSQL isolated backup/restore test fixtures.
+- GitHub Actions build and smoke tests.
 
-## Non-negotiable compatibility rules
+## Not implemented / release blockers
 
-1. The original FSAssets repository remains authoritative until an operator explicitly switches the storage mode.
-2. No migration operation deletes or overwrites an original asset.
-3. A local cache is disposable; a durable object replica is not.
-4. An object is committed only after checksum verification and the configured minimum number of durable replicas acknowledge persistence.
-5. A simulator node may leave the grid without orphaning its objects: replica health and relocation are required before decommissioning.
-6. Existing OpenSim asset API and Hypergrid interfaces remain intact.
-7. JPEG2000 validation must never silently rewrite an original asset; decoding and optional derived previews are separate operations.
+- Distributed object store, node registration, authenticated replication and replica healing.
+- Full production metadata migration orchestration, spool consistency, transactional cutover and exercised rollback.
+- Running ROBUST `Get`, `GetMetadata`, `GetData`, `Store`, `Delete` and `UpdateContent` staging integration tests.
+- Verified multi-process cache coherency, Hypergrid interoperability, JPEG2000 diagnostics and production observability.
 
-## Planned configuration
+## Build
 
-```ini
-[AssetService]
-    ; Existing provider remains enabled until the addon has passed integration tests.
-    ; LocalServiceModule = "OpenSim.Services.OGLAssetService.dll:OGLAssetConnector"
+From the repository root:
 
-[OGLAssetService]
-    Enabled = false
-    Mode = "shadow"
-    LegacyBaseDirectory = "./fsassets/data"
-    CacheDirectory = "./ogl-asset-cache"
-    CacheMaxGiB = 20
-    MinimumDurableReplicas = 2
-    ValidateJ2K = true
+```bash
+dotnet build addons/OGLAssetService/OGLAssetService.csproj -c Release
+dotnet run --project addons/OGLAssetService.Tests/OGLAssetService.Tests.csproj -c Release
+dotnet build addons/OGLAssetService.Migration/OGLAssetService.Migration.csproj -c Release
 ```
 
-The above is a **design contract**, not an operational configuration yet. Do not enable the module until its implementation, dependency registration, and tests have been completed.
+For staging-only configuration and limitations, see [BUILD.md](BUILD.md). For the offline SQL verification process see [EXPORT.md](../OGLAssetService.Migration/EXPORT.md), and for operational acceptance gates see [CUTOVER-ROLLBACK.md](../OGLAssetService.Migration/CUTOVER-ROLLBACK.md).
 
-## Milestones
-
-1. Implement and test the compatibility adapter and read-through cache.
-2. Add a separately compiled `IAssetService` connector with a safe feature flag.
-3. Implement authenticated node registration, content-addressed object storage and replica verification.
-4. Implement background migration, JPEG2000 diagnostics, metrics and failure recovery.
-5. Run integration tests against existing FSAssets, HG asset flows and a multi-node outage scenario.
-
-InventoryGuard is explicitly out of scope.
+**Never enable the connector on a live ROBUST merely because the addon is merged into `main`.** The original FSAssets remain unchanged, and the addon must be explicitly configured for a disposable staging instance first.
