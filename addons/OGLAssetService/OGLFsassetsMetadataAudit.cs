@@ -11,6 +11,7 @@ namespace OpenGenesisLINK.Addons.AssetService
             public long Rows { get; set; }
             public long InvalidRows { get; set; }
             public long ConflictingIds { get; set; }
+            public long DuplicateIds { get; set; }
             public long UniqueAssets { get; set; }
             public long UniqueHashes { get; set; }
             public long ValidFiles { get; set; }
@@ -26,7 +27,7 @@ namespace OpenGenesisLINK.Addons.AssetService
             var hashes = new HashSet<string>(StringComparer.Ordinal);
             foreach (string line in rows)
             {
-                if (String.IsNullOrWhiteSpace(line)) continue;
+                if (String.IsNullOrWhiteSpace(line)) { result.Rows++; result.InvalidRows++; continue; }
                 result.Rows++;
                 string[] columns = line.Split('\t');
                 if (columns.Length != 2 || !Guid.TryParse(columns[0].Trim(), out Guid id))
@@ -42,6 +43,7 @@ namespace OpenGenesisLINK.Addons.AssetService
                 }
                 if (ids.TryGetValue(id, out string previous))
                 {
+                    result.DuplicateIds++;
                     if (previous != hash) result.ConflictingIds++;
                     continue;
                 }
