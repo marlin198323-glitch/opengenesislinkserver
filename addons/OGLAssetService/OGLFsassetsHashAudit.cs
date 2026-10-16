@@ -49,6 +49,21 @@ namespace OpenGenesisLINK.Addons.AssetService
                 }
                 try
                 {
+                    // Never follow filesystem links in an offline asset snapshot.
+                    string relative = Path.GetRelativePath(root, path);
+                    string current = root;
+                    if ((File.GetAttributes(root) & FileAttributes.ReparsePoint) != 0)
+                        throw new IOException("Linked FSAssets root rejected.");
+                    foreach (string part in relative.Split(Path.DirectorySeparatorChar))
+                    {
+                        current = Path.Combine(current, part);
+                        if ((File.Exists(current) || Directory.Exists(current)) &&
+                            (File.GetAttributes(current) & FileAttributes.ReparsePoint) != 0)
+                            throw new IOException("Linked FSAssets path rejected.");
+                    }
+                    if (File.Exists(path + ".gz") &&
+                        (File.GetAttributes(path + ".gz") & FileAttributes.ReparsePoint) != 0)
+                        throw new IOException("Linked compressed FSAssets file rejected.");
                     using Stream input = File.Exists(path + ".gz")
                         ? new GZipStream(File.OpenRead(path + ".gz"), CompressionMode.Decompress)
                         : File.OpenRead(path);
