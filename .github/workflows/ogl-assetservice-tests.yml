@@ -11,6 +11,7 @@ on:
     paths:
       - 'addons/OGLAssetService/**'
       - 'addons/OGLAssetService.Tests/**'
+      - 'addons/OGLAssetService.Migration/**'
       - '.github/workflows/ogl-assetservice-tests.yml'
 permissions:
   contents: read
