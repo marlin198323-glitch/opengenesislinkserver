@@ -40,8 +40,10 @@ else
   trap '"${psql[@]}" -c "DROP TABLE IF EXISTS fsassets;" || true; rm -rf "$work"' EXIT
   "${psql[@]}" -c "INSERT INTO fsassets (id,type,hash,asset_flags,create_time,access_time) VALUES ('$id1',0,'$hash1',1,1720000000,1720000100),('$id2',1,'$hash2',2,1720000200,1720000300);"
   "${psql[@]}" -A -t -F "$(printf '\t')" -f "$root/addons/OGLAssetService.Migration/sql/postgresql-export.sql" > "$work/before.tsv"
+  "${psql[@]}" -A -t -F '|' -c 'SELECT * FROM fsassets ORDER BY id;' > "$work/full-before.tsv"
   "${psql[@]}" -c 'BEGIN; CREATE TEMP TABLE restored AS TABLE fsassets; TRUNCATE fsassets; INSERT INTO fsassets SELECT * FROM restored; COMMIT;'
   "${psql[@]}" -A -t -F '|' -c 'SELECT * FROM fsassets ORDER BY id;' > "$work/full-after.tsv"
+  cmp "$work/full-before.tsv" "$work/full-after.tsv"
   "${psql[@]}" -A -t -F "$(printf '\t')" -f "$root/addons/OGLAssetService.Migration/sql/postgresql-export.sql" > "$work/after.tsv"
 fi
 cmp "$work/before.tsv" "$work/after.tsv"
