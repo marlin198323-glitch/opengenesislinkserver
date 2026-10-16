@@ -108,6 +108,10 @@ jobs:
             echo "ERROR: missing payload accepted"
             exit 1
           fi
+      - name: Install database backup clients
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq mariadb-client postgresql-client
       - name: SQL metadata roundtrip MariaDB
         env:
           MYSQL_PWD: ogl-test-only
