@@ -8,5 +8,6 @@
   <ItemGroup>
     <Compile Include="../OGLAssetService/OGLFsassetsMigrator.cs" Link="OGLFsassetsMigrator.cs" />
     <Compile Include="../OGLAssetService/OGLFsassetsHashAudit.cs" Link="OGLFsassetsHashAudit.cs" />
+    <Compile Include="../OGLAssetService/OGLFsassetsMetadataAudit.cs" Link="OGLFsassetsMetadataAudit.cs" />
   </ItemGroup>
 </Project>
