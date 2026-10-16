@@ -1,10 +1,12 @@
-# FSAssets metadata export (offline only)
+# FSAssets offline metadata export and verification
 
-The checked FSAssets adapters are `OpenSim/Data/MySQL/MySQLFSAssetData.cs` (configurable Realm, default `fsassets`) and `OpenSim/Data/PGSQL/PGSQLFSAssetData.cs` (hard-coded `fsassets` table). Both read `id` and `hash`. The SQLite FSAssets provider has not been confirmed in this repository: SQLite migration is unsupported until verified.
+The MySQL/MariaDB adapter uses the configured `Realm` (default `fsassets`), while the inspected PostgreSQL adapter uses `fsassets`. Both have `id` and `hash` columns. SQLite FSAssets support is **not verified**.
 
-**Before export:** stop ROBUST/FSAssets writes and wait for the spool to drain; take a consistent SQL backup and a matching FSAssets directory snapshot. Export from the database snapshot, not a moving production database. Keep backup and TSV private.
+**Safety:** Stop all FSAssets writers, drain the spool, and take matching database and filesystem snapshots. Run the export against the *offline database snapshot*, not a changing production database. Keep all exports private. Neither command below imports data or changes the live service.
 
-MariaDB/MySQL, with connection arguments and credentials supplied securely through your local client configuration:
+## MariaDB / MySQL
+
+Supply credentials via a protected client option file, not Git or shell arguments. Adjust the table name in the SQL file if `Realm` differs from `fsassets`.
 
 ```bash
 mysql --batch --raw --skip-column-names --database=YOUR_DB \
@@ -12,34 +14,21 @@ mysql --batch --raw --skip-column-names --database=YOUR_DB \
   > /private/snapshot/uuid-hash.tsv
 ```
 
-PostgreSQL:
+## PostgreSQL
 
 ```bash
-psql -X -v ON_ERROR_STOP=1 -A -t -F  \
+psql -X -v ON_ERROR_STOP=1 -A -t -F "$(printf '\\t')" --dbname=YOUR_DB \
   -f addons/OGLAssetService.Migration/sql/postgresql-export.sql \
   > /private/snapshot/uuid-hash.tsv
 ```
 
-Confirm the SQL table name and provider schema before running; adjust the MySQL table identifier for a nondefault Realm. Never place credentials in Git or command arguments. The PostgreSQL command uses `ON_ERROR_STOP=1` so SQL errors do not silently produce an incomplete export. Check the export row count against a separately captured SQL snapshot count before cutover.
+## Verification
 
-Verify the snapshot:
-
-```bash
-dotnet run --project addons/OGLAssetService.Migration/OGLAssetService.Migration.csproj -c Release -- --verify-metadata /private/snapshot/fsassets /private/snapshot/uuid-hash.tsv
-```
-
-Add `--osgrid` only when `UseOsgridFormat=true`. The verifier is read-only; it does not migrate SQL metadata, prove that the export is complete, or perform cutover/rollback. A successful audit alone does not authorize production switchover.
-\\t' --dbname=YOUR_DB \
-  -f addons/OGLAssetService.Migration/sql/postgresql-export.sql \
-  > /private/snapshot/uuid-hash.tsv
-```
-
-Confirm the SQL table name and provider schema before running; adjust the MySQL table identifier for a nondefault Realm. Never place credentials in Git or command arguments. On PostgreSQL set `ON_ERROR_STOP=1` in the psql command so SQL errors cannot be mistaken for an empty export.
-
-Verify the snapshot:
+First independently obtain the total row count from the **same SQL snapshot** (`SELECT COUNT(*) FROM fsassets;`, or the configured MySQL realm). Then run the audit:
 
 ```bash
-dotnet run --project addons/OGLAssetService.Migration/OGLAssetService.Migration.csproj -c Release -- --verify-metadata /private/snapshot/fsassets /private/snapshot/uuid-hash.tsv
+dotnet run --project addons/OGLAssetService.Migration/OGLAssetService.Migration.csproj -c Release -- \
+  --verify-metadata /private/snapshot/fsassets /private/snapshot/uuid-hash.tsv --expected-rows YOUR_COUNT
 ```
 
-Add `--osgrid` only when `UseOsgridFormat=true`. The verifier is read-only; it does not migrate SQL metadata, prove that the export is complete, or perform cutover/rollback. A successful audit alone does not authorize production switchover.
+Use `--osgrid` as an additional option only if `UseOsgridFormat=true`. Exit code 0 requires matching expected row count, no duplicate or invalid UUID/hash rows, and all referenced payloads present and checksum-valid. A clean audit does not prove that the SQL backup can be restored, that the spool was drained, or that the running asset service reads back correctly. Database import, service cutover and rollback remain unimplemented.
