@@ -38,6 +38,7 @@ try
     Check(!disk.TryGet("asset-uuid", out _), "Disk invalidation");
     var bounded = new OGLDiskCache(root, 70);
     bounded.Put("budget-a", new byte[20]);
+    System.Threading.Thread.Sleep(1100);
     bounded.Put("budget-b", new byte[20]);
     Check(Directory.GetFiles(root, "*.cache", SearchOption.AllDirectories)
         .Sum(p => new FileInfo(p).Length) <= 70, "Disk quota must be enforced");
@@ -66,5 +67,13 @@ try
     Check(File.ReadAllBytes(Path.Combine(target, "ab", "asset.bin")).SequenceEqual(new byte[] { 1, 2, 3 }), "Payload preserved");
     var resumed = migrator.Run(source, target, false);
     Check(resumed.FilesCopied == 0 && resumed.FilesVerified == 1, "Resumable verified copy");
+    File.WriteAllBytes(Path.Combine(target, "ab", "asset.bin"), new byte[] { 9, 9, 9 });
+    var repaired = migrator.Run(source, target, false);
+    Check(repaired.FilesCopied == 1 && repaired.FilesVerified == 1, "Corrupt destination repaired");
+    Check(File.ReadAllBytes(Path.Combine(source, "ab", "asset.bin")).SequenceEqual(new byte[] { 1, 2, 3 }), "Source remains untouched");
+    bool overlapRejected = false;
+    try { migrator.Run(source, Path.Combine(source, "nested"), true); }
+    catch (InvalidOperationException) { overlapRejected = true; }
+    Check(overlapRejected, "Overlapping migration directories rejected");
 }
 finally { if (Directory.Exists(migrationRoot)) Directory.Delete(migrationRoot, true); }
