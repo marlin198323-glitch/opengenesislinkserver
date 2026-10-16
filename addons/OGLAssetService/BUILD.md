@@ -29,3 +29,21 @@ Do not use this on production yet. This is an integration smoke-test entry point
 ## Current cache increment
 
 The connector now implements `IAssetService.GetData` with a bounded RAM read-through cache. Configure `[OGLAssetService] MemoryCacheMiB = 64` (0 disables caching). Cache invalidation is wired to interface-dispatched `Store`, `UpdateContent`, and `Delete` calls. Full `Get` asset requests still use the legacy implementation. This is not a distributed cache, and no runtime build or integration test has been verified yet.
+
+
+## Optional SSD read-through (experimental)
+
+The `IAssetService.GetData` interface path now reads RAM, then an optional checksummed SSD cache, then authoritative FSAssets. Writes through the interface invalidate both caches. Other FSAssetConnector methods (including full-asset Get and direct base-class calls) are not cached. Cache consistency across multiple processes or writers is **not** guaranteed.
+
+Staging-only configuration:
+
+```ini
+[OGLAssetService]
+Enabled = true
+Mode = "compatibility"
+MemoryCacheMiB = 64
+DiskCacheEnabled = true
+DiskCacheDirectory = "/var/cache/ogl-assetservice"
+```
+
+**Do not enable the disk cache in production:** it currently has no disk quota, expiry or cross-process invalidation. Use a dedicated disposable cache directory, never the FSAssets data directory. The disk cache is not an asset replica or backup. This feature requires a successful build and runtime integration tests before any deployment.
