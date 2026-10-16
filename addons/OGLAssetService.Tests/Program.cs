@@ -117,3 +117,18 @@ try
     Check(blank.Rows == 1 && blank.InvalidRows == 1, "Blank export row must be rejected");
 }
 finally { if (Directory.Exists(metadataRoot)) Directory.Delete(metadataRoot, true); }
+
+string linkAuditRoot = Path.Combine(Path.GetTempPath(), "ogl-link-audit-" + Guid.NewGuid().ToString("N"));
+try
+{
+    byte[] payload = new byte[] { 5, 10, 15 };
+    string hash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(payload)).ToLowerInvariant();
+    string dir = Path.Combine(linkAuditRoot, hash[..2], hash.Substring(2, 2), hash.Substring(4, 2), hash.Substring(6, 4));
+    Directory.CreateDirectory(dir);
+    string outside = Path.Combine(linkAuditRoot, "outside-payload");
+    File.WriteAllBytes(outside, payload);
+    File.CreateSymbolicLink(Path.Combine(dir, hash), outside);
+    var linked = OGLFsassetsHashAudit.Verify(linkAuditRoot, new[] { hash });
+    Check(linked.Mismatched == 1 && linked.Valid == 0, "Audit must reject symlinked payloads");
+}
+finally { if (Directory.Exists(linkAuditRoot)) Directory.Delete(linkAuditRoot, true); }
