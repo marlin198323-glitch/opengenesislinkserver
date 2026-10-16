@@ -403,7 +403,12 @@ namespace OpenSim.Region.ClientStack.Linden
 
             if (map.ContainsKey("skeleton"))
             {
-                tmpmap = (OSDMap)map["skeleton"];
+                tmpmap = map["skeleton"] as OSDMap;
+                if (tmpmap == null)
+                {
+                    error = "Invalid skeleton descriptor";
+                    return false;
+                }
                 if (tmpmap.ContainsKey("offset") && tmpmap.ContainsKey("size"))
                 {
                     int sksize = tmpmap["size"].AsInteger();
@@ -414,7 +419,12 @@ namespace OpenSim.Region.ClientStack.Linden
 
             if (map.ContainsKey("physics_convex"))
             {
-                tmpmap = (OSDMap)map["physics_convex"];
+                if (map["physics_convex"] is not OSDMap convexDescriptor)
+                {
+                    error = "Invalid physics_convex descriptor (expected LLSD map)";
+                    return false;
+                }
+                tmpmap = convexDescriptor;
                 if (tmpmap.ContainsKey("offset"))
                     submesh_offset = tmpmap["offset"].AsInteger() + start;
                 if (tmpmap.ContainsKey("size"))
@@ -427,9 +437,9 @@ namespace OpenSim.Region.ClientStack.Linden
                 return false;
             }
 
-            if (!hulls(data, submesh_offset, hulls_size, out phys_hullsvertices, out phys_nhulls))
+            if (!hulls(data, submesh_offset, hulls_size, out phys_hullsvertices, out phys_nhulls, out string hullError))
             {
-                error = "Bad physics_convex block";
+                error = "Bad physics_convex block: " + hullError;
                 return false;
             }
 
@@ -440,7 +450,12 @@ namespace OpenSim.Region.ClientStack.Linden
 
             if (map.ContainsKey("high_lod"))
             {
-                tmpmap = (OSDMap)map["high_lod"];
+                tmpmap = map["high_lod"] as OSDMap;
+                if (tmpmap == null)
+                {
+                    error = "Invalid high_lod descriptor";
+                    return false;
+                }
                 // see at least if there is a offset for this one
                 if (tmpmap.ContainsKey("offset"))
                     submesh_offset = tmpmap["offset"].AsInteger() + start;
@@ -467,7 +482,12 @@ namespace OpenSim.Region.ClientStack.Linden
 
             if (map.ContainsKey("medium_lod"))
             {
-                tmpmap = (OSDMap)map["medium_lod"];
+                tmpmap = map["medium_lod"] as OSDMap;
+                if (tmpmap == null)
+                {
+                    error = "Invalid medium_lod descriptor";
+                    return false;
+                }
                 if (tmpmap.ContainsKey("size"))
                     medlod_size = tmpmap["size"].AsInteger();
                 else
@@ -476,7 +496,12 @@ namespace OpenSim.Region.ClientStack.Linden
 
             if (haveprev && map.ContainsKey("low_lod"))
             {
-                tmpmap = (OSDMap)map["low_lod"];
+                tmpmap = map["low_lod"] as OSDMap;
+                if (tmpmap == null)
+                {
+                    error = "Invalid low_lod descriptor";
+                    return false;
+                }
                 if (tmpmap.ContainsKey("size"))
                     lowlod_size = tmpmap["size"].AsInteger();
                 else
@@ -485,14 +510,24 @@ namespace OpenSim.Region.ClientStack.Linden
 
             if (haveprev && map.ContainsKey("lowest_lod"))
             {
-                tmpmap = (OSDMap)map["lowest_lod"];
+                tmpmap = map["lowest_lod"] as OSDMap;
+                if (tmpmap == null)
+                {
+                    error = "Invalid lowest_lod descriptor";
+                    return false;
+                }
                 if (tmpmap.ContainsKey("size"))
                     lowestlod_size = tmpmap["size"].AsInteger();
             }
 
             if (map.ContainsKey("skin"))
             {
-                tmpmap = (OSDMap)map["skin"];
+                tmpmap = map["skin"] as OSDMap;
+                if (tmpmap == null)
+                {
+                    error = "Invalid skin descriptor";
+                    return false;
+                }
                 if (tmpmap.ContainsKey("size"))
                     skin_size = tmpmap["size"].AsInteger();
             }
@@ -507,9 +542,16 @@ namespace OpenSim.Region.ClientStack.Linden
 
             tmpmap = null;
             if(map.ContainsKey("physics_mesh"))
-                tmpmap = (OSDMap)map["physics_mesh"];
+                tmpmap = map["physics_mesh"] as OSDMap;
             else if (map.ContainsKey("physics_shape")) // old naming
-                tmpmap = (OSDMap)map["physics_shape"];
+                tmpmap = map["physics_shape"] as OSDMap;
+
+            if (submesh_offset < 0 && tmpmap == null &&
+                (map.ContainsKey("physics_mesh") || map.ContainsKey("physics_shape")))
+            {
+                error = "Invalid physics mesh descriptor";
+                return false;
+            }
 
             int phys_nsides = 0;
             if(tmpmap != null)
@@ -588,17 +630,17 @@ namespace OpenSim.Region.ClientStack.Linden
                 return false;
             }
 
-            OSDArray decodedMeshOsdArray = null;
+            // Malformed LLSD must fail validation instead of throwing InvalidCastException.
+            if (decodedMeshOsd is not OSDArray decodedMeshOsdArray)
+                return false;
 
             byte[] dummy;
 
-            decodedMeshOsdArray = (OSDArray)decodedMeshOsd;
             foreach (OSD subMeshOsd in decodedMeshOsdArray)
             {
-                if (subMeshOsd is OSDMap)
+                if (subMeshOsd is OSDMap subtmpmap)
                 {
-                    OSDMap subtmpmap = (OSDMap)subMeshOsd;
-                    if (subtmpmap.ContainsKey("NoGeometry") && ((OSDBoolean)subtmpmap["NoGeometry"]))
+                    if (subtmpmap.ContainsKey("NoGeometry") && subtmpmap["NoGeometry"].AsBoolean())
                         continue;
 
                     if (!subtmpmap.ContainsKey("Position"))
@@ -613,21 +655,32 @@ namespace OpenSim.Region.ClientStack.Linden
                         return false;
                     nsides++;
                 }
+                else
+                {
+                    return false;
+                }
             }
 
             return true;
         }
 
         // parses convex hulls component
-        private bool hulls(byte[] data, int offset, int size, out int nvertices, out int nhulls)
+        private bool hulls(byte[] data, int offset, int size, out int nvertices, out int nhulls, out string reason)
         {
             nvertices = 0;
             nhulls = 1;
+            reason = string.Empty;
+
+            if (data == null || offset < 0 || size <= 2 || offset > data.Length - size)
+            {
+                reason = "invalid compressed data bounds";
+                return false;
+            }
 
             OSD decodedMeshOsd = new OSD();
             try
             {
-                using (MemoryStream outMs = new MemoryStream(4 * size))
+                using (MemoryStream outMs = new MemoryStream())
                 {
                     using (MemoryStream inMs = new MemoryStream(data, offset, size))
                     {
@@ -645,25 +698,33 @@ namespace OpenSim.Region.ClientStack.Linden
                     decodedMeshOsd = OSDParser.DeserializeLLSDBinary(outMs);
                 }
             }
-            catch
+            catch (Exception e)
             {
+                reason = "cannot decompress or parse LLSD (" + e.GetType().Name + ")";
                 return false;
             }
 
-            OSDMap cmap = (OSDMap)decodedMeshOsd;
-            if (cmap == null)
-                return false;
-
-            byte[] dummy;
-
-            // must have one of this
-            if (cmap.ContainsKey("BoundingVerts"))
+            if (decodedMeshOsd is not OSDMap cmap)
             {
-                dummy = cmap["BoundingVerts"].AsBinary();
-                nvertices = dummy.Length / bytesPerCoord;
-            }
-            else
+                reason = "decoded LLSD is " + (decodedMeshOsd?.GetType().Name ?? "null") + ", expected OSDMap";
                 return false;
+            }
+
+            // Convex geometry requires binary bounding vertices.
+            if (!cmap.ContainsKey("BoundingVerts"))
+            {
+                reason = "missing BoundingVerts";
+                return false;
+            }
+
+            byte[] dummy = cmap["BoundingVerts"].AsBinary();
+            if (dummy == null || dummy.Length == 0)
+            {
+                reason = "empty or invalid BoundingVerts";
+                return false;
+            }
+
+            nvertices = dummy.Length / bytesPerCoord;
 
 /* upload is done with convex shape type
             if (cmap.ContainsKey("HullList"))

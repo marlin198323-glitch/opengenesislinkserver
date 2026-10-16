@@ -490,12 +490,30 @@ namespace OpenSim.Region.ClientStack.Linden
 
                     if (llsdRequest.asset_type == "mesh")
                     {
-                        string error;
-                        int modelcost;
+                        string error = string.Empty;
+                        int modelcost = 0;
+                        bool validModelFee = false;
 
-                        if (!m_ModelCost.MeshModelCost(llsdRequest.asset_resources, baseCost, out modelcost,
-                            meshcostdata, out error, ref warning, out meshesSides))
+                        try
                         {
+                            validModelFee = m_ModelCost.MeshModelCost(llsdRequest.asset_resources, baseCost, out modelcost,
+                                meshcostdata, out error, ref warning, out meshesSides);
+                        }
+                        catch (Exception e) when (e is InvalidCastException || e is ArgumentException ||
+                            e is IndexOutOfRangeException || e is NullReferenceException)
+                        {
+                            // A malformed viewer payload must not propagate an exception to the HTTP handler.
+                            m_log.WarnFormat("[MESH UPLOAD]: Invalid mesh fee request from agent {0}: {1}",
+                                m_HostCapsObj.AgentID, e);
+                            error = "Invalid or unsupported mesh upload data";
+                        }
+
+                        if (!validModelFee)
+                        {
+                            // Reject malformed mesh payloads with an LLSD error, not an unhandled HTTP exception.
+                            m_log.WarnFormat("[MESH UPLOAD]: Fee validation rejected for agent {0}: {1}",
+                                m_HostCapsObj.AgentID, error);
+
                             LLSDAssetUploadError resperror = new LLSDAssetUploadError();
                             resperror.message = error;
                             resperror.identifier = UUID.Zero;
