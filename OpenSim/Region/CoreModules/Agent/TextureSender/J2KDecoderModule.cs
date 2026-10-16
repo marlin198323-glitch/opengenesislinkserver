@@ -294,8 +294,18 @@ namespace OpenSim.Region.CoreModules.Agent.TextureSender
                     }
                     catch (Exception ex)
                     {
-                        m_log.Warn("[J2KDecoderModule]: CSJ2K threw an exception decoding texture " + assetID + ": " + ex.Message);
-                        decodedSuccessfully = false;
+                        // Some legacy JPEG2000 codestreams are rejected by CSJ2K
+                        // but can still be decoded by OpenJPEG. Keep the asset
+                        // unchanged and retry only the layer-boundary decode.
+                        m_log.Warn("[J2KDecoderModule]: CSJ2K failed for texture " + assetID +
+                            " (" + (j2kData == null ? 0 : j2kData.Length) +
+                            " bytes), trying OpenJPEG: " + ex.Message);
+                        if (!OpenJPEG.DecodeLayerBoundaries(j2kData, out layers, out components) ||
+                            layers == null || layers.Length == 0)
+                        {
+                            m_log.Warn("[J2KDecoderModule]: OpenJPEG fallback failed for texture " + assetID);
+                            decodedSuccessfully = false;
+                        }
                     }
                 }
                 else
