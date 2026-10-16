@@ -108,3 +108,14 @@ dotnet run --project addons/OGLAssetService.Migration/OGLAssetService.Migration.
 ```
 
 The command returns nonzero for missing, mismatched or invalid hashes. It supports the FSAssetService's standard and OSGrid directory layouts and checks both raw files and `.gz` files. It does not inspect the active spool directory; stop and drain the writer before taking the filesystem snapshot. It does not validate asset UUID-to-hash associations, metadata row counts, or consistency between the SQL snapshot and the file snapshot. **A clean hash audit is necessary but not sufficient for cutover.**
+
+## Offline UUID-to-hash metadata audit
+
+Export the `id` and `hash` columns from a **consistent** snapshot of the configured FSAssets realm into a UTF-8, tab-separated file with **no header**, one asset UUID and SHA-256 content hash per line. Do not use a live changing database export. Validate the actual realm/schema and column types for the chosen provider before generating the export.
+
+```bash
+dotnet run --project addons/OGLAssetService.Migration/OGLAssetService.Migration.csproj -c Release -- --verify-metadata /offline/fsassets/base /offline/uuid-hash.tsv
+# Append --osgrid if UseOsgridFormat=true.
+```
+
+The command checks UUID/hash formatting, conflicting UUID mappings, and unique referenced payloads. A nonzero exit code indicates a failed audit. It does not copy or modify database rows, does not detect rows absent from the export, and cannot prove snapshot consistency without an external database backup and quiesced spool. Full database migration, rollback and service-level readback tests remain release blockers.
