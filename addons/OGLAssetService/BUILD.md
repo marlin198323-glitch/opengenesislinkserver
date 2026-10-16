@@ -80,3 +80,9 @@ Redis revision primitives remain unconnected to the live read/write path; never 
 `[OGLAssetService] RedisEnabled = true` activates the Redis revision coordinator. Set the connection string in the `OGL_ASSET_REDIS_CONNECTION` environment variable, not in INI or git. `RedisDatabase = 2` is the default.
 
 In this mode, `IAssetService.GetData` bypasses both local caches and reads FSAssets directly. Successful interface-dispatched `Store`, `Delete`, and `UpdateContent` operations increment a Redis revision. **This is not yet coherent distributed caching**: other write paths bypass this mechanism, and a Redis failure after an authoritative write can throw even though the write succeeded. Redis outage and reconnect behavior, resource disposal, and a durable invalidation outbox must be addressed before production. Leave RedisEnabled=false in production and do not switch to this experimental connector on the live ROBUST.
+
+## Follow-up hardening
+
+Redis revision increment failures no longer change the return value of an already completed authoritative FSAssets write. The connector exposes `RedisInvalidationFailures` as an in-process diagnostic counter. **This is not a durable retry mechanism**: failed invalidations can be lost and therefore shared Redis/local caches must stay disabled. Redis-enabled `GetData` deliberately bypasses the caches.
+
+The migration copier now checks existing destination path components for symlinks and rejects symlink source entries. This does not protect against concurrent path substitution (TOCTOU); run only against quiesced, access-controlled staging directories. Do not treat file copying as a replacement for the metadata database migration.
