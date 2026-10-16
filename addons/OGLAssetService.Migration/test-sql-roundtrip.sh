@@ -6,7 +6,7 @@ if [[ "$provider" != "mysql" && "$provider" != "postgres" ]]; then
   echo "Usage: $0 mysql|postgres" >&2
   exit 2
 fi
-root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
+root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 work="$(mktemp -d)"
 trap 'rm -rf "$work"' EXIT
 id1='123e4567-e89b-12d3-a456-426614174000'
