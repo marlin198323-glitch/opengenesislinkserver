@@ -84,6 +84,30 @@ jobs:
           cp "$RUNNER_TEMP/asset-payload" "$folder/$hash"
           printf '123e4567-e89b-12d3-a456-426614174000\t%s\n' "$hash" > "$RUNNER_TEMP/metadata-valid.tsv"
           dotnet run --project addons/OGLAssetService.Migration/OGLAssetService.Migration.csproj -c Release --no-build -- --verify-metadata "$base" "$RUNNER_TEMP/metadata-valid.tsv" --expected-rows 1
+      - name: Reject corrupt and duplicate metadata fixtures
+        shell: bash
+        run: |
+          set -euo pipefail
+          base="$RUNNER_TEMP/metadata-valid"
+          good="$RUNNER_TEMP/metadata-valid.tsv"
+          cp "$good" "$RUNNER_TEMP/metadata-duplicate.tsv"
+          cat "$good" >> "$RUNNER_TEMP/metadata-duplicate.tsv"
+          if dotnet run --project addons/OGLAssetService.Migration/OGLAssetService.Migration.csproj -c Release --no-build -- --verify-metadata "$base" "$RUNNER_TEMP/metadata-duplicate.tsv" --expected-rows 2; then
+            echo "ERROR: duplicate UUID accepted"
+            exit 1
+          fi
+          printf 'invalid-row\\n' > "$RUNNER_TEMP/metadata-invalid.tsv"
+          if dotnet run --project addons/OGLAssetService.Migration/OGLAssetService.Migration.csproj -c Release --no-build -- --verify-metadata "$base" "$RUNNER_TEMP/metadata-invalid.tsv" --expected-rows 1; then
+            echo "ERROR: invalid row accepted"
+            exit 1
+          fi
+          hash="$(sha256sum "$RUNNER_TEMP/asset-payload" | cut -d ' ' -f 1)"
+          printf '123e4567-e89b-12d3-a456-426614174000\\t%s\\n' "$hash" > "$RUNNER_TEMP/metadata-missing.tsv"
+          rm "$base/${hash:0:2}/${hash:2:2}/${hash:4:2}/${hash:6:4}/$hash"
+          if dotnet run --project addons/OGLAssetService.Migration/OGLAssetService.Migration.csproj -c Release --no-build -- --verify-metadata "$base" "$RUNNER_TEMP/metadata-missing.tsv" --expected-rows 1; then
+            echo "ERROR: missing payload accepted"
+            exit 1
+          fi
       - name: SQL metadata roundtrip MariaDB
         env:
           MYSQL_PWD: ogl-test-only
