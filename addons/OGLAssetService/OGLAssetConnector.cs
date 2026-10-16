@@ -29,7 +29,14 @@ namespace OpenGenesisLINK.Addons.AssetService
                 throw new ArgumentOutOfRangeException("MemoryCacheMiB", "Must be between 0 and 4096 MiB.");
             cache = new OGLObjectCache((long)cacheMiB * 1024 * 1024);
             if (settings.GetBoolean("DiskCacheEnabled", false))
-                diskCache = new OGLDiskCache(settings.GetString("DiskCacheDirectory", ""));
+            {
+                int diskMiB = settings.GetInt("DiskCacheMaxMiB", 1024);
+                if (diskMiB < 1 || diskMiB > 1048576)
+                    throw new ArgumentOutOfRangeException("DiskCacheMaxMiB", "Must be between 1 and 1048576 MiB.");
+                diskCache = new OGLDiskCache(
+                    settings.GetString("DiskCacheDirectory", ""),
+                    (long)diskMiB * 1024 * 1024);
+            }
 
             string mode = settings.GetString("Mode", "compatibility");
             if (!String.Equals(mode, "compatibility", StringComparison.OrdinalIgnoreCase))
