@@ -17,8 +17,6 @@ namespace OpenGenesisLINK.Addons.AssetService
         private readonly OGLDiskCache diskCache;
         private readonly object cacheSync = new object();
         private readonly OGLRedisAssetCoordinator redis;
-        private readonly System.Collections.Generic.Dictionary<string, long> cachedRevisions =
-            new System.Collections.Generic.Dictionary<string, long>(StringComparer.Ordinal);
         private readonly bool redisEnabled;
         public long MemoryCacheHits => cache.Hits;
         public long MemoryCacheMisses => cache.Misses;
