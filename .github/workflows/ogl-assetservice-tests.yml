@@ -5,6 +5,7 @@ on:
     paths:
       - 'addons/OGLAssetService/**'
       - 'addons/OGLAssetService.Tests/**'
+      - 'addons/OGLAssetService.Migration/**'
       - '.github/workflows/ogl-assetservice-tests.yml'
   pull_request:
     paths:
@@ -24,5 +25,17 @@ jobs:
           dotnet-version: '8.0.x'
       - name: Build isolated cache and migration tests
         run: dotnet build addons/OGLAssetService.Tests/OGLAssetService.Tests.csproj --configuration Release
+      - name: Build standalone migration CLI
+        run: dotnet build addons/OGLAssetService.Migration/OGLAssetService.Migration.csproj --configuration Release
+      - name: CLI dry-run and verified copy
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/fsassets-source/nested"
+          printf 'test-asset' > "$RUNNER_TEMP/fsassets-source/nested/data.bin"
+          dotnet run --project addons/OGLAssetService.Migration/OGLAssetService.Migration.csproj -c Release --no-build -- "$RUNNER_TEMP/fsassets-source" "$RUNNER_TEMP/fsassets-target"
+          test ! -e "$RUNNER_TEMP/fsassets-target"
+          dotnet run --project addons/OGLAssetService.Migration/OGLAssetService.Migration.csproj -c Release --no-build -- "$RUNNER_TEMP/fsassets-source" "$RUNNER_TEMP/fsassets-target" --copy
+          cmp "$RUNNER_TEMP/fsassets-source/nested/data.bin" "$RUNNER_TEMP/fsassets-target/nested/data.bin"
       - name: Run isolated cache and migration tests
         run: dotnet run --project addons/OGLAssetService.Tests/OGLAssetService.Tests.csproj --configuration Release --no-build
