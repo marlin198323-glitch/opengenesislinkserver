@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Security.Cryptography;
-using System.Text.Json;
 
 namespace OpenGenesisLINK.Addons.AssetService
 {
@@ -27,6 +26,8 @@ namespace OpenGenesisLINK.Addons.AssetService
             string src = Path.GetFullPath(source ?? throw new ArgumentNullException(nameof(source)));
             string dst = Path.GetFullPath(destination ?? throw new ArgumentNullException(nameof(destination)));
             if (!Directory.Exists(src)) throw new DirectoryNotFoundException(src);
+            if ((File.GetAttributes(src) & FileAttributes.ReparsePoint) != 0)
+                throw new InvalidOperationException("Source symlink not supported.");
             string srcPrefix = Path.TrimEndingDirectorySeparator(src) + Path.DirectorySeparatorChar;
             string dstPrefix = Path.TrimEndingDirectorySeparator(dst) + Path.DirectorySeparatorChar;
             if (String.Equals(src, dst, StringComparison.Ordinal) ||
@@ -34,7 +35,19 @@ namespace OpenGenesisLINK.Addons.AssetService
                 srcPrefix.StartsWith(dstPrefix, StringComparison.Ordinal))
                 throw new InvalidOperationException("Source and destination must be disjoint directories.");
             var result = new Result();
-            foreach (string file in Directory.EnumerateFiles(src, "*", SearchOption.AllDirectories))
+            var pending = new Stack<string>();
+            pending.Push(src);
+            while (pending.Count > 0)
+            {
+                string directory = pending.Pop();
+                if ((File.GetAttributes(directory) & FileAttributes.ReparsePoint) != 0)
+                    throw new InvalidOperationException("Directory symlinks are not supported: " + directory);
+                foreach (string child in Directory.EnumerateDirectories(directory))
+                    pending.Push(child);
+                foreach (string file in Directory.EnumerateFiles(directory))
+                {
+                    if ((File.GetAttributes(file) & FileAttributes.ReparsePoint) != 0)
+                        throw new InvalidOperationException("File symlinks are not supported: " + file);
             {
                 result.FilesScanned++;
                 string relative = Path.GetRelativePath(src, file);
@@ -71,6 +84,7 @@ namespace OpenGenesisLINK.Addons.AssetService
                 }
                 catch (IOException) { result.Failures++; }
                 catch (UnauthorizedAccessException) { result.Failures++; }
+                }
             }
             return result;
         }
