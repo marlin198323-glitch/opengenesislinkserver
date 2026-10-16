@@ -42,6 +42,9 @@ try
     Check(Directory.GetFiles(root, "*.cache", SearchOption.AllDirectories)
         .Sum(p => new FileInfo(p).Length) <= 70, "Disk quota must be enforced");
     Check(bounded.Evictions >= 1, "Disk quota must evict entries");
+    Check(!bounded.TryGet("budget-a", out _), "Oldest entry should be evicted");
+    Check(bounded.TryGet("budget-b", out _), "Newest entry should remain");
+    Check(bounded.Hits >= 1 && bounded.Misses >= 1, "Disk hit/miss counters");
     bounded.Put("oversize", new byte[100]);
     Check(!bounded.TryGet("oversize", out _), "Oversize payload must be skipped");
 }
