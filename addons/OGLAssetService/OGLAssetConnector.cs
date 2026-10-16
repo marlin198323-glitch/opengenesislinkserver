@@ -16,6 +16,10 @@ namespace OpenGenesisLINK.Addons.AssetService
         private readonly OGLObjectCache cache;
         private readonly OGLDiskCache diskCache;
         private readonly object cacheSync = new object();
+        private readonly OGLRedisAssetCoordinator redis;
+        private readonly System.Collections.Generic.Dictionary<string, long> cachedRevisions =
+            new System.Collections.Generic.Dictionary<string, long>(StringComparer.Ordinal);
+        private readonly bool redisEnabled;
         public long MemoryCacheHits => cache.Hits;
         public long MemoryCacheMisses => cache.Misses;
         public long MemoryCacheUsedBytes => cache.UsedBytes;
@@ -44,6 +48,15 @@ namespace OpenGenesisLINK.Addons.AssetService
                     (long)diskMiB * 1024 * 1024);
             }
 
+            redisEnabled = settings.GetBoolean("RedisEnabled", false);
+            if (redisEnabled)
+            {
+                string redisConnection = Environment.GetEnvironmentVariable("OGL_ASSET_REDIS_CONNECTION");
+                if (String.IsNullOrWhiteSpace(redisConnection))
+                    throw new InvalidOperationException("OGL_ASSET_REDIS_CONNECTION must be set when RedisEnabled=true.");
+                redis = new OGLRedisAssetCoordinator(redisConnection, settings.GetInt("RedisDatabase", 2));
+            }
+
             string mode = settings.GetString("Mode", "compatibility");
             if (!String.Equals(mode, "compatibility", StringComparison.OrdinalIgnoreCase))
                 throw new NotSupportedException(
@@ -55,6 +68,10 @@ namespace OpenGenesisLINK.Addons.AssetService
             if (String.IsNullOrWhiteSpace(id)) return base.GetData(id);
             lock (cacheSync)
             {
+                // Redis connectivity or revision failures must never return stale cached data.
+                // In this experimental mode all reads bypass local caches until a
+                // distributed writer protocol has been verified end-to-end.
+                if (redisEnabled) return base.GetData(id);
                 if (cache.TryGet(id, out byte[] result)) return result;
                 if (diskCache != null)
                 {
@@ -89,7 +106,10 @@ namespace OpenGenesisLINK.Addons.AssetService
                 try { diskCache?.Invalidate(id); }
                 catch (System.IO.IOException) { }
                 catch (UnauthorizedAccessException) { }
-                return base.UpdateContent(id, data);
+                bool updated = base.UpdateContent(id, data);
+                if (updated && redisEnabled && !String.IsNullOrWhiteSpace(id))
+                    redis.InvalidateAsync(id).GetAwaiter().GetResult();
+                return updated;
             }
         }
 
@@ -101,7 +121,10 @@ namespace OpenGenesisLINK.Addons.AssetService
                 try { diskCache?.Invalidate(id); }
                 catch (System.IO.IOException) { }
                 catch (UnauthorizedAccessException) { }
-                return base.Delete(id);
+                bool deleted = base.Delete(id);
+                if (deleted && redisEnabled && !String.IsNullOrWhiteSpace(id))
+                    redis.InvalidateAsync(id).GetAwaiter().GetResult();
+                return deleted;
             }
         }
 
@@ -117,6 +140,8 @@ namespace OpenGenesisLINK.Addons.AssetService
                     catch (System.IO.IOException) { }
                     catch (UnauthorizedAccessException) { }
                 }
+                if (redisEnabled && !String.IsNullOrWhiteSpace(id))
+                    redis.InvalidateAsync(id).GetAwaiter().GetResult();
                 return id;
             }
         }
