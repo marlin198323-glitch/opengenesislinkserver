@@ -66,3 +66,11 @@ dotnet run --project addons/OGLAssetService.Tests/OGLAssetService.Tests.csproj -
 ```
 
 No successful build or runtime test has yet been observed for these changes.
+
+## Migration metadata dependency and cutover gate
+
+The legacy FSAssetConnector uses `IFSAssetDataPlugin` for the asset-ID-to-content-hash mapping and metadata, and `BaseDirectory` for the content files. Copying `BaseDirectory` alone is not a full migration. Before switching storage, export/restore the matching SQL database snapshot and verify representative IDs through `IAssetService.Get`, `GetMetadata`, and `GetData`.
+
+The copy primitive now rejects file and directory symlinks/reparse points. This is a conservative staging safeguard, **not** a hardened filesystem sandbox; destination path links and concurrent filesystem modifications remain a risk. Use an isolated, operator-controlled destination, with both source and destination offline. A database-consistent snapshot, audit manifest, incremental reconciliation and rollback procedure are still pending.
+
+Redis revision primitives remain unconnected to the live read/write path; never enable a shared cache on the assumption that these primitives guarantee coherence.
