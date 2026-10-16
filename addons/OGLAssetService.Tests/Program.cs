@@ -77,3 +77,22 @@ try
     Check(overlapRejected, "Overlapping migration directories rejected");
 }
 finally { if (Directory.Exists(migrationRoot)) Directory.Delete(migrationRoot, true); }
+
+string auditRoot = Path.Combine(Path.GetTempPath(), "ogl-audit-" + Guid.NewGuid().ToString("N"));
+try
+{
+    byte[] content = new byte[] { 11, 22, 33 };
+    string hash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(content)).ToLowerInvariant();
+    string folder = Path.Combine(auditRoot, hash[..2], hash.Substring(2, 2), hash.Substring(4, 2), hash.Substring(6, 4));
+    Directory.CreateDirectory(folder);
+    File.WriteAllBytes(Path.Combine(folder, hash), content);
+    var valid = OGLFsassetsHashAudit.Verify(auditRoot, new[] { hash });
+    Check(valid.Valid == 1 && valid.Checked == 1, "Audit validates SHA256 payload");
+    File.WriteAllBytes(Path.Combine(folder, hash), new byte[] { 0 });
+    var corrupt = OGLFsassetsHashAudit.Verify(auditRoot, new[] { hash });
+    Check(corrupt.Mismatched == 1, "Audit detects corrupt payload");
+    File.Delete(Path.Combine(folder, hash));
+    var missing = OGLFsassetsHashAudit.Verify(auditRoot, new[] { hash, "bad" });
+    Check(missing.Missing == 1 && missing.Invalid == 1, "Audit detects missing and invalid hashes");
+}
+finally { if (Directory.Exists(auditRoot)) Directory.Delete(auditRoot, true); }
