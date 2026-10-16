@@ -36,6 +36,14 @@ try
     disk.Put("asset-uuid", new byte[] { 3, 2, 1 });
     disk.Invalidate("asset-uuid");
     Check(!disk.TryGet("asset-uuid", out _), "Disk invalidation");
+    var bounded = new OGLDiskCache(root, 70);
+    bounded.Put("budget-a", new byte[20]);
+    bounded.Put("budget-b", new byte[20]);
+    Check(Directory.GetFiles(root, "*.cache", SearchOption.AllDirectories)
+        .Sum(p => new FileInfo(p).Length) <= 70, "Disk quota must be enforced");
+    Check(bounded.Evictions >= 1, "Disk quota must evict entries");
+    bounded.Put("oversize", new byte[100]);
+    Check(!bounded.TryGet("oversize", out _), "Oversize payload must be skipped");
 }
 finally { if (Directory.Exists(root)) Directory.Delete(root, true); }
 Console.WriteLine("OGL cache smoke tests passed");
