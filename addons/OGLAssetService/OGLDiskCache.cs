@@ -47,15 +47,12 @@ namespace OpenGenesisLINK.Addons.AssetService
             {
                 try
                 {
-                    if (!File.Exists(path))
-                        return false;
+                    if (!File.Exists(path)) { misses++; return false; }
                     using (FileStream stream = File.OpenRead(path))
                     {
-                        if (stream.Length < 32 || stream.Length > Int32.MaxValue)
-                            return false;
+                        if (stream.Length < 32 || stream.Length > Int32.MaxValue || (maxBytes > 0 && stream.Length > maxBytes)) { misses++; return false; }
                         byte[] digest = new byte[32];
-                        if (stream.Read(digest, 0, digest.Length) != digest.Length)
-                            return false;
+                        if (stream.Read(digest, 0, digest.Length) != digest.Length) { misses++; return false; }
                         byte[] payload = new byte[(int)stream.Length - 32];
                         stream.ReadExactly(payload);
                         if (!CryptographicOperations.FixedTimeEquals(digest, SHA256.HashData(payload)))
@@ -65,11 +62,15 @@ namespace OpenGenesisLINK.Addons.AssetService
                             return false;
                         }
                         data = payload;
+                        hits++;
+                        try { File.SetLastWriteTimeUtc(path, DateTime.UtcNow); }
+                        catch (IOException) { }
+                        catch (UnauthorizedAccessException) { }
                         return true;
                     }
                 }
-                catch (IOException) { return false; }
-                catch (UnauthorizedAccessException) { return false; }
+                catch (IOException) { misses++; return false; }
+                catch (UnauthorizedAccessException) { misses++; return false; }
             }
         }
 
@@ -94,6 +95,7 @@ namespace OpenGenesisLINK.Addons.AssetService
                         stream.Flush(true);
                     }
                     File.Move(temp, path, true);
+                    if (maxBytes > 0) TrimToBudget();
                 }
                 finally { TryDelete(temp); }
             }
@@ -117,7 +119,7 @@ namespace OpenGenesisLINK.Addons.AssetService
             foreach (FileInfo info in files)
             {
                 if (total <= maxBytes) break;
-                try { info.Delete(); total -= info.Length; evictions++; }
+                try { long length = info.Length; info.Delete(); total -= length; evictions++; }
                 catch (IOException) { }
                 catch (UnauthorizedAccessException) { }
             }
