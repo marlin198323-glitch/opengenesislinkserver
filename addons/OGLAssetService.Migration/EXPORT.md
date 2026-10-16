@@ -17,7 +17,7 @@ mysql --batch --raw --skip-column-names --database=YOUR_DB \
 ## PostgreSQL
 
 ```bash
-psql -X -v ON_ERROR_STOP=1 -A -t -F "$(printf '\\t')" --dbname=YOUR_DB \
+psql -X -v ON_ERROR_STOP=1 -A -t -F "$(printf '\t')" --dbname=YOUR_DB \
   -f addons/OGLAssetService.Migration/sql/postgresql-export.sql \
   > /private/snapshot/uuid-hash.tsv
 ```
