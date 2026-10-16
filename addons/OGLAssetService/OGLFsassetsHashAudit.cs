@@ -29,6 +29,7 @@ namespace OpenGenesisLINK.Addons.AssetService
             var result = new Result();
             foreach (string raw in hashes)
             {
+                if (raw == null) { result.Checked++; result.Invalid++; continue; }
                 string hash = raw.Trim().ToLowerInvariant();
                 if (hash.Length == 0) continue;
                 result.Checked++;
