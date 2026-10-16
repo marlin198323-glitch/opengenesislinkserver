@@ -111,7 +111,7 @@ try
     var conflict = OGLFsassetsMetadataAudit.Verify(metadataRoot,
         new[] { id + "\t" + hash, id + "\t" + new string('a', 64), "bad-row" });
     Check(conflict.ConflictingIds == 1 && conflict.DuplicateIds == 1 && conflict.InvalidRows == 1, "Metadata conflicts and invalid rows");
-    var repeated = OGLFsassetsMetadataAudit.Verify(metadataRoot, new[] { id + "\\t" + hash, id + "\\t" + hash });
+    var repeated = OGLFsassetsMetadataAudit.Verify(metadataRoot, new[] { id + "\t" + hash, id + "\t" + hash });
     Check(repeated.DuplicateIds == 1 && repeated.UniqueAssets == 1, "Duplicate identical UUID must be detected");
     var blank = OGLFsassetsMetadataAudit.Verify(metadataRoot, new[] { "" });
     Check(blank.Rows == 1 && blank.InvalidRows == 1, "Blank export row must be rejected");
