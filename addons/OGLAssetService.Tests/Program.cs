@@ -96,3 +96,20 @@ try
     Check(missing.Missing == 1 && missing.Invalid == 1, "Audit detects missing and invalid hashes");
 }
 finally { if (Directory.Exists(auditRoot)) Directory.Delete(auditRoot, true); }
+
+string metadataRoot = Path.Combine(Path.GetTempPath(), "ogl-metadata-" + Guid.NewGuid().ToString("N"));
+try
+{
+    byte[] payload = new byte[] { 3, 7, 11 };
+    string hash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(payload)).ToLowerInvariant();
+    string directory = Path.Combine(metadataRoot, hash[..2], hash.Substring(2, 2), hash.Substring(4, 2), hash.Substring(6, 4));
+    Directory.CreateDirectory(directory);
+    File.WriteAllBytes(Path.Combine(directory, hash), payload);
+    Guid id = Guid.NewGuid();
+    var ok = OGLFsassetsMetadataAudit.Verify(metadataRoot, new[] { id + "\t" + hash });
+    Check(ok.UniqueAssets == 1 && ok.ValidFiles == 1, "Metadata UUID-to-hash audit");
+    var conflict = OGLFsassetsMetadataAudit.Verify(metadataRoot,
+        new[] { id + "\t" + hash, id + "\t" + new string('a', 64), "bad-row" });
+    Check(conflict.ConflictingIds == 1 && conflict.InvalidRows == 1, "Metadata conflicts and invalid rows");
+}
+finally { if (Directory.Exists(metadataRoot)) Directory.Delete(metadataRoot, true); }
