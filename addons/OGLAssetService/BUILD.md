@@ -97,3 +97,14 @@ dotnet run --project addons/OGLAssetService.Migration/OGLAssetService.Migration.
 ```
 
 The CLI returns exit code 1 on any reported file copy failure or unhandled exception and prints JSON counts. It does not copy SQL metadata or switch live service configuration. Take a consistent database backup and stop the FSAssets writer before any copy. The standalone tool and CI workflow have been committed but their successful execution has not yet been verified.
+
+## Offline FSAssets metadata hash audit
+
+From a consistent FSAssets metadata database snapshot, export the distinct **content hashes** (not asset UUIDs), one lowercase or uppercase SHA-256 hex digest per line. The database export procedure is provider-specific and is not yet automated. Do not export credentials or personally identifying asset metadata into the hash file.
+
+```bash
+dotnet run --project addons/OGLAssetService.Migration/OGLAssetService.Migration.csproj -c Release -- --verify-hashes /offline/fsassets/base /offline/hashes.txt
+# Add --osgrid when [AssetService] UseOsgridFormat=true
+```
+
+The command returns nonzero for missing, mismatched or invalid hashes. It supports the FSAssetService's standard and OSGrid directory layouts and checks both raw files and `.gz` files. It does not inspect the active spool directory; stop and drain the writer before taking the filesystem snapshot. It does not validate asset UUID-to-hash associations, metadata row counts, or consistency between the SQL snapshot and the file snapshot. **A clean hash audit is necessary but not sufficient for cutover.**
