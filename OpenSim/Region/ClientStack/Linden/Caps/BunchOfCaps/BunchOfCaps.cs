@@ -496,6 +496,10 @@ namespace OpenSim.Region.ClientStack.Linden
                         if (!m_ModelCost.MeshModelCost(llsdRequest.asset_resources, baseCost, out modelcost,
                             meshcostdata, out error, ref warning, out meshesSides))
                         {
+                            // Reject malformed mesh payloads with an LLSD error, not an unhandled HTTP exception.
+                            m_log.WarnFormat("[MESH UPLOAD]: Fee validation rejected for agent {0}: {1}",
+                                m_HostCapsObj.AgentID, error);
+
                             LLSDAssetUploadError resperror = new LLSDAssetUploadError();
                             resperror.message = error;
                             resperror.identifier = UUID.Zero;
