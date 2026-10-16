@@ -74,3 +74,9 @@ The legacy FSAssetConnector uses `IFSAssetDataPlugin` for the asset-ID-to-conten
 The copy primitive now rejects file and directory symlinks/reparse points. This is a conservative staging safeguard, **not** a hardened filesystem sandbox; destination path links and concurrent filesystem modifications remain a risk. Use an isolated, operator-controlled destination, with both source and destination offline. A database-consistent snapshot, audit manifest, incremental reconciliation and rollback procedure are still pending.
 
 Redis revision primitives remain unconnected to the live read/write path; never enable a shared cache on the assumption that these primitives guarantee coherence.
+
+## Redis revision integration (experimental, NOT production-safe)
+
+`[OGLAssetService] RedisEnabled = true` activates the Redis revision coordinator. Set the connection string in the `OGL_ASSET_REDIS_CONNECTION` environment variable, not in INI or git. `RedisDatabase = 2` is the default.
+
+In this mode, `IAssetService.GetData` bypasses both local caches and reads FSAssets directly. Successful interface-dispatched `Store`, `Delete`, and `UpdateContent` operations increment a Redis revision. **This is not yet coherent distributed caching**: other write paths bypass this mechanism, and a Redis failure after an authoritative write can throw even though the write succeeded. Redis outage and reconnect behavior, resource disposal, and a durable invalidation outbox must be addressed before production. Leave RedisEnabled=false in production and do not switch to this experimental connector on the live ROBUST.
