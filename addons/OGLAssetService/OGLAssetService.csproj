@@ -7,6 +7,7 @@
     <ImplicitUsings>disable</ImplicitUsings>
   </PropertyGroup>
   <ItemGroup>
+    <PackageReference Include="StackExchange.Redis" Version="2.8.24" />
     <ProjectReference Include="../../OpenSim/Services/FSAssetService/OpenSim.Services.FSAssetService.csproj" />
     <Reference Include="Nini">
       <HintPath>../../bin/Nini.dll</HintPath>
