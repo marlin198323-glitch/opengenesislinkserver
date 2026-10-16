@@ -34,6 +34,16 @@ namespace OpenGenesisLINK.Addons.AssetService
                 dstPrefix.StartsWith(srcPrefix, StringComparison.Ordinal) ||
                 srcPrefix.StartsWith(dstPrefix, StringComparison.Ordinal))
                 throw new InvalidOperationException("Source and destination must be disjoint directories.");
+            string check = dst;
+            while (!String.IsNullOrEmpty(check))
+            {
+                if ((Directory.Exists(check) || File.Exists(check)) &&
+                    (File.GetAttributes(check) & FileAttributes.ReparsePoint) != 0)
+                    throw new InvalidOperationException("Destination symlink component: " + check);
+                string parent = Path.GetDirectoryName(check);
+                if (String.Equals(parent, check, StringComparison.Ordinal)) break;
+                check = parent;
+            }
             var result = new Result();
             var pending = new Stack<string>();
             pending.Push(src);
@@ -48,13 +58,22 @@ namespace OpenGenesisLINK.Addons.AssetService
                 {
                     if ((File.GetAttributes(file) & FileAttributes.ReparsePoint) != 0)
                         throw new InvalidOperationException("File symlinks are not supported: " + file);
-            {
                 result.FilesScanned++;
                 string relative = Path.GetRelativePath(src, file);
                 string target = Path.GetFullPath(Path.Combine(dst, relative));
                 if (!target.StartsWith(dstPrefix, StringComparison.Ordinal))
                     throw new InvalidOperationException("Unsafe migration path.");
                 if (dryRun) continue;
+                string component = Path.GetDirectoryName(target);
+                while (component != null && component.StartsWith(dstPrefix, StringComparison.Ordinal))
+                {
+                    if (Directory.Exists(component) &&
+                        (File.GetAttributes(component) & FileAttributes.ReparsePoint) != 0)
+                        throw new InvalidOperationException("Destination symlink component: " + component);
+                    component = Path.GetDirectoryName(component);
+                }
+                if (File.Exists(target) && (File.GetAttributes(target) & FileAttributes.ReparsePoint) != 0)
+                    throw new InvalidOperationException("Destination symlink file: " + target);
                 try
                 {
                     Directory.CreateDirectory(Path.GetDirectoryName(target));
