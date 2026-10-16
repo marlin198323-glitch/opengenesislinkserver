@@ -1,0 +1,30 @@
+name: OGL AssetService Addon Modules Build
+on:
+  push:
+    paths:
+      - 'addon-modules/OGLAssetService/**'
+      - 'runprebuild.sh'
+      - '.github/workflows/ogl-assetservice-addon-modules.yml'
+  pull_request:
+    paths:
+      - 'addon-modules/OGLAssetService/**'
+      - 'runprebuild.sh'
+      - '.github/workflows/ogl-assetservice-addon-modules.yml'
+  workflow_dispatch:
+jobs:
+  addon-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - name: Generate OpenSim solution and build dependencies
+        run: |
+          chmod +x runprebuild.sh
+          ./runprebuild.sh
+          dotnet build -c Release OpenSim.sln
+      - name: Build and stage OGL AssetService
+        run: bash addon-modules/OGLAssetService/build.sh Release
+      - name: Verify staged addon
+        run: test -s bin/OpenGenesisLINK.Addons.OGLAssetService.dll
