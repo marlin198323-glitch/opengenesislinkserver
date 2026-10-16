@@ -965,18 +965,24 @@ namespace NexVerse.Server.Api
                     if (string.IsNullOrWhiteSpace(sharedImSecret))
                         sharedImSecret = portalImConfig.GetString("SharedSecret", "");
                     if (System.Text.Encoding.UTF8.GetByteCount(sharedImSecret) < 32)
-                        throw new InvalidOperationException(
-                            "[NEX-PORTAL-IM]: Enabled archive requires a 32-byte shared secret.");
-                    citizenImStore = new NexCitizenImStore(
-                        portalImConfig.GetString("StorePath", "data/nexverse-portal-im.sqlite"),
-                        portalImConfig.GetInt("RetentionDays", 30));
-                    NexCitizenImIngress citizenImIngress = new NexCitizenImIngress(
-                        sharedImSecret, citizenImStore, userAccounts, friendsService);
-                    server.AddSimpleStreamHandler(
-                        new SimpleStreamHandler("/internal/nexportal/im/v1",
-                            citizenImIngress.Handle, "NexVerse Simulator Portal IM Ingest"),
-                        true);
-                    m_Log.Info("[NEX-PORTAL-IM]: Opt-in portal conversation archive enabled.");
+                    {
+                        // Optional portal IM archival must not take down the World API.
+                        // Fail closed: never register the ingestion endpoint without a secret.
+                        m_Log.Error("[NEX-PORTAL-IM]: Portal IM archive disabled: missing or too-short shared secret (minimum 32 UTF-8 bytes).");
+                    }
+                    else
+                    {
+                        citizenImStore = new NexCitizenImStore(
+                            portalImConfig.GetString("StorePath", "data/nexverse-portal-im.sqlite"),
+                            portalImConfig.GetInt("RetentionDays", 30));
+                        NexCitizenImIngress citizenImIngress = new NexCitizenImIngress(
+                            sharedImSecret, citizenImStore, userAccounts, friendsService);
+                        server.AddSimpleStreamHandler(
+                            new SimpleStreamHandler("/internal/nexportal/im/v1",
+                                citizenImIngress.Handle, "NexVerse Simulator Portal IM Ingest"),
+                            true);
+                        m_Log.Info("[NEX-PORTAL-IM]: Opt-in portal conversation archive enabled.");
+                    }
                 }
                 NexCitizenImApi citizenImApi =
                     new NexCitizenImApi(userAccounts, friendsService, authenticator,
