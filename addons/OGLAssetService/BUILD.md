@@ -43,7 +43,11 @@ Enabled = true
 Mode = "compatibility"
 MemoryCacheMiB = 64
 DiskCacheEnabled = true
+DiskCacheMaxMiB = 1024
 DiskCacheDirectory = "/var/cache/ogl-assetservice"
 ```
 
-**Do not enable the disk cache in production:** it currently has no disk quota, expiry or cross-process invalidation. Use a dedicated disposable cache directory, never the FSAssets data directory. The disk cache is not an asset replica or backup. This feature requires a successful build and runtime integration tests before any deployment.
+**Do not enable the disk cache in production:** it now has a best-effort disk quota, but still lacks expiry, cross-process invalidation and verified integration testing. Use a dedicated disposable cache directory, never the FSAssets data directory. The disk cache is not an asset replica or backup. This feature requires a successful build and runtime integration tests before any deployment.
+
+
+The disk quota is enforced after each successful write using cache-file timestamps. This is a single-process staging implementation, not a hard filesystem quota: concurrent external writers and filesystem errors can exceed the configured limit. Cache metrics are currently in-process properties, **not** published through the World API.
