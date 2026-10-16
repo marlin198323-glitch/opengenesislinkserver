@@ -2,6 +2,7 @@ using System;
 using Nini.Config;
 using OpenSim.Services.FSAssetService;
 using OpenSim.Framework;
+using OpenSim.Services.Interfaces;
 
 namespace OpenGenesisLINK.Addons.AssetService
 {
@@ -10,7 +11,7 @@ namespace OpenGenesisLINK.Addons.AssetService
     /// Delegates all asset operations to the existing FSAssetConnector.
     /// No migration, relocation or deletion of existing fsassets occurs.
     /// </summary>
-    public sealed class OGLAssetConnector : FSAssetConnector
+    public sealed class OGLAssetConnector : FSAssetConnector, IAssetService
     {
         private readonly OGLObjectCache cache;
         public OGLAssetConnector(IConfigSource config)
