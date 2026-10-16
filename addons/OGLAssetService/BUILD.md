@@ -51,3 +51,18 @@ DiskCacheDirectory = "/var/cache/ogl-assetservice"
 
 
 The disk quota is enforced after each successful write using cache-file timestamps. This is a single-process staging implementation, not a hard filesystem quota: concurrent external writers and filesystem errors can exceed the configured limit. Cache metrics are currently in-process properties, **not** published through the World API.
+
+## Redis coordination and FSAssets migration (development only)
+
+`OGLRedisAssetCoordinator` provides Redis revision get/increment primitives using StackExchange.Redis. **It is not wired into the live connector** and does not yet provide a distributed cache or enforce cross-process coherence. Redis persistence and recovery semantics must be designed before using revisions as correctness guarantees. Redis credentials must come from secured runtime configuration, not source control.
+
+`OGLFsassetsMigrator.Run(source, destination, dryRun)` implements a filesystem copy/verify primitive. Dry-run is the default. A successful second run verifies existing target files and skips copying them. It does **not** migrate the FSAssets SQL metadata, validate database-to-file relationships, coordinate live writes, provide a transactional cutover or handle arbitrary symlinked directory trees. Use only on an offline, backed-up staging copy; do not point it at production FSAssets.
+
+Build and smoke test from the repository root:
+
+```bash
+dotnet build addons/OGLAssetService/OGLAssetService.csproj -c Release
+dotnet run --project addons/OGLAssetService.Tests/OGLAssetService.Tests.csproj -c Release
+```
+
+No successful build or runtime test has yet been observed for these changes.
