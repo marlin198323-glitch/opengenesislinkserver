@@ -30,7 +30,9 @@ namespace OpenGenesisLINK.Addons.AssetService
             string password = section.GetString("HttpAuthPassword", "");
             if (String.IsNullOrWhiteSpace(user) || user.Length < 8 ||
                 user.Contains(":") || String.IsNullOrWhiteSpace(password) ||
-                password.Length < 16)
+                password.Length < 16 ||
+                user.StartsWith("REPLACE_", StringComparison.OrdinalIgnoreCase) ||
+                password.StartsWith("REPLACE_", StringComparison.OrdinalIgnoreCase))
                 throw new InvalidOperationException("Invalid dedicated credentials.");
             string role = section.GetString("Role", "");
             if (role != "Viewer" && role != "Administrator")
