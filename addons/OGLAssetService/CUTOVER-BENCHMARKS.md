@@ -55,3 +55,7 @@ Malformed or negative Redis revision values now raise an error rather than being
 ## Audited legacy API dispatch (October 2026)
 
 Source: `OpenSim/Services/FSAssetService/FSAssetService.cs`. The base `FSAssetConnector.GetData`, `Store`, and `Delete` methods are virtual, so the OGL compatibility connector now overrides them rather than relying on explicit `IAssetService` implementations. This is necessary to cover calls made through a `FSAssetConnector` reference as well as `IAssetService` dispatch. The legacy `UpdateContent` method is **not virtual and currently always returns false**; the OGL connector's explicit interface implementation still delegates to that no-op. `Get`, `GetMetadata`, asynchronous callback overloads, `GetCached`, and `AssetsExist` are not yet replaced or fully audited. This change does not constitute a complete cutover. Compile and test both interface and base-typed dispatch before merging.
+
+## Store identity and failure audit
+
+The compatibility connector now invalidates the original input asset ID as well as the ID returned by `FSAssetConnector.Store`, since the base connector can assign an ID and may report failure using the all-zero UUID. It skips Redis invalidation of that failure sentinel. This does **not** make Store transactional or solve multi-process write races. The connector deliberately continues to initialize its legacy parent with the existing `[AssetService]` configuration (not the separate OGL settings section). A real UpdateContent implementation still requires an audited metadata/hash replacement transaction.
