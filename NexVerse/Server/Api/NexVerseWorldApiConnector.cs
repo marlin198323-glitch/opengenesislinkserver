@@ -934,7 +934,8 @@ namespace NexVerse.Server.Api
                     new SimpleStreamHandler(
                         "/api/v1/security",
                         apiGate.Wrap(securityApi.Handle),
-                        "NexVerse Security"));
+                        "NexVerse Security"),
+                    true);
 
                 FriendsService friendsService = new FriendsService(config);
                 NexSocialGraphApi socialGraph =
@@ -943,7 +944,8 @@ namespace NexVerse.Server.Api
                     new SimpleStreamHandler(
                         "/api/v1/relationships",
                         apiGate.Wrap(socialGraph.Handle),
-                        "NexVerse Social Graph"));
+                        "NexVerse Social Graph"),
+                    true);
 
                 IInstantMessage citizenInstantMessages =
                     LoadOptionalService<IInstantMessage>(config, "HGInstantMessageService");
@@ -1016,7 +1018,8 @@ namespace NexVerse.Server.Api
                         new SimpleStreamHandler(
                             "/api/v1/profiles",
                             apiGate.Wrap(webProfileV3.Handle),
-                            "NexVerse WebProfileV3"));
+                            "NexVerse WebProfileV3"),
+                        true);
 
                     m_Log.Info("[NEX-WEBPROFILE-V3]: WebProfileV3 enabled using the authoritative UserProfilesService store.");
                 }

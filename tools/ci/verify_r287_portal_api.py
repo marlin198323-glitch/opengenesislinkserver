@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """R287 portal coverage gates: authenticated image projection and Discovery CRUD."""
 from pathlib import Path
+import re
 
 root = Path(__file__).resolve().parents[2]
 profile = (root / "NexVerse/Server/Api/NexWebProfileV3Api.cs").read_text()
@@ -15,6 +16,23 @@ for x in ("GetImage(UserAccount", "profile.PublishProfile",
           "MaxProfileAssetBytes", "private, no-store"):
     assert x in profile, "profile image security or transcode missing: " + x
 assert "profilesData,\n                            assets," in connector, "asset service not wired"
+
+# BaseHttpServer dispatches nested paths only when their service prefix is
+# registered in the variable-path table. Without True, requests fall through
+# to the generic /api user router and return "Unknown NexVerse API endpoint".
+for prefix in ("/api/v1/profiles", "/api/v1/relationships", "/api/v1/security"):
+    registration = (
+        r"server\.AddSimpleStreamHandler\(\s*"
+        r"new SimpleStreamHandler\(\s*"
+        + re.escape('"' + prefix + '"')
+        + r"[^;]*\),\s*true\s*\);"
+    )
+    assert re.search(registration, connector), "missing variable-path registration: " + prefix
+
+base_http = (root / "OpenSim/Framework/Servers/HttpServer/BaseHttpServer.cs").read_text()
+assert "m_simpleStreamVarPath.TryGetValue(uripath[..slash], out handler)" in base_http, (
+    "HTTP server must resolve nested variable-prefix routes"
+)
 
 for name in ("/api/v1/events/", "/api/v1/classifieds/"):
     assert f'TryResourceId(path, "{name}"' in discovery
