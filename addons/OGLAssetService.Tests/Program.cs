@@ -60,6 +60,28 @@ if (args.Contains("--redis-smoke", StringComparer.OrdinalIgnoreCase))
     Check((await coordinator.TryGetMappedPayloadAsync(assetId))?.SequenceEqual(payloadSample) == true,
         "Stable revision must return integrity-checked mapped payload");
 
+    string readThroughId = assetId + "-read-through";
+    int authoritativeReads = 0;
+    byte[] authoritativeBytes = System.Text.Encoding.UTF8.GetBytes("authoritative-" + assetId);
+    byte[] ReadAuthoritative()
+    {
+        authoritativeReads++;
+        return (byte[])authoritativeBytes.Clone();
+    }
+    Check((await coordinator.ReadThroughAsync(readThroughId, ReadAuthoritative,
+        TimeSpan.FromMinutes(2))).SequenceEqual(authoritativeBytes),
+        "Read-through must return authoritative bytes on first miss");
+    Check(authoritativeReads == 1, "First read-through must consult authoritative storage");
+    Check((await coordinator.ReadThroughAsync(readThroughId, ReadAuthoritative,
+        TimeSpan.FromMinutes(2))).SequenceEqual(authoritativeBytes),
+        "Second read-through must return cached bytes");
+    Check(authoritativeReads == 1, "Second read-through should hit Redis");
+    using (var writer = new OGLRedisAssetCoordinator(connection, database))
+        await writer.InvalidateAsync(readThroughId);
+    Check((await coordinator.ReadThroughAsync(readThroughId, ReadAuthoritative,
+        TimeSpan.FromMinutes(2))).SequenceEqual(authoritativeBytes),
+        "Invalidated read-through must return authoritative bytes");
+    Check(authoritativeReads == 2, "Invalidated read-through must re-fetch authoritative bytes");
     bool badHashRejected = false;
     try { await coordinator.GetPayloadAsync("not-a-sha256"); }
     catch (ArgumentException) { badHashRejected = true; }
