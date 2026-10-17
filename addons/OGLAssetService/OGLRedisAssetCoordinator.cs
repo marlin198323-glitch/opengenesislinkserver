@@ -151,6 +151,30 @@ return 1";
             return before == after ? payload : null;
         }
 
+        // Stage-only helper: reads the authoritative store on a miss, then
+        // publishes only if no revision changed during the read. No negative
+        // caching. A caller must handle Redis outages by bypassing this helper.
+        public async Task<byte[]> ReadThroughAsync(string assetId,
+            Func<byte[]> readAuthoritative, TimeSpan ttl)
+        {
+            if (readAuthoritative == null)
+                throw new ArgumentNullException(nameof(readAuthoritative));
+            ValidateTtl(ttl);
+            long before = await GetRevisionAsync(assetId).ConfigureAwait(false);
+            byte[] cached = await TryGetMappedPayloadAsync(assetId).ConfigureAwait(false);
+            if (cached != null) return cached;
+            byte[] authoritative = readAuthoritative();
+            if (authoritative == null) return null;
+            // Never mutate the authoritative data, and do not publish huge assets.
+            if (authoritative.Length <= 8 * 1024 * 1024 &&
+                await GetRevisionAsync(assetId).ConfigureAwait(false) == before)
+            {
+                string hash = await PutPayloadAsync(authoritative, ttl).ConfigureAwait(false);
+                await TryPublishMappingAsync(assetId, before, hash, ttl).ConfigureAwait(false);
+            }
+            return authoritative;
+        }
+
         private static void ValidateTtl(TimeSpan ttl)
         {
             if (ttl <= TimeSpan.Zero || ttl > TimeSpan.FromDays(1) ||
