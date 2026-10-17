@@ -36,3 +36,7 @@ Administrative credentials are read exclusively from the dedicated configuration
 ## Startup preflight
 
 The host-owned OGLAssetServiceAdminListener now invokes OGLAssetServiceAdminPreflight.Check before creating the persistent audit journal. Invalid TLS listener settings, credentials, or role selections fail without creating a journal or registering routes. This is not a network ACL verification, and the host must still provide exclusive route ownership and dedicated network isolation. Final acceptance is pending.
+
+## Registration failure handling
+
+The registration adapter now removes the status handler if registration of the configuration handler throws. The host lifecycle also attempts route cleanup if startup fails. This is not proof of exclusive route ownership: IHttpServer.AddStreamHandler returns void and may silently ignore duplicates. The dedicated host must reserve both paths before starting the addon. This behavior and concurrent start/stop need final acceptance testing.
