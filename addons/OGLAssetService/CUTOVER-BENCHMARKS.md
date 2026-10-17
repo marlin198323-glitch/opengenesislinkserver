@@ -119,3 +119,7 @@ The standalone `addons/OGLAssetService.AtomicTests` suite checks initial and ide
 The atomic spool regression now launches eight independent `dotnet` processes writing the same SHA-256 asset to the same spool directory, checks all exit codes, checks final payload integrity and ensures no temporary files remain from successful writers. It also simulates a crash **before rename** by leaving a partial staging file and confirms that a subsequent publisher can publish the correct digest without mistaking the orphan for an authoritative asset. The test intentionally does not delete unrelated orphan files: safe orphan garbage collection requires age checks and coordination with active writers.
 
 The GitHub Actions pull-request path filter now includes `addons/OGLAssetService.AtomicTests/**`. This is a filesystem-level regression, **not** a real power-loss or kernel-crash test, a directory-fsync durability guarantee, nor a test of SQL CAS against a running ROBUST instance. These remain mandatory cutover gates.
+
+## SQL CAS rollback and delete races
+
+The disposable MariaDB/PostgreSQL CAS regression now verifies transaction rollback does not publish a metadata hash and that an in-flight writer cannot recreate a deleted metadata row through compare-and-swap. This is a SQL-level regression against CI databases, not yet an end-to-end ROBUST connector test. The previous cross-process .NET test had a CS0161 return-path compilation error; corrected in commit `281edf831eb1e8e45404aee4b1d623293edb34cf`. Both new gates require fresh green CI before merging.
