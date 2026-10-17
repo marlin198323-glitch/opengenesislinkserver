@@ -29,6 +29,17 @@ if (args.Contains("--redis-smoke", StringComparer.OrdinalIgnoreCase))
     }
     Check(await coordinator.GetRevisionAsync(assetId) == 2,
         "Original client must observe the second client's invalidation");
+    byte[] payloadSample = System.Text.Encoding.UTF8.GetBytes("ogl-redis-payload-" + assetId);
+    string contentHash = await coordinator.PutPayloadAsync(payloadSample, TimeSpan.FromMinutes(2));
+    Check((await secondPayloadReader()).SequenceEqual(payloadSample),
+        "Content-addressed payload must round-trip between connections");
+    Check(await coordinator.GetPayloadAsync(new string('a', 64)) == null,
+        "Unknown content hash must miss");
+    async Task<byte[]> secondPayloadReader()
+    {
+        using var reader = new OGLRedisAssetCoordinator(connection, database);
+        return await reader.GetPayloadAsync(contentHash);
+    }
     Console.WriteLine("Redis revision smoke test passed (DB " + database + ")");
     Console.WriteLine("Note: one uniquely named revision key remains in Redis with value 2; no production asset IDs touched.");
     return;
