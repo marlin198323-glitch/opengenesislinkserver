@@ -94,15 +94,17 @@ namespace OpenGenesisLINK.Addons.AssetService
         }
 
         /// <summary>
+        /// Creates a role-gated local administration view. The ROBUST host
+        /// must authenticate the caller and supply a trusted ClaimsPrincipal.
+        /// No HTTP route is registered by this method.
+        /// </summary>
+        public OGLAssetServiceAdmin CreateAdmin(System.Security.Claims.ClaimsPrincipal principal)
+            => new OGLAssetServiceAdmin(this, principal);
+
+        /// <summary>
         /// Obtain a point-in-time diagnostics snapshot without exposing
         /// credentials, asset identifiers or payload contents.
         /// </summary>
-        /// <summary>
-        /// Returns a local-only administrative view. No network endpoint is
-        /// registered, and callers remain responsible for authorization.
-        /// </summary>
-        public OGLAssetServiceAdmin CreateAdmin() => new OGLAssetServiceAdmin(this);
-
         public OGLAssetServiceDiagnostics GetDiagnostics()
         {
             return new OGLAssetServiceDiagnostics(
