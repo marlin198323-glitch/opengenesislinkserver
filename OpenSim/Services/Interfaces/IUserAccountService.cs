@@ -315,6 +315,12 @@ namespace OpenSim.Services.Interfaces
     {
         UserAccount CreatePortalAvatar(string firstName, string lastName,
             string password, string email, string modelAlias);
+
+        // The portal registration completes only after both Home and Last
+        // positions are persisted for the selected region.
+        UserAccount CreatePortalAvatar(string firstName, string lastName,
+            string password, string email, string modelAlias,
+            UUID homeRegionId, Vector3 homePosition);
     }
 
     public interface IUserAccountService
