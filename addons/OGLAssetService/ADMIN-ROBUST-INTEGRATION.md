@@ -48,3 +48,7 @@ The standard ROBUST AssetServiceConnector now exposes LoadedAssetService (IAsset
 ## Exclusive route ownership
 
 BaseHttpServer now offers TryAddExclusiveStreamHandler and TryRemoveOwnedStreamHandler. The administrative registration requires BaseHttpServer and atomically rejects occupied routes; it retains exact handler identities for cleanup. Shutdown and partial-start rollback remove only OGL-owned handlers. This prevents deletion of unrelated HTTP routes. Host network isolation and actual startup wiring remain separate requirements. Final compilation and acceptance testing are deferred.
+
+## ROBUST startup and shutdown lifecycle boundary
+
+OGLAssetServiceRobustLifecycle owns the optional admin registration after the normal ROBUST asset connector has loaded. The host supplies the public asset IHttpServer, a distinct dedicated TLS IHttpServer, and the exact IAssetService instance returned by AssetServiceConnector.LoadedAssetService. Start rejects a shared listener object or shared port and delegates TLS, credential and audit checks to the bootstrap. Retain the lifecycle object and call Dispose during shutdown before disposing the HTTP servers. This adapter is not yet invoked automatically by OpenSim/Server/ServerMain.cs; it does not create listeners, modify existing public routes or deploy configuration. No production enablement is implied.
