@@ -23,11 +23,13 @@ namespace OpenGenesisLINK.Addons.AssetService
         private readonly Func<IOSHttpRequest, ClaimsPrincipal> resolvePrincipal;
         private readonly bool configuration;
         private readonly OGLAssetServiceAdminAudit audit;
+        private readonly OGLAssetServiceAdminAuditJournal journal;
         private readonly OGLAssetServiceAdminRateLimiter limiter;
 
         public OGLAssetServiceAdminHttpHandler(OGLAssetConnector connector,
             Func<IOSHttpRequest, ClaimsPrincipal> resolvePrincipal, bool configuration,
-            OGLAssetServiceAdminAudit audit, OGLAssetServiceAdminRateLimiter limiter)
+            OGLAssetServiceAdminAudit audit, OGLAssetServiceAdminRateLimiter limiter,
+            OGLAssetServiceAdminAuditJournal journal)
             : base("GET", configuration ? ConfigurationPath : StatusPath)
         {
             this.connector = connector ?? throw new ArgumentNullException(nameof(connector));
@@ -35,7 +37,15 @@ namespace OpenGenesisLINK.Addons.AssetService
                 throw new ArgumentNullException(nameof(resolvePrincipal));
             this.configuration = configuration;
             this.audit = audit ?? throw new ArgumentNullException(nameof(audit));
+            this.journal = journal;
             this.limiter = limiter ?? throw new ArgumentNullException(nameof(limiter));
+        }
+
+        private void RecordOutcome(string outcome)
+        {
+            audit.Record(outcome);
+            if (journal != null)
+                journal.Record(configuration ? "configuration" : "status", outcome);
         }
 
         protected override byte[] ProcessRequest(string path, Stream request,
@@ -47,7 +57,7 @@ namespace OpenGenesisLINK.Addons.AssetService
             if (!limiter.TryAcquire())
             {
                 httpResponse.StatusCode = 429;
-                audit.Record("throttled");
+                RecordOutcome("throttled");
                 return Encoding.UTF8.GetBytes("{}");
             }
             try
@@ -58,7 +68,7 @@ namespace OpenGenesisLINK.Addons.AssetService
                 if (principal?.Identity?.IsAuthenticated != true)
                 {
                     httpResponse.StatusCode = 401;
-                    audit.Record("unauthorized");
+                    RecordOutcome("unauthorized");
                     return Encoding.UTF8.GetBytes("{}");
                 }
                 OGLAssetServiceAdmin admin = connector.CreateAdmin(principal);
@@ -66,13 +76,13 @@ namespace OpenGenesisLINK.Addons.AssetService
                     ? (object)admin.GetConfiguration()
                     : admin.GetStatus();
                 httpResponse.StatusCode = (int)HttpStatusCode.OK;
-                audit.Record("allowed");
+                RecordOutcome("allowed");
                 return JsonSerializer.SerializeToUtf8Bytes(response);
             }
             catch (SecurityException)
             {
                 httpResponse.StatusCode = (int)HttpStatusCode.Forbidden;
-                audit.Record("forbidden");
+                RecordOutcome("forbidden");
                 return Encoding.UTF8.GetBytes("{\"error\":\"access_denied\"}");
             }
             catch (ArgumentNullException)
@@ -85,7 +95,7 @@ namespace OpenGenesisLINK.Addons.AssetService
             {
                 // Never leak exception messages, paths or connection strings.
                 httpResponse.StatusCode = (int)HttpStatusCode.InternalServerError;
-                audit.Record("error");
+                RecordOutcome("error");
                 return Encoding.UTF8.GetBytes("{\"error\":\"internal_error\"}");
             }
         }
@@ -105,12 +115,22 @@ namespace OpenGenesisLINK.Addons.AssetService
             if (resolvePrincipal == null)
                 throw new ArgumentNullException(nameof(resolvePrincipal));
 
+            Register(server, connector, resolvePrincipal, null);
+        }
+
+        public static void Register(IHttpServer server, OGLAssetConnector connector,
+            Func<IOSHttpRequest, ClaimsPrincipal> resolvePrincipal,
+            OGLAssetServiceAdminAuditJournal journal)
+        {
+            if (server == null) throw new ArgumentNullException(nameof(server));
+            if (connector == null) throw new ArgumentNullException(nameof(connector));
+            if (resolvePrincipal == null) throw new ArgumentNullException(nameof(resolvePrincipal));
             var audit = new OGLAssetServiceAdminAudit();
             var limiter = new OGLAssetServiceAdminRateLimiter(60);
             server.AddStreamHandler(new OGLAssetServiceAdminHttpHandler(
-                connector, resolvePrincipal, false, audit, limiter));
+                connector, resolvePrincipal, false, audit, limiter, journal));
             server.AddStreamHandler(new OGLAssetServiceAdminHttpHandler(
-                connector, resolvePrincipal, true, audit, limiter));
+                connector, resolvePrincipal, true, audit, limiter, journal));
         }
     }
 }
