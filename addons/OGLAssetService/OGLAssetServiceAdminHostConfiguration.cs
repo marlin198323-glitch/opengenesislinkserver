@@ -51,9 +51,9 @@ namespace OpenGenesisLINK.Addons.AssetService
             if (String.IsNullOrWhiteSpace(serviceName))
                 throw new InvalidOperationException("Dedicated service identity required.");
 
-            // This constructor reads the credentials from the named section.
+            // Credentials are read only from this dedicated section.
             // A dedicated host listener must enforce TLS and network ACLs.
-            IServiceAuth auth = new BasicHttpAuthentication(config, Section);
+            IServiceAuth auth = new OGLAssetServiceDedicatedAuth(username, password);
             OGLAssetServiceAdminHttpRegistration.RegisterRobustServiceAccount(
                 server, connector, auth, serviceName, role == "Administrator", journal);
             return true;
