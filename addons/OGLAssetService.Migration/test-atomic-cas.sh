@@ -11,12 +11,13 @@ old="$(printf original | sha256sum | cut -d' ' -f1)"
 next="$(printf replacement-a | sha256sum | cut -d' ' -f1)"
 other="$(printf replacement-b | sha256sum | cut -d' ' -f1)"
 table="ogl_fsassets_cas_test"
+work="$(mktemp -d)"
 if [[ "$provider" == mysql ]]; then
   : "${MYSQL_PWD:?Set MYSQL_PWD for the disposable local CI instance}"
   cli=(mysql --protocol=tcp -h 127.0.0.1 -P 3306 -u root -N -B)
   "${cli[@]}" -e "CREATE DATABASE IF NOT EXISTS ogl_assetservice_cas_test;"
   cli+=(ogl_assetservice_cas_test)
-  trap '"${cli[@]}" -e "DROP TABLE IF EXISTS ogl_fsassets_cas_test;" >/dev/null 2>&1 || true' EXIT
+  trap '"${cli[@]}" -e "DROP TABLE IF EXISTS ogl_fsassets_cas_test;" >/dev/null 2>&1 || true; rm -rf "$work"' EXIT
   "${cli[@]}" -e "DROP TABLE IF EXISTS $table; CREATE TABLE $table (id CHAR(36) PRIMARY KEY, hash CHAR(64) NOT NULL); INSERT INTO $table VALUES ('$id','$old');"
   cas() { "${cli[@]}" -e "UPDATE $table SET hash='$2' WHERE id='$id' AND hash='$1'; SELECT ROW_COUNT();" | tail -1; }
   current() { "${cli[@]}" -e "SELECT hash FROM $table WHERE id='$id';"; }
@@ -24,7 +25,7 @@ if [[ "$provider" == mysql ]]; then
 else
   : "${PGPASSWORD:?Set PGPASSWORD for the disposable local CI instance}"
   cli=(psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -p 5432 -U postgres -d postgres -A -t)
-  trap '"${cli[@]}" -c "DROP TABLE IF EXISTS ogl_fsassets_cas_test;" >/dev/null 2>&1 || true' EXIT
+  trap '"${cli[@]}" -c "DROP TABLE IF EXISTS ogl_fsassets_cas_test;" >/dev/null 2>&1 || true; rm -rf "$work"' EXIT
   "${cli[@]}" -c "DROP TABLE IF EXISTS $table; CREATE TABLE $table (id UUID PRIMARY KEY, hash VARCHAR(64) NOT NULL); INSERT INTO $table VALUES ('$id','$old');" >/dev/null
   cas() { "${cli[@]}" -c "WITH updated AS (UPDATE $table SET hash='$2' WHERE id='$id' AND hash='$1' RETURNING id) SELECT count(*) FROM updated;"; }
   current() { "${cli[@]}" -c "SELECT hash FROM $table WHERE id='$id';"; }
