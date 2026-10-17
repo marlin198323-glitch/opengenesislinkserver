@@ -131,6 +131,22 @@ namespace OpenGenesisLINK.Addons.AssetService
     /// </summary>
     public static class OGLAssetServiceAdminHttpRegistration
     {
+        private static readonly object OwnedLock = new object();
+        private static readonly System.Collections.Generic.Dictionary<BaseHttpServer, OGLAssetServiceAdminHttpHandler[]> Owned
+            = new System.Collections.Generic.Dictionary<BaseHttpServer, OGLAssetServiceAdminHttpHandler[]>();
+
+        public static void UnregisterOwned(IHttpServer server)
+        {
+            if (server is not BaseHttpServer host) return;
+            lock (OwnedLock)
+            {
+                if (!Owned.TryGetValue(host, out var handlers)) return;
+                foreach (var handler in handlers)
+                    host.TryRemoveOwnedStreamHandler(handler);
+                Owned.Remove(host);
+            }
+        }
+
         /// <summary>
         /// Explicit dedicated ROBUST service-credential integration.
         /// Never supply a shared public asset service credential.
@@ -163,18 +179,31 @@ namespace OpenGenesisLINK.Addons.AssetService
             if (server == null) throw new ArgumentNullException(nameof(server));
             if (connector == null) throw new ArgumentNullException(nameof(connector));
             if (resolvePrincipal == null) throw new ArgumentNullException(nameof(resolvePrincipal));
+            if (server is not BaseHttpServer host)
+                throw new InvalidOperationException("Exclusive admin routes require BaseHttpServer.");
             var audit = new OGLAssetServiceAdminAudit();
             var limiter = new OGLAssetServiceAdminRateLimiter(60);
-            server.AddStreamHandler(new OGLAssetServiceAdminHttpHandler(
-                connector, resolvePrincipal, false, audit, limiter, journal));
+            var status = new OGLAssetServiceAdminHttpHandler(
+                connector, resolvePrincipal, false, audit, limiter, journal);
+            var configuration = new OGLAssetServiceAdminHttpHandler(
+                connector, resolvePrincipal, true, audit, limiter, journal);
+            if (!host.TryAddExclusiveStreamHandler(status))
+                throw new InvalidOperationException("Administrative status route is already occupied.");
             try
             {
-                server.AddStreamHandler(new OGLAssetServiceAdminHttpHandler(
-                    connector, resolvePrincipal, true, audit, limiter, journal));
+                if (!host.TryAddExclusiveStreamHandler(configuration))
+                    throw new InvalidOperationException("Administrative configuration route is already occupied.");
+                lock (OwnedLock)
+                {
+                    if (Owned.ContainsKey(host))
+                        throw new InvalidOperationException("Administrative routes already owned.");
+                    Owned.Add(host, new[] { status, configuration });
+                }
             }
             catch
             {
-                server.RemoveStreamHandler("GET", OGLAssetServiceAdminHttpHandler.StatusPath);
+                host.TryRemoveOwnedStreamHandler(configuration);
+                host.TryRemoveOwnedStreamHandler(status);
                 throw;
             }
         }
