@@ -179,8 +179,12 @@ namespace OpenGenesisLINK.Addons.AssetService
                         ? TryUpdateContentAtomic(id, data)
                         : base.UpdateContent(id, data);
                     if (atomicUpdatesEnabled)
-                        System.Threading.Interlocked.Increment(ref updated
-                            ? ref atomicUpdateSucceeded : ref atomicUpdateRejected);
+                    {
+                        if (updated)
+                            System.Threading.Interlocked.Increment(ref atomicUpdateSucceeded);
+                        else
+                            System.Threading.Interlocked.Increment(ref atomicUpdateRejected);
+                    }
                     return updated;
                 }
                 catch (Exception)
