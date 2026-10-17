@@ -73,8 +73,29 @@ if (args.Contains("--redis-smoke", StringComparer.OrdinalIgnoreCase))
         using var reader = new OGLRedisAssetCoordinator(connection, database);
         return await reader.GetPayloadAsync(contentHash);
     }
+    bool excessiveTtlRejected = false;
+    try { await coordinator.PutPayloadAsync(payloadSample, TimeSpan.FromDays(2)); }
+    catch (ArgumentOutOfRangeException) { excessiveTtlRejected = true; }
+    Check(excessiveTtlRejected, "Excessive Redis payload TTL must be rejected");
+    bool invalidMappingTtlRejected = false;
+    try { await coordinator.TryPublishMappingAsync(assetId, 3, contentHash, TimeSpan.Zero); }
+    catch (ArgumentOutOfRangeException) { invalidMappingTtlRejected = true; }
+    Check(invalidMappingTtlRejected, "Invalid mapping TTL must be rejected");
+    // Corrupt only a random smoke-test revision key; never touch production IDs.
+    string revisionKey = "ogl:asset:v1:" + Convert.ToHexString(
+        System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(assetId)))
+        .ToLowerInvariant();
+    using (var raw = StackExchange.Redis.ConnectionMultiplexer.Connect(connection))
+    {
+        await raw.GetDatabase(database).StringSetAsync(revisionKey, "invalid-revision");
+        bool invalidRevisionRejected = false;
+        try { await coordinator.GetRevisionAsync(assetId); }
+        catch (InvalidOperationException) { invalidRevisionRejected = true; }
+        Check(invalidRevisionRejected, "Malformed Redis revision must fail closed");
+        await raw.GetDatabase(database).KeyDeleteAsync(revisionKey);
+    }
     Console.WriteLine("Redis revision smoke test passed (DB " + database + ")");
-    Console.WriteLine("Note: one uniquely named revision key remains in Redis with value 2; no production asset IDs touched.");
+    Console.WriteLine("Note: smoke-test revision key was deleted; short-lived payload and mapping keys expire by TTL.");
     return;
 }
 
