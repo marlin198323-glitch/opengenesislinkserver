@@ -6,6 +6,11 @@ Enabled = false
 DedicatedListenerConfirmed = false
 ; Must match the TLS port of the host-provided administrative IHttpServer.
 ExpectedTlsPort = 0
+; Explicit non-wildcard interface. Loopback is the recommended default.
+ListenAddress = 127.0.0.1
+; Dedicated PFX/PKCS#12 certificate and password (operator supplied).
+TlsCertificatePath =
+TlsCertificatePassword =
 AuthType = BasicHttpAuthentication
 ServiceName = ogl-admin-service
 Role = Viewer
