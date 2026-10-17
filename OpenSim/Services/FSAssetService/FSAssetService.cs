@@ -743,9 +743,16 @@ namespace OpenSim.Services.FSAssetService
                     !String.Equals(currentHash, oldHash, StringComparison.OrdinalIgnoreCase))
                     return false;
                 // No-op must not succeed for missing or corrupted FSAssets.
+                // Revalidate the metadata after reading the payload so a
+                // concurrent writer cannot silently turn this into success.
                 byte[] existingContent = GetFsData(oldHash);
-                return existingContent != null &&
-                    existingContent.AsSpan().SequenceEqual(content);
+                if (existingContent == null ||
+                    !existingContent.AsSpan().SequenceEqual(content))
+                    return false;
+                string verifiedHash;
+                AssetMetadata verified = m_DataConnector.Get(id, out verifiedHash);
+                return verified != null &&
+                    String.Equals(verifiedHash, oldHash, StringComparison.OrdinalIgnoreCase);
             }
 
             // FSBase may already hold the immutable digest in compressed form.
