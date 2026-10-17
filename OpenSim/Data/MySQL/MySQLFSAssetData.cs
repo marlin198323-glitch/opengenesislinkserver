@@ -37,7 +37,7 @@ using OpenMetaverse;
 
 namespace OpenSim.Data.MySQL
 {
-    public class MySQLFSAssetData : IFSAssetDataPlugin
+    public class MySQLFSAssetData : IFSAssetDataPlugin, IFSAssetHashCompareExchange
     {
         private static readonly ILog m_log = LogManager.GetLogger(MethodBase.GetCurrentMethod().DeclaringType);
 
@@ -212,6 +212,24 @@ namespace OpenSim.Data.MySQL
                     cmd.ExecuteNonQuery();
                 }
                 conn.Close();
+            }
+        }
+
+        public bool TryReplaceHash(string id, string expectedHash, string newHash)
+        {
+            if (String.IsNullOrWhiteSpace(id) || String.IsNullOrWhiteSpace(expectedHash) ||
+                String.IsNullOrWhiteSpace(newHash))
+                throw new ArgumentException("Asset ID and both hashes are required.");
+            using (MySqlConnection conn = new MySqlConnection(m_ConnectionString))
+            using (MySqlCommand cmd = conn.CreateCommand())
+            {
+                conn.Open();
+                cmd.CommandText = String.Format(
+                    "UPDATE {0} SET hash = ?newHash WHERE id = ?id AND hash = ?oldHash", m_Table);
+                cmd.Parameters.AddWithValue("?id", id);
+                cmd.Parameters.AddWithValue("?oldHash", expectedHash);
+                cmd.Parameters.AddWithValue("?newHash", newHash);
+                return cmd.ExecuteNonQuery() == 1;
             }
         }
 
