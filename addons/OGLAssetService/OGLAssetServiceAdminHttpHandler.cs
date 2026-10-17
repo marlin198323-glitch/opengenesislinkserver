@@ -79,7 +79,7 @@ namespace OpenGenesisLINK.Addons.AssetService
 
             string outcome = "error";
             int status = 500;
-            byte[] body = Encoding.UTF8.GetBytes("{\\"error\\":\\"internal_error\\"}");
+            byte[] body = Encoding.UTF8.GetBytes("{\"error\":\"internal_error\"}");
             try
             {
                 ClaimsPrincipal principal = resolvePrincipal(httpRequest);
@@ -87,7 +87,7 @@ namespace OpenGenesisLINK.Addons.AssetService
                 {
                     outcome = "unauthorized";
                     status = 401;
-                    body = Encoding.UTF8.GetBytes("{\\"error\\":\\"unauthorized\\"}");
+                    body = Encoding.UTF8.GetBytes("{\"error\":\"unauthorized\"}");
                 }
                 else
                 {
@@ -104,13 +104,13 @@ namespace OpenGenesisLINK.Addons.AssetService
             {
                 outcome = "forbidden";
                 status = 403;
-                body = Encoding.UTF8.GetBytes("{\\"error\\":\\"access_denied\\"}");
+                body = Encoding.UTF8.GetBytes("{\"error\":\"access_denied\"}");
             }
             catch (Exception)
             {
                 outcome = "error";
                 status = 500;
-                body = Encoding.UTF8.GetBytes("{\\"error\\":\\"internal_error\\"}");
+                body = Encoding.UTF8.GetBytes("{\"error\":\"internal_error\"}");
             }
 
             if (!RecordOutcome(outcome))
@@ -118,7 +118,7 @@ namespace OpenGenesisLINK.Addons.AssetService
                 // Fail closed if a configured persistent audit journal cannot
                 // durably record the request, including otherwise valid reads.
                 httpResponse.StatusCode = 503;
-                return Encoding.UTF8.GetBytes("{\\"error\\":\\"audit_unavailable\\"}");
+                return Encoding.UTF8.GetBytes("{\"error\":\"audit_unavailable\"}");
             }
             httpResponse.StatusCode = status;
             return body;
