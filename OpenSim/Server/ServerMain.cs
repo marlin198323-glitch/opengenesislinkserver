@@ -252,6 +252,9 @@ namespace OpenSim.Server
                 int adminPort = oglAdminConfig.GetInt("ExpectedTlsPort", 0);
                 if (adminPort <= 0)
                     throw new InvalidOperationException("OGL admin TLS port is not configured.");
+                if ((uint)adminPort == oglPublicAssetServer.Port ||
+                    (uint)adminPort == MainServer.Instance.Port)
+                    throw new InvalidOperationException("OGL admin cannot share the public asset or main ROBUST port.");
                 BaseHttpServer adminServer = (BaseHttpServer)MainServer.GetHttpServer((uint)adminPort);
                 oglAdminLifecycle = new OGLAssetServiceRobustLifecycle();
                 try
