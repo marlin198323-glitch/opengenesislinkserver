@@ -20,6 +20,7 @@ on:
       - 'OpenSim/Services/FSAssetService/**'
       - 'addons/OGLAssetService/**'
       - 'addons/OGLAssetService.Tests/**'
+      - 'addons/OGLAssetService.AtomicTests/**'
       - 'addons/OGLAssetService.Migration/**'
       - '.github/workflows/ogl-assetservice-atomic-integration.yml'
   workflow_dispatch:
