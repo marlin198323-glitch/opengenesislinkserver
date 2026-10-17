@@ -17,6 +17,18 @@ namespace OpenGenesisLINK.Addons.AssetService
             this.connector = connector ?? throw new ArgumentNullException(nameof(connector));
         }
 
+        /// <summary>
+        /// Configuration overview without storage paths, secrets or
+        /// connection strings. Flags describe the effective runtime state.
+        /// </summary>
+        public OGLAssetServiceConfiguration GetConfiguration()
+        {
+            OGLAssetServiceDiagnostics d = connector.GetDiagnostics();
+            return new OGLAssetServiceConfiguration(
+                "compatibility", d.AtomicUpdatesEnabled,
+                d.LocalCacheEnabled, d.RedisEnabled);
+        }
+
         public OGLAssetServiceStatus GetStatus()
         {
             OGLAssetServiceDiagnostics metrics = connector.GetDiagnostics();
@@ -45,6 +57,23 @@ namespace OpenGenesisLINK.Addons.AssetService
             }
 
             return new OGLAssetServiceStatus(state, reason, metrics);
+        }
+    }
+
+    public sealed class OGLAssetServiceConfiguration
+    {
+        public string Mode { get; }
+        public bool ExperimentalAtomicUpdatesEnabled { get; }
+        public bool SingleWriterCacheEnabled { get; }
+        public bool RedisEnabled { get; }
+
+        public OGLAssetServiceConfiguration(string mode, bool atomicUpdates,
+            bool singleWriterCache, bool redisEnabled)
+        {
+            Mode = mode;
+            ExperimentalAtomicUpdatesEnabled = atomicUpdates;
+            SingleWriterCacheEnabled = singleWriterCache;
+            RedisEnabled = redisEnabled;
         }
     }
 
