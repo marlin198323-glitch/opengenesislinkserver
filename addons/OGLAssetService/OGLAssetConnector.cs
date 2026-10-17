@@ -93,6 +93,22 @@ namespace OpenGenesisLINK.Addons.AssetService
                     "OGL AssetService currently supports only Mode = compatibility. Distributed storage is not implemented.");
         }
 
+        /// <summary>
+        /// Obtain a point-in-time diagnostics snapshot without exposing
+        /// credentials, asset identifiers or payload contents.
+        /// </summary>
+        public OGLAssetServiceDiagnostics GetDiagnostics()
+        {
+            return new OGLAssetServiceDiagnostics(
+                atomicUpdatesEnabled, localCacheEnabled, redisEnabled,
+                AtomicUpdateAttempts, AtomicUpdateSucceeded, AtomicUpdateRejected,
+                AtomicUpdateExceptions, AtomicUpdateElapsedTicks,
+                MemoryCacheHits, MemoryCacheMisses, MemoryCacheUsedBytes,
+                DiskCacheHits, DiskCacheMisses, DiskCacheEvictions,
+                LocalInvalidationAttempts, DiskInvalidationFailures,
+                RedisInvalidationFailures);
+        }
+
         private void TryInvalidateRedis(string id)
         {
             if (!redisEnabled || String.IsNullOrWhiteSpace(id)) return;
