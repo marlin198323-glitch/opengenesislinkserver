@@ -123,3 +123,7 @@ The GitHub Actions pull-request path filter now includes `addons/OGLAssetService
 ## SQL CAS rollback and delete races
 
 The disposable MariaDB/PostgreSQL CAS regression now verifies transaction rollback does not publish a metadata hash and that an in-flight writer cannot recreate a deleted metadata row through compare-and-swap. This is a SQL-level regression against CI databases, not yet an end-to-end ROBUST connector test. The previous cross-process .NET test had a CS0161 return-path compilation error; corrected in commit `281edf831eb1e8e45404aee4b1d623293edb34cf`. Both new gates require fresh green CI before merging.
+
+## Filesystem redirection hardening
+
+The immutable spool publisher rejects filesystem symbolic links at the spool root, staging directory and digest destination, both before and after publication. The isolated atomic regression creates each of these symlink cases on Linux/macOS and asserts that publication fails closed. These checks reduce accidental path redirection but do not establish full protection against a privileged adversary replacing directories between checks (TOCTOU); production storage roots must be owned by the service account, with restrictive permissions and no untrusted writers. No existing FSAssets files are rewritten by this change.
