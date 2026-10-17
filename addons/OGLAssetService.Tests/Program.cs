@@ -40,6 +40,21 @@ if (args.Contains("--redis-smoke", StringComparer.OrdinalIgnoreCase))
         "Redis payload hit must return bytes");
     Check(coordinator.PayloadHits == 1, "Redis payload hit counter");
     Check(coordinator.PayloadIntegrityFailures == 0, "No integrity failures expected");
+    // A stale publisher must not reintroduce a mapping after invalidation.
+    Check(await coordinator.TryPublishMappingAsync(assetId, 2, contentHash,
+        TimeSpan.FromMinutes(2)), "Current revision mapping publication");
+    Check(await coordinator.GetMappedHashAsync(assetId, 2) == contentHash,
+        "Current revision mapping lookup");
+    using (var invalidator = new OGLRedisAssetCoordinator(connection, database))
+        Check(await invalidator.InvalidateAsync(assetId) == 3,
+            "Third revision increment failed");
+    Check(!await coordinator.TryPublishMappingAsync(assetId, 2, contentHash,
+        TimeSpan.FromMinutes(2)), "Stale mapping publication must be rejected");
+    Check(await coordinator.GetMappedHashAsync(assetId, 3) == null,
+        "New revision must not resolve stale mapping");
+    Check(await coordinator.TryPublishMappingAsync(assetId, 3, contentHash,
+        TimeSpan.FromMinutes(2)), "New revision mapping publication");
+
     bool badHashRejected = false;
     try { await coordinator.GetPayloadAsync("not-a-sha256"); }
     catch (ArgumentException) { badHashRejected = true; }
