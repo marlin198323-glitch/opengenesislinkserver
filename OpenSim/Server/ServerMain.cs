@@ -39,6 +39,8 @@ using OpenSim.Framework.Servers;
 using OpenSim.Framework.Servers.HttpServer;
 using OpenSim.Server.Base;
 using OpenSim.Server.Handlers.Base;
+using OpenSim.Server.Handlers.Asset;
+using OpenGenesisLINK.Addons.AssetService;
 
 namespace OpenSim.Server
 {
@@ -167,6 +169,8 @@ namespace OpenSim.Server
 
             string[] conns = connList.Split(new char[] {',', ' ', '\n', '\r', '\t'});
 
+            AssetServiceConnector oglAssetHost = null;
+            BaseHttpServer oglPublicAssetServer = null;
             foreach (string c in conns)
             {
                 if (string.IsNullOrEmpty(c))
@@ -223,6 +227,14 @@ namespace OpenSim.Server
                 if (connector != null)
                 {
                     m_ServiceConnectors.Add(connector);
+                    if (connector is AssetServiceConnector assetConnector &&
+                        assetConnector.LoadedAssetService is OGLAssetConnector)
+                    {
+                        if (oglAssetHost != null)
+                            throw new InvalidOperationException("Multiple OGL asset connectors are not supported for admin hosting.");
+                        oglAssetHost = assetConnector;
+                        oglPublicAssetServer = server;
+                    }
                     m_log.InfoFormat("[SERVER]: {0} loaded successfully", friendlyName);
                 }
                 else
@@ -231,11 +243,39 @@ namespace OpenSim.Server
                 }
             }
 
+            OGLAssetServiceRobustLifecycle oglAdminLifecycle = null;
+            IConfig oglAdminConfig = m_Server.Config.Configs["OGLAssetServiceAdmin"];
+            if (oglAdminConfig != null && oglAdminConfig.GetBoolean("Enabled", false))
+            {
+                if (oglAssetHost == null)
+                    throw new InvalidOperationException("OGL admin requires a loaded OGL asset connector.");
+                int adminPort = oglAdminConfig.GetInt("ExpectedTlsPort", 0);
+                if (adminPort <= 0)
+                    throw new InvalidOperationException("OGL admin TLS port is not configured.");
+                BaseHttpServer adminServer = (BaseHttpServer)MainServer.GetHttpServer((uint)adminPort);
+                oglAdminLifecycle = new OGLAssetServiceRobustLifecycle();
+                try
+                {
+                    oglAdminLifecycle.Start(m_Server.Config, oglPublicAssetServer,
+                        adminServer, oglAssetHost.LoadedAssetService,
+                        oglAdminConfig.GetString("AuditJournalPath", "logs/ogl-asset-admin-audit.jsonl"),
+                        oglAdminConfig.GetInt("AuditMaxJournalBytes", 10485760),
+                        oglAdminConfig.GetInt("AuditRetainedFiles", 5));
+                }
+                catch
+                {
+                    oglAdminLifecycle.Dispose();
+                    throw;
+                }
+            }
+
             PrintFileToConsole("robuststartuplogo.txt");
 
             loader = new PluginLoader(m_Server.Config, registryLocation);
 
-            int res = m_Server.Run();
+            int res;
+            try { res = m_Server.Run(); }
+            finally { oglAdminLifecycle?.Dispose(); }
 
             m_Server?.Shutdown();
 
