@@ -689,9 +689,28 @@ namespace OpenSim.Services.UserAccountService
                     account.PrincipalID, e.Message);
             }
 
+            // If cleanup fails, the remaining account must not be able to
+            // log in with a partially written GridUser placement.
+            account.Active = false;
+            account.NexVerseState = "provisioning_failed";
+            account.NexVerseStateReason = "Portal home/last position initialization failed.";
+            account.NexVerseStateChanged = Util.UnixTimeSinceEpoch();
+            try
+            {
+                StoreUserAccount(account);
+                InvalidateCache(account.PrincipalID);
+            }
+            catch (Exception e)
+            {
+                m_log.ErrorFormat(
+                    "[OGL PORTAL REGISTRATION]: Unable to deactivate incomplete account {0}: {1}",
+                    account.PrincipalID, e.Message);
+            }
+
             // Best-effort only: related authentication, inventory and GridUser
             // records may remain. Operators must reconcile orphaned data.
             CompensateFailedOglStarterRegistration(account.PrincipalID);
+            InvalidateCache(account.PrincipalID);
             return null;
         }
 
@@ -869,6 +888,9 @@ namespace OpenSim.Services.UserAccountService
                 else
                 {
                     m_log.ErrorFormat("[USER ACCOUNT SERVICE]: Account creation failed for account {0} {1}", firstName, lastName);
+                    if (!string.IsNullOrEmpty(model) &&
+                        model.StartsWith("ogl:", StringComparison.OrdinalIgnoreCase))
+                        return null;
                 }
             }
             else
