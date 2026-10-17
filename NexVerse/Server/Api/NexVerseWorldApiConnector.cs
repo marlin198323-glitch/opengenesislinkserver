@@ -622,6 +622,7 @@ namespace NexVerse.Server.Api
                 OglPortalRegistrationApi portalRegistration = new OglPortalRegistrationApi(
                     authenticator,
                     userAccounts,
+                    grid,
                     apiConfig.GetBoolean("PortalAvatarRegistrationEnabled", false));
                 server.AddSimpleStreamHandler(new SimpleStreamHandler(
                     "/api/v1/portal/avatars/register",
