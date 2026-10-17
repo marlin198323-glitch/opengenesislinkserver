@@ -735,7 +735,13 @@ namespace OpenSim.Services.FSAssetService
             }
             string newHash = GetSHA256Hash(content);
             if (String.Equals(newHash, oldHash, StringComparison.OrdinalIgnoreCase))
-                return true;
+            {
+                // Re-read metadata: a concurrent writer may have changed the mapping.
+                string currentHash;
+                AssetMetadata current = m_DataConnector.Get(id, out currentHash);
+                return current != null &&
+                    String.Equals(currentHash, oldHash, StringComparison.OrdinalIgnoreCase);
+            }
 
             string finalFile = Path.Combine(m_SpoolDirectory, newHash + ".asset");
             if (!AssetExists(newHash) && !File.Exists(finalFile))
