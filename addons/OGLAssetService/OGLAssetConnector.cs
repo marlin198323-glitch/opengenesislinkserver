@@ -140,22 +140,29 @@ namespace OpenGenesisLINK.Addons.AssetService
             }
         }
 
-        // The legacy FSAssetConnector.UpdateContent currently always returns false.
-        // Keep the explicit interface interception for cache invalidation only;
-        // implementing actual updates requires a separate durable write design.
+        // The legacy base UpdateContent is nonvirtual and remains unchanged.
+        // Explicit IAssetService dispatch is the opt-in update entry point.
         bool IAssetService.UpdateContent(string id, byte[] data)
         {
             lock (cacheSync)
             {
-                cache.Invalidate(id);
-                try { diskCache?.Invalidate(id); }
-                catch (System.IO.IOException) { }
-                catch (UnauthorizedAccessException) { }
-                bool updated = atomicUpdatesEnabled
-                    ? TryUpdateContentAtomic(id, data)
-                    : base.UpdateContent(id, data);
-                if (updated) TryInvalidateRedis(id);
-                return updated;
+                bool updated = false;
+                try
+                {
+                    updated = atomicUpdatesEnabled
+                        ? TryUpdateContentAtomic(id, data)
+                        : base.UpdateContent(id, data);
+                    return updated;
+                }
+                finally
+                {
+                    // Invalidate even when disk staging, SQL CAS or normalization
+                    // throws. The caller must not retain a potentially stale copy.
+                    InvalidateLocal(id);
+                    // The SQL write may have committed before a subsequent error.
+                    // Redis is a best-effort hint; Redis-backed reads are disabled.
+                    if (atomicUpdatesEnabled) TryInvalidateRedis(id);
+                }
             }
         }
 
@@ -163,13 +170,17 @@ namespace OpenGenesisLINK.Addons.AssetService
         {
             lock (cacheSync)
             {
-                cache.Invalidate(id);
-                try { diskCache?.Invalidate(id); }
-                catch (System.IO.IOException) { }
-                catch (UnauthorizedAccessException) { }
-                bool deleted = base.Delete(id);
-                if (deleted) TryInvalidateRedis(id);
-                return deleted;
+                try
+                {
+                    return base.Delete(id);
+                }
+                finally
+                {
+                    // Legacy Delete reports success even when metadata removal
+                    // fails; never use that boolean as cache-coherence evidence.
+                    InvalidateLocal(id);
+                    TryInvalidateRedis(id);
+                }
             }
         }
 
