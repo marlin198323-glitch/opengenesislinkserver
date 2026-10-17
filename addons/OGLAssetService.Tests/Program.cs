@@ -19,7 +19,16 @@ if (args.Contains("--redis-smoke", StringComparer.OrdinalIgnoreCase))
     long incremented = await coordinator.InvalidateAsync(assetId);
     Check(incremented == 1, "First revision increment must be one");
     Check(await coordinator.GetRevisionAsync(assetId) == 1, "Revision readback failed");
-    Check(await coordinator.InvalidateAsync(assetId) == 2, "Second increment failed");
+    // Verify a second independent Redis connection sees the same revision.
+    using (var secondCoordinator = new OGLRedisAssetCoordinator(connection, database))
+    {
+        Check(await secondCoordinator.GetRevisionAsync(assetId) == 1,
+            "Revision must be visible across Redis clients");
+        Check(await secondCoordinator.InvalidateAsync(assetId) == 2,
+            "Second client revision increment failed");
+    }
+    Check(await coordinator.GetRevisionAsync(assetId) == 2,
+        "Original client must observe the second client's invalidation");
     Console.WriteLine("Redis revision smoke test passed (DB " + database + ")");
     Console.WriteLine("Note: one uniquely named revision key remains in Redis with value 2; no production asset IDs touched.");
     return;
@@ -74,6 +83,25 @@ Check(!memory.TryGet("first", out _), "LRU must evict first entry");
 Check(memory.UsedBytes == 3 && memory.Count == 1, "Memory accounting");
 memory.Invalidate("second");
 Check(memory.Count == 0, "Invalidation");
+// Replacing a cache key must not retain an obsolete snapshot or double-count memory.
+memory.Put("replacement", new byte[] { 1, 2 });
+memory.Put("replacement", new byte[] { 3, 4, 5 });
+Check(memory.Count == 1 && memory.UsedBytes == 3, "Replacement memory accounting");
+Check(memory.TryGet("replacement", out var replacement) &&
+    replacement.SequenceEqual(new byte[] { 3, 4, 5 }), "Replacement must return new bytes");
+memory.Invalidate("replacement");
+Check(!memory.TryGet("replacement", out _), "Invalidated replacement must miss");
+// Concurrent read/write/invalidate must not corrupt LRU or accounting.
+var concurrent = new OGLObjectCache(1024);
+System.Threading.Tasks.Parallel.For(0, 2000, i =>
+{
+    string key = "asset-" + (i % 16);
+    if (i % 3 == 0) concurrent.Put(key, new byte[32]);
+    else if (i % 3 == 1) concurrent.TryGet(key, out _);
+    else concurrent.Invalidate(key);
+});
+Check(concurrent.UsedBytes >= 0 && concurrent.UsedBytes <= 1024 &&
+    concurrent.Count <= 16, "Concurrent cache accounting");
 Check(OGLObjectCache.ContentHash(new byte[] { 97, 98, 99 }) ==
     "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad", "SHA-256");
 
