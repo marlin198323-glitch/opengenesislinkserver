@@ -82,6 +82,23 @@ if (args.Contains("--redis-smoke", StringComparer.OrdinalIgnoreCase))
         TimeSpan.FromMinutes(2))).SequenceEqual(authoritativeBytes),
         "Invalidated read-through must return authoritative bytes");
     Check(authoritativeReads == 2, "Invalidated read-through must re-fetch authoritative bytes");
+    // Deterministic write during an authoritative read: never publish a
+    // mapping for the old revision, even if the read returns bytes.
+    string racingId = assetId + "-racing-read";
+    byte[] RaceRead()
+    {
+        using var concurrentWriter = new OGLRedisAssetCoordinator(connection, database);
+        concurrentWriter.InvalidateAsync(racingId).GetAwaiter().GetResult();
+        return (byte[])authoritativeBytes.Clone();
+    }
+    Check((await coordinator.ReadThroughAsync(racingId, RaceRead,
+        TimeSpan.FromMinutes(2))).SequenceEqual(authoritativeBytes),
+        "Racing authoritative read should still return its bytes");
+    Check(await coordinator.GetRevisionAsync(racingId) == 1,
+        "Concurrent writer must increment revision during authoritative read");
+    Check(await coordinator.GetMappedHashAsync(racingId, 0) == null &&
+        await coordinator.GetMappedHashAsync(racingId, 1) == null,
+        "Concurrent write must prevent publishing an old payload mapping");
     bool badHashRejected = false;
     try { await coordinator.GetPayloadAsync("not-a-sha256"); }
     catch (ArgumentException) { badHashRejected = true; }
