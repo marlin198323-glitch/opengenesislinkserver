@@ -66,8 +66,7 @@ namespace OpenGenesisLINK.Addons.AssetService
             {
                 // Registration can fail after the first handler was added.
                 // The host must reserve these paths on its dedicated listener.
-                server.RemoveStreamHandler("GET", OGLAssetServiceAdminHttpHandler.StatusPath);
-                server.RemoveStreamHandler("GET", OGLAssetServiceAdminHttpHandler.ConfigurationPath);
+                OGLAssetServiceAdminHttpRegistration.UnregisterOwned(server);
                 journal.Dispose();
                 lock (RegistrationLock) ActiveServers.Remove(server);
                 throw;
@@ -84,8 +83,7 @@ namespace OpenGenesisLINK.Addons.AssetService
                 {
                     if (registered)
                     {
-                        server.RemoveStreamHandler("GET", OGLAssetServiceAdminHttpHandler.StatusPath);
-                        server.RemoveStreamHandler("GET", OGLAssetServiceAdminHttpHandler.ConfigurationPath);
+                        OGLAssetServiceAdminHttpRegistration.UnregisterOwned(server);
                     }
                 }
                 finally
