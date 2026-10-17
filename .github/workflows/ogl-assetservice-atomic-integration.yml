@@ -9,6 +9,7 @@ on:
       - 'OpenSim/Services/FSAssetService/**'
       - 'addons/OGLAssetService/**'
       - 'addons/OGLAssetService.Tests/**'
+      - 'addons/OGLAssetService.AtomicTests/**'
       - 'addons/OGLAssetService.Migration/**'
       - '.github/workflows/ogl-assetservice-atomic-integration.yml'
   pull_request:
@@ -41,6 +42,8 @@ jobs:
         run: dotnet build OpenSim.sln -c Release
       - name: Compile OGL AssetService connector and atomic write integration
         run: dotnet build addons/OGLAssetService/OGLAssetService.csproj -c Release
+      - name: Run atomic FSAssets publication, corruption and concurrency regressions
+        run: dotnet run --project addons/OGLAssetService.AtomicTests/OGLAssetService.AtomicTests.csproj -c Release
       - name: Compile and execute isolated cache tests
         run: |
           dotnet build addons/OGLAssetService.Tests/OGLAssetService.Tests.csproj -c Release
