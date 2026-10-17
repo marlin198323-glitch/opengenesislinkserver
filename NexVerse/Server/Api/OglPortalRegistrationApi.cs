@@ -28,14 +28,17 @@ namespace NexVerse.Server.Api
         private readonly NexApiAuthenticator m_Authenticator;
         private readonly IUserAccountService m_Accounts;
         private readonly IOglPortalAccountProvisioner m_Provisioner;
+        private readonly IGridService m_Grid;
         private readonly bool m_Enabled;
 
         public OglPortalRegistrationApi(
-            NexApiAuthenticator authenticator, IUserAccountService accounts, bool enabled)
+            NexApiAuthenticator authenticator, IUserAccountService accounts,
+            IGridService grid, bool enabled)
         {
             m_Authenticator = authenticator ?? throw new ArgumentNullException(nameof(authenticator));
             m_Accounts = accounts ?? throw new ArgumentNullException(nameof(accounts));
             m_Provisioner = accounts as IOglPortalAccountProvisioner;
+            m_Grid = grid;
             m_Enabled = enabled;
         }
 
@@ -165,6 +168,87 @@ namespace NexVerse.Server.Api
                     return;
                 }
 
+                // Only the authenticated portal backend may choose the landing
+                // region. The public registration form must not accept these
+                // settings from a resident; the portal admin supplies them.
+                if (m_Grid == null)
+                {
+                    Reply(response, HttpStatusCode.ServiceUnavailable, "grid_service_unavailable",
+                        "Grid-Service fuer die Startregion ist nicht verfuegbar.");
+                    return;
+                }
+
+                string regionName = "Magdeburg";
+                bool regionNameProvided = false;
+                UUID requestedRegionId = UUID.Zero;
+                Vector3 spawnPosition = new Vector3(116f, 120f, 22f);
+                if (root.TryGetProperty("home_region", out JsonElement homeRegionElement))
+                {
+                    if (homeRegionElement.ValueKind != JsonValueKind.Object)
+                    {
+                        Reply(response, HttpStatusCode.BadRequest, "invalid_home_region",
+                            "home_region muss ein Objekt sein.");
+                        return;
+                    }
+
+                    string regionIdText = Value(homeRegionElement, "id");
+                    string configuredName = Value(homeRegionElement, "name");
+                    if (string.IsNullOrWhiteSpace(configuredName) &&
+                        string.IsNullOrWhiteSpace(regionIdText))
+                    {
+                        Reply(response, HttpStatusCode.BadRequest, "invalid_home_region",
+                            "home_region.id oder home_region.name ist erforderlich.");
+                        return;
+                    }
+                    if (!string.IsNullOrWhiteSpace(regionIdText))
+                    {
+                        if (!UUID.TryParse(regionIdText, out requestedRegionId) ||
+                            requestedRegionId.IsZero())
+                        {
+                            Reply(response, HttpStatusCode.BadRequest, "invalid_home_region",
+                                "home_region.id muss eine gueltige Region-UUID sein.");
+                            return;
+                        }
+                    }
+                    if (!string.IsNullOrWhiteSpace(configuredName))
+                    {
+                        regionName = configuredName;
+                        regionNameProvided = true;
+                    }
+
+                    if (homeRegionElement.TryGetProperty("position", out JsonElement positionElement) &&
+                        !TryReadPosition(positionElement, out spawnPosition))
+                    {
+                        Reply(response, HttpStatusCode.BadRequest, "invalid_home_position",
+                            "home_region.position muss numerische x-, y- und z-Werte enthalten.");
+                        return;
+                    }
+                }
+
+                GridRegion targetRegion = requestedRegionId.IsZero()
+                    ? m_Grid.GetRegionByName(UUID.Zero, regionName)
+                    : m_Grid.GetRegionByUUID(UUID.Zero, requestedRegionId);
+
+                if (targetRegion == null || targetRegion.RegionID.IsZero() ||
+                    (!requestedRegionId.IsZero() &&
+                     regionNameProvided &&
+                     !string.Equals(targetRegion.RegionName, regionName, StringComparison.OrdinalIgnoreCase)))
+                {
+                    Reply(response, HttpStatusCode.UnprocessableEntity, "home_region_not_found",
+                        "Die konfigurierte Startregion konnte nicht eindeutig aufgeloest werden.");
+                    return;
+                }
+                if (!float.IsFinite(spawnPosition.X) || !float.IsFinite(spawnPosition.Y) ||
+                    !float.IsFinite(spawnPosition.Z) ||
+                    spawnPosition.X < 0 || spawnPosition.X >= targetRegion.RegionSizeX ||
+                    spawnPosition.Y < 0 || spawnPosition.Y >= targetRegion.RegionSizeY ||
+                    spawnPosition.Z < 0 || spawnPosition.Z > 4096)
+                {
+                    Reply(response, HttpStatusCode.BadRequest, "invalid_home_position",
+                        "Die Startposition liegt ausserhalb der Region.");
+                    return;
+                }
+
                 if (m_Accounts.GetUserAccount(UUID.Zero, first, last) != null)
                 {
                     Reply(response, HttpStatusCode.Conflict, "avatar_name_taken",
@@ -178,7 +262,8 @@ namespace NexVerse.Server.Api
                     return;
                 }
 
-                UserAccount newAccount = m_Provisioner.CreatePortalAvatar(first, last, pass, email, modelAlias);
+                UserAccount newAccount = m_Provisioner.CreatePortalAvatar(
+                    first, last, pass, email, modelAlias, targetRegion.RegionID, spawnPosition);
                 if (newAccount == null)
                 {
                     Reply(response, HttpStatusCode.UnprocessableEntity, "registration_failed",
@@ -196,6 +281,12 @@ namespace NexVerse.Server.Api
                     last_name = newAccount.LastName,
                     model_name = modelName,
                     avatar_id = newAccount.PrincipalID.ToString(),
+                    home_region = new
+                    {
+                        id = targetRegion.RegionID.ToString(),
+                        name = targetRegion.RegionName,
+                        position = new { x = spawnPosition.X, y = spawnPosition.Y, z = spawnPosition.Z }
+                    },
                     message = "Avatar " + newAccount.FirstName + " " + newAccount.LastName + " wurde erfolgreich registriert."
                 });
             }
@@ -210,6 +301,25 @@ namespace NexVerse.Server.Api
                 Reply(response, HttpStatusCode.ServiceUnavailable, "registration_unavailable",
                     "Registrierung zurzeit nicht moeglich. Bitte spaeter erneut versuchen.");
             }
+        }
+
+        private static bool TryReadPosition(JsonElement root, out Vector3 position)
+        {
+            position = Vector3.Zero;
+            if (root.ValueKind != JsonValueKind.Object ||
+                !root.TryGetProperty("x", out JsonElement xElement) ||
+                !root.TryGetProperty("y", out JsonElement yElement) ||
+                !root.TryGetProperty("z", out JsonElement zElement) ||
+                xElement.ValueKind != JsonValueKind.Number ||
+                yElement.ValueKind != JsonValueKind.Number ||
+                zElement.ValueKind != JsonValueKind.Number ||
+                !xElement.TryGetSingle(out float x) ||
+                !yElement.TryGetSingle(out float y) ||
+                !zElement.TryGetSingle(out float z))
+                return false;
+
+            position = new Vector3(x, y, z);
+            return true;
         }
 
         private static string Value(JsonElement root, string key, bool trim = true)
