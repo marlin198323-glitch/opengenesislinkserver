@@ -75,6 +75,25 @@ namespace OpenGenesisLINK.Addons.AssetService
             }
         }
 
+        // Keep all virtual read entry points serialized with local writes.
+        // Base.Get may populate an asset from fallback storage through Store;
+        // Monitor locks are reentrant, so this remains safe on the same thread.
+        // This does NOT provide cross-process transactional isolation.
+        public override AssetBase Get(string id)
+        {
+            lock (cacheSync) return base.Get(id);
+        }
+
+        public override AssetMetadata GetMetadata(string id)
+        {
+            lock (cacheSync) return base.GetMetadata(id);
+        }
+
+        public override bool[] AssetsExist(string[] ids)
+        {
+            lock (cacheSync) return base.AssetsExist(ids);
+        }
+
         public override byte[] GetData(string id)
         {
             if (String.IsNullOrWhiteSpace(id)) return base.GetData(id);
