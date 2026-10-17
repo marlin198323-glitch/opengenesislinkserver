@@ -42,6 +42,10 @@ namespace OpenSim.Server.Handlers.Asset
     public class AssetServiceConnector : ServiceConnector
     {
         private IAssetService m_AssetService;
+
+        // Expose the exact service instance loaded by ROBUST to optional
+        // host-owned integrations. This does not register additional routes.
+        public IAssetService LoadedAssetService => m_AssetService;
         private string m_ConfigName = "AssetService";
 
         public AssetServiceConnector(IConfigSource config, IHttpServer server, string configName) :
