@@ -75,7 +75,7 @@ namespace OpenGenesisLINK.Addons.AssetService
             }
         }
 
-        byte[] IAssetService.GetData(string id)
+        public override byte[] GetData(string id)
         {
             if (String.IsNullOrWhiteSpace(id)) return base.GetData(id);
             lock (cacheSync)
@@ -110,6 +110,9 @@ namespace OpenGenesisLINK.Addons.AssetService
             }
         }
 
+        // The legacy FSAssetConnector.UpdateContent currently always returns false.
+        // Keep the explicit interface interception for cache invalidation only;
+        // implementing actual updates requires a separate durable write design.
         bool IAssetService.UpdateContent(string id, byte[] data)
         {
             lock (cacheSync)
