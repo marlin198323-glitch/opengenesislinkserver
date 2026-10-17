@@ -33,6 +33,7 @@ namespace OpenGenesisLINK.Addons.AssetService
             if (server == null) throw new ArgumentNullException(nameof(server));
             if (connector == null) throw new ArgumentNullException(nameof(connector));
 
+            OGLAssetServiceAdminPreflight.Check(config, server);
             var journal = new OGLAssetServiceAdminAuditJournal(
                 auditPath, maxJournalBytes, retainedFiles);
             var listener = new OGLAssetServiceAdminListener(server, journal);
