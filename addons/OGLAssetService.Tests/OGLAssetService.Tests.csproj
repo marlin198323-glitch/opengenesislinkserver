@@ -5,6 +5,8 @@
     <ImplicitUsings>enable</ImplicitUsings>
   </PropertyGroup>
   <ItemGroup>
+    <PackageReference Include="StackExchange.Redis" Version="2.8.24" />
+    <Compile Include="../OGLAssetService/OGLRedisAssetCoordinator.cs" Link="OGLRedisAssetCoordinator.cs" />
     <Compile Include="../OGLAssetService/OGLObjectCache.cs" Link="OGLObjectCache.cs" />
     <Compile Include="../OGLAssetService/OGLDiskCache.cs" Link="OGLDiskCache.cs" />
     <Compile Include="../OGLAssetService/OGLFsassetsMigrator.cs" Link="OGLFsassetsMigrator.cs" />
