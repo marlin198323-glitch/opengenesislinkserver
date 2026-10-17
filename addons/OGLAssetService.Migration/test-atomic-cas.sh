@@ -12,6 +12,8 @@ next="$(printf replacement-a | sha256sum | cut -d' ' -f1)"
 other="$(printf replacement-b | sha256sum | cut -d' ' -f1)"
 table="ogl_fsassets_cas_test"
 work="$(mktemp -d)"
+TMPDIR_CAS_A="$work/cas-a.txt"
+TMPDIR_CAS_B="$work/cas-b.txt"
 if [[ "$provider" == mysql ]]; then
   : "${MYSQL_PWD:?Set MYSQL_PWD for the disposable local CI instance}"
   cli=(mysql --protocol=tcp -h 127.0.0.1 -P 3306 -u root -N -B)
