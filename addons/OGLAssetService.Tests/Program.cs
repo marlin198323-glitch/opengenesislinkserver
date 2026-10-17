@@ -5,6 +5,43 @@ static void Check(bool condition, string message)
     if (!condition) throw new Exception(message);
 }
 
+// Opt-in microbenchmark: measures the cache implementation, NOT end-to-end ROBUST/FSAssets.
+// Keep the smoke tests as the default execution path.
+if (args.Contains("--benchmark", StringComparer.OrdinalIgnoreCase))
+{
+    const int iterations = 100_000;
+    const int payloadBytes = 64 * 1024;
+    byte[] sample = new byte[payloadBytes];
+    new Random(42).NextBytes(sample);
+    var benchmarkCache = new OGLObjectCache(16L * 1024 * 1024);
+    benchmarkCache.Put("benchmark-asset", sample);
+    // Warm-up JIT and cache before measuring.
+    for (int i = 0; i < 1000; i++)
+        Check(benchmarkCache.TryGet("benchmark-asset", out _), "Warm-up cache miss");
+    var timer = System.Diagnostics.Stopwatch.StartNew();
+    long bytesRead = 0;
+    for (int i = 0; i < iterations; i++)
+    {
+        Check(benchmarkCache.TryGet("benchmark-asset", out var bytes), "Unexpected cache miss");
+        bytesRead += bytes.Length;
+    }
+    timer.Stop();
+    double elapsedSeconds = Math.Max(timer.Elapsed.TotalSeconds, 0.000001);
+    Console.WriteLine(System.Text.Json.JsonSerializer.Serialize(new
+    {
+        benchmark = "OGLObjectCache warm-hit microbenchmark",
+        iterations,
+        payloadBytes,
+        elapsedMs = timer.Elapsed.TotalMilliseconds,
+        operationsPerSecond = iterations / elapsedSeconds,
+        throughputMiBPerSecond = bytesRead / 1048576.0 / elapsedSeconds,
+        hits = benchmarkCache.Hits,
+        misses = benchmarkCache.Misses,
+        note = "Not a legacy FSAssetConnector comparison or end-to-end asset latency measurement"
+    }));
+    return;
+}
+
 var memory = new OGLObjectCache(5);
 var original = new byte[] { 1, 2, 3 };
 memory.Put("first", original);
