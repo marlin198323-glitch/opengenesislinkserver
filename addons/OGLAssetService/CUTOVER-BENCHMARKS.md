@@ -30,13 +30,13 @@ On a staging server with Redis reachable and the connection variable already loa
 OGL_ASSET_REDIS_DATABASE=2 dotnet run --project addons/OGLAssetService.Tests/OGLAssetService.Tests.csproj -c Release -- --redis-smoke
 ```
 
-The test uses a random, non-production asset ID, asserts revision 0 → 1 → 2, and deletes its temporary revision key after the test. It does not flush or delete existing keys, validate payload caching, or prove cross-process cache coherence. Do not print the Redis connection string in diagnostics.
+The test uses a random, non-production asset ID, asserts revision 0 → 1 → 2, and deletes its temporary revision key after the test. It does not flush or delete existing production keys or prove cross-process cache coherence. It does validate experimental payload caching. Do not print the Redis connection string in diagnostics.
 
 ## Experimental Redis payload primitives
 
 `OGLRedisAssetCoordinator.PutPayloadAsync` and `GetPayloadAsync` store and retrieve SHA-256-addressed payloads with a required TTL, an 8 MiB maximum item size, and hash verification on read. The opt-in `--redis-smoke` test now also checks payload round-trip through two independent connections; it creates one additional expiring Redis key. **These methods are not wired into OGLAssetConnector's read path.** Content addressing alone does not make UUID-to-content-hash mappings coherent across writers, and existing asset update/delete paths may bypass the connector. Do not enable distributed payload caching in production until the invalidation and atomic mapping protocol has been reviewed and tested.
 
-The coordinator also exposes `PayloadHits`, `PayloadMisses`, and `PayloadIntegrityFailures` counters. These cover only calls to its experimental `GetPayloadAsync` API, not actual ROBUST traffic. The smoke test asserts counters, malformed SHA-256 rejection, and the 8 MiB payload cap. Redis payload keys are content-addressed and TTL-bound; revision keys are not removed by the smoke test.
+The coordinator also exposes `PayloadHits`, `PayloadMisses`, and `PayloadIntegrityFailures` counters. These cover only calls to its experimental `GetPayloadAsync` API, not actual ROBUST traffic. The smoke test asserts counters, malformed SHA-256 rejection, and the 8 MiB payload cap. Redis payload keys are content-addressed and TTL-bound. Some additional randomly generated test revision keys are not removed by the smoke test.
 
 ## Experimental revision-scoped asset mapping
 
@@ -59,3 +59,7 @@ Source: `OpenSim/Services/FSAssetService/FSAssetService.cs`. The base `FSAssetCo
 ## Store identity and failure audit
 
 The compatibility connector now invalidates the original input asset ID as well as the ID returned by `FSAssetConnector.Store`, since the base connector can assign an ID and may report failure using the all-zero UUID. It skips Redis invalidation of that failure sentinel. This does **not** make Store transactional or solve multi-process write races. The connector deliberately continues to initialize its legacy parent with the existing `[AssetService]` configuration (not the separate OGL settings section). A real UpdateContent implementation still requires an audited metadata/hash replacement transaction.
+
+## Read-through race regression
+
+The experimental read-through helper now checks the outer revision snapshot again after its nested cache lookup, and takes a new snapshot before reading authoritative FSAssets on a miss. A deterministic opt-in Redis smoke test increments a test asset revision *inside* the authoritative read callback, then checks that neither the old nor the new revision receives a stale mapping. The callback still returns its read bytes; this is **not** a transactional snapshot guarantee. These changes remain disconnected from the ROBUST read path. All CI and integration gates above still apply.
