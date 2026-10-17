@@ -56,3 +56,7 @@ OGLAssetServiceRobustLifecycle owns the optional admin registration after the no
 ## ROBUST executable integration (opt-in)
 
 OpenSim/Server/Robust.csproj references the addon project. ServerMain.cs retains the loaded AssetServiceConnector only when its LoadedAssetService is OGLAssetConnector. After service connector initialization, [OGLAssetServiceAdmin] Enabled=true requests an existing HTTP server at ExpectedTlsPort, then OGLAssetServiceRobustLifecycle.Start performs listener separation and TLS preflight. The host reads AuditJournalPath (default logs/ogl-asset-admin-audit.jsonl), AuditMaxJournalBytes (default 10485760), and AuditRetainedFiles (default 5). The lifecycle is disposed after m_Server.Run() returns, including exceptions from Run. This wiring does not provision a certificate or create a dedicated TLS server; the operator must configure that server separately. If Enabled=false, no admin startup occurs. The implementation is unbuilt and awaits final acceptance.
+
+## Port separation and journal settings
+
+ROBUST rejects an enabled admin configuration if ExpectedTlsPort matches either the loaded public asset listener port or the primary ROBUST listener port. The example configuration now documents AuditJournalPath, AuditMaxJournalBytes, and AuditRetainedFiles. Operators must provide a genuinely dedicated TLS listener with restricted network access and a certificate; a distinct port alone does not establish network isolation. Compilation and acceptance tests remain outstanding.
