@@ -60,3 +60,7 @@ OpenSim/Server/Robust.csproj references the addon project. ServerMain.cs retains
 ## Port separation and journal settings
 
 ROBUST rejects an enabled admin configuration if ExpectedTlsPort matches either the loaded public asset listener port or the primary ROBUST listener port. The example configuration now documents AuditJournalPath, AuditMaxJournalBytes, and AuditRetainedFiles. Operators must provide a genuinely dedicated TLS listener with restricted network access and a certificate; a distinct port alone does not establish network isolation. Compilation and acceptance tests remain outstanding.
+
+## Additional startup safeguards
+
+Sample credentials beginning with REPLACE_ are rejected by both admin preflight and registration. ROBUST now disposes the admin lifecycle and shuts down its host server in a finally block when console initialization, plugin loader initialization, or the main run loop fails. These changes do not provision TLS certificates, validate network ACLs, or replace the final build and acceptance process.
