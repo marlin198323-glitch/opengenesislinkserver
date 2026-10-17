@@ -44,3 +44,7 @@ The registration adapter now removes the status handler if registration of the c
 ## Existing service instance bridge
 
 The standard ROBUST AssetServiceConnector now exposes LoadedAssetService (IAssetService). After the host constructs that connector, it may pass its LoadedAssetService to OGLAssetServiceRobustBootstrap.StartAdmin(config, dedicatedAdminServer, loadedAssetService, journalPath, maxJournalBytes, retainedFiles). This opt-in bridge requires the loaded instance to be OGLAssetConnector, avoiding a second asset store connector. The host owns the returned listener and must dispose it at shutdown. No automatic ROBUST bootstrap invocation or dedicated network listener creation has been added. The bridge must never receive the public asset listener.
+
+## Exclusive route ownership
+
+BaseHttpServer now offers TryAddExclusiveStreamHandler and TryRemoveOwnedStreamHandler. The administrative registration requires BaseHttpServer and atomically rejects occupied routes; it retains exact handler identities for cleanup. Shutdown and partial-start rollback remove only OGL-owned handlers. This prevents deletion of unrelated HTTP routes. Host network isolation and actual startup wiring remain separate requirements. Final compilation and acceptance testing are deferred.
