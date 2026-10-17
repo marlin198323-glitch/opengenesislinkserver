@@ -31,3 +31,7 @@ dotnet build addons/OGLAssetService.Migration/OGLAssetService.Migration.csproj -
 For staging-only configuration and limitations, see [BUILD.md](BUILD.md). For the offline SQL verification process see [EXPORT.md](../OGLAssetService.Migration/EXPORT.md), and for operational acceptance gates see [CUTOVER-ROLLBACK.md](../OGLAssetService.Migration/CUTOVER-ROLLBACK.md).
 
 **Never enable the connector on a live ROBUST merely because the addon is merged into `main`.** The original FSAssets remain unchanged, and the addon must be explicitly configured for a disposable staging instance first.
+
+## Local ROBUST administration API (development)
+
+The addon now exposes `OGLAssetConnector.CreateAdmin()`, returning a local-only `OGLAssetServiceAdmin` facade. `GetStatus()` returns a snapshot with one of `compatibility`, `experimental` or `degraded`, a reason, and the existing operational diagnostics counters. `GetConfiguration()` exposes only effective mode and feature flags, without secrets, Redis connection strings, filesystem paths, or asset identifiers. `degraded` means an error counter was observed since process start; it is **not** a live database, filesystem or Redis connectivity probe. The facade is read-only and does not register HTTP routes, change settings, or bypass authorization. A future ROBUST administrative HTTP integration must provide authentication, role-based authorization and request throttling before exposing any endpoint. Full functional testing and acceptance are reserved for the final acceptance phase.
