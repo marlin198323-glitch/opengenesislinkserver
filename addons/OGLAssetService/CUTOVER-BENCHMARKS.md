@@ -63,3 +63,9 @@ The compatibility connector now invalidates the original input asset ID as well 
 ## Read-through race regression
 
 The experimental read-through helper now checks the outer revision snapshot again after its nested cache lookup, and takes a new snapshot before reading authoritative FSAssets on a miss. A deterministic opt-in Redis smoke test increments a test asset revision *inside* the authoritative read callback, then checks that neither the old nor the new revision receives a stale mapping. The callback still returns its read bytes; this is **not** a transactional snapshot guarantee. These changes remain disconnected from the ROBUST read path. All CI and integration gates above still apply.
+
+## Virtual read coverage and failed Store hardening
+
+The compatibility connector now overrides `Get(string)`, `GetMetadata(string)` and `AssetsExist(string[])` as well as `GetData(string)`. All of these take the same in-process lock used for Store/Delete. The inherited callback `Get(string, object, handler)` calls the virtual Get implementation; foreign-service overloads and GetCached still use legacy behavior. This lock is not a distributed transaction and does not protect writes made by another FSAssetConnector instance.
+
+`Store` now invalidates the original, possibly mutated, and returned asset IDs in a `finally` block, including on partial failures. This reduces the chance of retaining stale local entries if FSAssets wrote a payload before failing metadata persistence. Redis invalidation is still a best-effort hint after a successful returned ID and is not a durable outbox. The existing `UpdateContent` implementation remains a legacy no-op. Compile and run staging E2E tests before any cutover.
