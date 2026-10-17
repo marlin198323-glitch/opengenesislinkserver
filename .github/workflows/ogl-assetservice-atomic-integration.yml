@@ -38,7 +38,7 @@ jobs:
           chmod +x runprebuild.sh
           ./runprebuild.sh
       - name: Compile full OpenSimulator solution (includes both FSAsset SQL providers)
-        run: dotnet build OpenSim.sln -c Release --no-restore
+        run: dotnet build OpenSim.sln -c Release
       - name: Compile OGL AssetService connector and atomic write integration
         run: dotnet build addons/OGLAssetService/OGLAssetService.csproj -c Release
       - name: Compile and execute isolated cache tests
