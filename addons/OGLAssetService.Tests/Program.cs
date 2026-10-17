@@ -5,6 +5,26 @@ static void Check(bool condition, string message)
     if (!condition) throw new Exception(message);
 }
 
+// Opt-in Redis integration smoke test: uses a unique asset ID and does not flush Redis.
+if (args.Contains("--redis-smoke", StringComparer.OrdinalIgnoreCase))
+{
+    string connection = Environment.GetEnvironmentVariable("OGL_ASSET_REDIS_CONNECTION")
+        ?? throw new InvalidOperationException("OGL_ASSET_REDIS_CONNECTION is required");
+    int database = int.TryParse(Environment.GetEnvironmentVariable("OGL_ASSET_REDIS_DATABASE"), out int parsed)
+        ? parsed : 2;
+    string assetId = "ogl-smoke-" + Guid.NewGuid().ToString("N");
+    using var coordinator = new OGLRedisAssetCoordinator(connection, database);
+    long initial = await coordinator.GetRevisionAsync(assetId);
+    Check(initial == 0, "New smoke-test ID must have revision zero");
+    long incremented = await coordinator.InvalidateAsync(assetId);
+    Check(incremented == 1, "First revision increment must be one");
+    Check(await coordinator.GetRevisionAsync(assetId) == 1, "Revision readback failed");
+    Check(await coordinator.InvalidateAsync(assetId) == 2, "Second increment failed");
+    Console.WriteLine("Redis revision smoke test passed (DB " + database + ")");
+    Console.WriteLine("Note: two uniquely named revision keys remain in Redis only as one key with value 2; no production asset IDs touched.");
+    return;
+}
+
 // Opt-in microbenchmark: measures the cache implementation, NOT end-to-end ROBUST/FSAssets.
 // Keep the smoke tests as the default execution path.
 if (args.Contains("--benchmark", StringComparer.OrdinalIgnoreCase))
