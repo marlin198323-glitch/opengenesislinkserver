@@ -127,3 +127,7 @@ The disposable MariaDB/PostgreSQL CAS regression now verifies transaction rollba
 ## Filesystem redirection hardening
 
 The immutable spool publisher rejects filesystem symbolic links at the spool root, staging directory and digest destination, both before and after publication. The isolated atomic regression creates each of these symlink cases on Linux/macOS and asserts that publication fails closed. These checks reduce accidental path redirection but do not establish full protection against a privileged adversary replacing directories between checks (TOCTOU); production storage roots must be owned by the service account, with restrictive permissions and no untrusted writers. No existing FSAssets files are rewritten by this change.
+
+## Pre-CAS baseline integrity and no-op read revalidation
+
+Experimental atomic updates now verify that the previous FSAssets payload exists and its SHA-256 matches the existing SQL hash before attempting CAS. This avoids publishing a new metadata hash on top of an already-corrupt or missing authoritative baseline. For same-hash updates, the connector re-reads metadata after verifying the actual bytes, narrowing (but not eliminating) a concurrent writer race. These checks add filesystem reads to every atomic update and may increase latency; benchmark them against real ROBUST traffic before cutover. They do **not** guarantee serializable no-op semantics, filesystem directory fsync, or atomic SQL+filesystem commit. The legacy UpdateContent implementation remains unchanged.
