@@ -31,3 +31,7 @@ OGL_ASSET_REDIS_DATABASE=2 dotnet run --project addons/OGLAssetService.Tests/OGL
 ```
 
 The test uses a random, non-production asset ID, asserts revision 0 → 1 → 2, and leaves **one** revision key in database 2. It does not flush or delete existing keys, validate payload caching, or prove cross-process cache coherence. Do not print the Redis connection string in diagnostics.
+
+## Experimental Redis payload primitives
+
+`OGLRedisAssetCoordinator.PutPayloadAsync` and `GetPayloadAsync` store and retrieve SHA-256-addressed payloads with a required TTL, an 8 MiB maximum item size, and hash verification on read. The opt-in `--redis-smoke` test now also checks payload round-trip through two independent connections; it creates one additional expiring Redis key. **These methods are not wired into OGLAssetConnector's read path.** Content addressing alone does not make UUID-to-content-hash mappings coherent across writers, and existing asset update/delete paths may bypass the connector. Do not enable distributed payload caching in production until the invalidation and atomic mapping protocol has been reviewed and tested.
