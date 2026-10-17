@@ -25,6 +25,8 @@ namespace OpenGenesisLINK.Addons.AssetService
             if (connector == null) throw new ArgumentNullException(nameof(connector));
             if (journal == null)
                 throw new InvalidOperationException("Persistent audit journal is required.");
+            if (!section.GetBoolean("DedicatedListenerConfirmed", false))
+                throw new InvalidOperationException("A dedicated restricted admin listener must be confirmed.");
 
             // Do not allow implicit Network-section credential inheritance or
             // a policy-only IServiceAuth that authenticates without credentials.
