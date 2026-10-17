@@ -49,6 +49,57 @@ X-NexVerse-Api-Key: <SERVER_ONLY_KEY>
   E-Mail ⇒ `409 email_registered`. Nicht vorbereitete Startervorlage
   ⇒ `422 registration_failed`.
 
+### Konfigurierbare Home- und Last-Position (Stadtportal-Admin)
+
+Das Stadtportal kann seine eigene Startregion mitsamt region-lokalen XYZ-Koordinaten
+**serverseitig** verwalten. Beispiel: `Magdeburg / 116 / 120 / 22`.
+Der POST-Aufruf akzeptiert dafür zusätzlich ein optionales `home_region`-Objekt:
+
+```json
+{
+  "first_name": "Alex",
+  "last_name": "Resident",
+  "password": "ein-sehr-langes-sicheres-passwort",
+  "email": "alex@example.org",
+  "gender": "male",
+  "home_region": {
+    "name": "Magdeburg",
+    "position": { "x": 116, "y": 120, "z": 22 }
+  }
+}
+```
+
+Alternativ kann `home_region.id` die UUID der Zielregion enthalten.
+Wenn `id` und `name` angegeben werden, müssen beide dieselbe Region
+bezeichnen. Ist `home_region` nicht angegeben, gelten als rückwärtskompatible
+Standardeinstellung `Magdeburg / 116 / 120 / 22`.
+
+- Die World API löst den Regionnamen über den Grid-Service zur tatsächlichen UUID auf.
+- `position.x`, `position.y`, `position.z` sind Zahlen. Wird das
+  `position`-Objekt angegeben, müssen alle drei Koordinaten enthalten sein.
+- X/Y müssen innerhalb der Region liegen; Z ist auf 0 bis 4096 begrenzt.
+- `SetHome` und `SetLastPosition` speichern dieselbe Region-UUID und Position;
+  die Blickrichtung ist `<0,1,0>`.
+- Erfolgreiche Antworten enthalten zusätzlich `home_region` mit Region-ID,
+  Regionname und den gespeicherten XYZ-Koordinaten.
+- Unbekannte Region: `422 home_region_not_found`; ungültige Koordinaten:
+  `400 invalid_home_position`; fehlender Grid-Service:
+  `503 grid_service_unavailable`.
+- Bei fehlgeschlagenem SetHome/SetLastPosition wird **kein** HTTP 201 gemeldet.
+  Der Account-Service versucht den neu angelegten Account-Datensatz
+  bestmöglich zu entfernen. Es ist **kein atomarer Rollback**;
+  verwaiste Datensätze müssen betrieblich geprüft werden.
+
+**Sicherheitsgrenze:** Das öffentliche Registrierungsformular darf
+`home_region` **nicht** selbst setzen. Nur ein berechtigter Portaladministrator
+ändert diese Einstellungen im Go-Backend (rollen-/CSRF-geschützte Admin-Route).
+Das Portal liest beim Registrieren die gespeicherten Admin-Werte und ergänzt
+sie in seinem authentifizierten Server-zu-Server-JSON an die World API.
+Der `users:register`-API-Schlüssel bleibt ausschließlich im Backend.
+Für einen erfolgreichen Viewer-Login muss die konfigurierte Region
+erreichbar und der Spawnpunkt zugänglich sein; ein erfolgreicher
+Datenbankschreibvorgang garantiert allein keinen Login.
+
 ### Freigabe
 
 In der aktiven Robust-INI (Standard **false**):
