@@ -738,7 +738,7 @@ namespace OpenSim.Services.FSAssetService
                 return true;
 
             string finalFile = Path.Combine(m_SpoolDirectory, newHash + ".asset");
-            if (!AssetExists(newHash))
+            if (!AssetExists(newHash) && !File.Exists(finalFile))
             {
                 string spool = Path.Combine(m_SpoolDirectory, "spool");
                 Directory.CreateDirectory(spool);
@@ -766,7 +766,8 @@ namespace OpenSim.Services.FSAssetService
             }
             // A missing or corrupt payload must never become SQL-authoritative.
             // AssetExists also recognizes already compressed durable FSAssets.
-            if (!AssetExists(newHash))
+            byte[] persisted = GetFsData(newHash);
+            if (persisted == null || !persisted.AsSpan().SequenceEqual(content))
                 return false;
             return compareExchange.TryReplaceHash(id, oldHash, newHash);
         }
