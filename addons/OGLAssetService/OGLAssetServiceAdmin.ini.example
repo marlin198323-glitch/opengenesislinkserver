@@ -1,0 +1,12 @@
+; Development-only example. Not loaded automatically by ROBUST.
+; Provide a dedicated TLS listener with network ACLs and a separate
+; operator-controlled audit journal before enabling these routes.
+[OGLAssetServiceAdmin]
+Enabled = false
+DedicatedListenerConfirmed = false
+AuthType = BasicHttpAuthentication
+ServiceName = ogl-admin-service
+Role = Viewer
+; Never commit actual credentials or reuse public asset-service credentials.
+HttpAuthUsername = REPLACE_WITH_PRIVATE_ADMIN_USER
+HttpAuthPassword = REPLACE_WITH_PRIVATE_ADMIN_SECRET
