@@ -94,6 +94,48 @@ namespace OpenGenesisLINK.Addons.AssetService
             return bytes;
         }
 
+        // The mapping is deliberately revision-scoped. A caller MUST obtain its
+        // revision before reading authoritative FSAssets and recheck it after
+        // reading, before publishing. This is not a replacement for the durable
+        // write/invalidation protocol required for production multi-writer use.
+        private string MappingKey(string assetId, long revision)
+        {
+            if (revision < 0) throw new ArgumentOutOfRangeException(nameof(revision));
+            return Key(assetId) + ":map:" + revision;
+        }
+
+        public async Task<bool> TryPublishMappingAsync(string assetId, long expectedRevision,
+            string contentHash, TimeSpan ttl)
+        {
+            if (ttl <= TimeSpan.Zero) throw new ArgumentOutOfRangeException(nameof(ttl));
+            if (!IsValidHash(contentHash))
+                throw new ArgumentException("Expected lowercase SHA-256 hash.", nameof(contentHash));
+            // Atomic compare-and-set avoids publishing a stale mapping when an
+            // invalidation races with the publication itself.
+            const string script = @"local revision = redis.call('GET', KEYS[1])
+if not revision then revision = '0' end
+if revision ~= ARGV[1] then return 0 end
+redis.call('SET', KEYS[2], ARGV[2], 'PX', ARGV[3])
+return 1";
+            long result = (long)await database.ScriptEvaluateAsync(script,
+                new RedisKey[] { Key(assetId), MappingKey(assetId, expectedRevision) },
+                new RedisValue[] { expectedRevision.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                    contentHash, (long)Math.Ceiling(ttl.TotalMilliseconds) }).ConfigureAwait(false);
+            return result == 1;
+        }
+
+        public async Task<string> GetMappedHashAsync(string assetId, long revision)
+        {
+            RedisValue hash = await database.StringGetAsync(MappingKey(assetId, revision))
+                .ConfigureAwait(false);
+            string value = hash.HasValue ? hash.ToString() : null;
+            return IsValidHash(value) ? value : null;
+        }
+
+        private static bool IsValidHash(string value) =>
+            !String.IsNullOrWhiteSpace(value) && value.Length == 64 &&
+            System.Text.RegularExpressions.Regex.IsMatch(value, "^[a-f0-9]{64}$");
+
         public void Dispose() => connection.Dispose();
     }
 }
