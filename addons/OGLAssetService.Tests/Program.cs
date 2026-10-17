@@ -35,6 +35,19 @@ if (args.Contains("--redis-smoke", StringComparer.OrdinalIgnoreCase))
         "Content-addressed payload must round-trip between connections");
     Check(await coordinator.GetPayloadAsync(new string('a', 64)) == null,
         "Unknown content hash must miss");
+    Check(coordinator.PayloadMisses == 1, "Redis payload miss counter");
+    Check(await coordinator.GetPayloadAsync(contentHash) is { Length: > 0 },
+        "Redis payload hit must return bytes");
+    Check(coordinator.PayloadHits == 1, "Redis payload hit counter");
+    Check(coordinator.PayloadIntegrityFailures == 0, "No integrity failures expected");
+    bool badHashRejected = false;
+    try { await coordinator.GetPayloadAsync("not-a-sha256"); }
+    catch (ArgumentException) { badHashRejected = true; }
+    Check(badHashRejected, "Malformed content hashes must be rejected");
+    bool oversizedRejected = false;
+    try { await coordinator.PutPayloadAsync(new byte[8 * 1024 * 1024 + 1], TimeSpan.FromSeconds(1)); }
+    catch (ArgumentOutOfRangeException) { oversizedRejected = true; }
+    Check(oversizedRejected, "Oversized Redis payloads must be rejected");
     async Task<byte[]> secondPayloadReader()
     {
         using var reader = new OGLRedisAssetCoordinator(connection, database);
