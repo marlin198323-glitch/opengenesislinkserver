@@ -21,7 +21,7 @@ if (args.Contains("--redis-smoke", StringComparer.OrdinalIgnoreCase))
     Check(await coordinator.GetRevisionAsync(assetId) == 1, "Revision readback failed");
     Check(await coordinator.InvalidateAsync(assetId) == 2, "Second increment failed");
     Console.WriteLine("Redis revision smoke test passed (DB " + database + ")");
-    Console.WriteLine("Note: two uniquely named revision keys remain in Redis only as one key with value 2; no production asset IDs touched.");
+    Console.WriteLine("Note: one uniquely named revision key remains in Redis with value 2; no production asset IDs touched.");
     return;
 }
 
