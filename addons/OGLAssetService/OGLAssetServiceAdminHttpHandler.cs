@@ -69,8 +69,12 @@ namespace OpenGenesisLINK.Addons.AssetService
             if (!limiter.TryAcquire())
             {
                 httpResponse.StatusCode = 429;
-                RecordOutcome("throttled");
-                return Encoding.UTF8.GetBytes("{}");
+                if (!RecordOutcome("throttled"))
+                {
+                    httpResponse.StatusCode = 503;
+                    return Encoding.UTF8.GetBytes("{\"error\":\"audit_unavailable\"}");
+                }
+                return Encoding.UTF8.GetBytes("{\"error\":\"rate_limited\"}");
             }
 
             string outcome = "error";
