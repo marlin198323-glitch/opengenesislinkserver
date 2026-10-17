@@ -38,7 +38,7 @@ using NpgsqlTypes;
 
 namespace OpenSim.Data.PGSQL
 {
-    public class PGSQLFSAssetData : IFSAssetDataPlugin
+    public class PGSQLFSAssetData : IFSAssetDataPlugin, IFSAssetHashCompareExchange
     {
         private const string _migrationStore = "FSAssetStore";
         private static string m_Table = "fsassets";
@@ -147,6 +147,24 @@ namespace OpenSim.Data.PGSQL
                 cmd.Parameters.Add(m_database.CreateParameter("id", id));
                 cmd.Parameters.Add(m_database.CreateParameter("access_time", now));
                 cmd.ExecuteNonQuery();
+            }
+        }
+
+        public bool TryReplaceHash(string id, string expectedHash, string newHash)
+        {
+            if (String.IsNullOrWhiteSpace(id) || String.IsNullOrWhiteSpace(expectedHash) ||
+                String.IsNullOrWhiteSpace(newHash))
+                throw new ArgumentException("Asset ID and both hashes are required.");
+            string query = String.Format(
+                "UPDATE {0} SET \"hash\" = :newHash WHERE \"id\" = :id AND \"hash\" = :oldHash", m_Table);
+            using (NpgsqlConnection conn = new NpgsqlConnection(m_connectionString))
+            using (NpgsqlCommand cmd = new NpgsqlCommand(query, conn))
+            {
+                conn.Open();
+                cmd.Parameters.Add(m_database.CreateParameter("id", new UUID(id)));
+                cmd.Parameters.Add(m_database.CreateParameter("oldHash", expectedHash));
+                cmd.Parameters.Add(m_database.CreateParameter("newHash", newHash));
+                return cmd.ExecuteNonQuery() == 1;
             }
         }
 
