@@ -7,7 +7,7 @@ project = Path("tools/ci/NexLedgerSqlMatrixRegression/NexLedgerSqlMatrixRegressi
 
 for marker in (
     "ledger-db-matrix:",
-    "image: public.ecr.aws/docker/library/mariadb:11.4",
+    "image: mariadb:11.4",
     "image: public.ecr.aws/docker/library/postgres:16",
     "33306:3306",
     "35432:5432",
