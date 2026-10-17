@@ -167,8 +167,16 @@ namespace OpenGenesisLINK.Addons.AssetService
             var limiter = new OGLAssetServiceAdminRateLimiter(60);
             server.AddStreamHandler(new OGLAssetServiceAdminHttpHandler(
                 connector, resolvePrincipal, false, audit, limiter, journal));
-            server.AddStreamHandler(new OGLAssetServiceAdminHttpHandler(
-                connector, resolvePrincipal, true, audit, limiter, journal));
+            try
+            {
+                server.AddStreamHandler(new OGLAssetServiceAdminHttpHandler(
+                    connector, resolvePrincipal, true, audit, limiter, journal));
+            }
+            catch
+            {
+                server.RemoveStreamHandler("GET", OGLAssetServiceAdminHttpHandler.StatusPath);
+                throw;
+            }
         }
     }
 }
