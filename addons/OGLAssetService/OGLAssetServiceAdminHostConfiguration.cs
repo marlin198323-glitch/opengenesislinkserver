@@ -25,8 +25,11 @@ namespace OpenGenesisLINK.Addons.AssetService
             if (connector == null) throw new ArgumentNullException(nameof(connector));
             if (journal == null)
                 throw new InvalidOperationException("Persistent audit journal is required.");
-            if (!server.UseSSL)
+            if (server.SSLPort == 0 || !server.UseSSL)
                 throw new InvalidOperationException("The administrative listener must use TLS.");
+            uint expectedPort = (uint)section.GetInt("ExpectedTlsPort", 0);
+            if (expectedPort == 0 || expectedPort != server.SSLPort)
+                throw new InvalidOperationException("Administrative TLS port does not match host configuration.");
             if (!section.GetBoolean("DedicatedListenerConfirmed", false))
                 throw new InvalidOperationException("A dedicated restricted admin listener must be confirmed.");
 
