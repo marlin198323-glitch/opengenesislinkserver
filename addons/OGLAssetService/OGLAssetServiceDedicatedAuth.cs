@@ -28,16 +28,16 @@ namespace OpenGenesisLINK.Addons.AssetService
         public bool Authenticate(string data)
         {
             if (String.IsNullOrEmpty(data) || data.Length > 8192) return false;
+            byte[] decoded;
+            try { decoded = Convert.FromBase64String(data); }
+            catch (FormatException) { return false; }
             try
             {
-                byte[] decoded = Convert.FromBase64String(data);
                 byte[] digest = SHA256.HashData(decoded);
-                bool valid = CryptographicOperations.FixedTimeEquals(expected, digest);
-                CryptographicOperations.ZeroMemory(decoded);
-                CryptographicOperations.ZeroMemory(digest);
-                return valid;
+                try { return CryptographicOperations.FixedTimeEquals(expected, digest); }
+                finally { CryptographicOperations.ZeroMemory(digest); }
             }
-            catch (FormatException) { return false; }
+            finally { CryptographicOperations.ZeroMemory(decoded); }
         }
 
         public bool Authenticate(NameValueCollection headers,
