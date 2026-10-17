@@ -55,4 +55,21 @@ a="$(cat "$TMPDIR_CAS_A")"; b="$(cat "$TMPDIR_CAS_B")"
 }
 actual="$(current)"
 [[ "$actual" == "$next" || "$actual" == "$other" ]] || { echo "Unexpected winning hash" >&2; exit 1; }
+# Rollback must not expose an uncommitted metadata hash.
+if [[ "$provider" == mysql ]]; then
+  "${cli[@]}" -e "START TRANSACTION; UPDATE $table SET hash='$old' WHERE id='$id' AND hash='$actual'; ROLLBACK;"
+else
+  "${cli[@]}" -c "BEGIN; UPDATE $table SET hash='$old' WHERE id='$id' AND hash='$actual'; ROLLBACK;" >/dev/null
+fi
+[[ "$(current)" == "$actual" ]] || { echo "Rolled-back CAS leaked a hash" >&2; exit 1; }
+
+# A stale writer must not resurrect metadata after another writer deletes it.
+if [[ "$provider" == mysql ]]; then
+  "${cli[@]}" -e "DELETE FROM $table WHERE id='$id';"
+else
+  "${cli[@]}" -c "DELETE FROM $table WHERE id='$id';" >/dev/null
+fi
+[[ "$(cas "$actual" "$old")" == 0 ]] || { echo "CAS resurrected deleted asset" >&2; exit 1; }
+[[ -z "$(current)" ]] || { echo "Deleted asset metadata reappeared" >&2; exit 1; }
+
 echo "$provider atomic CAS SQL regression passed"
