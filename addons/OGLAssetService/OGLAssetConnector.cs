@@ -21,6 +21,25 @@ namespace OpenGenesisLINK.Addons.AssetService
         private readonly bool localCacheEnabled;
         private readonly bool atomicUpdatesEnabled;
         private long redisInvalidationFailures;
+        private long atomicUpdateAttempts;
+        private long atomicUpdateSucceeded;
+        private long atomicUpdateRejected;
+        private long atomicUpdateExceptions;
+        private long atomicUpdateElapsedTicks;
+        private long localInvalidationAttempts;
+        private long diskInvalidationFailures;
+
+        // Read-only operational counters; no asset IDs or payloads are exposed.
+        public long AtomicUpdateAttempts => System.Threading.Interlocked.Read(ref atomicUpdateAttempts);
+        public long AtomicUpdateSucceeded => System.Threading.Interlocked.Read(ref atomicUpdateSucceeded);
+        public long AtomicUpdateRejected => System.Threading.Interlocked.Read(ref atomicUpdateRejected);
+        public long AtomicUpdateExceptions => System.Threading.Interlocked.Read(ref atomicUpdateExceptions);
+        public long AtomicUpdateElapsedTicks => System.Threading.Interlocked.Read(ref atomicUpdateElapsedTicks);
+        public long LocalInvalidationAttempts => System.Threading.Interlocked.Read(ref localInvalidationAttempts);
+        public long DiskInvalidationFailures => System.Threading.Interlocked.Read(ref diskInvalidationFailures);
+        public bool ExperimentalAtomicUpdatesEnabled => atomicUpdatesEnabled;
+        public bool LocalCacheEnabled => localCacheEnabled;
+        public bool RedisCoordinationEnabled => redisEnabled;
         public long RedisInvalidationFailures => System.Threading.Interlocked.Read(ref redisInvalidationFailures);
         public long MemoryCacheHits => cache.Hits;
         public long MemoryCacheMisses => cache.Misses;
@@ -146,16 +165,35 @@ namespace OpenGenesisLINK.Addons.AssetService
         {
             lock (cacheSync)
             {
-                bool updated = false;
+                // Keep the legacy compatibility path unchanged. Counters only
+                // describe the explicitly enabled atomic update feature.
+                long started = 0;
+                if (atomicUpdatesEnabled)
+                {
+                    System.Threading.Interlocked.Increment(ref atomicUpdateAttempts);
+                    started = System.Diagnostics.Stopwatch.GetTimestamp();
+                }
                 try
                 {
-                    updated = atomicUpdatesEnabled
+                    bool updated = atomicUpdatesEnabled
                         ? TryUpdateContentAtomic(id, data)
                         : base.UpdateContent(id, data);
+                    if (atomicUpdatesEnabled)
+                        System.Threading.Interlocked.Increment(ref updated
+                            ? ref atomicUpdateSucceeded : ref atomicUpdateRejected);
                     return updated;
+                }
+                catch (Exception)
+                {
+                    if (atomicUpdatesEnabled)
+                        System.Threading.Interlocked.Increment(ref atomicUpdateExceptions);
+                    throw;
                 }
                 finally
                 {
+                    if (atomicUpdatesEnabled)
+                        System.Threading.Interlocked.Add(ref atomicUpdateElapsedTicks,
+                            System.Diagnostics.Stopwatch.GetTimestamp() - started);
                     // Invalidate even when disk staging, SQL CAS or normalization
                     // throws. The caller must not retain a potentially stale copy.
                     InvalidateLocal(id);
@@ -216,10 +254,17 @@ namespace OpenGenesisLINK.Addons.AssetService
         private void InvalidateLocal(string id)
         {
             if (String.IsNullOrWhiteSpace(id)) return;
+            System.Threading.Interlocked.Increment(ref localInvalidationAttempts);
             cache.Invalidate(id);
             try { diskCache?.Invalidate(id); }
-            catch (System.IO.IOException) { }
-            catch (UnauthorizedAccessException) { }
+            catch (System.IO.IOException)
+            {
+                System.Threading.Interlocked.Increment(ref diskInvalidationFailures);
+            }
+            catch (UnauthorizedAccessException)
+            {
+                System.Threading.Interlocked.Increment(ref diskInvalidationFailures);
+            }
         }
 
     }
