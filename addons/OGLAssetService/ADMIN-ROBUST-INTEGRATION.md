@@ -64,3 +64,7 @@ ROBUST rejects an enabled admin configuration if ExpectedTlsPort matches either 
 ## Additional startup safeguards
 
 Sample credentials beginning with REPLACE_ are rejected by both admin preflight and registration. ROBUST now disposes the admin lifecycle and shuts down its host server in a finally block when console initialization, plugin loader initialization, or the main run loop fails. These changes do not provision TLS certificates, validate network ACLs, or replace the final build and acceptance process.
+
+## Dedicated TLS listener provisioning
+
+When [OGLAssetServiceAdmin] Enabled=true, HttpServerBase.ReadConfig now registers a dedicated TLS BaseHttpServer before Initialise starts the HTTP servers. Configure ExpectedTlsPort (1-65535), ListenAddress (defaults to 127.0.0.1), TlsCertificatePath (PFX/PKCS#12) and TlsCertificatePassword. Wildcard bind addresses, missing TLS certificate settings and occupied ports are rejected. The listener is registered with MainServer and reused by the ROBUST admin lifecycle. Default configuration keeps the feature disabled. Operators must supply the certificate and protect the configuration file, certificate and audit journal. This does not establish a firewall rule or validate external connectivity. Full build and acceptance checks remain outstanding.
