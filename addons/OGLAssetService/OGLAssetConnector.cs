@@ -27,7 +27,7 @@ namespace OpenGenesisLINK.Addons.AssetService
         public long DiskCacheMisses => diskCache?.Misses ?? 0;
         public long DiskCacheEvictions => diskCache?.Evictions ?? 0;
         public OGLAssetConnector(IConfigSource config, string configName)
-            : base(config)
+            : base(config, configName)
         {
             IConfig settings = config.Configs["OGLAssetService"];
             if (settings == null || !settings.GetBoolean("Enabled", false))
@@ -145,7 +145,17 @@ namespace OpenGenesisLINK.Addons.AssetService
         {
             lock (cacheSync)
             {
+                // The base connector may assign or rewrite the asset ID. Invalidate
+                // the incoming ID too, including when Store returns a failure ID.
+                string originalId = asset?.ID;
                 string id = base.Store(asset);
+                if (!String.IsNullOrWhiteSpace(originalId))
+                {
+                    cache.Invalidate(originalId);
+                    try { diskCache?.Invalidate(originalId); }
+                    catch (System.IO.IOException) { }
+                    catch (UnauthorizedAccessException) { }
+                }
                 if (!String.IsNullOrEmpty(id))
                 {
                     cache.Invalidate(id);
@@ -153,7 +163,9 @@ namespace OpenGenesisLINK.Addons.AssetService
                     catch (System.IO.IOException) { }
                     catch (UnauthorizedAccessException) { }
                 }
-                TryInvalidateRedis(id);
+                // UUID.Zero denotes a failed legacy Store, not a successful write.
+                if (!String.Equals(id, "00000000-0000-0000-0000-000000000000", StringComparison.OrdinalIgnoreCase))
+                    TryInvalidateRedis(id);
                 return id;
             }
         }
