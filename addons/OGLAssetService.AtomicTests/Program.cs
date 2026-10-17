@@ -6,6 +6,13 @@ static void Check(bool ok, string reason)
     if (!ok) throw new Exception(reason);
 }
 
+// A separate OS process exercises the same immutable spool publisher.
+if (args.Length == 4 && args[0] == "--publish-worker")
+{
+    byte[] payload = File.ReadAllBytes(args[3]);
+    return AtomicFsAssetPayload.TryPublish(args[1], args[2], payload) ? 0 : 3;
+}
+
 string root = Path.Combine(Path.GetTempPath(), "ogl-atomic-test-" + Guid.NewGuid().ToString("N"));
 Directory.CreateDirectory(root);
 try
@@ -40,6 +47,65 @@ try
         "Concurrent publication changed destination");
     Check(Directory.GetFiles(Path.Combine(root, "spool"), "*.asset").Length == 0,
         "Staging files must be cleaned after concurrent publication");
+
+    // Real independent OS processes compete for the same digest destination.
+    // Unlike Task.Run, this exercises separate runtimes and file handles.
+    File.Delete(destination);
+    string payloadFile = Path.Combine(root, "payload.bin");
+    File.WriteAllBytes(payloadFile, original);
+    string assembly = System.Reflection.Assembly.GetExecutingAssembly().Location;
+    var workers = new List<System.Diagnostics.Process>();
+    try
+    {
+        for (int i = 0; i < 8; i++)
+        {
+            var start = new System.Diagnostics.ProcessStartInfo("dotnet")
+            {
+                UseShellExecute = false,
+                RedirectStandardError = true
+            };
+            start.ArgumentList.Add(assembly);
+            start.ArgumentList.Add("--publish-worker");
+            start.ArgumentList.Add(root);
+            start.ArgumentList.Add(hash);
+            start.ArgumentList.Add(payloadFile);
+            workers.Add(System.Diagnostics.Process.Start(start)
+                ?? throw new Exception("Unable to start publisher process"));
+        }
+        foreach (var worker in workers)
+        {
+            using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+            try { await worker.WaitForExitAsync(timeout.Token); }
+            catch (OperationCanceledException)
+            {
+                worker.Kill(entireProcessTree: true);
+                throw new Exception("Concurrent publisher process timed out");
+            }
+            Check(worker.ExitCode == 0,
+                "Independent publisher failed: " + await worker.StandardError.ReadToEndAsync());
+        }
+    }
+    finally
+    {
+        foreach (var worker in workers) worker.Dispose();
+    }
+    Check(File.ReadAllBytes(destination).SequenceEqual(original),
+        "Cross-process publication produced corrupt content");
+    Check(Directory.GetFiles(Path.Combine(root, "spool"), "*.asset").Length == 0,
+        "Cross-process publication leaked staging files");
+
+    // Simulate a process crash before rename: an orphaned temporary file
+    // must not be mistaken for a published asset or block a later writer.
+    File.Delete(destination);
+    string orphan = Path.Combine(root, "spool", Guid.NewGuid().ToString("N") + ".asset");
+    File.WriteAllBytes(orphan, original.AsSpan(0, 32).ToArray());
+    Check(!File.Exists(destination), "Orphan staging file must not publish an asset");
+    Check(AtomicFsAssetPayload.TryPublish(root, hash, original),
+        "Recovery after interrupted staging must succeed");
+    Check(File.ReadAllBytes(destination).SequenceEqual(original),
+        "Recovered asset must match authoritative digest");
+    Check(File.Exists(orphan), "Unrelated orphan must not be deleted implicitly");
+    File.Delete(orphan);
 
     // Failed staging (spool is a regular file) cannot publish an SQL-safe payload.
     string blocked = Path.Combine(root, "blocked");
