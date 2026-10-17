@@ -41,8 +41,22 @@ for marker in (
     '"registration_failed"',
     'response.StatusCode = (int)HttpStatusCode.Created',
     "avatar_name = newAccount.FirstName",
+    'root.TryGetProperty("home_region"',
+    'string regionName = "Magdeburg"',
+    'new Vector3(116f, 120f, 22f)',
+    'GetRegionByUUID(UUID.Zero, requestedRegionId)',
+    'GetRegionByName(UUID.Zero, regionName)',
+    '"invalid_home_position"',
+    '"home_region_not_found"',
+    'home_region = new',
+    'targetRegion.RegionID, spawnPosition',
+
 ):
     assert marker in api, "Portal API missing security or response requirement: " + marker
+assert "SetHome(" in account and "SetLastPosition(" in account
+assert "bool homeSaved" in account and "bool lastSaved" in account
+assert "CompensateFailedOglStarterRegistration(account.PrincipalID)" in account
+assert "IGridService grid, bool enabled" in api
 assert 'public const string UsersRegister = "users:register"' in security
 assert "NexScopes.UsersRegister," in key_store
 for path in ("bin/Robust.HG.ini", "bin/Robust.HG.ini.example", "bin/Robust.ini.example"):
