@@ -164,29 +164,39 @@ namespace OpenGenesisLINK.Addons.AssetService
         {
             lock (cacheSync)
             {
-                // The base connector may assign or rewrite the asset ID. Invalidate
-                // the incoming ID too, including when Store returns a failure ID.
                 string originalId = asset?.ID;
-                string id = base.Store(asset);
-                if (!String.IsNullOrWhiteSpace(originalId))
+                string id = null;
+                try
                 {
-                    cache.Invalidate(originalId);
-                    try { diskCache?.Invalidate(originalId); }
-                    catch (System.IO.IOException) { }
-                    catch (UnauthorizedAccessException) { }
+                    id = base.Store(asset);
+                    return id;
                 }
-                if (!String.IsNullOrEmpty(id))
+                finally
                 {
-                    cache.Invalidate(id);
-                    try { diskCache?.Invalidate(id); }
-                    catch (System.IO.IOException) { }
-                    catch (UnauthorizedAccessException) { }
+                    // FSAssetConnector can write payload bytes before metadata
+                    // commit and can also assign an ID during Store. Even if
+                    // it throws, never retain potentially obsolete local data.
+                    InvalidateLocal(originalId);
+                    InvalidateLocal(asset?.ID);
+                    InvalidateLocal(id);
+                    // Redis remains a best-effort hint only; distributed cache
+                    // reads are disabled until all writers use a durable protocol.
+                    if (!String.IsNullOrWhiteSpace(id) &&
+                        !String.Equals(id, "00000000-0000-0000-0000-000000000000",
+                            StringComparison.OrdinalIgnoreCase))
+                        TryInvalidateRedis(id);
                 }
-                // UUID.Zero denotes a failed legacy Store, not a successful write.
-                if (!String.Equals(id, "00000000-0000-0000-0000-000000000000", StringComparison.OrdinalIgnoreCase))
-                    TryInvalidateRedis(id);
-                return id;
             }
         }
+
+        private void InvalidateLocal(string id)
+        {
+            if (String.IsNullOrWhiteSpace(id)) return;
+            cache.Invalidate(id);
+            try { diskCache?.Invalidate(id); }
+            catch (System.IO.IOException) { }
+            catch (UnauthorizedAccessException) { }
+        }
+
     }
 }
