@@ -709,6 +709,68 @@ namespace OpenSim.Services.FSAssetService
             }
         }
 
+        /// <summary>
+        /// Opt-in FSAssets hash replacement. Stages immutable bytes before
+        /// publishing the new hash via the storage provider's atomic CAS.
+        /// Does not modify the legacy UpdateContent contract.
+        /// </summary>
+        protected bool TryUpdateContentAtomic(string id, byte[] data)
+        {
+            if (String.IsNullOrWhiteSpace(id) || data == null ||
+                !(m_DataConnector is IFSAssetHashCompareExchange compareExchange))
+                return false;
+
+            string oldHash;
+            AssetMetadata metadata = m_DataConnector.Get(id, out oldHash);
+            if (metadata == null || String.IsNullOrWhiteSpace(oldHash))
+                return false;
+
+            // Object XML normalization must happen before hashing so the
+            // staged file always matches the hash published to SQL.
+            byte[] content = data;
+            if (metadata.Type == (int)AssetType.Object)
+            {
+                string xml = ExternalRepresentationUtils.SanitizeXml(Utils.BytesToString(data));
+                content = Utils.StringToBytes(xml);
+            }
+            string newHash = GetSHA256Hash(content);
+            if (String.Equals(newHash, oldHash, StringComparison.OrdinalIgnoreCase))
+                return true;
+
+            string finalFile = Path.Combine(m_SpoolDirectory, newHash + ".asset");
+            if (!AssetExists(newHash))
+            {
+                string spool = Path.Combine(m_SpoolDirectory, "spool");
+                Directory.CreateDirectory(spool);
+                string tempFile = Path.Combine(spool, Guid.NewGuid().ToString("N") + ".asset");
+                try
+                {
+                    using (FileStream stream = new FileStream(tempFile, FileMode.CreateNew,
+                        FileAccess.Write, FileShare.None))
+                    {
+                        stream.Write(content, 0, content.Length);
+                        stream.Flush(true);
+                    }
+                    try { File.Move(tempFile, finalFile); }
+                    catch (IOException)
+                    {
+                        // Concurrent content-addressed publication is valid only
+                        // when the destination is already present and verified.
+                        if (!File.Exists(finalFile)) throw;
+                    }
+                }
+                finally
+                {
+                    if (File.Exists(tempFile)) File.Delete(tempFile);
+                }
+            }
+            // A missing or corrupt payload must never become SQL-authoritative.
+            // AssetExists also recognizes already compressed durable FSAssets.
+            if (!AssetExists(newHash))
+                return false;
+            return compareExchange.TryReplaceHash(id, oldHash, newHash);
+        }
+
         public bool UpdateContent(string id, byte[] data)
         {
             return false;
