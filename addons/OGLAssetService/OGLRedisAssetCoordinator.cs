@@ -46,7 +46,11 @@ namespace OpenGenesisLINK.Addons.AssetService
         public async Task<long> GetRevisionAsync(string assetId)
         {
             RedisValue value = await database.StringGetAsync(Key(assetId)).ConfigureAwait(false);
-            return value.HasValue && long.TryParse(value.ToString(), out long revision) ? revision : 0;
+            if (!value.HasValue) return 0;
+            if (!long.TryParse(value.ToString(), System.Globalization.NumberStyles.None,
+                System.Globalization.CultureInfo.InvariantCulture, out long revision) || revision < 0)
+                throw new InvalidOperationException("Redis asset revision is invalid; cache access must fail closed.");
+            return revision;
         }
 
         public Task<long> InvalidateAsync(string assetId) =>
@@ -58,7 +62,7 @@ namespace OpenGenesisLINK.Addons.AssetService
         public async Task<string> PutPayloadAsync(byte[] payload, TimeSpan ttl)
         {
             if (payload == null) throw new ArgumentNullException(nameof(payload));
-            if (ttl <= TimeSpan.Zero) throw new ArgumentOutOfRangeException(nameof(ttl));
+            ValidateTtl(ttl);
             // Cap Redis allocations; large meshes remain in authoritative FSAssets.
             if (payload.Length > 8 * 1024 * 1024)
                 throw new ArgumentOutOfRangeException(nameof(payload), "Redis payload limit is 8 MiB.");
@@ -145,6 +149,13 @@ return 1";
             if (payload == null) return null;
             long after = await GetRevisionAsync(assetId).ConfigureAwait(false);
             return before == after ? payload : null;
+        }
+
+        private static void ValidateTtl(TimeSpan ttl)
+        {
+            if (ttl <= TimeSpan.Zero || ttl > TimeSpan.FromDays(1) ||
+                Math.Ceiling(ttl.TotalMilliseconds) < 1)
+                throw new ArgumentOutOfRangeException(nameof(ttl), "TTL must be between 1 ms and 24 hours.");
         }
 
         private static bool IsValidHash(string value) =>
