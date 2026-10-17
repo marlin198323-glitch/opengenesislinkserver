@@ -1,20 +1,34 @@
 using System;
+using System.Security;
+using System.Security.Claims;
 
 namespace OpenGenesisLINK.Addons.AssetService
 {
     /// <summary>
     /// Local-only ROBUST administration facade. It does not register a
     /// network route, grant access or mutate the backing asset store.
-    /// The hosting application must authenticate and authorize operators
-    /// before calling this API.
+    /// The hosting application must provide a trusted authenticated principal;
+    /// role checks are repeated on every administrative operation.
     /// </summary>
     public sealed class OGLAssetServiceAdmin
     {
         private readonly OGLAssetConnector connector;
+        private readonly ClaimsPrincipal principal;
 
-        public OGLAssetServiceAdmin(OGLAssetConnector connector)
+        // Only the connector can create an administration facade.
+        internal OGLAssetServiceAdmin(OGLAssetConnector connector, ClaimsPrincipal principal)
         {
             this.connector = connector ?? throw new ArgumentNullException(nameof(connector));
+            this.principal = principal ?? throw new ArgumentNullException(nameof(principal));
+            DemandRole("OGLAssetService.Viewer");
+        }
+
+        private void DemandRole(string role)
+        {
+            if (principal.Identity?.IsAuthenticated != true ||
+                (!principal.IsInRole(role) &&
+                 !principal.IsInRole("OGLAssetService.Administrator")))
+                throw new SecurityException("OGL AssetService administration access denied.");
         }
 
         /// <summary>
@@ -23,6 +37,7 @@ namespace OpenGenesisLINK.Addons.AssetService
         /// </summary>
         public OGLAssetServiceConfiguration GetConfiguration()
         {
+            DemandRole("OGLAssetService.Administrator");
             OGLAssetServiceDiagnostics d = connector.GetDiagnostics();
             return new OGLAssetServiceConfiguration(
                 "compatibility", d.AtomicUpdatesEnabled,
@@ -31,6 +46,7 @@ namespace OpenGenesisLINK.Addons.AssetService
 
         public OGLAssetServiceStatus GetStatus()
         {
+            DemandRole("OGLAssetService.Viewer");
             OGLAssetServiceDiagnostics metrics = connector.GetDiagnostics();
             string state;
             string reason;
