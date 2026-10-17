@@ -225,7 +225,7 @@ namespace NexVerse.Server.Api
                     }
                 }
 
-                GridRegion targetRegion = requestedRegionId.IsZero()
+                OpenSim.Services.Interfaces.GridRegion targetRegion = requestedRegionId.IsZero()
                     ? m_Grid.GetRegionByName(UUID.Zero, regionName)
                     : m_Grid.GetRegionByUUID(UUID.Zero, requestedRegionId);
 
