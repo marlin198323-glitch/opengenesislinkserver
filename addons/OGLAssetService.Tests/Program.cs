@@ -52,8 +52,13 @@ if (args.Contains("--redis-smoke", StringComparer.OrdinalIgnoreCase))
         TimeSpan.FromMinutes(2)), "Stale mapping publication must be rejected");
     Check(await coordinator.GetMappedHashAsync(assetId, 3) == null,
         "New revision must not resolve stale mapping");
+    Check(await coordinator.TryGetMappedPayloadAsync(assetId) == null,
+        "Revision change must invalidate mapped payload read");
+
     Check(await coordinator.TryPublishMappingAsync(assetId, 3, contentHash,
         TimeSpan.FromMinutes(2)), "New revision mapping publication");
+    Check((await coordinator.TryGetMappedPayloadAsync(assetId))?.SequenceEqual(payloadSample) == true,
+        "Stable revision must return integrity-checked mapped payload");
 
     bool badHashRejected = false;
     try { await coordinator.GetPayloadAsync("not-a-sha256"); }
