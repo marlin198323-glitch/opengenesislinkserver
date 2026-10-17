@@ -107,6 +107,39 @@ try
     Check(File.Exists(orphan), "Unrelated orphan must not be deleted implicitly");
     File.Delete(orphan);
 
+    // A malicious/accidental symbolic link must not redirect digest publication.
+    if (OperatingSystem.IsLinux() || OperatingSystem.IsMacOS())
+    {
+        string redirect = Path.Combine(root, "redirect");
+        Directory.CreateDirectory(redirect);
+        string linkedRoot = Path.Combine(root, "linked-root");
+        Directory.CreateSymbolicLink(linkedRoot, redirect);
+        bool rootRejected = false;
+        try { AtomicFsAssetPayload.TryPublish(linkedRoot, hash, original); }
+        catch (IOException) { rootRejected = true; }
+        Check(rootRejected && !File.Exists(Path.Combine(redirect, hash + ".asset")),
+            "Symlinked spool root must not publish outside the expected directory");
+
+        string linkedStageRoot = Path.Combine(root, "linked-stage-root");
+        Directory.CreateDirectory(linkedStageRoot);
+        Directory.CreateSymbolicLink(Path.Combine(linkedStageRoot, "spool"), redirect);
+        bool stageRejected = false;
+        try { AtomicFsAssetPayload.TryPublish(linkedStageRoot, hash, original); }
+        catch (IOException) { stageRejected = true; }
+        Check(stageRejected && !File.Exists(Path.Combine(linkedStageRoot, hash + ".asset")),
+            "Symlinked staging directory must be rejected");
+
+        string linkedDigestRoot = Path.Combine(root, "linked-digest-root");
+        Directory.CreateDirectory(linkedDigestRoot);
+        string outside = Path.Combine(redirect, "outside.asset");
+        File.WriteAllBytes(outside, original);
+        File.CreateSymbolicLink(Path.Combine(linkedDigestRoot, hash + ".asset"), outside);
+        bool digestRejected = false;
+        try { AtomicFsAssetPayload.TryPublish(linkedDigestRoot, hash, original); }
+        catch (IOException) { digestRejected = true; }
+        Check(digestRejected, "Symlinked digest must not be accepted");
+    }
+
     // Failed staging (spool is a regular file) cannot publish an SQL-safe payload.
     string blocked = Path.Combine(root, "blocked");
     Directory.CreateDirectory(blocked);
