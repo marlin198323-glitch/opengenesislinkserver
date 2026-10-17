@@ -32,3 +32,7 @@ Do not enable this on production or merge to main before the final acceptance.
 ## Credential isolation
 
 Administrative credentials are read exclusively from the dedicated configuration section and verified by OGLAssetServiceDedicatedAuth. General [Network] authentication credentials are not inherited. Basic authentication must only be used over TLS. Protect configuration files, rotate credentials during maintenance, and restrict listener access by network policy. No per-operator identity is established by this adapter.
+
+## Startup preflight
+
+The host-owned OGLAssetServiceAdminListener now invokes OGLAssetServiceAdminPreflight.Check before creating the persistent audit journal. Invalid TLS listener settings, credentials, or role selections fail without creating a journal or registering routes. This is not a network ACL verification, and the host must still provide exclusive route ownership and dedicated network isolation. Final acceptance is pending.
