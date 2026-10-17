@@ -46,7 +46,8 @@ namespace OpenGenesisLINK.Addons.AssetService
             }
             catch
             {
-                // No admin route should remain after a failed startup.
+                // Registration can fail after the first handler was added.
+                // The host must reserve these paths on its dedicated listener.
                 server.RemoveStreamHandler("GET", OGLAssetServiceAdminHttpHandler.StatusPath);
                 server.RemoveStreamHandler("GET", OGLAssetServiceAdminHttpHandler.ConfigurationPath);
                 journal.Dispose();
