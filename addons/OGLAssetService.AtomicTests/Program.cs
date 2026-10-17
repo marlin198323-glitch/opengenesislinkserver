@@ -122,3 +122,4 @@ finally
 {
     Directory.Delete(root, recursive: true);
 }
+return 0;
