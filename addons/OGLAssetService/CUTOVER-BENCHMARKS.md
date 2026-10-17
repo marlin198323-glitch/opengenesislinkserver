@@ -30,7 +30,7 @@ On a staging server with Redis reachable and the connection variable already loa
 OGL_ASSET_REDIS_DATABASE=2 dotnet run --project addons/OGLAssetService.Tests/OGLAssetService.Tests.csproj -c Release -- --redis-smoke
 ```
 
-The test uses a random, non-production asset ID, asserts revision 0 → 1 → 2, and leaves **one** revision key in database 2. It does not flush or delete existing keys, validate payload caching, or prove cross-process cache coherence. Do not print the Redis connection string in diagnostics.
+The test uses a random, non-production asset ID, asserts revision 0 → 1 → 2, and deletes its temporary revision key after the test. It does not flush or delete existing keys, validate payload caching, or prove cross-process cache coherence. Do not print the Redis connection string in diagnostics.
 
 ## Experimental Redis payload primitives
 
@@ -43,3 +43,7 @@ The coordinator also exposes `PayloadHits`, `PayloadMisses`, and `PayloadIntegri
 `TryPublishMappingAsync(assetId, expectedRevision, contentHash, ttl)` atomically compares the current revision key and publishes an expiring UUID-to-content-hash mapping only when revisions match. `GetMappedHashAsync` retrieves a mapping for a specific revision. The Redis smoke test covers a stale publisher after another connection increments the revision. These primitives are **not used in the production connector**. A correct read protocol must read the revision, fetch authoritative FSAssets, check revision again, then publish; a correct write protocol must invalidate consistently across every writer (including legacy and HG paths). Mapping publication is not an authoritative write. Redis Cluster deployments additionally need same-slot key design before using the Lua script. Until these requirements are implemented and tested, leave distributed cache reads disabled.
 
 `TryGetMappedPayloadAsync(assetId)` is an experimental read helper: it reads the current revision, resolves the revision-scoped mapping, verifies the SHA-256 payload, then rechecks the revision before returning bytes. It returns null on a cache miss or revision change; callers must use authoritative storage. It is not wired into the connector, does not solve writers that bypass invalidation, and does not establish a transaction with FSAssets. Redis outages still raise exceptions and must be handled by any future connector integration.
+
+## Fail-closed cache validation
+
+Malformed or negative Redis revision values now raise an error rather than being treated as revision zero. Payload and mapping TTLs must be positive and no longer than 24 hours. The opt-in smoke test verifies invalid revisions and TTLs on a random test asset ID. These protections do not make the experimental cache production-safe: a durable writer protocol and outage fallback are still required.
