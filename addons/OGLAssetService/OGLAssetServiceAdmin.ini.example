@@ -12,3 +12,7 @@ Role = Viewer
 ; Never commit actual credentials or reuse public asset-service credentials.
 HttpAuthUsername = REPLACE_WITH_PRIVATE_ADMIN_USER
 HttpAuthPassword = REPLACE_WITH_PRIVATE_ADMIN_SECRET
+; Persistent, operator-owned audit journal; directory must be writable only by the service.
+AuditJournalPath = logs/ogl-asset-admin-audit.jsonl
+AuditMaxJournalBytes = 10485760
+AuditRetainedFiles = 5
