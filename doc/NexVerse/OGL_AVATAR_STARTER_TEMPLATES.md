@@ -39,8 +39,7 @@ LunaPublishedModel = ""
 Nach expliziter Freigabe kann `Enabled = true` gesetzt werden.
 Die Portal-Registrierung muss den Modellparameter `ogl:benjamin` oder
 `ogl:luna` über einen **authentifizierten serverseitigen**
-Registrierungs-Endpunkt an `CreateUser` übergeben. Ein öffentlicher
-Registrierungs-Endpunkt ist **noch nicht** implementiert.
+Registrierungs-Endpunkt an `CreateUser` übergeben. Der authentifizierte Registrierungs-Endpunkt `POST /api/v1/portal/avatars/register` ist implementiert. Er ist **nicht anonym öffentlich** zugänglich, sondern ausschließlich über das Stadtportal-Backend mit `users:register`-API-Schlüssel und HTTPS aufzurufen. Die API kann `home_region.name` oder `home_region.id` zusammen mit `position` (`x`, `y`, `z`) entgegennehmen und initialisiert nach erfolgreicher Registrierung sowohl Home- als auch Last-Position. Ohne `home_region` gilt `Magdeburg / 116 / 120 / 22`.
 
 ## Versionierte Modellaccounts (vorbereiteter Publish-Workflow)
 
@@ -85,8 +84,7 @@ der Abnahme ist ein vollständiger, überprüfbarer Cleanup-Pfad erforderlich.
    Transfer-/Copy-Rechte, Objektinhalte und verlinkte Attachments geprüft
    und gegebenenfalls gehärtet werden. Die OGL-Alias-Funktion allein
    gewährleistet diese Prüfung noch nicht.
-3. Das Stadtportal ist noch nicht angeschlossen. Das Repository enthält
-   nur den serverseitigen Modellparameter-Integrationspunkt.
+3. Der World-API-Endpunkt ist implementiert; die tatsächliche Stadtportal-Adminoberfläche und die geschützte Speicherung der Startregion sind im separaten Portalprojekt anzubinden. Das öffentliche Formular darf keinen Einfluss auf `home_region` haben.
 4. Unbekannte oder deaktivierte `ogl:`-IDs werden nun **vor der Kontoerstellung**
    abgelehnt. Ebenso werden fehlende Modellaccounts, Appearance oder
    benötigte Services abgewiesen. Die Portal-API muss diese Ablehnung
@@ -117,8 +115,7 @@ bis zur Rechteprüfung und echten Integrationstests deaktiviert.
 - Tiefenprüfung verschachtelter Attachment-Inhalte, Link-Ketten und
   Race-Conditions zwischen Vorabprüfung und tatsächlichem Kopieren.
 - Veröffentlichbare, versionierte Snapshots, getrennt vom Live-Avatar.
-- Authentifizierte API für das Stadtportal mit ausschließlich
-  freigegebenen Template-IDs.
+- Stadtportal-Adminoberfläche für dynamische Startregion und Spawn-Position; API-Anbindung ist implementiert, die Portal-Einstellungen sind separat umzusetzen.
 - Tests für Mesh-Body, Mesh-Head, Kleidung, COF und Erstlogin.
 
 **Integrationsstand:** Änderungen liegen inzwischen auf `main` und können dort getestet werden. Keine Stable-Freigabe und keine Zugriffe auf Entwicklerrechner.
