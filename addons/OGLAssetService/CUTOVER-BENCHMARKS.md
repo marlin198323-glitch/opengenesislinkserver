@@ -47,3 +47,7 @@ The coordinator also exposes `PayloadHits`, `PayloadMisses`, and `PayloadIntegri
 ## Fail-closed cache validation
 
 Malformed or negative Redis revision values now raise an error rather than being treated as revision zero. Payload and mapping TTLs must be positive and no longer than 24 hours. The opt-in smoke test verifies invalid revisions and TTLs on a random test asset ID. These protections do not make the experimental cache production-safe: a durable writer protocol and outage fallback are still required.
+
+## Experimental read-through helper
+
+`ReadThroughAsync(assetId, readAuthoritative, ttl)` provides a stage-only cache miss/hit path and publishes a revision-scoped mapping only when the revision remained stable during the authoritative fetch. It never negative-caches absent assets or caches payloads above 8 MiB. The smoke test covers first miss, subsequent hit, and a second Redis client's invalidation. **Do not wire this into ROBUST production:** the helper does not make legacy/HG writers participate in invalidation, and Redis exceptions still need an explicit authoritative fallback. A concurrent write during an authoritative fetch may still cause the caller to receive the bytes read during that race; no snapshot transaction is provided. The smoke test creates an additional randomly named revision key for the read-through scenario, which is not automatically removed yet.
