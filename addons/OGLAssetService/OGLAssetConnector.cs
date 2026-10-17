@@ -19,6 +19,7 @@ namespace OpenGenesisLINK.Addons.AssetService
         private readonly OGLRedisAssetCoordinator redis;
         private readonly bool redisEnabled;
         private readonly bool localCacheEnabled;
+        private readonly bool atomicUpdatesEnabled;
         private long redisInvalidationFailures;
         public long RedisInvalidationFailures => System.Threading.Interlocked.Read(ref redisInvalidationFailures);
         public long MemoryCacheHits => cache.Hits;
@@ -40,6 +41,7 @@ namespace OpenGenesisLINK.Addons.AssetService
                 throw new ArgumentOutOfRangeException("MemoryCacheMiB", "Must be between 0 and 4096 MiB.");
             // Process-local cache entries cannot be invalidated by other writers.
             localCacheEnabled = settings.GetBoolean("SingleWriterCacheEnabled", false);
+            atomicUpdatesEnabled = settings.GetBoolean("ExperimentalAtomicUpdatesEnabled", false);
             cache = new OGLObjectCache((long)cacheMiB * 1024 * 1024);
             if (settings.GetBoolean("DiskCacheEnabled", false) && !localCacheEnabled)
                 throw new InvalidOperationException(
@@ -149,7 +151,9 @@ namespace OpenGenesisLINK.Addons.AssetService
                 try { diskCache?.Invalidate(id); }
                 catch (System.IO.IOException) { }
                 catch (UnauthorizedAccessException) { }
-                bool updated = base.UpdateContent(id, data);
+                bool updated = atomicUpdatesEnabled
+                    ? TryUpdateContentAtomic(id, data)
+                    : base.UpdateContent(id, data);
                 if (updated) TryInvalidateRedis(id);
                 return updated;
             }
