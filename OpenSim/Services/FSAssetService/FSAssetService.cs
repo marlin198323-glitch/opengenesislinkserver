@@ -739,8 +739,13 @@ namespace OpenSim.Services.FSAssetService
                 // Re-read metadata: a concurrent writer may have changed the mapping.
                 string currentHash;
                 AssetMetadata current = m_DataConnector.Get(id, out currentHash);
-                return current != null &&
-                    String.Equals(currentHash, oldHash, StringComparison.OrdinalIgnoreCase);
+                if (current == null ||
+                    !String.Equals(currentHash, oldHash, StringComparison.OrdinalIgnoreCase))
+                    return false;
+                // No-op must not succeed for missing or corrupted FSAssets.
+                byte[] existingContent = GetFsData(oldHash);
+                return existingContent != null &&
+                    existingContent.AsSpan().SequenceEqual(content);
             }
 
             string finalFile = Path.Combine(m_SpoolDirectory, newHash + ".asset");
