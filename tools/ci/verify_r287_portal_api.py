@@ -22,10 +22,10 @@ assert "profilesData,\n                            assets," in connector, "asset
 # to the generic /api user router and return "Unknown NexVerse API endpoint".
 for prefix in ("/api/v1/profiles", "/api/v1/relationships", "/api/v1/security"):
     registration = (
-        r"server\\.AddSimpleStreamHandler\\(\\s*"
-        r"new SimpleStreamHandler\\(\\s*"
+        r"server\.AddSimpleStreamHandler\(\s*"
+        r"new SimpleStreamHandler\(\s*"
         + re.escape('"' + prefix + '"')
-        + r"[^;]*\\),\\s*true\\s*\\);"
+        + r"[^;]*\),\s*true\s*\);"
     )
     assert re.search(registration, connector), "missing variable-path registration: " + prefix
 
