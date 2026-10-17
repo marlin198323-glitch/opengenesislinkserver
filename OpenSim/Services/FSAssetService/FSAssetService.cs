@@ -748,35 +748,13 @@ namespace OpenSim.Services.FSAssetService
                     existingContent.AsSpan().SequenceEqual(content);
             }
 
-            string finalFile = Path.Combine(m_SpoolDirectory, newHash + ".asset");
-            if (!AssetExists(newHash) && !File.Exists(finalFile))
-            {
-                string spool = Path.Combine(m_SpoolDirectory, "spool");
-                Directory.CreateDirectory(spool);
-                string tempFile = Path.Combine(spool, Guid.NewGuid().ToString("N") + ".asset");
-                try
-                {
-                    using (FileStream stream = new FileStream(tempFile, FileMode.CreateNew,
-                        FileAccess.Write, FileShare.None))
-                    {
-                        stream.Write(content, 0, content.Length);
-                        stream.Flush(true);
-                    }
-                    try { File.Move(tempFile, finalFile); }
-                    catch (IOException)
-                    {
-                        // Concurrent content-addressed publication is valid only
-                        // when the destination is already present and verified.
-                        if (!File.Exists(finalFile)) throw;
-                    }
-                }
-                finally
-                {
-                    if (File.Exists(tempFile)) File.Delete(tempFile);
-                }
-            }
-            // A missing or corrupt payload must never become SQL-authoritative.
-            // AssetExists also recognizes already compressed durable FSAssets.
+            // FSBase may already hold the immutable digest in compressed form.
+            // The spool publisher is used only if neither durable store has it.
+            if (!AssetExists(newHash) &&
+                !AtomicFsAssetPayload.TryPublish(m_SpoolDirectory, newHash, content))
+                return false;
+
+            // Verify the exact bytes readers will observe before SQL publication.
             byte[] persisted = GetFsData(newHash);
             if (persisted == null || !persisted.AsSpan().SequenceEqual(content))
                 return false;
