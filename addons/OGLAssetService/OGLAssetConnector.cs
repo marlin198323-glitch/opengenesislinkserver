@@ -97,6 +97,12 @@ namespace OpenGenesisLINK.Addons.AssetService
         /// Obtain a point-in-time diagnostics snapshot without exposing
         /// credentials, asset identifiers or payload contents.
         /// </summary>
+        /// <summary>
+        /// Returns a local-only administrative view. No network endpoint is
+        /// registered, and callers remain responsible for authorization.
+        /// </summary>
+        public OGLAssetServiceAdmin CreateAdmin() => new OGLAssetServiceAdmin(this);
+
         public OGLAssetServiceDiagnostics GetDiagnostics()
         {
             return new OGLAssetServiceDiagnostics(
