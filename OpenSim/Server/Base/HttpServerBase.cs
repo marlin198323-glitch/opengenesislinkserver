@@ -141,6 +141,7 @@ namespace OpenSim.Server.Base
                     MainServer.AddHttpServer(new BaseHttpServer(https_port));
                 }
             }
+            ConfigureOglAdminTls();
         }
 
         private void ConfigureOglAdminTls()
@@ -164,7 +165,6 @@ namespace OpenSim.Server.Base
             BaseHttpServer listener = new BaseHttpServer((uint)requested, true, cert, secret);
             listener.ListenIPAddress = ip;
             MainServer.AddHttpServer(listener);
-            ConfigureOglAdminTls();
         }
 
         protected override void Initialise()
