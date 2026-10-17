@@ -127,7 +127,7 @@ namespace OpenGenesisLINK.Addons.AssetService
             }
         }
 
-        bool IAssetService.Delete(string id)
+        public override bool Delete(string id)
         {
             lock (cacheSync)
             {
@@ -141,7 +141,7 @@ namespace OpenGenesisLINK.Addons.AssetService
             }
         }
 
-        string IAssetService.Store(AssetBase asset)
+        public override string Store(AssetBase asset)
         {
             lock (cacheSync)
             {
