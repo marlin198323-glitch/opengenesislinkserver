@@ -105,6 +105,7 @@
     <ProjectReference Include="../Framework/Servers/HttpServer/OpenSim.Framework.Servers.HttpServer.csproj" />
     <ProjectReference Include="../Server/Base/OpenSim.Server.Base.csproj" />
     <ProjectReference Include="../Server/Handlers/OpenSim.Server.Handlers.csproj" />
+    <ProjectReference Include="../../addons/OGLAssetService/OGLAssetService.csproj" />
   </ItemGroup>
 
   <ItemGroup>
