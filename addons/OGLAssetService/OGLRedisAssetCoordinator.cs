@@ -132,6 +132,21 @@ return 1";
             return IsValidHash(value) ? value : null;
         }
 
+        // A cache hit is usable only if the revision is stable across the read.
+        // A null return means the caller must consult authoritative storage.
+        // This is experimental: all writers must reliably invalidate revisions
+        // before it can be connected to a production asset read path.
+        public async Task<byte[]> TryGetMappedPayloadAsync(string assetId)
+        {
+            long before = await GetRevisionAsync(assetId).ConfigureAwait(false);
+            string hash = await GetMappedHashAsync(assetId, before).ConfigureAwait(false);
+            if (hash == null) return null;
+            byte[] payload = await GetPayloadAsync(hash).ConfigureAwait(false);
+            if (payload == null) return null;
+            long after = await GetRevisionAsync(assetId).ConfigureAwait(false);
+            return before == after ? payload : null;
+        }
+
         private static bool IsValidHash(string value) =>
             !String.IsNullOrWhiteSpace(value) && value.Length == 64 &&
             System.Text.RegularExpressions.Regex.IsMatch(value, "^[a-f0-9]{64}$");
