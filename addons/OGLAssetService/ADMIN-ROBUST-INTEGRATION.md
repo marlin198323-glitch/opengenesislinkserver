@@ -40,3 +40,7 @@ The host-owned OGLAssetServiceAdminListener now invokes OGLAssetServiceAdminPref
 ## Registration failure handling
 
 The registration adapter now removes the status handler if registration of the configuration handler throws. The host lifecycle also attempts route cleanup if startup fails. This is not proof of exclusive route ownership: IHttpServer.AddStreamHandler returns void and may silently ignore duplicates. The dedicated host must reserve both paths before starting the addon. This behavior and concurrent start/stop need final acceptance testing.
+
+## Existing service instance bridge
+
+The standard ROBUST AssetServiceConnector now exposes LoadedAssetService (IAssetService). After the host constructs that connector, it may pass its LoadedAssetService to OGLAssetServiceRobustBootstrap.StartAdmin(config, dedicatedAdminServer, loadedAssetService, journalPath, maxJournalBytes, retainedFiles). This opt-in bridge requires the loaded instance to be OGLAssetConnector, avoiding a second asset store connector. The host owns the returned listener and must dispose it at shutdown. No automatic ROBUST bootstrap invocation or dedicated network listener creation has been added. The bridge must never receive the public asset listener.
