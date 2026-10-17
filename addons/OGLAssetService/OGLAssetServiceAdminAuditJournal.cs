@@ -9,6 +9,7 @@ namespace OpenGenesisLINK.Addons.AssetService
     {
         private readonly object sync = new object();
         private readonly FileStream stream;
+        private bool disposed;
 
         public OGLAssetServiceAdminAuditJournal(string path)
         {
@@ -18,6 +19,8 @@ namespace OpenGenesisLINK.Addons.AssetService
             string directory = Path.GetDirectoryName(fullPath);
             if (!Directory.Exists(directory))
                 throw new DirectoryNotFoundException("Audit directory must exist.");
+            if (File.Exists(fullPath) && (File.GetAttributes(fullPath) & FileAttributes.ReparsePoint) != 0)
+                throw new IOException("Audit journal link targets are not supported.");
             stream = new FileStream(fullPath, FileMode.Append, FileAccess.Write,
                 FileShare.Read, 4096, FileOptions.WriteThrough);
         }
@@ -38,6 +41,7 @@ namespace OpenGenesisLINK.Addons.AssetService
             byte[] bytes = Encoding.UTF8.GetBytes(line);
             lock (sync)
             {
+                if (disposed) throw new ObjectDisposedException(nameof(OGLAssetServiceAdminAuditJournal));
                 stream.Write(bytes, 0, bytes.Length);
                 stream.Flush(true);
             }
@@ -45,7 +49,12 @@ namespace OpenGenesisLINK.Addons.AssetService
 
         public void Dispose()
         {
-            lock (sync) stream.Dispose();
+            lock (sync)
+            {
+                if (disposed) return;
+                disposed = true;
+                stream.Dispose();
+            }
         }
     }
 }
