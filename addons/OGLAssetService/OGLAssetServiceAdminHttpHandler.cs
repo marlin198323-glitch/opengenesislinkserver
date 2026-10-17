@@ -41,11 +41,22 @@ namespace OpenGenesisLINK.Addons.AssetService
             this.limiter = limiter ?? throw new ArgumentNullException(nameof(limiter));
         }
 
-        private void RecordOutcome(string outcome)
+        private bool RecordOutcome(string outcome)
         {
             audit.Record(outcome);
-            if (journal != null)
+            if (journal == null) return true;
+            try
+            {
                 journal.Record(configuration ? "configuration" : "status", outcome);
+                return true;
+            }
+            catch (Exception)
+            {
+                // Audit failures must not silently authorize a request.
+                // The hosting service should monitor and alert on this counter.
+                audit.Record("error");
+                return false;
+            }
         }
 
         protected override byte[] ProcessRequest(string path, Stream request,
@@ -60,44 +71,52 @@ namespace OpenGenesisLINK.Addons.AssetService
                 RecordOutcome("throttled");
                 return Encoding.UTF8.GetBytes("{}");
             }
+
+            string outcome = "error";
+            int status = 500;
+            byte[] body = Encoding.UTF8.GetBytes("{\\"error\\":\\"internal_error\\"}");
             try
             {
-                // The resolver MUST validate a host-controlled authenticated
-                // session; it must not trust unverified HTTP identity headers.
                 ClaimsPrincipal principal = resolvePrincipal(httpRequest);
                 if (principal?.Identity?.IsAuthenticated != true)
                 {
-                    httpResponse.StatusCode = 401;
-                    RecordOutcome("unauthorized");
-                    return Encoding.UTF8.GetBytes("{}");
+                    outcome = "unauthorized";
+                    status = 401;
+                    body = Encoding.UTF8.GetBytes("{\\"error\\":\\"unauthorized\\"}");
                 }
-                OGLAssetServiceAdmin admin = connector.CreateAdmin(principal);
-                object response = configuration
-                    ? (object)admin.GetConfiguration()
-                    : admin.GetStatus();
-                httpResponse.StatusCode = (int)HttpStatusCode.OK;
-                RecordOutcome("allowed");
-                return JsonSerializer.SerializeToUtf8Bytes(response);
+                else
+                {
+                    OGLAssetServiceAdmin admin = connector.CreateAdmin(principal);
+                    object response = configuration
+                        ? (object)admin.GetConfiguration()
+                        : admin.GetStatus();
+                    body = JsonSerializer.SerializeToUtf8Bytes(response);
+                    outcome = "allowed";
+                    status = 200;
+                }
             }
             catch (SecurityException)
             {
-                httpResponse.StatusCode = (int)HttpStatusCode.Forbidden;
-                RecordOutcome("forbidden");
-                return Encoding.UTF8.GetBytes("{\"error\":\"access_denied\"}");
-            }
-            catch (ArgumentNullException)
-            {
-                httpResponse.StatusCode = (int)HttpStatusCode.Unauthorized;
-                audit.Record("unauthorized");
-                return Encoding.UTF8.GetBytes("{\"error\":\"unauthorized\"}");
+                outcome = "forbidden";
+                status = 403;
+                body = Encoding.UTF8.GetBytes("{\\"error\\":\\"access_denied\\"}");
             }
             catch (Exception)
             {
-                // Never leak exception messages, paths or connection strings.
-                httpResponse.StatusCode = (int)HttpStatusCode.InternalServerError;
-                RecordOutcome("error");
-                return Encoding.UTF8.GetBytes("{\"error\":\"internal_error\"}");
+                outcome = "error";
+                status = 500;
+                body = Encoding.UTF8.GetBytes("{\\"error\\":\\"internal_error\\"}");
             }
+
+            if (!RecordOutcome(outcome))
+            {
+                // Fail closed if a configured persistent audit journal cannot
+                // durably record the request, including otherwise valid reads.
+                httpResponse.StatusCode = 503;
+                return Encoding.UTF8.GetBytes("{\\"error\\":\\"audit_unavailable\\"}");
+            }
+            httpResponse.StatusCode = status;
+            return body;
         }
     }
 
