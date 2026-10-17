@@ -21,3 +21,13 @@ The JSON output reports warmed RAM cache hits, operations/s and MiB/s. It is **n
 5. Perform staged rollout with backup, monitoring and a tested rollback to the existing FSAssetConnector configuration. Keep authoritative FSAssets payloads and SQL metadata unchanged.
 
 Redis revision keys alone are insufficient for coherent distributed caching. Until these gates pass, leave `RedisEnabled=false` on production.
+
+## Redis revision smoke test (opt-in)
+
+On a staging server with Redis reachable and the connection variable already loaded by the shell:
+
+```bash
+OGL_ASSET_REDIS_DATABASE=2 dotnet run --project addons/OGLAssetService.Tests/OGLAssetService.Tests.csproj -c Release -- --redis-smoke
+```
+
+The test uses a random, non-production asset ID, asserts revision 0 → 1 → 2, and leaves **one** revision key in database 2. It does not flush or delete existing keys, validate payload caching, or prove cross-process cache coherence. Do not print the Redis connection string in diagnostics.
