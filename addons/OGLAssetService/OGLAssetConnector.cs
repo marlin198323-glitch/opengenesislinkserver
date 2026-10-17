@@ -18,6 +18,7 @@ namespace OpenGenesisLINK.Addons.AssetService
         private readonly object cacheSync = new object();
         private readonly OGLRedisAssetCoordinator redis;
         private readonly bool redisEnabled;
+        private readonly bool localCacheEnabled;
         private long redisInvalidationFailures;
         public long RedisInvalidationFailures => System.Threading.Interlocked.Read(ref redisInvalidationFailures);
         public long MemoryCacheHits => cache.Hits;
@@ -37,7 +38,12 @@ namespace OpenGenesisLINK.Addons.AssetService
             int cacheMiB = settings.GetInt("MemoryCacheMiB", 64);
             if (cacheMiB < 0 || cacheMiB > 4096)
                 throw new ArgumentOutOfRangeException("MemoryCacheMiB", "Must be between 0 and 4096 MiB.");
+            // Process-local cache entries cannot be invalidated by other writers.
+            localCacheEnabled = settings.GetBoolean("SingleWriterCacheEnabled", false);
             cache = new OGLObjectCache((long)cacheMiB * 1024 * 1024);
+            if (settings.GetBoolean("DiskCacheEnabled", false) && !localCacheEnabled)
+                throw new InvalidOperationException(
+                    "DiskCacheEnabled requires SingleWriterCacheEnabled=true and exclusive asset writers.");
             if (settings.GetBoolean("DiskCacheEnabled", false))
             {
                 int diskMiB = settings.GetInt("DiskCacheMaxMiB", 1024);
@@ -102,7 +108,7 @@ namespace OpenGenesisLINK.Addons.AssetService
                 // Redis connectivity or revision failures must never return stale cached data.
                 // In this experimental mode all reads bypass local caches until a
                 // distributed writer protocol has been verified end-to-end.
-                if (redisEnabled) return base.GetData(id);
+                if (redisEnabled || !localCacheEnabled) return base.GetData(id);
                 if (cache.TryGet(id, out byte[] result)) return result;
                 if (diskCache != null)
                 {
