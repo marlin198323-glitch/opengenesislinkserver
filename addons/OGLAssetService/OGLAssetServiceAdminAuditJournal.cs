@@ -62,6 +62,13 @@ namespace OpenGenesisLINK.Addons.AssetService
             }
         }
 
+        private static void AssertRegularFileOrMissing(string path)
+        {
+            if (File.Exists(path) &&
+                (File.GetAttributes(path) & FileAttributes.ReparsePoint) != 0)
+                throw new IOException("Audit rotation does not allow linked files.");
+        }
+
         private FileStream OpenJournal()
         {
             if (File.Exists(fullPath) &&
@@ -80,13 +87,18 @@ namespace OpenGenesisLINK.Addons.AssetService
             try
             {
                 string oldest = fullPath + "." + retainedFiles;
+                AssertRegularFileOrMissing(oldest);
                 if (File.Exists(oldest)) File.Delete(oldest);
                 for (int i = retainedFiles - 1; i >= 1; i--)
                 {
                     string source = fullPath + "." + i;
                     string target = fullPath + "." + (i + 1);
+                    AssertRegularFileOrMissing(source);
+                    AssertRegularFileOrMissing(target);
                     if (File.Exists(source)) File.Move(source, target, true);
                 }
+                AssertRegularFileOrMissing(fullPath);
+                AssertRegularFileOrMissing(fullPath + ".1");
                 if (File.Exists(fullPath))
                     File.Move(fullPath, fullPath + ".1", true);
             }
