@@ -55,6 +55,9 @@ namespace OpenGenesisLINK.Addons.AssetService
             }
 
             redisEnabled = settings.GetBoolean("RedisEnabled", false);
+            if (redisEnabled && localCacheEnabled)
+                throw new InvalidOperationException(
+                    "SingleWriterCacheEnabled and RedisEnabled cannot be combined until distributed invalidation is verified.");
             if (redisEnabled)
             {
                 string redisConnection = Environment.GetEnvironmentVariable("OGL_ASSET_REDIS_CONNECTION");
