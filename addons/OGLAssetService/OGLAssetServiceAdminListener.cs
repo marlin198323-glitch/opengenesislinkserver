@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using Nini.Config;
 using OpenSim.Framework.Servers.HttpServer;
 
@@ -10,6 +11,8 @@ namespace OpenGenesisLINK.Addons.AssetService
     /// </summary>
     public sealed class OGLAssetServiceAdminListener : IDisposable
     {
+        private static readonly object RegistrationLock = new object();
+        private static readonly HashSet<IHttpServer> ActiveServers = new HashSet<IHttpServer>();
         private readonly IHttpServer server;
         private readonly OGLAssetServiceAdminAuditJournal journal;
         private bool registered;
@@ -34,8 +37,22 @@ namespace OpenGenesisLINK.Addons.AssetService
             if (connector == null) throw new ArgumentNullException(nameof(connector));
 
             OGLAssetServiceAdminPreflight.Check(config, server);
-            var journal = new OGLAssetServiceAdminAuditJournal(
-                auditPath, maxJournalBytes, retainedFiles);
+            lock (RegistrationLock)
+            {
+                if (!ActiveServers.Add(server))
+                    throw new InvalidOperationException("Administrative listener is already registered on this server.");
+            }
+            OGLAssetServiceAdminAuditJournal journal;
+            try
+            {
+                journal = new OGLAssetServiceAdminAuditJournal(
+                    auditPath, maxJournalBytes, retainedFiles);
+            }
+            catch
+            {
+                lock (RegistrationLock) ActiveServers.Remove(server);
+                throw;
+            }
             var listener = new OGLAssetServiceAdminListener(server, journal);
             try
             {
@@ -52,20 +69,31 @@ namespace OpenGenesisLINK.Addons.AssetService
                 server.RemoveStreamHandler("GET", OGLAssetServiceAdminHttpHandler.StatusPath);
                 server.RemoveStreamHandler("GET", OGLAssetServiceAdminHttpHandler.ConfigurationPath);
                 journal.Dispose();
+                lock (RegistrationLock) ActiveServers.Remove(server);
                 throw;
             }
         }
 
         public void Dispose()
         {
-            if (disposed) return;
-            disposed = true;
-            if (registered)
+            lock (RegistrationLock)
             {
-                server.RemoveStreamHandler("GET", OGLAssetServiceAdminHttpHandler.StatusPath);
-                server.RemoveStreamHandler("GET", OGLAssetServiceAdminHttpHandler.ConfigurationPath);
+                if (disposed) return;
+                disposed = true;
+                try
+                {
+                    if (registered)
+                    {
+                        server.RemoveStreamHandler("GET", OGLAssetServiceAdminHttpHandler.StatusPath);
+                        server.RemoveStreamHandler("GET", OGLAssetServiceAdminHttpHandler.ConfigurationPath);
+                    }
+                }
+                finally
+                {
+                    try { journal.Dispose(); }
+                    finally { ActiveServers.Remove(server); }
+                }
             }
-            journal.Dispose();
         }
     }
 }
