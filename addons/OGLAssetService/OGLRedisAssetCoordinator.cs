@@ -162,7 +162,14 @@ return 1";
             ValidateTtl(ttl);
             long before = await GetRevisionAsync(assetId).ConfigureAwait(false);
             byte[] cached = await TryGetMappedPayloadAsync(assetId).ConfigureAwait(false);
-            if (cached != null) return cached;
+            // TryGetMappedPayloadAsync checks its own revision window. Also
+            // compare against the outer snapshot: a write could have occurred
+            // between our initial GetRevisionAsync and the inner cache lookup.
+            if (cached != null &&
+                await GetRevisionAsync(assetId).ConfigureAwait(false) == before)
+                return cached;
+            // Re-snapshot after any intervening write before fetching FSAssets.
+            before = await GetRevisionAsync(assetId).ConfigureAwait(false);
             byte[] authoritative = readAuthoritative();
             if (authoritative == null) return null;
             // Never mutate the authoritative data, and do not publish huge assets.
