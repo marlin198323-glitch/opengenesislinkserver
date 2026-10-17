@@ -1250,7 +1250,7 @@ jobs:
           --health-retries=24
 
       postgres:
-        image: public.ecr.aws/docker/library/postgres:16
+        image: postgres:16
         env:
           POSTGRES_DB: ogl_ledger_ci
           POSTGRES_USER: ledger
