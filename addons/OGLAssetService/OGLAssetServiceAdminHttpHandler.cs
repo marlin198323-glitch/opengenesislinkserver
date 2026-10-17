@@ -6,6 +6,7 @@ using System.Security.Claims;
 using System.Text;
 using System.Text.Json;
 using OpenSim.Framework.Servers.HttpServer;
+using OpenSim.Framework.ServiceAuth;
 
 namespace OpenGenesisLINK.Addons.AssetService
 {
@@ -126,6 +127,20 @@ namespace OpenGenesisLINK.Addons.AssetService
     /// </summary>
     public static class OGLAssetServiceAdminHttpRegistration
     {
+        /// <summary>
+        /// Explicit dedicated ROBUST service-credential integration.
+        /// Never supply a shared public asset service credential.
+        /// </summary>
+        public static void RegisterRobustServiceAccount(IHttpServer server,
+            OGLAssetConnector connector, IServiceAuth authentication,
+            string serviceName, bool administrator,
+            OGLAssetServiceAdminAuditJournal journal)
+        {
+            var resolver = new OGLAssetServiceRobustAuth(
+                authentication, serviceName, administrator);
+            Register(server, connector, resolver.Resolve, journal);
+        }
+
         public static void Register(IHttpServer server, OGLAssetConnector connector,
             Func<IOSHttpRequest, ClaimsPrincipal> resolvePrincipal)
         {
