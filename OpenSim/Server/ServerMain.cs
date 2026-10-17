@@ -272,15 +272,18 @@ namespace OpenSim.Server
                 }
             }
 
-            PrintFileToConsole("robuststartuplogo.txt");
-
-            loader = new PluginLoader(m_Server.Config, registryLocation);
-
             int res;
-            try { res = m_Server.Run(); }
-            finally { oglAdminLifecycle?.Dispose(); }
-
-            m_Server?.Shutdown();
+            try
+            {
+                PrintFileToConsole("robuststartuplogo.txt");
+                loader = new PluginLoader(m_Server.Config, registryLocation);
+                res = m_Server.Run();
+            }
+            finally
+            {
+                try { oglAdminLifecycle?.Dispose(); }
+                finally { m_Server?.Shutdown(); }
+            }
 
             Util.StopThreadPool();
 
