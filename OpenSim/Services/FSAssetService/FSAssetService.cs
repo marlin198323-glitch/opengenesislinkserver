@@ -765,6 +765,15 @@ namespace OpenSim.Services.FSAssetService
             byte[] persisted = GetFsData(newHash);
             if (persisted == null || !persisted.AsSpan().SequenceEqual(content))
                 return false;
+
+            // The original digest must still refer to the bytes that were
+            // read at the start. CAS protects metadata concurrency, while
+            // this check avoids publishing over an already-corrupt baseline.
+            byte[] previous = GetFsData(oldHash);
+            if (previous == null ||
+                !String.Equals(GetSHA256Hash(previous), oldHash, StringComparison.OrdinalIgnoreCase))
+                return false;
+
             return compareExchange.TryReplaceHash(id, oldHash, newHash);
         }
 
