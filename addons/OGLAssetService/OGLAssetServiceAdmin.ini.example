@@ -4,6 +4,8 @@
 [OGLAssetServiceAdmin]
 Enabled = false
 DedicatedListenerConfirmed = false
+; Must match the TLS port of the host-provided administrative IHttpServer.
+ExpectedTlsPort = 0
 AuthType = BasicHttpAuthentication
 ServiceName = ogl-admin-service
 Role = Viewer
