@@ -38,6 +38,8 @@ namespace OpenGenesisLINK.Addons.AssetService
                 throw new ArgumentException("Primary node cannot also be a replica.", nameof(replicaNode));
             if (current.Replicas.Contains(replicaNode))
                 return current;
+            if (current.Replicas.Count >= 32)
+                throw new InvalidOperationException("Maximum replica count reached.");
             List<string> replicas = new List<string>(current.Replicas);
             replicas.Add(replicaNode);
             current.Replicas = replicas;
