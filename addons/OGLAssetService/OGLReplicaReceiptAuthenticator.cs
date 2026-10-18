@@ -16,6 +16,8 @@ namespace OpenGenesisLINK.Addons.AssetService
         private readonly string nodeId;
         private readonly TimeSpan maxAge;
 
+        public string NodeId => nodeId;
+
         public OGLReplicaReceiptAuthenticator(string nodeId, byte[] secret, TimeSpan maxAge)
         {
             if (String.IsNullOrWhiteSpace(nodeId) || nodeId.Length > 128 ||
