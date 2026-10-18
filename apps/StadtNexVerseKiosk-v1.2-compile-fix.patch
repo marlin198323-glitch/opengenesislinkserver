@@ -1,0 +1,17 @@
+--- StadtNexVerseKiosk/app/src/main/java/de/stadtnexverse/kiosk/MainActivity.java
++++ StadtNexVerseKiosk/app/src/main/java/de/stadtnexverse/kiosk/MainActivity.java
+@@ -302,10 +302,10 @@
+                 String nextAssetProbe = assetService == null ? "" : assetService.optString("probe", "");
+                 String nextRegionSource = summary == null ? "" : summary.optString("status_source", "");
+                 String nextGeneratedAt = root.optString("generated_at", "");
+-                String nextQuality = quality == null ? "" :
+-                        (quality.optBoolean("complete", false) ? "vollständig" : "eingeschränkt");
+-                if (quality != null && quality.optJSONArray("missing_metrics") != null &&
+-                        quality.optJSONArray("missing_metrics").length() > 0) nextQuality = "Metriken fehlen";
++                final String nextQuality = quality == null ? "" :
++                        (quality.optJSONArray("missing_metrics") != null &&
++                         quality.optJSONArray("missing_metrics").length() > 0 ? "Metriken fehlen" :
++                         quality.optBoolean("complete", false) ? "vollständig" : "eingeschränkt");
+                 final long requestMs = java.util.concurrent.TimeUnit.NANOSECONDS.toMillis(System.nanoTime()-startedAt);
+                 // Only actual responses become graph samples; no demo values are fabricated.
+                 final int sampleResidents = residents.getInt("online_now");
