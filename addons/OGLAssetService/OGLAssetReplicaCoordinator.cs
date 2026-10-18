@@ -37,6 +37,29 @@ namespace OpenGenesisLINK.Addons.AssetService
         }
 
         /// <summary>
+        /// Fail-closed receipt verification with persistent single-use nonce.
+        /// A nonce is consumed before metadata CAS; failures require a fresh
+        /// receipt and never allow replaying the old acknowledgement.
+        /// </summary>
+        public OGLAssetLocationDirectory.Entry ConfirmSignedReplicaOnce(
+            string assetId, string replicaNode, string contentHash, long expectedRevision,
+            long issuedAtUnixSeconds, string nonce, string signature,
+            OGLReplicaReceiptAuthenticator authenticator,
+            OGLSqliteReplicaNonceLedger nonceLedger, DateTimeOffset now)
+        {
+            if (authenticator == null) throw new ArgumentNullException(nameof(authenticator));
+            if (nonceLedger == null) throw new ArgumentNullException(nameof(nonceLedger));
+            if (!String.Equals(replicaNode, authenticator.NodeId, StringComparison.Ordinal))
+                throw new InvalidDataException("Receipt signer does not match replica node.");
+            if (!authenticator.Verify(assetId, contentHash, expectedRevision,
+                issuedAtUnixSeconds, nonce, signature, now))
+                throw new InvalidDataException("Replica acknowledgement signature rejected.");
+            if (!nonceLedger.TryConsume(replicaNode, nonce, now))
+                throw new InvalidDataException("Replica acknowledgement nonce already consumed.");
+            return ConfirmReplica(assetId, replicaNode, contentHash, expectedRevision);
+        }
+
+        /// <summary>
         /// A caller must independently authenticate the target node and obtain
         /// a durable receipt for the exact hash before calling this method.
         /// CAS prevents promotion of a replica for a superseded asset revision.
