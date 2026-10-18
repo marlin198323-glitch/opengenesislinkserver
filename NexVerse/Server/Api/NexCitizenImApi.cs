@@ -6,6 +6,7 @@ using System.Linq;
 using System.Net;
 using System.Text;
 using System.Text.Json;
+using log4net;
 using NexVerse.Core.Audit;
 using NexVerse.Core.Security;
 using OpenMetaverse;
@@ -22,6 +23,7 @@ namespace NexVerse.Server.Api
     /// </summary>
     internal sealed class NexCitizenImApi
     {
+        private static readonly ILog m_Log = LogManager.GetLogger(typeof(NexCitizenImApi));
         private readonly IUserAccountService m_Accounts;
         private readonly IFriendsService m_Friends;
         private readonly NexApiAuthenticator m_Auth;
@@ -85,7 +87,25 @@ namespace NexVerse.Server.Api
 
             if (m_Store == null)
             {
-                Write(response, HttpStatusCode.ServiceUnavailable, new { error = "portal_im_archive_disabled" });
+                // Reading one's own settings should succeed even before the
+                // operator provisions the optional opt-in archive. Never
+                // claim the feature is enabled or write a consent record in
+                // that state: enabling still requires the real storage.
+                if (path == "/api/v1/messages/settings" && method == "GET")
+                {
+                    Write(response, HttpStatusCode.OK, new
+                    {
+                        enabled = false,
+                        available = false,
+                        archive = "opt_in",
+                        retention_days = "configured",
+                        polling_interval_seconds = 5
+                    });
+                    return;
+                }
+
+                Write(response, HttpStatusCode.ServiceUnavailable,
+                    new { error = "portal_im_archive_disabled" });
                 return;
             }
 
@@ -98,6 +118,7 @@ namespace NexVerse.Server.Api
                         Write(response, HttpStatusCode.OK, new
                         {
                             enabled = m_Store.IsEnabled(owner.Guid),
+                            available = true,
                             archive = "opt_in",
                             retention_days = "configured",
                             polling_interval_seconds = 5
@@ -188,9 +209,11 @@ namespace NexVerse.Server.Api
             {
                 Write(response, HttpStatusCode.BadRequest, new { error = "invalid_query" });
             }
-            catch (Exception)
+            catch (Exception e)
             {
-                Write(response, HttpStatusCode.ServiceUnavailable, new { error = "portal_im_store_unavailable" });
+                m_Log.Error("[NEX-PORTAL-IM]: Failed to access portal IM settings or archive.", e);
+                Write(response, HttpStatusCode.ServiceUnavailable,
+                    new { error = "portal_im_store_unavailable" });
             }
         }
 
