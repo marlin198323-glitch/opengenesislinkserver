@@ -947,47 +947,52 @@ namespace OpenSim.Data.MySQL
         #region Integration
         public bool GetUserAppData(ref UserAppData props, ref string result)
         {
-            const string query = "SELECT * FROM `userdata` WHERE UserId = ?Id AND TagId = ?TagId";
+            const string query =
+                "SELECT DataKey, DataVal FROM userdata WHERE UserId = ?Id AND TagId = ?TagId";
 
             try
             {
                 using (MySqlConnection dbcon = new MySqlConnection(ConnectionString))
                 {
                     dbcon.Open();
+                    bool found;
                     using (MySqlCommand cmd = new MySqlCommand(query, dbcon))
                     {
-                        cmd.Parameters.AddWithValue("?Id", props.UserId.ToString());
-                        cmd.Parameters.AddWithValue ("?TagId", props.TagId.ToString());
-
+                        cmd.Parameters.AddWithValue("?Id", props.UserId);
+                        cmd.Parameters.AddWithValue("?TagId", props.TagId);
                         using (MySqlDataReader reader = cmd.ExecuteReader(CommandBehavior.SingleRow))
                         {
-                            if(reader.HasRows)
+                            found = reader.Read();
+                            if (found)
                             {
-                                reader.Read();
-                                props.DataKey = (string)reader["DataKey"];
-                                props.DataVal = (string)reader["DataVal"];
-                            }
-                            else
-                            {
-                                const string queryB = "INSERT INTO userdata VALUES (?UserId, ?TagId, ?DataKey, ?DataVal)";
-                                using (MySqlCommand put = new MySqlCommand(queryB, dbcon))
-                                {
-                                    put.Parameters.AddWithValue("?UserId", props.UserId.ToString());
-                                    put.Parameters.AddWithValue("?TagId", props.TagId.ToString());
-                                    put.Parameters.AddWithValue("?DataKey", props.DataKey.ToString());
-                                    put.Parameters.AddWithValue("?DataVal", props.DataVal.ToString());
-
-                                    put.ExecuteNonQuery();
-                                }
+                                props.DataKey = Convert.ToString(reader["DataKey"]) ?? string.Empty;
+                                props.DataVal = Convert.ToString(reader["DataVal"]) ?? string.Empty;
                             }
                         }
                     }
-                    dbcon.Close();
+
+                    if (!found)
+                    {
+                        // Preserve the existing implicit record creation, but close
+                        // the SELECT reader before issuing another command on this
+                        // connection. INSERT IGNORE also handles concurrent first reads.
+                        const string insert =
+                            "INSERT IGNORE INTO userdata (UserId, TagId, DataKey, DataVal) " +
+                            "VALUES (?UserId, ?TagId, ?DataKey, ?DataVal)";
+                        using (MySqlCommand put = new MySqlCommand(insert, dbcon))
+                        {
+                            put.Parameters.AddWithValue("?UserId", props.UserId);
+                            put.Parameters.AddWithValue("?TagId", props.TagId);
+                            put.Parameters.AddWithValue("?DataKey", (object)props.DataKey ?? DBNull.Value);
+                            put.Parameters.AddWithValue("?DataVal", (object)props.DataVal ?? DBNull.Value);
+                            put.ExecuteNonQuery();
+                        }
+                    }
                 }
             }
             catch (Exception e)
             {
-                m_log.ErrorFormat("[PROFILES_DATA]: GetUserAppData exception {0}", e.Message);
+                m_log.Error("[PROFILES_DATA]: GetUserAppData exception", e);
                 result = e.Message;
                 return false;
             }
@@ -996,7 +1001,12 @@ namespace OpenSim.Data.MySQL
 
         public bool SetUserAppData(UserAppData props, ref string result)
         {
-            const string query = "UPDATE userdata SET TagId = ?TagId, DataKey = ?DataKey, DataVal = ?DataVal WHERE UserId = ?UserId AND TagId = ?TagId";
+            // A profile may be written before its first read. This must insert
+            // a missing row and persist DataVal (not accidentally DataKey).
+            const string query =
+                "INSERT INTO userdata (UserId, TagId, DataKey, DataVal) " +
+                "VALUES (?UserId, ?TagId, ?DataKey, ?DataVal) " +
+                "ON DUPLICATE KEY UPDATE DataKey = VALUES(DataKey), DataVal = VALUES(DataVal)";
 
             try
             {
@@ -1005,19 +1015,18 @@ namespace OpenSim.Data.MySQL
                     dbcon.Open();
                     using (MySqlCommand cmd = new MySqlCommand(query, dbcon))
                     {
-                        cmd.Parameters.AddWithValue("?UserId", props.UserId.ToString());
-                        cmd.Parameters.AddWithValue("?TagId", props.TagId.ToString());
-                        cmd.Parameters.AddWithValue("?DataKey", props.DataKey.ToString());
-                        cmd.Parameters.AddWithValue("?DataVal", props.DataKey.ToString());
-
+                        cmd.Parameters.AddWithValue("?UserId", props.UserId);
+                        cmd.Parameters.AddWithValue("?TagId", props.TagId);
+                        cmd.Parameters.AddWithValue("?DataKey", (object)props.DataKey ?? DBNull.Value);
+                        cmd.Parameters.AddWithValue("?DataVal", (object)props.DataVal ?? DBNull.Value);
                         cmd.ExecuteNonQuery();
                     }
-                    dbcon.Close();
                 }
             }
             catch (Exception e)
             {
-                m_log.ErrorFormat("[PROFILES_DATA]: SetUserAppData exception {0}", e.Message);
+                m_log.Error("[PROFILES_DATA]: SetUserAppData exception", e);
+                result = e.Message;
                 return false;
             }
             return true;
