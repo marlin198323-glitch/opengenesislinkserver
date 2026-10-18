@@ -9,11 +9,17 @@ test -s bin/Robust.dll
 
 WORK="$(mktemp -d "${RUNNER_TEMP:-/tmp}/ogl-robust-smoke.XXXXXXXX")"
 ROBUST_PID=""
+STAGED_INI="$ROOT/bin/Robust.OGLSmoke.Tests.ini"
+if [ -e "$STAGED_INI" ]; then
+  echo "Refusing to overwrite existing staging smoke configuration: $STAGED_INI" >&2
+  exit 1
+fi
 cleanup() {
   if [ -n "$ROBUST_PID" ]; then
     kill "$ROBUST_PID" 2>/dev/null || true
     wait "$ROBUST_PID" 2>/dev/null || true
   fi
+  rm -f -- "$STAGED_INI"
   rm -rf -- "$WORK"
 }
 trap cleanup EXIT
@@ -48,7 +54,8 @@ cat > "$WORK/Robust.OGLSmoke.ini" <<EOF
   Enabled = false
 EOF
 
-(cd bin && dotnet Robust.dll -inifile "$WORK/Robust.OGLSmoke.ini") > "$WORK/robust.log" 2>&1 &
+cp -- "$WORK/Robust.OGLSmoke.ini" "$STAGED_INI"
+(cd bin && dotnet Robust.dll -inifile Robust.OGLSmoke.Tests.ini) > "$WORK/robust.log" 2>&1 &
 ROBUST_PID=$!
 
 # A loaded DLL alone is insufficient. Require the OGL constructor's own log
