@@ -68,3 +68,7 @@ Sample credentials beginning with REPLACE_ are rejected by both admin preflight 
 ## Dedicated TLS listener provisioning
 
 When [OGLAssetServiceAdmin] Enabled=true, HttpServerBase.ReadConfig now registers a dedicated TLS BaseHttpServer before Initialise starts the HTTP servers. Configure ExpectedTlsPort (1-65535), ListenAddress (defaults to 127.0.0.1), TlsCertificatePath (PFX/PKCS#12) and TlsCertificatePassword. Wildcard bind addresses, missing TLS certificate settings and occupied ports are rejected. The listener is registered with MainServer and reused by the ROBUST admin lifecycle. Default configuration keeps the feature disabled. Operators must supply the certificate and protect the configuration file, certificate and audit journal. This does not establish a firewall rule or validate external connectivity. Full build and acceptance checks remain outstanding.
+
+## TLS provisioning safeguards (additional)
+
+HttpServerBase.ConfigureOglAdminTls requires DedicatedListenerConfirmed=true before reserving a port and rejects IPv4-mapped IPv6 wildcard binding in addition to 0.0.0.0 and ::. The sample INI is not automatically imported: copy the section into the active ROBUST configuration, keep Enabled=false until certificates, credentials, filesystem permissions and firewall policy are ready. The final acceptance must verify actual bind behavior, TLS handshakes, port conflicts and shutdown cleanup.
