@@ -162,7 +162,8 @@ namespace OpenSim.Server.Base
                 throw new InvalidOperationException("OGL admin TLS certificate not configured.");
             string bind = admin.GetString("ListenAddress", "127.0.0.1");
             if (!IPAddress.TryParse(bind, out IPAddress ip) ||
-                ip.Equals(IPAddress.Any) || ip.Equals(IPAddress.IPv6Any))
+                ip.Equals(IPAddress.Any) || ip.Equals(IPAddress.IPv6Any) ||
+                ip.IsIPv4MappedToIPv6 && ip.MapToIPv4().Equals(IPAddress.Any))
                 throw new InvalidOperationException("OGL admin cannot bind to a wildcard address.");
             BaseHttpServer listener = new BaseHttpServer((uint)requested, true, cert, secret);
             listener.ListenIPAddress = ip;
