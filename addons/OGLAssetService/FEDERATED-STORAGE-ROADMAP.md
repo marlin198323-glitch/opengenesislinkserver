@@ -18,6 +18,10 @@ The production connector still accepts only `Mode=compatibility` and delegates a
 
 The directory validates primary and replica node identifiers against whitespace-padded values and rejects duplicate replica IDs. Publishing validates a defensive copy rather than modifying the caller-owned entry. These protections do not authenticate node identity, coordinate writers across processes or establish replica durability.
 
+## Transactional SQLite location directory (prototype)
+
+`OGLSqliteAssetLocationDirectory` introduces a separate SQLite-backed mapping with a primary-key UUID, SHA-256 hash, primary node, JSON replica list and positive revision. `Publish` uses an INSERT-with-conflict-rejection for revision 0 and a revision-guarded UPDATE for subsequent revisions, both inside a SQLite transaction. The implementation opens separate connections and therefore supports SQLite file-level coordination between processes on a supported local filesystem. It does **not** make the JSON coordinator transactional, and it is not wired into the active asset connector or ROBUST. SQLite is not an appropriate shared database over arbitrary network filesystems; PostgreSQL/MariaDB backends, authenticated node enrollment, durable write/outbox protocol, replica verification, migrations, backups, and final acceptance are still outstanding. No production mode has been enabled.
+
 ## Required before enabling federated mode
 
 1. Durable metadata directory: map Asset UUID to current content hash, owning node, replicas, version and retention policy. Use a transactional database and optimistic concurrency controls.
