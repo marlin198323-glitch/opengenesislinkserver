@@ -2913,6 +2913,8 @@ namespace NexVerse.Server.Api
                     properties = new Dictionary<string, object>
                     {
                         ["enabled"] = new { type = "boolean" },
+                        ["available"] = new { type = "boolean" },
+                        ["retention_days"] = new { type = "string" },
                         ["history_deleted"] = new { type = "boolean" },
                         ["archive"] = new { type = "string" },
                         ["polling_interval_seconds"] = new { type = "integer" }
