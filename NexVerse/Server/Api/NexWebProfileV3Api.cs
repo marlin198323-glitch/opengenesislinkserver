@@ -32,7 +32,7 @@ namespace NexVerse.Server.Api
         private readonly IProfilesData m_Profiles;
         private readonly IAssetService m_Assets;
         private readonly Func<IAssetService> m_AssetResolver;
-        private readonly IInventoryService m_Inventory;
+        private readonly IXInventoryData m_InventoryData;
         private const int MaxProfileAssetBytes = 8 * 1024 * 1024;
         private const int MaxProfileImageWidth = 2048;
         private readonly NexApiAuthenticator m_Authenticator;
@@ -45,13 +45,13 @@ namespace NexVerse.Server.Api
             NexApiAuthenticator authenticator,
             INexAuditSink audit = null,
             Func<IAssetService> assetResolver = null,
-            IInventoryService inventory = null)
+            IXInventoryData inventoryData = null)
         {
             m_Accounts = accounts ?? throw new ArgumentNullException(nameof(accounts));
             m_Profiles = profiles ?? throw new ArgumentNullException(nameof(profiles));
             m_Assets = assets;
             m_AssetResolver = assetResolver;
-            m_Inventory = inventory;
+            m_InventoryData = inventoryData;
             m_Authenticator = authenticator ?? throw new ArgumentNullException(nameof(authenticator));
             m_Audit = audit ?? NullNexAuditSink.Instance;
         }
@@ -244,45 +244,66 @@ namespace NexVerse.Server.Api
                         new { error = "profile_image_not_found" });
                     return;
                 }
-                // Standard OpenSim assets carry a creator ID. FSAssets, however,
-                // stores no creator field in its metadata schema, so its
-                // IAssetService.Get() necessarily returns an empty CreatorID.
-                // Never treat an empty CreatorID as proof of ownership.
-                // Instead require an inventory item owned by this avatar that
-                // references the exact profile image UUID and explicitly
-                // permits export, copy and transfer. GetAssetPermissions is
-                // scoped by (avatar UUID, asset UUID) in the inventory DB.
-                bool creatorMatches = UUID.TryParse(asset.CreatorID, out UUID creator) &&
+                // The FSAssets SQL schema does not carry CreatorID. Do not
+                // fail every legitimate FSAsset texture or simply trust a
+                // profile-supplied UUID: verify same-owner inventory evidence
+                // for this exact asset. A creator-owned inventory upload is
+                // allowed; third-party content must explicitly permit export.
+                bool hasAssetCreator = UUID.TryParse(asset.CreatorID, out UUID creator);
+                bool creatorMatches = hasAssetCreator &&
                     creator == account.PrincipalID;
                 if (!creatorMatches)
                 {
-                    if (m_Inventory == null)
+                    if (m_InventoryData == null)
                     {
-                        m_Log.Warn("[NEX-WEBPROFILE-V3]: Cannot verify profile image ownership: inventory service unavailable.");
+                        m_Log.Warn("[NEX-WEBPROFILE-V3]: Profile image inventory provenance service unavailable.");
                         WriteJson(response, HttpStatusCode.ServiceUnavailable,
                             new { error = "profile_image_service_unavailable" });
                         return;
                     }
 
-                    int inventoryPermissions;
+                    XInventoryItem[] candidates;
                     try
                     {
-                        inventoryPermissions = m_Inventory.GetAssetPermissions(
-                            account.PrincipalID, profile.ImageId);
+                        candidates = m_InventoryData.GetItems(
+                            new[] { "avatarID", "assetID" },
+                            new[] { account.PrincipalID.ToString(), profile.ImageId.ToString() });
                     }
                     catch (Exception e)
                     {
-                        m_Log.Error("[NEX-WEBPROFILE-V3]: Inventory profile image permissions lookup failed.", e);
+                        m_Log.Error("[NEX-WEBPROFILE-V3]: Profile image inventory provenance lookup failed.", e);
                         WriteJson(response, HttpStatusCode.ServiceUnavailable,
                             new { error = "profile_image_service_unavailable" });
                         return;
                     }
 
-                    const int requiredPermissions =
+                    const int requiredExportPermissions =
                         (int)(PermissionMask.Copy | PermissionMask.Transfer | PermissionMask.Export);
-                    if ((inventoryPermissions & requiredPermissions) != requiredPermissions)
+                    bool permitted = false;
+                    foreach (XInventoryItem item in candidates ?? Array.Empty<XInventoryItem>())
                     {
-                        m_Log.Warn("[NEX-WEBPROFILE-V3]: Profile image not publishable: missing owner inventory export/copy/transfer authorization.");
+                        if (item == null ||
+                            item.avatarID != account.PrincipalID ||
+                            item.assetID != profile.ImageId ||
+                            item.assetType != (int)asset.Type)
+                            continue;
+
+                        bool uploadedByOwner = !hasAssetCreator &&
+                            UUID.TryParse(item.creatorID, out UUID itemCreator) &&
+                            itemCreator == account.PrincipalID;
+                        bool exportAllowed =
+                            (item.inventoryCurrentPermissions & requiredExportPermissions) ==
+                            requiredExportPermissions;
+                        if (uploadedByOwner || exportAllowed)
+                        {
+                            permitted = true;
+                            break;
+                        }
+                    }
+
+                    if (!permitted)
+                    {
+                        m_Log.Warn("[NEX-WEBPROFILE-V3]: Profile image not publishable: owner inventory proof or export permission missing.");
                         WriteJson(response, HttpStatusCode.NotFound,
                             new { error = "profile_image_not_found" });
                         return;
