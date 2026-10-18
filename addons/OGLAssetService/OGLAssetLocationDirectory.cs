@@ -111,14 +111,16 @@ namespace OpenGenesisLINK.Addons.AssetService
             foreach (char c in entry.ContentHash)
                 if (!((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f')))
                     throw new ArgumentException("Lowercase SHA-256 required.");
-            if (String.IsNullOrWhiteSpace(entry.PrimaryNode) || entry.PrimaryNode.Length > 128)
+            if (String.IsNullOrWhiteSpace(entry.PrimaryNode) || entry.PrimaryNode.Length > 128 ||
+                entry.PrimaryNode != entry.PrimaryNode.Trim())
                 throw new ArgumentException("Primary node identity required.");
             if (entry.Replicas == null || entry.Replicas.Count > 32)
                 throw new ArgumentException("Invalid replica set.");
             HashSet<string> seen = new HashSet<string>(StringComparer.Ordinal);
             seen.Add(entry.PrimaryNode);
             foreach (string node in entry.Replicas)
-                if (String.IsNullOrWhiteSpace(node) || node.Length > 128 || !seen.Add(node))
+                if (String.IsNullOrWhiteSpace(node) || node.Length > 128 ||
+                    node != node.Trim() || !seen.Add(node))
                     throw new ArgumentException("Invalid or duplicate replica node.");
             if (entry.Revision < 0)
                 throw new ArgumentException("Invalid revision.");
