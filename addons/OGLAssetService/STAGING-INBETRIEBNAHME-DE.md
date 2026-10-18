@@ -121,7 +121,22 @@ kein Redis-Distributed-Cache und kein Aktivieren des Admin-HTTP-Listeners,
 bevor die vollständigen Testgates, Mehrprozess-Invalidierung,
 Ausfallwiederherstellung und Rollback-Prüfung bestanden sind.
 
-Der neue GitHub-Workflow `OGL AssetService Addon Modules Build` kompiliert
-den normalen `compile.sh`-Weg und führt zusätzlich einen isolierten
-ROBUST/MariaDB-Starttest aus. Er ist ein notwendiger **technischer Vorabtest**,
-kein Ersatz für echte Asset-End-to-End-Tests im Staging oder auf realen Sicherungen.
+Der GitHub-Workflow `OGL AssetService Addon Modules Build` kompiliert
+den normalen `compile.sh`-Weg und startet einen **isolierten ROBUST mit MariaDB**.
+Zusätzlich prüft `tools/ci/verify_ogl_assetservice_http_persistence.py`
+über die tatsächlichen Asset-HTTP-Endpunkte das Speichern, `Get`,
+`GetMetadata` und `GetData` für synthetische Textur-, Mesh- und Notecard-Daten.
+Der Test kontrolliert den komprimierten FSAssets-Datenträgerinhalt, startet
+ROBUST neu und liest dieselben Assets erneut aus der persistenten Ablage.
+
+**Grenze:** Dieser Test prüft den OGL-Kompatibilitätsmodus mit eigenen
+Wegwerf-Assets. Er ersetzt weder einen Test mit der produktiven
+FSAssets-Sicherung noch Viewer-Uploads, Hypergrid-Zugriffe, gleichzeitige
+Asset-Schreiber, Redis-Ausfälle und einen realen Rollback-Test.
+
+**Wichtig für Hypergrid:** Der OGL-Connector initialisiert seine
+FSAssets-Basisklasse jetzt anhand des vom ROBUST-Connector angegebenen
+Abschnitts (`AssetService` oder `HGAssetService`). Beide Abschnitte
+müssen getrennt geprüft werden. Das Ändern beider
+`LocalServiceModule`-Werte in der produktiven Konfiguration ist
+ausdrücklich **noch nicht freigegeben**.
