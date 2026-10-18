@@ -55,15 +55,21 @@ cat > "$WORK/Robust.OGLSmoke.ini" <<EOF
 EOF
 
 cp -- "$WORK/Robust.OGLSmoke.ini" "$STAGED_INI"
-(cd bin && dotnet Robust.dll -inifile Robust.OGLSmoke.Tests.ini) > "$WORK/robust.log" 2>&1 &
-ROBUST_PID=$!
 
-# A loaded DLL alone is insufficient. Require the OGL constructor's own log
-# message and a reachable HTTP listener after the SQL provider initializes.
-ready=0
-for _ in $(seq 1 120); do
-  if grep -Fq '[OGL-ASSETS]: OGL AssetService geladen;' "$WORK/robust.log"; then
-    if python3 - <<'PY'
+start_robust() {
+  # exec makes the background PID the actual ROBUST process; cleanup cannot
+  # accidentally leave a detached process holding the CI port.
+  (cd bin && exec dotnet Robust.dll -inifile Robust.OGLSmoke.Tests.ini) > "$WORK/robust.log" 2>&1 &
+  ROBUST_PID=$!
+}
+
+assert_ready() {
+  local ready=0
+  # A loaded DLL alone is insufficient. Require the OGL constructor's own
+  # log message and a reachable HTTP listener after SQL initializes.
+  for _ in $(seq 1 120); do
+    if grep -Fq '[OGL-ASSETS]: OGL AssetService geladen;' "$WORK/robust.log"; then
+      if python3 - <<'PY'
 import socket
 try:
     with socket.create_connection(("127.0.0.1", 19495), timeout=1):
@@ -71,28 +77,48 @@ try:
 except OSError:
     raise SystemExit(1)
 PY
-    then
-      ready=1
-      break
+      then
+        ready=1
+        break
+      fi
     fi
-  fi
-  if ! kill -0 "$ROBUST_PID" 2>/dev/null; then
-    echo "::error::ROBUST exited before OGL AssetService activated" >&2
+    if ! kill -0 "$ROBUST_PID" 2>/dev/null; then
+      echo "::error::ROBUST exited before OGL AssetService activated" >&2
+      tail -n 100 "$WORK/robust.log" >&2
+      exit 1
+    fi
+    sleep 0.5
+  done
+
+  if [ "$ready" -ne 1 ]; then
+    echo "::error::OGL connector was not activated or HTTP listener was unreachable" >&2
     tail -n 100 "$WORK/robust.log" >&2
     exit 1
   fi
-  sleep 0.5
-done
+  if ! grep -Fq 'authoritative=FSAssets; mode=compatibility; local_cache=False; redis_coordination=False; atomic_updates=False' "$WORK/robust.log"; then
+    echo "::error::Unexpected OGL AssetService runtime safety flags" >&2
+    tail -n 100 "$WORK/robust.log" >&2
+    exit 1
+  fi
+}
 
-if [ "$ready" -ne 1 ]; then
-  echo "::error::OGL connector was not activated or HTTP listener was unreachable" >&2
-  tail -n 100 "$WORK/robust.log" >&2
-  exit 1
-fi
-if ! grep -Fq 'authoritative=FSAssets; mode=compatibility; local_cache=False; redis_coordination=False; atomic_updates=False' "$WORK/robust.log"; then
-  echo "::error::Unexpected OGL AssetService runtime safety flags" >&2
-  tail -n 100 "$WORK/robust.log" >&2
-  exit 1
-fi
+start_robust
+assert_ready
 
-echo "OGL AssetService isolated ROBUST runtime smoke PASS"
+# Exercise the actual public asset HTTP handlers and the asynchronous FSAssets
+# spool writer against throwaway MariaDB, not just a TCP health check.
+python3 tools/ci/verify_ogl_assetservice_http_persistence.py \
+  write "$WORK/fixtures.json" "$WORK/fsassets/data"
+
+# Force the next read through a NEW OGL connector/ROBUST process so that
+# memory-only state cannot mask a failed SQL/object-store persistence.
+kill "$ROBUST_PID"
+wait "$ROBUST_PID" 2>/dev/null || true
+ROBUST_PID=""
+: > "$WORK/robust.log"
+start_robust
+assert_ready
+python3 tools/ci/verify_ogl_assetservice_http_persistence.py \
+  read "$WORK/fixtures.json" "$WORK/fsassets/data"
+
+echo "OGL AssetService isolated ROBUST HTTP persistence smoke PASS"
