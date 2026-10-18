@@ -6,6 +6,7 @@ on:
       - 'addons/OGLAssetService/OGLAssetService.csproj'
       - 'OpenSim/Server/Directory.Build.targets'
       - 'runprebuild.sh'
+      - 'tools/ci/smoke_ogl_assetservice_runtime.sh'
       - '.github/workflows/ogl-assetservice-addon-modules.yml'
   pull_request:
     paths:
@@ -13,6 +14,7 @@ on:
       - 'addons/OGLAssetService/OGLAssetService.csproj'
       - 'OpenSim/Server/Directory.Build.targets'
       - 'runprebuild.sh'
+      - 'tools/ci/smoke_ogl_assetservice_runtime.sh'
       - '.github/workflows/ogl-assetservice-addon-modules.yml'
   workflow_dispatch:
 permissions:
@@ -20,6 +22,18 @@ permissions:
 jobs:
   addon-build:
     runs-on: ubuntu-latest
+    timeout-minutes: 35
+    services:
+      mariadb:
+        image: mariadb:11
+        env:
+          MARIADB_ROOT_PASSWORD: ogl-test-only
+          MARIADB_DATABASE: ogl_assetservice_smoke
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="healthcheck.sh --connect --innodb_initialized"
+          --health-interval=5s --health-timeout=5s --health-retries=20
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-dotnet@v4
@@ -45,3 +59,6 @@ jobs:
             Microsoft.Extensions.Logging.Abstractions.dll; do
             test -s "bin/$dll" || { echo "::error::Missing bin/$dll"; exit 1; }
           done
+      - name: Smoke-test live ROBUST host loading OGL on isolated MariaDB
+        shell: bash
+        run: bash tools/ci/smoke_ogl_assetservice_runtime.sh
