@@ -30,6 +30,10 @@ The directory validates primary and replica node identifiers against whitespace-
 
 `OGLAssetReplicaStaging` verifies the SHA-256 of received payload bytes before placing them in immutable local object storage. It does not register a replica as available, authenticate a remote node, perform a network transfer, or guarantee multi-replica durability. The central directory must advertise a replica only after the destination has durably stored and acknowledged the exact hash. Until an authenticated transport and transactional directory update protocol exist, replica preparation is an isolated development primitive.
 
+## Revision-checked replica promotion
+
+`OGLAssetReplicaCoordinator.ConfirmReplica` can promote a replica node into the directory only if the caller supplies the current asset revision and an acknowledged hash matching the current content. It rejects duplicate primary/replica identities and enforces the existing 32-replica limit. SQLite directory CAS prevents stale concurrent updates. **The acknowledgement is only a caller-provided value, not an authenticated receipt:** there is no network transport, mTLS verification, signed receipt, remote durability proof, or retry/reconciliation worker. This component must only be called by trusted in-process orchestration after independently verifying the remote node and receipt; it is not production-ready.
+
 ## Required before enabling federated mode
 
 1. Durable metadata directory: map Asset UUID to current content hash, owning node, replicas, version and retention policy. Use a transactional database and optimistic concurrency controls.
