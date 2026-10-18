@@ -17,6 +17,26 @@ for x in ("GetImage(UserAccount", "profile.PublishProfile",
     assert x in profile, "profile image security or transcode missing: " + x
 assert "profilesData,\n                            assets," in connector, "asset service not wired"
 
+# MySQL's SELECT reader must be disposed before a first-read INSERT, and
+# updating a privacy preference must persist DataVal (not DataKey).
+mysql = (root / "OpenSim/Data/MySQL/MySQLUserProfilesData.cs").read_text()
+read_start = mysql.index("public bool GetUserAppData(")
+write_start = mysql.index("public bool SetUserAppData(", read_start)
+end = mysql.index("#endregion Integration", write_start)
+read_body = mysql[read_start:write_start]
+write_body = mysql[write_start:end]
+for value in ("using (MySqlDataReader reader", "found = reader.Read();",
+              "if (!found)", "INSERT IGNORE INTO userdata"):
+    assert value in read_body, "missing safe MySQL privacy read: " + value
+assert read_body.index("using (MySqlDataReader reader") < read_body.index("if (!found)"), (
+    "a profile data reader must close before a new row is inserted"
+)
+for value in ("ON DUPLICATE KEY UPDATE", "DataVal = VALUES(DataVal)",
+              'cmd.Parameters.AddWithValue("?DataVal", (object)props.DataVal'):
+    assert value in write_body, "missing MySQL privacy upsert: " + value
+assert 'cmd.Parameters.AddWithValue("?DataVal", props.DataKey' not in write_body
+assert 'm_Log.Error("[NEX-WEBPROFILE-V3]: Profile image loading or conversion failed.", e);' in profile
+
 # BaseHttpServer dispatches nested paths only when their service prefix is
 # registered in the variable-path table. Without True, requests fall through
 # to the generic /api user router and return "Unknown NexVerse API endpoint".
