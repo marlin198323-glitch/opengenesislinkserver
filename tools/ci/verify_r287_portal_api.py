@@ -17,6 +17,20 @@ for x in ("GetImage(UserAccount", "profile.PublishProfile",
     assert x in profile, "profile image security or transcode missing: " + x
 assert "profilesData,\n                            assets," in connector, "asset service not wired"
 
+# AssetServiceConnector (two-argument module constructor) owns the already
+# initialized FSAsset/OGLAsset service. The World API must not construct its
+# own separate instance with LoadOptionalService(... one argument).
+asset_connector = (root / "OpenSim/Server/Handlers/Asset/AssetServerConnector.cs").read_text()
+assert 'new object[] { config, m_ConfigName }' in asset_connector, "ROBUST asset connector contract changed"
+assert "public static IAssetService GetLocalService(" in asset_connector
+assert 'services[m_ConfigName] = m_AssetService;' in asset_connector
+assert 'AssetServiceConnector.GetLocalService(config, "AssetService")' in connector
+assert 'IAssetService assets = LoadOptionalService<IAssetService>(config, "AssetService")' not in connector
+assert '() => AssetServiceConnector.GetLocalService(config, "AssetService")' in connector
+assert "Func<IAssetService> assetResolver = null" in profile
+assert "IAssetService assets = m_AssetResolver?.Invoke() ?? m_Assets;" in profile
+assert "AssetBase asset = assets.Get(profile.ImageId.ToString());" in profile
+
 # userprofile owns the picture UUID and both publication flags.
 # MySQL BINARY(1) flags contain ASCII 0/1 in production exports.
 mysql = (root / "OpenSim/Data/MySQL/MySQLUserProfilesData.cs").read_text()
