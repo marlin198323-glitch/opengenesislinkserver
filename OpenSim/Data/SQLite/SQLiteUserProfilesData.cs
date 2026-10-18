@@ -581,6 +581,8 @@ namespace OpenSim.Data.SQLite
                     }
                         if(reader != null && reader.Read())
                         {
+                            props.PublishProfile = Convert.ToBoolean(reader["profileAllowPublish"]);
+                            props.PublishMature = Convert.ToBoolean(reader["profileMaturePublish"]);
                             props.WebUrl = (string)reader["profileURL"];
                             UUID.TryParse((string)reader["profileImage"], out props.ImageId);
                             props.AboutText = (string)reader["profileAboutText"];
