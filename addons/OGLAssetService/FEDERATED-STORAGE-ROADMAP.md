@@ -34,6 +34,12 @@ The directory validates primary and replica node identifiers against whitespace-
 
 `OGLAssetReplicaCoordinator.ConfirmReplica` can promote a replica node into the directory only if the caller supplies the current asset revision and an acknowledged hash matching the current content. It rejects duplicate primary/replica identities and enforces the existing 32-replica limit. SQLite directory CAS prevents stale concurrent updates. **The acknowledgement is only a caller-provided value, not an authenticated receipt:** there is no network transport, mTLS verification, signed receipt, remote durability proof, or retry/reconciliation worker. This component must only be called by trusted in-process orchestration after independently verifying the remote node and receipt; it is not production-ready.
 
+## Replica transport policy and receipt replay ledger
+
+`OGLReplicaTransferPolicy` rejects non-HTTPS endpoint URIs, URI credentials/fragments, and payloads above an operator-configured size limit (maximum 1 GiB). `OGLAssetReplicaStaging` can optionally enforce this size bound before storing a replica. These are validation primitives, **not** an HTTP transport, redirect policy, mTLS setup, endpoint allowlist, streaming implementation or SSRF protection. Do not accept arbitrary URLs from remote users.
+
+`OGLSqliteReplicaNonceLedger` persists single-use `(node_id, nonce)` records and `ConfirmSignedReplicaOnce` verifies a signed receipt before consuming its nonce and attempting directory CAS. Older promotion entry points bypass this ledger. A shared ledger, key rotation, authenticated receipt issuer, verified durable remote storage and safe nonce retention are still required before production use.
+
 ## Required before enabling federated mode
 
 1. Durable metadata directory: map Asset UUID to current content hash, owning node, replicas, version and retention policy. Use a transactional database and optimistic concurrency controls.
