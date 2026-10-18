@@ -11,7 +11,7 @@ groups = (root / "NexVerse/Server/Api/NexGroupsApi.cs").read_text()
 api = (root / "NexVerse/Server/Api/NexVerseWorldApiHandlers.cs").read_text()
 
 for x in ("GetImage(UserAccount", "profile.PublishProfile",
-          "NexScopes.ProfileRead", "creator != account.PrincipalID",
+          "NexScopes.ProfileRead", "creatorMatches",
           "OpenJPEG.DecodeToImage", '"image/png"', "profile_image_url",
           "MaxProfileAssetBytes", "private, no-store"):
     assert x in profile, "profile image security or transcode missing: " + x
