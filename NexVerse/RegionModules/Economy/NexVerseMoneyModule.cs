@@ -1982,7 +1982,7 @@ namespace NexVerse.RegionModules.Economy
                         }
                     }
                     // Local residents ALWAYS use their original avatar UUID
-                    // as the NV$ account. HGWalletGuest stays available to
+                    // as the NV$ account. AllowHypergridGuests stays available to
                     // real foreign guests; it does not affect local wallets.
                     return true;
                 }
@@ -2007,15 +2007,11 @@ namespace NexVerse.RegionModules.Economy
                     reason = "HG NV$ participation is disabled by the operator.";
                     return false;
                 }
-                if (circuit.ServiceURLs == null ||
-                    !circuit.ServiceURLs.TryGetValue("HomeURI", out object rawHome) ||
-                    rawHome == null)
+                if (!hasHome)
                 {
                     reason = "Verified Hypergrid home URI is missing.";
                     return false;
                 }
-
-                home = rawHome.ToString();
                 UUID expected;
                 try
                 {
