@@ -31,6 +31,7 @@ namespace NexVerse.Server.Api
         private readonly IUserAccountService m_Accounts;
         private readonly IProfilesData m_Profiles;
         private readonly IAssetService m_Assets;
+        private readonly Func<IAssetService> m_AssetResolver;
         private const int MaxProfileAssetBytes = 8 * 1024 * 1024;
         private const int MaxProfileImageWidth = 2048;
         private readonly NexApiAuthenticator m_Authenticator;
@@ -41,11 +42,13 @@ namespace NexVerse.Server.Api
             IProfilesData profiles,
             IAssetService assets,
             NexApiAuthenticator authenticator,
-            INexAuditSink audit = null)
+            INexAuditSink audit = null,
+            Func<IAssetService> assetResolver = null)
         {
             m_Accounts = accounts ?? throw new ArgumentNullException(nameof(accounts));
             m_Profiles = profiles ?? throw new ArgumentNullException(nameof(profiles));
             m_Assets = assets;
+            m_AssetResolver = assetResolver;
             m_Authenticator = authenticator ?? throw new ArgumentNullException(nameof(authenticator));
             m_Audit = audit ?? NullNexAuditSink.Instance;
         }
@@ -173,9 +176,13 @@ namespace NexVerse.Server.Api
         private void GetImage(UserAccount account, IOSHttpRequest request,
             IOSHttpResponse response)
         {
-            if (m_Assets == null)
+            // The ROBUST AssetServiceConnector might initialize after this API.
+            // Resolve the already configured local service on each image request,
+            // rather than freezing a startup-time null and returning HTTP 503.
+            IAssetService assets = m_AssetResolver?.Invoke() ?? m_Assets;
+            if (assets == null)
             {
-                m_Log.Warn("[NEX-WEBPROFILE-V3]: Profile image asset service is not initialized.");
+                m_Log.Warn("[NEX-WEBPROFILE-V3]: Profile image asset service is not initialized. Check the ROBUST [AssetService] connector and startup logs.");
                 WriteJson(response, HttpStatusCode.ServiceUnavailable,
                     new { error = "profile_image_service_unavailable" });
                 return;
@@ -221,7 +228,7 @@ namespace NexVerse.Server.Api
             {
                 // Asset origin, MIME metadata and the image extension from a
                 // browser request are untrusted. Validate the actual bytes.
-                AssetBase asset = m_Assets.Get(profile.ImageId.ToString());
+                AssetBase asset = assets.Get(profile.ImageId.ToString());
                 if (asset == null || asset.Data == null ||
                     asset.Data.Length == 0 ||
                     asset.Data.Length > MaxProfileAssetBytes ||
