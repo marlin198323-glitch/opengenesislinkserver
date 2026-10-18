@@ -10,36 +10,42 @@ discovery = (root / "NexVerse/Server/Api/NexDiscoveryApi.cs").read_text()
 groups = (root / "NexVerse/Server/Api/NexGroupsApi.cs").read_text()
 api = (root / "NexVerse/Server/Api/NexVerseWorldApiHandlers.cs").read_text()
 
+# Profile-picture access follows the authoritative userprofile publication
+# flag, not OpenSim inventory Export/Copy/Transfer permissions. Only the
+# profile-bound asset ID is reachable; private profiles still require auth.
 for x in ("GetImage(UserAccount", "profile.PublishProfile",
-          "NexScopes.ProfileRead", "creatorMatches",
-          "OpenJPEG.DecodeToImage", '"image/png"', "profile_image_url",
-          "MaxProfileAssetBytes", "private, no-store"):
-    assert x in profile, "profile image security or transcode missing: " + x
-assert "profilesData,\n                            assets," in connector, "asset service not wired"
-
-# Standard FSAssets persists no CreatorID. A missing asset creator must never
-# make a profile image permanently unreachable, or permit arbitrary asset UUIDs.
-# A read-only, owner-and-asset-scoped inventory query verifies provenance.
-fs = (root / "OpenSim/Data/MySQL/MySQLFSAssetData.cs").read_text()
-assert "select id, name, description, type, hash" in fs
-assert "meta.CreatorID =" not in fs, "FSAssets creator metadata semantics changed"
-assert "IXInventoryData profileInventoryData" in connector
-assert "ServerUtils.LoadPlugin<IXInventoryData>" in connector
-assert "profileInventoryData);" in connector
-assert 'new[] { "avatarID", "assetID" }' in profile
-assert "item.avatarID != account.PrincipalID" in profile
-assert "item.assetID != profile.ImageId" in profile
-assert "item.assetType != (int)asset.Type" in profile
-assert "UUID.TryParse(item.creatorID, out UUID itemCreator)" in profile
-assert "PermissionMask.Copy | PermissionMask.Transfer | PermissionMask.Export" in profile
-assert "(item.inventoryCurrentPermissions & requiredExportPermissions)" in profile
-assert "creator != account.PrincipalID)" not in profile, (
-    "creatorless FSAssets must be verified against inventory instead of always denied"
+          "NexScopes.ProfileRead", "OpenJPEG.DecodeToImage",
+          '"image/png"', "profile_image_url", "MaxProfileAssetBytes",
+          "private, no-store"):
+    assert x in profile, "profile image publication or transcode missing: " + x
+assert "profilesData,\\n                            assets," in connector, "asset service not wired"
+image_body = profile.split("private void GetImage(", 1)[1].split("private void Patch(", 1)[0]
+image_get = profile.split("private void Get(", 1)[1].split("private void GetImage(", 1)[0]
+assert 'm_Profiles.GetAvatarProperties(ref profile, ref error)' in image_body
+assert "if (!profile.PublishProfile)" in image_body
+assert image_body.index("if (!profile.PublishProfile)") < image_body.index(
+    "AssetBase asset = assets.Get(profile.ImageId.ToString());"
 )
-# The missing/unreadable asset and unauthorized inventory item remain hidden
-# from clients behind the existing non-enumerating 404 response.
+assert "m_Authenticator.TryAuthenticate(request, NexScopes.ProfileRead" in image_body
+assert "subject != account.PrincipalID" in image_body
+assert "!principal.HasScope(NexScopes.AdminAll)" in image_body
+assert "if (profile.ImageId.IsZero())" in image_body
+assert "AssetBase asset = assets.Get(profile.ImageId.ToString());" in image_body
+assert "asset.Data == null || asset.Data.Length == 0" in image_body
+assert "asset.Type != (sbyte)AssetType.Texture" in image_body
+assert "response.AddHeader(\"X-Content-Type-Options\", \"nosniff\")" in image_body
+assert "private, no-store" in image_body
+assert "profile_image_url = profile.ImageId.IsZero()" in image_get
+assert "m_Assets == null" not in image_get.split("profile_image_url =", 1)[1].split(",", 1)[0]
+for forbidden in ("IXInventoryData", "m_InventoryData", "creatorMatches",
+                  "inventoryCurrentPermissions", "PermissionMask.Export",
+                  "Profile image not publishable"):
+    assert forbidden not in profile, "unexpected profile-image export gate: " + forbidden
+assert "profileInventoryData" not in connector
+assert "ServerUtils.LoadPlugin<IXInventoryData>" not in connector
 assert profile.count('new { error = "profile_image_not_found" }') >= 3
-assert "Referen" in profile and "no readable payload" in profile
+assert "Referenced profile image is missing" in profile
+assert "no readable payload" in profile
 
 
 # AssetServiceConnector (two-argument module constructor) owns the already
