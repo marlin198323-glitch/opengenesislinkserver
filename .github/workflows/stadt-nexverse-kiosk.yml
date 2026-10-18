@@ -6,6 +6,7 @@ on:
     paths:
       - apps/StadtNexVerseKiosk-source.tgz
       - apps/StadtNexVerseKiosk-v1.2.patch
+      - apps/StadtNexVerseKiosk-v1.2-compile-fix.patch
       - .github/workflows/stadt-nexverse-kiosk.yml
   workflow_dispatch:
 jobs:
@@ -39,6 +40,7 @@ jobs:
         run: |
           cd apps
           sed '/^--- StadtNexVerseKiosk\/README.md$/,$d' StadtNexVerseKiosk-v1.2.patch | patch --batch --fuzz=0 -p0
+          patch --batch --fuzz=0 -p0 < StadtNexVerseKiosk-v1.2-compile-fix.patch
           grep -F "versionName '1.2.0'" StadtNexVerseKiosk/app/build.gradle
       - name: Assemble debug APK
         working-directory: apps/StadtNexVerseKiosk
