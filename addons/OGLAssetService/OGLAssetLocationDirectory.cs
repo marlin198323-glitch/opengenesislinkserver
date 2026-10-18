@@ -53,16 +53,18 @@ namespace OpenGenesisLINK.Addons.AssetService
         /// </summary>
         public Entry Publish(Entry candidate, long expectedRevision)
         {
-            Validate(candidate);
+            if (candidate == null) throw new ArgumentNullException(nameof(candidate));
+            Entry validated = Copy(candidate);
+            Validate(validated);
             if (expectedRevision < 0 || expectedRevision == long.MaxValue)
                 throw new ArgumentOutOfRangeException(nameof(expectedRevision));
             lock (gate)
             {
-                bool exists = entries.TryGetValue(candidate.AssetId, out Entry current);
+                bool exists = entries.TryGetValue(validated.AssetId, out Entry current);
                 if ((!exists && expectedRevision != 0) ||
                     (exists && current.Revision != expectedRevision))
                     throw new InvalidOperationException("Asset directory revision conflict.");
-                Entry next = Copy(candidate);
+                Entry next = validated;
                 next.Revision = expectedRevision + 1;
                 Dictionary<string, Entry> snapshot = new Dictionary<string, Entry>(entries, StringComparer.Ordinal);
                 snapshot[next.AssetId] = next;
