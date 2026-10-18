@@ -1905,22 +1905,101 @@ namespace NexVerse.RegionModules.Economy
                     return false;
                 }
 
-                bool guest = (circuit.teleportFlags &
-                    (uint)Constants.TeleportFlags.ViaHGLogin) != 0 ||
-                    (scene.UserManagementModule != null &&
-                     !scene.UserManagementModule.IsLocalGridUser(avatarId));
+                // ViaHGLogin also occurs when OUR OWN residents return home
+                // from another grid. The flag is a route hint, not proof that
+                // an avatar owns a foreign wallet.
+                bool viaHypergrid = (circuit.teleportFlags &
+                    (uint)Constants.TeleportFlags.ViaHGLogin) != 0;
+                bool userManagementLocal = scene.UserManagementModule == null ||
+                    scene.UserManagementModule.IsLocalGridUser(avatarId);
 
+                // Check the authoritative local account, rather than trusting
+                // the user-management name/home cache or the teleport flag.
+                UserAccount account = scene.UserAccountService?
+                    .GetUserAccount(scene.RegionInfo.ScopeID, avatarId);
+                bool hasLocalAccount = account != null && account.LocalToGrid;
+                string home = null;
+                if (circuit.ServiceURLs != null &&
+                    circuit.ServiceURLs.TryGetValue("HomeURI", out object rawHome) &&
+                    rawHome != null)
+                    home = rawHome.ToString();
+                bool hasHome = !string.IsNullOrWhiteSpace(home);
+                bool localHome = hasHome && scene.SceneGridInfo != null &&
+                    scene.SceneGridInfo.IsLocalHome(home) == 1;
+
+                if (hasLocalAccount)
+                {
+                    // Never accept a foreign HomeURI as authority to spend a
+                    // local account, even when its UUID matches UserAccounts.
+                    // The Gatekeeper normally rejects this impersonation; the
+                    // money module must enforce it independently as well.
+                    if (hasHome && !localHome)
+                    {
+                        reason = "Local avatar UUID has a non-local HG HomeURI.";
+                        return false;
+                    }
+                    if (viaHypergrid && !localHome)
+                    {
+                        reason = "Local HG return lacks verified local HomeURI.";
+                        return false;
+                    }
+
+                    lock (m_Sync)
+                    {
+                        if (m_HypergridWallets.TryGetValue(avatarId,
+                            out UUID cached))
+                        {
+                            // Old versions incorrectly cached home-returning
+                            // residents as HG guests. Remove ONLY a binding
+                            // derived from this verified local home, not one
+                            // from a different grid with a colliding UUID.
+                            UUID localHomeWallet = UUID.Zero;
+                            if (localHome)
+                            {
+                                try
+                                {
+                                    localHomeWallet = new UUID(
+                                        NexHypergridWalletIdentity.AccountId(
+                                            home, avatarId.Guid));
+                                }
+                                catch (ArgumentException)
+                                {
+                                    reason = "Invalid verified local HomeURI.";
+                                    return false;
+                                }
+                            }
+
+                            if (!localHome || cached != localHomeWallet)
+                            {
+                                reason = "Ambiguous avatar UUID across grid identities.";
+                                return false;
+                            }
+
+                            m_HypergridWallets.Remove(avatarId);
+                            m_Log.InfoFormat(
+                                "[NEX-ECONOMY-VIEWER]: Entfernte veraltete HG-Wallet-Zuordnung fuer bestaetigten lokalen Avatar {0} nach HG-Rueckkehr.",
+                                avatarId);
+                        }
+                    }
+                    // Local residents ALWAYS use their original avatar UUID
+                    // as the NV$ account. HGWalletGuest stays available to
+                    // real foreign guests; it does not affect local wallets.
+                    return true;
+                }
+
+                bool guest = viaHypergrid || !userManagementLocal ||
+                    (account != null && !account.LocalToGrid);
                 if (!guest)
                 {
-                    // A stale HG binding and a new local session with the
-                    // same UUID must never share financial authority.
-                    lock (m_Sync)
-                        if (m_HypergridWallets.ContainsKey(avatarId))
-                        {
-                            reason = "Ambiguous avatar UUID across grid identities.";
-                            return false;
-                        }
-                    return true;
+                    reason = "No authoritative local account for active avatar.";
+                    return false;
+                }
+                if (localHome)
+                {
+                    // Claimed local HomeURI, but no authoritative local user:
+                    // never manufacture a foreign wallet for this identity.
+                    reason = "Local HG HomeURI without a local user account.";
+                    return false;
                 }
 
                 if (!m_AllowHypergridGuests)
@@ -1936,7 +2015,7 @@ namespace NexVerse.RegionModules.Economy
                     return false;
                 }
 
-                string home = rawHome.ToString();
+                home = rawHome.ToString();
                 UUID expected;
                 try
                 {
