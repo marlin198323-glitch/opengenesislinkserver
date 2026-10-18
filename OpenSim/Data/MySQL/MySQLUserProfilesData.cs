@@ -586,6 +586,23 @@ namespace OpenSim.Data.MySQL
         #endregion Avatar Notes Queries
 
         #region Avatar Properties
+        // MySQL userprofile publication flags are BINARY(1). The production
+        // schema stores ASCII '0'/'1' (0x30/0x31), not native CLR booleans.
+        private static bool ReadProfilePublicationFlag(object value)
+        {
+            if (value == null || value == DBNull.Value)
+                return false;
+            if (value is byte[] bytes)
+                return bytes.Length > 0 && (bytes[0] == (byte)'1' || bytes[0] == 1);
+            if (value is byte flag)
+                return flag == (byte)'1' || flag == 1;
+            if (value is bool boolean)
+                return boolean;
+            string text = Convert.ToString(value);
+            return string.Equals(text, "1", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(text, "true", StringComparison.OrdinalIgnoreCase);
+        }
+
         public bool GetAvatarProperties(ref UserProfileProperties props, ref string result)
         {
             string query = "SELECT * FROM userprofile WHERE useruuid = ?Id";
@@ -606,6 +623,8 @@ namespace OpenSim.Data.MySQL
                                 m_log.DebugFormat("[PROFILES_DATA]" +
                                                   ": Getting data for {0}.", props.UserId);
                                 reader.Read();
+                                props.PublishProfile = ReadProfilePublicationFlag(reader["profileAllowPublish"]);
+                                props.PublishMature = ReadProfilePublicationFlag(reader["profileMaturePublish"]);
                                 props.WebUrl = (string)reader["profileURL"];
                                 UUID.TryParse((string)reader["profileImage"], out props.ImageId);
                                 props.AboutText = (string)reader["profileAboutText"];
@@ -709,6 +728,7 @@ namespace OpenSim.Data.MySQL
         {
             const string query = "UPDATE userprofile SET profileURL=?profileURL,"
                 + "profileImage=?image, profileAboutText=?abouttext,"
+                + "profileAllowPublish=?publish, profileMaturePublish=?mature,"
                 + "profileFirstImage=?firstlifeimage, profileFirstText=?firstlifetext "
                 + "WHERE useruuid=?uuid";
 
@@ -720,6 +740,8 @@ namespace OpenSim.Data.MySQL
                     using (MySqlCommand cmd = new MySqlCommand(query, dbcon))
                     {
                         cmd.Parameters.AddWithValue("?profileURL", props.WebUrl);
+                        cmd.Parameters.AddWithValue("?publish", new byte[] { (byte)(props.PublishProfile ? '1' : '0') });
+                        cmd.Parameters.AddWithValue("?mature", new byte[] { (byte)(props.PublishMature ? '1' : '0') });
                         cmd.Parameters.AddWithValue("?image", props.ImageId.ToString());
                         cmd.Parameters.AddWithValue("?abouttext", props.AboutText);
                         cmd.Parameters.AddWithValue("?firstlifeimage", props.FirstLifeImageId.ToString());
@@ -955,37 +977,19 @@ namespace OpenSim.Data.MySQL
                 using (MySqlConnection dbcon = new MySqlConnection(ConnectionString))
                 {
                     dbcon.Open();
-                    bool found;
+                    // A GET is read-only: missing optional privacy preferences
+                    // are represented by UserAppData defaults, not inserted.
                     using (MySqlCommand cmd = new MySqlCommand(query, dbcon))
                     {
                         cmd.Parameters.AddWithValue("?Id", props.UserId);
                         cmd.Parameters.AddWithValue("?TagId", props.TagId);
                         using (MySqlDataReader reader = cmd.ExecuteReader(CommandBehavior.SingleRow))
                         {
-                            found = reader.Read();
-                            if (found)
+                            if (reader.Read())
                             {
                                 props.DataKey = Convert.ToString(reader["DataKey"]) ?? string.Empty;
                                 props.DataVal = Convert.ToString(reader["DataVal"]) ?? string.Empty;
                             }
-                        }
-                    }
-
-                    if (!found)
-                    {
-                        // Preserve the existing implicit record creation, but close
-                        // the SELECT reader before issuing another command on this
-                        // connection. INSERT IGNORE also handles concurrent first reads.
-                        const string insert =
-                            "INSERT IGNORE INTO userdata (UserId, TagId, DataKey, DataVal) " +
-                            "VALUES (?UserId, ?TagId, ?DataKey, ?DataVal)";
-                        using (MySqlCommand put = new MySqlCommand(insert, dbcon))
-                        {
-                            put.Parameters.AddWithValue("?UserId", props.UserId);
-                            put.Parameters.AddWithValue("?TagId", props.TagId);
-                            put.Parameters.AddWithValue("?DataKey", (object)props.DataKey ?? DBNull.Value);
-                            put.Parameters.AddWithValue("?DataVal", (object)props.DataVal ?? DBNull.Value);
-                            put.ExecuteNonQuery();
                         }
                     }
                 }
