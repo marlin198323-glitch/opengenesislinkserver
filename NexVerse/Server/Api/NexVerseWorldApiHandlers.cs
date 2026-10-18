@@ -258,7 +258,7 @@ namespace NexVerse.Server.Api
                     ("post", "Destination freigeben oder ablehnen", "discovery:manage", "200")),
                 ["/api/v1/profiles/{principalId}"] = MergeOperations(
                     GetOperation("Öffentlich sichtbares Avatarprofil lesen; private Profile nur für Eigentümer oder Admin"),
-                    AuthenticatedOperations(("patch", "Eigenes Avatarprofil einschließlich Bild-Asset-UUID, Interessen und Sichtbarkeit aktualisieren", "profile:write", "200"))),
+                    AuthenticatedOperations(("patch", "Eigene 11 editierbare userprofile-Spalten ändern; useruuid, profileImage und profileFirstImage bleiben gesperrt", "profile:write", "200"))),
                 ["/api/v1/profiles/{principalId}/image"] = GetOperation(
                     "Browserfähige Profilbild-Bytes der aktuell verknüpften Avatar-Textur; privat nur Owner/Admin"),
                 ["/api/v1/relationships/{principalId}"] = AuthenticatedOperations(
@@ -2913,6 +2913,8 @@ namespace NexVerse.Server.Api
                     properties = new Dictionary<string, object>
                     {
                         ["enabled"] = new { type = "boolean" },
+                        ["available"] = new { type = "boolean" },
+                        ["retention_days"] = new { type = "string" },
                         ["history_deleted"] = new { type = "boolean" },
                         ["archive"] = new { type = "string" },
                         ["polling_interval_seconds"] = new { type = "integer" }
@@ -3008,17 +3010,41 @@ namespace NexVerse.Server.Api
                 ["CitizenAvatarProfilePatch"] = new
                 {
                     type = "object",
+                    minProperties = 1,
+                    additionalProperties = false,
+                    description = "Nur die 11 mutierbaren userprofile-Spalten. useruuid, profileImage, profileFirstImage und Portal-Sichtbarkeit außerhalb userprofile sind schreibgeschützt.",
                     properties = new Dictionary<string, object>
                     {
                         ["about"] = new { type = "string", maxLength = 510 },
                         ["web_url"] = new { type = "string", maxLength = 255 },
-                        ["profile_image"] = new { type = "string", format = "uuid" },
                         ["visibility"] = new { type = "string", @enum = new[] { "public", "private" } },
-                        ["online_visibility"] = new { type = "string", @enum = new[] { "public", "friends", "private" } },
-                        ["groups_visibility"] = new { type = "string", @enum = new[] { "public", "friends", "private" } },
-                        ["search_visibility"] = new { type = "string", @enum = new[] { "public", "friends", "private" } },
                         ["mature"] = new { type = "boolean" },
-                        ["interests"] = new { type = "object" }
+                        ["partner_id"] = new { type = "string", format = "uuid", nullable = true },
+                        ["first_life_text"] = new { type = "string", maxLength = 510 },
+                        ["interests"] = new
+                        {
+                            type = "object",
+                            additionalProperties = false,
+                            properties = new Dictionary<string, object>
+                            {
+                                ["want_to_mask"] = new { type = "integer" },
+                                ["want_to_text"] = new { type = "string", maxLength = 510 },
+                                ["skills_mask"] = new { type = "integer" },
+                                ["skills_text"] = new { type = "string", maxLength = 510 },
+                                ["language"] = new { type = "string", maxLength = 255 }
+                            }
+                        },
+                        ["profilePartner"] = new { type = "string", format = "uuid", nullable = true },
+                        ["profileAllowPublish"] = new { type = "boolean" },
+                        ["profileMaturePublish"] = new { type = "boolean" },
+                        ["profileURL"] = new { type = "string", maxLength = 255 },
+                        ["profileWantToMask"] = new { type = "integer" },
+                        ["profileWantToText"] = new { type = "string", maxLength = 510 },
+                        ["profileSkillsMask"] = new { type = "integer" },
+                        ["profileSkillsText"] = new { type = "string", maxLength = 510 },
+                        ["profileLanguages"] = new { type = "string", maxLength = 255 },
+                        ["profileAboutText"] = new { type = "string", maxLength = 510 },
+                        ["profileFirstText"] = new { type = "string", maxLength = 510 }
                     }
                 },
                 ["CitizenAvatarProfileResponse"] = new
@@ -3030,6 +3056,8 @@ namespace NexVerse.Server.Api
                         ["username"] = new { type = "string" },
                         ["display_name"] = new { type = "string" },
                         ["profile_image"] = new { type = "string", format = "uuid" },
+                        ["first_life_image"] = new { type = "string", format = "uuid" },
+                        ["first_life_text"] = new { type = "string" },
                         ["about"] = new { type = "string" },
                         ["web_url"] = new { type = "string" },
                         ["interests"] = new { type = "object" },

@@ -18,6 +18,7 @@ using OpenSim.Data;
 using OpenSim.Framework.Servers.HttpServer;
 using OpenSim.Server.Base;
 using OpenSim.Server.Handlers.Base;
+using OpenSim.Server.Handlers.Asset;
 using OpenSim.Services.Interfaces;
 using OpenSim.Groups;
 using OpenSim.Services.Friends;
@@ -517,7 +518,12 @@ namespace NexVerse.Server.Api
                     throw new InvalidOperationException("Unable to load NexVerse World API authentication service.");
 
                 IInventoryService inventory = LoadOptionalService<IInventoryService>(config, "InventoryService");
-                IAssetService assets = LoadOptionalService<IAssetService>(config, "AssetService");
+                // Reuse ROBUST's initialized AssetService connector, including the
+                // OGL/FSAsset implementation, instead of constructing a second
+                // provider with an incompatible one-argument constructor.
+                IAssetService assets = AssetServiceConnector.GetLocalService(config, "AssetService");
+                if (assets == null)
+                    m_Log.Warn("[NEX-WORLD-API]: [AssetService] is not yet registered; profile images will resolve it at request time.");
                 jobRunner.Register(new OglInventoryRepairWorker(inventory));
 
                 IGridUserService gridUsers = LoadOptionalService<IGridUserService>(config, "GridUserService");
@@ -934,7 +940,8 @@ namespace NexVerse.Server.Api
                     new SimpleStreamHandler(
                         "/api/v1/security",
                         apiGate.Wrap(securityApi.Handle),
-                        "NexVerse Security"));
+                        "NexVerse Security"),
+                    true);
 
                 FriendsService friendsService = new FriendsService(config);
                 NexSocialGraphApi socialGraph =
@@ -943,7 +950,8 @@ namespace NexVerse.Server.Api
                     new SimpleStreamHandler(
                         "/api/v1/relationships",
                         apiGate.Wrap(socialGraph.Handle),
-                        "NexVerse Social Graph"));
+                        "NexVerse Social Graph"),
+                    true);
 
                 IInstantMessage citizenInstantMessages =
                     LoadOptionalService<IInstantMessage>(config, "HGInstantMessageService");
@@ -1004,19 +1012,24 @@ namespace NexVerse.Server.Api
                     if (profilesData == null)
                         throw new InvalidOperationException("Unable to load NexVerse WebProfileV3 profile datastore.");
 
+                    // Publication belongs to userprofile.profileAllowPublish.
+                    // No InventoryService database dependency is needed for
+                    // the public (or owner/admin private) profile image route.
                     NexWebProfileV3Api webProfileV3 =
                         new NexWebProfileV3Api(
                             userAccounts,
                             profilesData,
                             assets,
                             authenticator,
-                            auditSink);
+                            auditSink,
+                            () => AssetServiceConnector.GetLocalService(config, "AssetService"));
 
                     server.AddSimpleStreamHandler(
                         new SimpleStreamHandler(
                             "/api/v1/profiles",
                             apiGate.Wrap(webProfileV3.Handle),
-                            "NexVerse WebProfileV3"));
+                            "NexVerse WebProfileV3"),
+                        true);
 
                     m_Log.Info("[NEX-WEBPROFILE-V3]: WebProfileV3 enabled using the authoritative UserProfilesService store.");
                 }

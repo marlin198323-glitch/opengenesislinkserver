@@ -60,7 +60,9 @@ assert 'public const string InventoryRead = "inventory:read"' in security
 assert 'public const string InventoryWrite = "inventory:write"' in security
 assert '"/api/v1/inventory"' in connector
 assert "NexInventoryApi" in connector
-assert 'LoadOptionalService<IAssetService>(config, "AssetService")' in connector
+# The inventory API uses the same initialized asset service as ROBUST's
+# GET /assets handler; never bootstrap an independent FSAsset/OGLAsset instance.
+assert 'AssetServiceConnector.GetLocalService(config, "AssetService")' in connector
 assert "new NexInventoryApi(" in connector
 
 for schema in (

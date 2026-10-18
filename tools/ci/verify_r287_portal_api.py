@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """R287 portal coverage gates: authenticated image projection and Discovery CRUD."""
 from pathlib import Path
+import re
 
 root = Path(__file__).resolve().parents[2]
 profile = (root / "NexVerse/Server/Api/NexWebProfileV3Api.cs").read_text()
@@ -9,12 +10,153 @@ discovery = (root / "NexVerse/Server/Api/NexDiscoveryApi.cs").read_text()
 groups = (root / "NexVerse/Server/Api/NexGroupsApi.cs").read_text()
 api = (root / "NexVerse/Server/Api/NexVerseWorldApiHandlers.cs").read_text()
 
+# Profile-picture access follows the authoritative userprofile publication
+# flag, not OpenSim inventory Export/Copy/Transfer permissions. Only the
+# profile-bound asset ID is reachable; private profiles still require auth.
 for x in ("GetImage(UserAccount", "profile.PublishProfile",
-          "NexScopes.ProfileRead", "creator != account.PrincipalID",
-          "OpenJPEG.DecodeToImage", '"image/png"', "profile_image_url",
-          "MaxProfileAssetBytes", "private, no-store"):
-    assert x in profile, "profile image security or transcode missing: " + x
-assert "profilesData,\n                            assets," in connector, "asset service not wired"
+          "NexScopes.ProfileRead", "OpenJPEG.DecodeToImage",
+          '"image/png"', "profile_image_url", "MaxProfileAssetBytes",
+          "private, no-store"):
+    assert x in profile, "profile image publication or transcode missing: " + x
+assert 'new NexWebProfileV3Api(' in connector and "profilesData," in connector and "assets," in connector, "asset service not wired"
+image_body = profile.split("private void GetImage(", 1)[1].split("private void Patch(", 1)[0]
+image_get = profile.split("private void Get(", 1)[1].split("private void GetImage(", 1)[0]
+assert 'm_Profiles.GetAvatarProperties(ref profile, ref error)' in image_body
+assert "if (!profile.PublishProfile)" in image_body
+assert image_body.index("if (!profile.PublishProfile)") < image_body.index(
+    "AssetBase asset = assets.Get(profile.ImageId.ToString());"
+)
+assert "m_Authenticator.TryAuthenticate(request, NexScopes.ProfileRead" in image_body
+assert "subject != account.PrincipalID" in image_body
+assert "!principal.HasScope(NexScopes.AdminAll)" in image_body
+assert "if (profile.ImageId.IsZero())" in image_body
+assert "AssetBase asset = assets.Get(profile.ImageId.ToString());" in image_body
+assert "asset.Data == null || asset.Data.Length == 0" in image_body
+assert "asset.Type != (sbyte)AssetType.Texture" in image_body
+assert "response.AddHeader(\"X-Content-Type-Options\", \"nosniff\")" in image_body
+assert "private, no-store" in image_body
+assert "profile_image_url = profile.ImageId.IsZero()" in image_get
+assert "m_Assets == null" not in image_get.split("profile_image_url =", 1)[1].split(",", 1)[0]
+for forbidden in ("IXInventoryData", "m_InventoryData", "creatorMatches",
+                  "inventoryCurrentPermissions", "PermissionMask.Export",
+                  "Profile image not publishable"):
+    assert forbidden not in profile, "unexpected profile-image export gate: " + forbidden
+assert "profileInventoryData" not in connector
+assert "ServerUtils.LoadPlugin<IXInventoryData>" not in connector
+assert profile.count('new { error = "profile_image_not_found" }') >= 3
+assert "Referenced profile image is missing" in profile
+assert "no readable payload" in profile
+
+
+# AssetServiceConnector (two-argument module constructor) owns the already
+# initialized FSAsset/OGLAsset service. The World API must not construct its
+# own separate instance with LoadOptionalService(... one argument).
+asset_connector = (root / "OpenSim/Server/Handlers/Asset/AssetServerConnector.cs").read_text()
+assert 'new object[] { config, m_ConfigName }' in asset_connector, "ROBUST asset connector contract changed"
+assert "public static IAssetService GetLocalService(" in asset_connector
+assert 'services[m_ConfigName] = m_AssetService;' in asset_connector
+assert 'AssetServiceConnector.GetLocalService(config, "AssetService")' in connector
+assert 'IAssetService assets = LoadOptionalService<IAssetService>(config, "AssetService")' not in connector
+assert '() => AssetServiceConnector.GetLocalService(config, "AssetService")' in connector
+assert "Func<IAssetService> assetResolver = null" in profile
+assert "IAssetService assets = m_AssetResolver?.Invoke() ?? m_Assets;" in profile
+assert "AssetBase asset = assets.Get(profile.ImageId.ToString());" in profile
+
+# Portal writes cover all and only the 11 editable database columns.
+# The three image/identity columns must not be assigned by ANY portal SQL.
+allowed = {
+    "profilePartner", "profileAllowPublish", "profileMaturePublish",
+    "profileURL", "profileWantToMask", "profileWantToText",
+    "profileSkillsMask", "profileSkillsText", "profileLanguages",
+    "profileAboutText", "profileFirstText",
+}
+protected = {"useruuid", "profileImage", "profileFirstImage"}
+iface = (root / "OpenSim/Data/IProfilesData.cs").read_text()
+assert "UpdateAvatarPortalProperties(UserProfileProperties props" in iface
+assert "m_Profiles.UpdateAvatarPortalProperties(profile, columns, ref storeError)" in profile
+assert "m_Profiles.UpdateAvatarProperties(ref profile, ref storeError)" not in profile
+assert "m_Profiles.UpdateAvatarInterests(profile, ref storeError)" not in profile
+assert "m_Profiles.SetUserAppData(" not in profile.split("private void Patch(", 1)[1].split("private sealed class ProfilePrivacy", 1)[0]
+assert "if (!columns.Add(column))" in profile and '"duplicate_profile_field"' in profile
+assert "if (columns.Count == 0)" in profile
+assert "if (!self && !principal.HasScope(NexScopes.AdminAll))" in profile
+assert "NexScopes.ProfileWrite" in profile
+for field in allowed:
+    assert f'column = "{field}";' in profile, f"Portal API does not accept {field}"
+for column in protected:
+    assert f'column = "{column}";' not in profile, f"Protected column selectable in API: {column}"
+assert '"profile_field_readonly"' in profile
+for engine in ("MySQL", "PGSQL", "SQLite"):
+    file = ("OpenSim/Data/" + engine + "/" +
+            ("SQLiteUserProfilesData.cs" if engine == "SQLite" else
+             engine + "UserProfilesData.cs" if engine == "MySQL" else
+             "PGSQLUserProfilesData.cs"))
+    if engine == "MySQL":
+        file = "OpenSim/Data/MySQL/MySQLUserProfilesData.cs"
+    data = (root / file).read_text()
+    section = data.split("public bool UpdateAvatarPortalProperties(", 1)[1].split("return true;", 1)[0]
+    for col in allowed:
+        assert f'case "{col}":' in section, f"{engine}: missing allowed column {col}"
+    for col in protected:
+        assert f'case "{col}":' not in section, f"{engine}: forbidden update {col}"
+    assert "WHERE " in section and "uuid" in section, engine
+    assert "string.Join(" in section, f"{engine}: missing field-selective UPDATE"
+    assert 'result = "profile_field_readonly"' in section, engine
+schema = (root / "NexVerse/Server/Api/NexVerseWorldApiHandlers.cs").read_text()
+patch_schema = schema.split('["CitizenAvatarProfilePatch"] = new', 1)[1].split('["CitizenAvatarProfileResponse"] = new', 1)[0]
+assert "additionalProperties = false" in patch_schema
+for key in ("partner_id", "first_life_text", "about", "web_url",
+            "visibility", "mature", "interests"):
+    assert f'["{key}"]' in patch_schema, key
+for key in ("useruuid", "profileImage", "profileFirstImage", "profile_image"):
+    assert f'["{key}"]' not in patch_schema, f"protected portal field in OpenAPI: {key}"
+
+# userprofile owns the picture UUID and both publication flags.
+# MySQL BINARY(1) flags contain ASCII 0/1 in production exports.
+mysql = (root / "OpenSim/Data/MySQL/MySQLUserProfilesData.cs").read_text()
+profile_start = mysql.index("public bool GetAvatarProperties(")
+profile_end = mysql.index("public bool UpdateAvatarProperties(", profile_start)
+profile_reader = mysql[profile_start:profile_end]
+profile_writer_end = mysql.index("#endregion Avatar Properties", profile_end)
+profile_writer = mysql[profile_end:profile_writer_end]
+for column in ('reader["profileAllowPublish"]', 'reader["profileMaturePublish"]'):
+    assert column in profile_reader, "publication flag not read: " + column
+for parameter in ('profileAllowPublish=?publish', 'profileMaturePublish=?mature',
+                  'cmd.Parameters.AddWithValue("?publish"', 'cmd.Parameters.AddWithValue("?mature"'):
+    assert parameter in profile_writer, "publication flag not persisted: " + parameter
+assert "bytes[0] == (byte)'1'" in mysql, "BINARY(1) publication flag decoding missing"
+
+read_start = mysql.index("public bool GetUserAppData(")
+write_start = mysql.index("public bool SetUserAppData(", read_start)
+end = mysql.index("#endregion Integration", write_start)
+read_body = mysql[read_start:write_start]
+write_body = mysql[write_start:end]
+assert "using (MySqlDataReader reader" in read_body
+assert "INSERT" not in read_body and "ExecuteNonQuery" not in read_body, (
+    "GET of privacy preferences must never create database rows"
+)
+for value in ("ON DUPLICATE KEY UPDATE", "DataVal = VALUES(DataVal)",
+              'cmd.Parameters.AddWithValue("?DataVal", (object)props.DataVal'):
+    assert value in write_body, "missing MySQL privacy upsert: " + value
+assert 'cmd.Parameters.AddWithValue("?DataVal", props.DataKey' not in write_body
+assert 'm_Log.Error("[NEX-WEBPROFILE-V3]: Profile image loading or conversion failed.", e);' in profile
+
+# BaseHttpServer dispatches nested paths only when their service prefix is
+# registered in the variable-path table. Without True, requests fall through
+# to the generic /api user router and return "Unknown NexVerse API endpoint".
+for prefix in ("/api/v1/profiles", "/api/v1/relationships", "/api/v1/security"):
+    registration = (
+        r"server\.AddSimpleStreamHandler\(\s*"
+        r"new SimpleStreamHandler\(\s*"
+        + re.escape('"' + prefix + '"')
+        + r"[^;]*\),\s*true\s*\);"
+    )
+    assert re.search(registration, connector), "missing variable-path registration: " + prefix
+
+base_http = (root / "OpenSim/Framework/Servers/HttpServer/BaseHttpServer.cs").read_text()
+assert "m_simpleStreamVarPath.TryGetValue(uripath[..slash], out handler)" in base_http, (
+    "HTTP server must resolve nested variable-prefix routes"
+)
 
 for name in ("/api/v1/events/", "/api/v1/classifieds/"):
     assert f'TryResourceId(path, "{name}"' in discovery

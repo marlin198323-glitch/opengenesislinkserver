@@ -11,6 +11,7 @@ using System.Text.Json;
 using NexVerse.Core.Security;
 using NexVerse.Core.Audit;
 using System.Collections.Generic;
+using log4net;
 using OpenMetaverse;
 using OpenSim.Data;
 using OpenSim.Framework;
@@ -26,9 +27,11 @@ namespace NexVerse.Server.Api
     /// </summary>
     internal sealed class NexWebProfileV3Api
     {
+        private static readonly ILog m_Log = LogManager.GetLogger(typeof(NexWebProfileV3Api));
         private readonly IUserAccountService m_Accounts;
         private readonly IProfilesData m_Profiles;
         private readonly IAssetService m_Assets;
+        private readonly Func<IAssetService> m_AssetResolver;
         private const int MaxProfileAssetBytes = 8 * 1024 * 1024;
         private const int MaxProfileImageWidth = 2048;
         private readonly NexApiAuthenticator m_Authenticator;
@@ -39,11 +42,13 @@ namespace NexVerse.Server.Api
             IProfilesData profiles,
             IAssetService assets,
             NexApiAuthenticator authenticator,
-            INexAuditSink audit = null)
+            INexAuditSink audit = null,
+            Func<IAssetService> assetResolver = null)
         {
             m_Accounts = accounts ?? throw new ArgumentNullException(nameof(accounts));
             m_Profiles = profiles ?? throw new ArgumentNullException(nameof(profiles));
             m_Assets = assets;
+            m_AssetResolver = assetResolver;
             m_Authenticator = authenticator ?? throw new ArgumentNullException(nameof(authenticator));
             m_Audit = audit ?? NullNexAuditSink.Instance;
         }
@@ -102,10 +107,17 @@ namespace NexVerse.Server.Api
 
         private void Get(UserAccount account, IOSHttpRequest request, IOSHttpResponse response)
         {
-            ProfilePrivacy privacy = LoadPrivacy(account.PrincipalID);
+            // Publication status and the linked picture come from userprofile.
+            // Resolve and authorize them before reading optional userdata privacy.
             UserProfileProperties profile = new UserProfileProperties { UserId = account.PrincipalID };
             string error = string.Empty;
-            m_Profiles.GetAvatarProperties(ref profile, ref error);
+            if (!m_Profiles.GetAvatarProperties(ref profile, ref error))
+            {
+                m_Log.Error("[NEX-WEBPROFILE-V3]: Unable to load avatar userprofile.");
+                WriteJson(response, HttpStatusCode.ServiceUnavailable,
+                    new { error = "profile_service_unavailable" });
+                return;
+            }
 
             if (!profile.PublishProfile)
             {
@@ -124,13 +136,16 @@ namespace NexVerse.Server.Api
                 }
             }
 
+            ProfilePrivacy privacy = LoadPrivacy(account.PrincipalID);
             WriteJson(response, HttpStatusCode.OK, new
             {
                 id = account.PrincipalID.ToString(),
                 username = account.Username,
                 display_name = account.EffectiveDisplayName,
                 profile_image = profile.ImageId.ToString(),
-                profile_image_url = profile.ImageId.IsZero() || m_Assets == null
+                first_life_image = profile.FirstLifeImageId.ToString(),
+                first_life_text = profile.FirstLifeText ?? string.Empty,
+                profile_image_url = profile.ImageId.IsZero()
                     ? null : "/api/v1/profiles/" + account.PrincipalID + "/image",
                 about = profile.AboutText ?? string.Empty,
                 web_url = profile.WebUrl ?? string.Empty,
@@ -154,17 +169,22 @@ namespace NexVerse.Server.Api
         }
 
         /// <summary>
-        /// Only the avatar's *current profile picture* can be retrieved.
-        /// OpenSim asset IDs alone never confer authority. Published profiles
-        /// may be read anonymously; private pictures require owner/admin.
-        /// In particular scripts, inventory textures and friends-only assets
-        /// can never be enumerated through this route.
+        /// Only the picture linked by the authoritative userprofile record
+        /// can be retrieved. profileAllowPublish controls anonymous access:
+        /// published profiles expose their picture; private profiles require
+        /// profile:read from the owner or admin:*. No arbitrary asset-ID route
+        /// is exposed, and inventory/export flags do not gate profile images.
         /// </summary>
         private void GetImage(UserAccount account, IOSHttpRequest request,
             IOSHttpResponse response)
         {
-            if (m_Assets == null)
+            // The ROBUST AssetServiceConnector might initialize after this API.
+            // Resolve the already configured local service on each image request,
+            // rather than freezing a startup-time null and returning HTTP 503.
+            IAssetService assets = m_AssetResolver?.Invoke() ?? m_Assets;
+            if (assets == null)
             {
+                m_Log.Warn("[NEX-WEBPROFILE-V3]: Profile image asset service is not initialized. Check the ROBUST [AssetService] connector and startup logs.");
                 WriteJson(response, HttpStatusCode.ServiceUnavailable,
                     new { error = "profile_image_service_unavailable" });
                 return;
@@ -175,8 +195,9 @@ namespace NexVerse.Server.Api
             string error = string.Empty;
             if (!m_Profiles.GetAvatarProperties(ref profile, ref error))
             {
-                WriteJson(response, HttpStatusCode.NotFound,
-                    new { error = "profile_image_not_found" });
+                m_Log.Error("[NEX-WEBPROFILE-V3]: Failed to load avatar userprofile for image lookup.");
+                WriteJson(response, HttpStatusCode.ServiceUnavailable,
+                    new { error = "profile_image_service_unavailable" });
                 return;
             }
             if (!profile.PublishProfile)
@@ -209,30 +230,36 @@ namespace NexVerse.Server.Api
             {
                 // Asset origin, MIME metadata and the image extension from a
                 // browser request are untrusted. Validate the actual bytes.
-                AssetBase asset = m_Assets.Get(profile.ImageId.ToString());
-                if (asset == null || asset.Data == null ||
-                    asset.Data.Length == 0 ||
-                    asset.Data.Length > MaxProfileAssetBytes ||
+                AssetBase asset = assets.Get(profile.ImageId.ToString());
+                if (asset == null)
+                {
+                    m_Log.Warn("[NEX-WEBPROFILE-V3]: Referenced profile image is missing from the asset provider.");
+                    WriteJson(response, HttpStatusCode.NotFound,
+                        new { error = "profile_image_not_found" });
+                    return;
+                }
+                if (asset.Data == null || asset.Data.Length == 0)
+                {
+                    m_Log.Warn("[NEX-WEBPROFILE-V3]: Referenced profile image has no readable payload in the asset provider.");
+                    WriteJson(response, HttpStatusCode.NotFound,
+                        new { error = "profile_image_not_found" });
+                    return;
+                }
+                if (asset.Data.Length > MaxProfileAssetBytes ||
                     (asset.Type != (sbyte)AssetType.Texture &&
                      asset.Type != (sbyte)AssetType.ImageJPEG &&
                      asset.Type != (sbyte)AssetType.TextureTGA &&
                      asset.Type != (sbyte)AssetType.ImageTGA))
                 {
+                    m_Log.Warn("[NEX-WEBPROFILE-V3]: Referenced profile image exceeds the size limit or has an unsupported asset type.");
                     WriteJson(response, HttpStatusCode.NotFound,
                         new { error = "profile_image_not_found" });
                     return;
                 }
-                // Profile ownership is not itself proof that a random asset
-                // UUID is public. Without a separate verified inventory
-                // license/ACL, only the profile owner's own uploads may be
-                // exposed. This intentionally rejects third-party pictures.
-                if (!UUID.TryParse(asset.CreatorID, out UUID creator) ||
-                    creator != account.PrincipalID)
-                {
-                    WriteJson(response, HttpStatusCode.NotFound,
-                        new { error = "profile_image_not_found" });
-                    return;
-                }
+                // A public profile explicitly publishes its selected picture.
+                // Its asset's inventory creator/export flags are not web
+                // visibility controls. Private pictures are protected by
+                // the authenticated owner/admin check above instead.
                 byte[] raw = asset.Data;
                 byte[] result;
                 string mime;
@@ -294,9 +321,10 @@ namespace NexVerse.Server.Api
                 response.KeepAlive = false;
                 response.RawBuffer = result;
             }
-            catch (Exception)
+            catch (Exception e)
             {
-                // Do not disclose backend URLs, raw asset metadata or IDs.
+                // Keep backend details server-side; the client sees only a controlled error.
+                m_Log.Error("[NEX-WEBPROFILE-V3]: Profile image loading or conversion failed.", e);
                 WriteJson(response, HttpStatusCode.ServiceUnavailable,
                     new { error = "profile_image_service_unavailable" });
             }
@@ -309,108 +337,81 @@ namespace NexVerse.Server.Api
             IOSHttpResponse response)
         {
             if (!m_Authenticator.TryAuthenticate(
-                    request,
-                    NexScopes.ProfileWrite,
-                    out NexPrincipal principal,
-                    out UserAccount authenticatedAccount,
-                    out int status,
-                    out string authError))
+                    request, NexScopes.ProfileWrite,
+                    out NexPrincipal principal, out UserAccount _,
+                    out int status, out string authError))
             {
                 WriteJson(response, (HttpStatusCode)status, new { error = authError });
                 return;
             }
 
-            bool self = UUID.TryParse(principal.Subject, out UUID subjectId) && subjectId == account.PrincipalID;
+            bool self = UUID.TryParse(principal.Subject, out UUID subjectId) &&
+                subjectId == account.PrincipalID;
             if (!self && !principal.HasScope(NexScopes.AdminAll))
             {
                 WriteJson(response, HttpStatusCode.Forbidden, new { error = "profile_owner_required" });
                 return;
             }
 
-            UserProfileProperties profile = new UserProfileProperties { UserId = account.PrincipalID };
+            UserProfileProperties profile =
+                new UserProfileProperties { UserId = account.PrincipalID };
             string storeError = string.Empty;
-            m_Profiles.GetAvatarProperties(ref profile, ref storeError);
-
+            if (!m_Profiles.GetAvatarProperties(ref profile, ref storeError))
+            {
+                WriteJson(response, HttpStatusCode.ServiceUnavailable,
+                    new { error = "profile_service_unavailable" });
+                return;
+            }
             UUID oldPartnerId = profile.PartnerId;
+            var columns = new HashSet<string>(StringComparer.Ordinal);
 
             try
             {
                 using JsonDocument doc = JsonDocument.Parse(body);
                 JsonElement root = doc.RootElement;
-
-                if (root.TryGetProperty("about", out JsonElement about))
-                    profile.AboutText = Limit(about.GetString(), 510);
-
-                if (root.TryGetProperty("web_url", out JsonElement webUrl))
-                    profile.WebUrl = Limit(webUrl.GetString(), 255);
-
-                if (root.TryGetProperty("profile_image", out JsonElement image) &&
-                    UUID.TryParse(image.GetString(), out UUID imageId))
-                    profile.ImageId = imageId;
-
-                if (root.TryGetProperty("visibility", out JsonElement visibility))
-                    profile.PublishProfile = string.Equals(visibility.GetString(), "public", StringComparison.OrdinalIgnoreCase);
-
-                if (root.TryGetProperty("partner_id", out JsonElement partner))
+                if (root.ValueKind != JsonValueKind.Object)
                 {
-                    if (!principal.HasScope(NexScopes.AdminAll))
-                    {
-                        WriteJson(response, HttpStatusCode.Forbidden, new { error = "partner_admin_required" });
-                        return;
-                    }
-
-                    string partnerValue = partner.ValueKind == JsonValueKind.Null ? string.Empty : partner.GetString();
-                    if (string.IsNullOrWhiteSpace(partnerValue))
-                    {
-                        profile.PartnerId = UUID.Zero;
-                    }
-                    else if (UUID.TryParse(partnerValue, out UUID partnerId) &&
-                             partnerId != account.PrincipalID &&
-                             m_Accounts.GetUserAccount(UUID.Zero, partnerId) != null)
-                    {
-                        profile.PartnerId = partnerId;
-                    }
-                    else
-                    {
-                        WriteJson(response, HttpStatusCode.BadRequest, new { error = "invalid_partner_id" });
-                        return;
-                    }
-                }
-
-                ProfilePrivacy privacy = LoadPrivacy(account.PrincipalID);
-                bool privacyChanged = false;
-                string onlineVisibility = privacy.OnlineVisibility;
-                string groupsVisibility = privacy.GroupsVisibility;
-                string searchVisibility = privacy.SearchVisibility;
-                privacyChanged |= ReadVisibility(root, "online_visibility", ref onlineVisibility);
-                privacyChanged |= ReadVisibility(root, "groups_visibility", ref groupsVisibility);
-                privacyChanged |= ReadVisibility(root, "search_visibility", ref searchVisibility);
-                privacy.OnlineVisibility = onlineVisibility;
-                privacy.GroupsVisibility = groupsVisibility;
-                privacy.SearchVisibility = searchVisibility;
-                if (privacyChanged && !SavePrivacy(account.PrincipalID, privacy, ref storeError))
-                {
-                    WriteJson(response, HttpStatusCode.InternalServerError, new { error = "privacy_update_failed" });
+                    WriteJson(response, HttpStatusCode.BadRequest,
+                        new { error = "invalid_profile_patch" });
                     return;
                 }
 
-                if (root.TryGetProperty("mature", out JsonElement mature) &&
-                    (mature.ValueKind == JsonValueKind.True || mature.ValueKind == JsonValueKind.False))
-                    profile.PublishMature = mature.GetBoolean();
-
-                if (root.TryGetProperty("interests", out JsonElement interests) &&
-                    interests.ValueKind == JsonValueKind.Object)
+                foreach (JsonProperty property in root.EnumerateObject())
                 {
-                    if (interests.TryGetProperty("want_to_mask", out JsonElement wantMask) && wantMask.TryGetInt32(out int wm))
-                        profile.WantToMask = wm;
-                    if (interests.TryGetProperty("want_to_text", out JsonElement wantText))
-                        profile.WantToText = Limit(wantText.GetString(), 510);
-                    if (interests.TryGetProperty("skills_mask", out JsonElement skillsMask) && skillsMask.TryGetInt32(out int sm))
-                        profile.SkillsMask = sm;
-                    if (interests.TryGetProperty("skills_text", out JsonElement skillsText))
-                        profile.SkillsText = Limit(skillsText.GetString(), 510);
-                    if (interests.TryGetProperty("language", out JsonElement language))
-                        profile.Language = Limit(language.GetString(), 255);
+                    if (property.Name == "interests")
+                    {
+                        if (property.Value.ValueKind != JsonValueKind.Object)
+                        {
+                            WriteJson(response, HttpStatusCode.BadRequest,
+                                new { error = "invalid_profile_field_value" });
+                            return;
+                        }
+                        foreach (JsonProperty nested in property.Value.EnumerateObject())
+                        {
+                            if (!TrySetPortalProfileField(
+                                    nested.Name, nested.Value, profile, columns,
+                                    out string nestedError))
+                            {
+                                WriteJson(response,
+                                    nestedError == "profile_field_readonly"
+                                        ? HttpStatusCode.Forbidden : HttpStatusCode.BadRequest,
+                                    new { error = nestedError, field = nested.Name });
+                                return;
+                            }
+                        }
+                        continue;
+                    }
+
+                    if (!TrySetPortalProfileField(
+                            property.Name, property.Value, profile, columns,
+                            out string fieldError))
+                    {
+                        WriteJson(response,
+                            fieldError == "profile_field_readonly"
+                                ? HttpStatusCode.Forbidden : HttpStatusCode.BadRequest,
+                            new { error = fieldError, field = property.Name });
+                        return;
+                    }
                 }
             }
             catch (JsonException)
@@ -419,10 +420,21 @@ namespace NexVerse.Server.Api
                 return;
             }
 
-            if (!m_Profiles.UpdateAvatarProperties(ref profile, ref storeError) ||
-                !m_Profiles.UpdateAvatarInterests(profile, ref storeError))
+            if (columns.Count == 0)
             {
-                WriteJson(response, HttpStatusCode.InternalServerError, new { error = "profile_update_failed" });
+                WriteJson(response, HttpStatusCode.BadRequest,
+                    new { error = "empty_profile_patch" });
+                return;
+            }
+
+            // The datastore updates only the selected, whitelisted columns.
+            // Never call UpdateAvatarProperties: it also writes profileImage
+            // and profileFirstImage even if they are absent from the request.
+            if (!m_Profiles.UpdateAvatarPortalProperties(profile, columns, ref storeError))
+            {
+                m_Log.Error("[NEX-WEBPROFILE-V3]: Portal profile field update failed: " + storeError);
+                WriteJson(response, HttpStatusCode.InternalServerError,
+                    new { error = "profile_update_failed" });
                 return;
             }
 
@@ -443,6 +455,147 @@ namespace NexVerse.Server.Api
             Get(account, request, response);
         }
 
+        private bool TrySetPortalProfileField(
+            string name, JsonElement value, UserProfileProperties profile,
+            HashSet<string> columns, out string error)
+        {
+            error = "invalid_profile_field_value";
+            string column;
+            switch (name)
+            {
+                case "profilePartner":
+                case "partner_id":
+                    column = "profilePartner";
+                    if (value.ValueKind != JsonValueKind.Null &&
+                        value.ValueKind != JsonValueKind.String)
+                        return false;
+                    string partnerRaw = value.ValueKind == JsonValueKind.Null
+                        ? string.Empty : value.GetString();
+                    if (string.IsNullOrWhiteSpace(partnerRaw))
+                        profile.PartnerId = UUID.Zero;
+                    else if (UUID.TryParse(partnerRaw, out UUID partnerId) &&
+                             (partnerId == UUID.Zero ||
+                              (partnerId != profile.UserId &&
+                               m_Accounts.GetUserAccount(UUID.Zero, partnerId) != null)))
+                        profile.PartnerId = partnerId;
+                    else
+                        return false;
+                    break;
+                case "profileAllowPublish":
+                    column = "profileAllowPublish";
+                    if (!TryReadProfileBool(value, out bool pub))
+                        return false;
+                    profile.PublishProfile = pub;
+                    break;
+                case "visibility":
+                    column = "profileAllowPublish";
+                    if (value.ValueKind != JsonValueKind.String)
+                        return false;
+                    string visibility = value.GetString();
+                    if (visibility != "public" && visibility != "private")
+                        return false;
+                    profile.PublishProfile = visibility == "public";
+                    break;
+                case "profileMaturePublish":
+                case "mature":
+                    column = "profileMaturePublish";
+                    if (!TryReadProfileBool(value, out bool mature))
+                        return false;
+                    profile.PublishMature = mature;
+                    break;
+                case "profileURL":
+                case "web_url":
+                    column = "profileURL";
+                    if (!TryReadProfileString(value, 255, out string url))
+                        return false;
+                    profile.WebUrl = url;
+                    break;
+                case "profileWantToMask":
+                case "want_to_mask":
+                    column = "profileWantToMask";
+                    if (value.ValueKind != JsonValueKind.Number || !value.TryGetInt32(out int wantMask))
+                        return false;
+                    profile.WantToMask = wantMask;
+                    break;
+                case "profileWantToText":
+                case "want_to_text":
+                    column = "profileWantToText";
+                    if (!TryReadProfileString(value, 510, out string wantText))
+                        return false;
+                    profile.WantToText = wantText;
+                    break;
+                case "profileSkillsMask":
+                case "skills_mask":
+                    column = "profileSkillsMask";
+                    if (value.ValueKind != JsonValueKind.Number || !value.TryGetInt32(out int skillsMask))
+                        return false;
+                    profile.SkillsMask = skillsMask;
+                    break;
+                case "profileSkillsText":
+                case "skills_text":
+                    column = "profileSkillsText";
+                    if (!TryReadProfileString(value, 510, out string skillsText))
+                        return false;
+                    profile.SkillsText = skillsText;
+                    break;
+                case "profileLanguages":
+                case "language":
+                    column = "profileLanguages";
+                    if (!TryReadProfileString(value, 255, out string language))
+                        return false;
+                    profile.Language = language;
+                    break;
+                case "profileAboutText":
+                case "about":
+                    column = "profileAboutText";
+                    if (!TryReadProfileString(value, 510, out string about))
+                        return false;
+                    profile.AboutText = about;
+                    break;
+                case "profileFirstText":
+                case "first_life_text":
+                    column = "profileFirstText";
+                    if (!TryReadProfileString(value, 510, out string firstLifeText))
+                        return false;
+                    profile.FirstLifeText = firstLifeText;
+                    break;
+                default:
+                    // Includes useruuid, profileImage, profileFirstImage,
+                    // their JSON aliases and any non-userprofile fields.
+                    error = "profile_field_readonly";
+                    return false;
+            }
+
+            if (!columns.Add(column))
+            {
+                error = "duplicate_profile_field";
+                return false;
+            }
+            error = string.Empty;
+            return true;
+        }
+
+        private static bool TryReadProfileBool(JsonElement value, out bool parsed)
+        {
+            parsed = false;
+            if (value.ValueKind != JsonValueKind.True &&
+                value.ValueKind != JsonValueKind.False)
+                return false;
+            parsed = value.GetBoolean();
+            return true;
+        }
+
+        private static bool TryReadProfileString(JsonElement value, int maxLength, out string parsed)
+        {
+            parsed = string.Empty;
+            if (value.ValueKind != JsonValueKind.String)
+                return false;
+            string s = value.GetString() ?? string.Empty;
+            if (s.Length > maxLength)
+                return false;
+            parsed = s.Trim();
+            return true;
+        }
 
         private sealed class ProfilePrivacy
         {
