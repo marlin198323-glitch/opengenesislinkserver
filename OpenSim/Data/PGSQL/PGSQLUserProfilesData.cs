@@ -606,6 +606,8 @@ namespace OpenSim.Data.PGSQL
                                 // m_log.DebugFormat("[PROFILES_DATA]" +
                                 //                  ": Getting data for {0}.", props.UserId);
                                 reader.Read();
+                                props.PublishProfile = Convert.ToBoolean(reader["profileAllowPublish"]);
+                                props.PublishMature = Convert.ToBoolean(reader["profileMaturePublish"]);
                                 props.WebUrl = (string)reader["profileURL"].ToString();
                                 props.ImageId = DBGuid.FromDB(reader["profileImage"]);
                                 props.AboutText = (string)reader["profileAboutText"];
@@ -743,6 +745,93 @@ namespace OpenSim.Data.PGSQL
                 return false;
             }
 
+            return true;
+        }
+
+        public bool UpdateAvatarPortalProperties(UserProfileProperties props, System.Collections.Generic.IReadOnlyCollection<string> columns, ref string result)
+        {
+            // Column-level allowlist: never modify useruuid, profileImage or profileFirstImage.
+            // A request updates only explicitly named mutable columns; no stale-image overwrite.
+            if (props == null || props.UserId == UUID.Zero || columns == null || columns.Count == 0)
+            { result = "invalid_profile_patch"; return false; }
+            try
+            {
+                using (NpgsqlConnection conn = new NpgsqlConnection(ConnectionString))
+                {
+                    conn.Open();
+                    using (NpgsqlCommand cmd = new NpgsqlCommand())
+                {
+                    cmd.Connection = conn;
+                    var assignments = new System.Collections.Generic.List<string>();
+                    var seen = new System.Collections.Generic.HashSet<string>(StringComparer.Ordinal);
+                    foreach (string column in columns)
+                    {
+                        if (!seen.Add(column))
+                        { result = "duplicate_profile_field"; return false; }
+                        switch (column)
+                        {
+                            case "profilePartner":
+                                assignments.Add("\"profilePartner\"=:profilePartner");
+                                cmd.Parameters.Add(m_database.CreateParameter("profilePartner", props.PartnerId));
+                                break;
+                            case "profileAllowPublish":
+                                assignments.Add("\"profileAllowPublish\"=:profileAllowPublish");
+                                cmd.Parameters.Add(m_database.CreateParameter("profileAllowPublish", props.PublishProfile));
+                                break;
+                            case "profileMaturePublish":
+                                assignments.Add("\"profileMaturePublish\"=:profileMaturePublish");
+                                cmd.Parameters.Add(m_database.CreateParameter("profileMaturePublish", props.PublishMature));
+                                break;
+                            case "profileURL":
+                                assignments.Add("\"profileURL\"=:profileURL");
+                                cmd.Parameters.Add(m_database.CreateParameter("profileURL", props.WebUrl));
+                                break;
+                            case "profileWantToMask":
+                                assignments.Add("\"profileWantToMask\"=:profileWantToMask");
+                                cmd.Parameters.Add(m_database.CreateParameter("profileWantToMask", props.WantToMask));
+                                break;
+                            case "profileWantToText":
+                                assignments.Add("\"profileWantToText\"=:profileWantToText");
+                                cmd.Parameters.Add(m_database.CreateParameter("profileWantToText", props.WantToText));
+                                break;
+                            case "profileSkillsMask":
+                                assignments.Add("\"profileSkillsMask\"=:profileSkillsMask");
+                                cmd.Parameters.Add(m_database.CreateParameter("profileSkillsMask", props.SkillsMask));
+                                break;
+                            case "profileSkillsText":
+                                assignments.Add("\"profileSkillsText\"=:profileSkillsText");
+                                cmd.Parameters.Add(m_database.CreateParameter("profileSkillsText", props.SkillsText));
+                                break;
+                            case "profileLanguages":
+                                assignments.Add("\"profileLanguages\"=:profileLanguages");
+                                cmd.Parameters.Add(m_database.CreateParameter("profileLanguages", props.Language));
+                                break;
+                            case "profileAboutText":
+                                assignments.Add("\"profileAboutText\"=:profileAboutText");
+                                cmd.Parameters.Add(m_database.CreateParameter("profileAboutText", props.AboutText));
+                                break;
+                            case "profileFirstText":
+                                assignments.Add("\"profileFirstText\"=:profileFirstText");
+                                cmd.Parameters.Add(m_database.CreateParameter("profileFirstText", props.FirstLifeText));
+                                break;
+                            default:
+                                result = "profile_field_readonly";
+                                return false;
+                        }
+                    }
+                    cmd.CommandText = "UPDATE userprofile SET " +
+                        string.Join(", ", assignments) + " WHERE \"useruuid\"=:uuid";
+                    cmd.Parameters.Add(m_database.CreateParameter("uuid", props.UserId));
+                    cmd.ExecuteNonQuery();
+                }
+                }
+            }
+            catch (Exception e)
+            {
+                m_log.Error("[PROFILES_DATA]: UpdateAvatarPortalProperties failed.", e);
+                result = e.Message;
+                return false;
+            }
             return true;
         }
 

@@ -27,6 +27,7 @@
 
 using System;
 using OpenMetaverse;
+using System.Collections.Generic;
 using OpenMetaverse.StructuredData;
 using OpenSim.Framework;
 
@@ -46,6 +47,9 @@ namespace OpenSim.Data
         bool UpdateAvatarNotes(ref UserProfileNotes note, ref string result);
         bool GetAvatarProperties(ref UserProfileProperties props, ref string result);
         bool UpdateAvatarProperties(ref UserProfileProperties props, ref string result);
+        // World API portal: update only explicitly supplied userprofile columns.
+        // The datastore MUST reject useruuid, profileImage and profileFirstImage.
+        bool UpdateAvatarPortalProperties(UserProfileProperties props, IReadOnlyCollection<string> columns, ref string result);
         bool UpdateAvatarInterests(UserProfileProperties up, ref string result);
         bool GetClassifiedInfo(ref UserClassifiedAdd ad, ref string result);
         bool UpdateUserPreferences(ref UserPreferences pref, ref string result);
