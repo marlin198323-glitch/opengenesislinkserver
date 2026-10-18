@@ -1,10 +1,10 @@
-; Development-only example. Not loaded automatically by ROBUST.
+; Development-only example. Copy this section into the ROBUST-loaded configuration.
 ; Provide a dedicated TLS listener with network ACLs and a separate
 ; operator-controlled audit journal before enabling these routes.
 [OGLAssetServiceAdmin]
 Enabled = false
 DedicatedListenerConfirmed = false
-; Must match the TLS port of the host-provided administrative IHttpServer.
+; ROBUST creates the dedicated TLS listener on this port when enabled.
 ExpectedTlsPort = 0
 ; Explicit non-wildcard interface. Loopback is the recommended default.
 ListenAddress = 127.0.0.1
