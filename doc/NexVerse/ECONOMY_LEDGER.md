@@ -163,6 +163,29 @@ dass Guthaben oder Rechte eines lokalen Avatars vermischt werden.
   HG-Economy-Key im Viewer. Bereits laufende Simulatorprozesse muessen
   ihre effektiv geladene INI erneut einlesen (Neustart).
 
+### Lokale HG-Rueckkehr und NV$-Identitaet (18.10.2026)
+
+`ViaHGLogin` ist kein hinreichender Nachweis fuer einen fremden Gast:
+Auch ein lokaler Stadt-NexVerse-Avatar kann bei der Rueckkehr
+aus dem Hypergrid so markiert sein. Das Economy-Modul prueft daher
+bei aktiver, authentifizierter Session den lokalen `UserAccount` und
+eine vorhandene `HomeURI` gegen `SceneGridInfo.IsLocalHome` mit
+den konfigurierten HomeURI-Aliassen. Bestaetigte lokale Rueckkehrer
+verwenden die bestehende lokale Avatar-UUID als NV$-Konto.
+Ein mit genau dieser lokalen HomeURI abgeleiteter, veralteter
+HG-Cache-Eintrag wird sicher entfernt.
+
+Die Schutzregel gegen fremde Avatare mit identischer UUID bleibt:
+Fremde `HomeURI` mit lokaler UUID, fehlende lokale HomeURI bei einem
+HG-Rueckkehr-Circuit und abweichende Cache-Wallets werden abgelehnt.
+`AllowHypergridGuests = true` kann aktiv bleiben und gilt weiterhin
+nur fuer verifizierte echte Fremdgrid-Besucher.
+
+Zum Testen lokale Anmeldung, HG-Rueckkehr, echten HG-Gast und
+Kollision mit fremder HomeURI getrennt verifizieren. Der 5-Sekunden-
+Kontostandsrefresh kann bei abgelehnten Identitaeten die Meldung
+wiederholen, verursacht aber nicht deren Identitaetskonflikt.
+
 **Explizit NICHT enthalten:** Transfer von Fremdgrid-Waehrungen,
 Hypergrid-weite Echtgeld-Zahlungen, grenzueberschreitender Wallet-Zugriff
 ohne lokale authentifizierte Session, NV$-Wechselkurse und Geldautomaten.

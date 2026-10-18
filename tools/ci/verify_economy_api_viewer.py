@@ -142,6 +142,43 @@ assert "CurrencyPurchasePortalUrl" in viewer_config
 assert "BalanceRefreshSeconds = 5" in viewer_config
 assert "AllowHypergridGuests = true" in viewer_config
 
+# Regression: ViaHGLogin also marks local residents returning from a
+# Hypergrid visit. A returnee must use the local avatar UUID, never create
+# an HG wallet keyed by a self-home URI; a foreign collision must still fail.
+wallet_resolver = viewer.split("private bool TryResolveWallet(", 1)[1].split(
+    "private bool EnsureHypergridServiceWallet(", 1
+)[0]
+local_branch = wallet_resolver.split("if (hasLocalAccount)", 1)[1].split(
+    "bool guest =", 1
+)[0]
+foreign_branch = wallet_resolver.split("bool guest =", 1)[1]
+for marker in (
+    "scene.UserAccountService?",
+    ".GetUserAccount(scene.RegionInfo.ScopeID, avatarId)",
+    "account != null && account.LocalToGrid",
+    "scene.SceneGridInfo.IsLocalHome(home) == 1",
+    "bool viaHypergrid =",
+    "if (hasHome && !localHome)",
+    "if (viaHypergrid && !localHome)",
+    "m_HypergridWallets.TryGetValue(avatarId,",
+    "NexHypergridWalletIdentity.AccountId(",
+    "if (!localHome || cached != localHomeWallet)",
+    "m_HypergridWallets.Remove(avatarId)",
+):
+    assert marker in wallet_resolver, f"Missing HG-home/local-ID wallet guard: {marker}"
+assert "return true;" in local_branch
+assert 'reason = "Ambiguous avatar UUID across grid identities.";' in local_branch
+assert 'reason = "Local avatar UUID has a non-local HG HomeURI.";' in local_branch
+assert 'reason = "Local HG return lacks verified local HomeURI.";' in local_branch
+assert "EnsureHypergridServiceWallet(" not in local_branch
+assert "m_HypergridWallets[avatarId] = expected;" in foreign_branch
+assert "EnsureHypergridServiceWallet(avatarId, home," in foreign_branch
+assert 'reason = "Local HG HomeURI without a local user account.";' in foreign_branch
+assert "if (!m_AllowHypergridGuests)" in foreign_branch
+assert "if (!hasHome)" in foreign_branch
+assert 'reason = "Conflicting verified Hypergrid homes for avatar UUID.";' in foreign_branch
+assert "No authoritative local account for active avatar." in foreign_branch
+
 print("NV$ World API and Viewer adapter contract: OK")
 
 # NexVerseMoneyModule must be loaded deterministically before the legacy
