@@ -104,10 +104,17 @@ namespace NexVerse.Server.Api
 
         private void Get(UserAccount account, IOSHttpRequest request, IOSHttpResponse response)
         {
-            ProfilePrivacy privacy = LoadPrivacy(account.PrincipalID);
+            // Publication status and the linked picture come from userprofile.
+            // Resolve and authorize them before reading optional userdata privacy.
             UserProfileProperties profile = new UserProfileProperties { UserId = account.PrincipalID };
             string error = string.Empty;
-            m_Profiles.GetAvatarProperties(ref profile, ref error);
+            if (!m_Profiles.GetAvatarProperties(ref profile, ref error))
+            {
+                m_Log.Error("[NEX-WEBPROFILE-V3]: Unable to load avatar userprofile.");
+                WriteJson(response, HttpStatusCode.ServiceUnavailable,
+                    new { error = "profile_service_unavailable" });
+                return;
+            }
 
             if (!profile.PublishProfile)
             {
@@ -126,6 +133,7 @@ namespace NexVerse.Server.Api
                 }
             }
 
+            ProfilePrivacy privacy = LoadPrivacy(account.PrincipalID);
             WriteJson(response, HttpStatusCode.OK, new
             {
                 id = account.PrincipalID.ToString(),
@@ -178,8 +186,9 @@ namespace NexVerse.Server.Api
             string error = string.Empty;
             if (!m_Profiles.GetAvatarProperties(ref profile, ref error))
             {
-                WriteJson(response, HttpStatusCode.NotFound,
-                    new { error = "profile_image_not_found" });
+                m_Log.Error("[NEX-WEBPROFILE-V3]: Failed to load avatar userprofile for image lookup.");
+                WriteJson(response, HttpStatusCode.ServiceUnavailable,
+                    new { error = "profile_image_service_unavailable" });
                 return;
             }
             if (!profile.PublishProfile)
