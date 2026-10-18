@@ -45,7 +45,8 @@ class NoRedirect(urllib.request.HTTPRedirectHandler):
         return None
 
 
-OPENER = urllib.request.build_opener(NoRedirect)
+# Never send UUIDs or responses through environment-configured HTTP proxies.
+OPENER = urllib.request.build_opener(urllib.request.ProxyHandler({}), NoRedirect)
 
 
 def http_get(endpoint, path):
