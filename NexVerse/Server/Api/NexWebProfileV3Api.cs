@@ -232,14 +232,27 @@ namespace NexVerse.Server.Api
                 // Asset origin, MIME metadata and the image extension from a
                 // browser request are untrusted. Validate the actual bytes.
                 AssetBase asset = assets.Get(profile.ImageId.ToString());
-                if (asset == null || asset.Data == null ||
-                    asset.Data.Length == 0 ||
-                    asset.Data.Length > MaxProfileAssetBytes ||
+                if (asset == null)
+                {
+                    m_Log.Warn("[NEX-WEBPROFILE-V3]: Referenced profile image is missing from the asset provider.");
+                    WriteJson(response, HttpStatusCode.NotFound,
+                        new { error = "profile_image_not_found" });
+                    return;
+                }
+                if (asset.Data == null || asset.Data.Length == 0)
+                {
+                    m_Log.Warn("[NEX-WEBPROFILE-V3]: Referenced profile image has no readable payload in the asset provider.");
+                    WriteJson(response, HttpStatusCode.NotFound,
+                        new { error = "profile_image_not_found" });
+                    return;
+                }
+                if (asset.Data.Length > MaxProfileAssetBytes ||
                     (asset.Type != (sbyte)AssetType.Texture &&
                      asset.Type != (sbyte)AssetType.ImageJPEG &&
                      asset.Type != (sbyte)AssetType.TextureTGA &&
                      asset.Type != (sbyte)AssetType.ImageTGA))
                 {
+                    m_Log.Warn("[NEX-WEBPROFILE-V3]: Referenced profile image exceeds the size limit or has an unsupported asset type.");
                     WriteJson(response, HttpStatusCode.NotFound,
                         new { error = "profile_image_not_found" });
                     return;
