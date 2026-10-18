@@ -606,6 +606,8 @@ namespace OpenSim.Data.PGSQL
                                 // m_log.DebugFormat("[PROFILES_DATA]" +
                                 //                  ": Getting data for {0}.", props.UserId);
                                 reader.Read();
+                                props.PublishProfile = Convert.ToBoolean(reader["profileAllowPublish"]);
+                                props.PublishMature = Convert.ToBoolean(reader["profileMaturePublish"]);
                                 props.WebUrl = (string)reader["profileURL"].ToString();
                                 props.ImageId = DBGuid.FromDB(reader["profileImage"]);
                                 props.AboutText = (string)reader["profileAboutText"];
