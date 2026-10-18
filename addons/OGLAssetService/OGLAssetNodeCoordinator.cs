@@ -13,10 +13,10 @@ namespace OpenGenesisLINK.Addons.AssetService
         private readonly object gate = new object();
         private readonly string nodeId;
         private readonly OGLNodeObjectStore objects;
-        private readonly OGLAssetLocationDirectory locations;
+        private readonly IOGLAssetLocationDirectory locations;
 
         public OGLAssetNodeCoordinator(string nodeId, OGLNodeObjectStore objects,
-            OGLAssetLocationDirectory locations)
+            IOGLAssetLocationDirectory locations)
         {
             if (String.IsNullOrWhiteSpace(nodeId) || nodeId.Length > 128 ||
                 nodeId != nodeId.Trim())
