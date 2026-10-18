@@ -117,9 +117,31 @@ genutzt. Versuche, eines dieser Felder zu ändern (oder Felder außerhalb
 zurückgewiesen. Keine Änderung erfolgt bei einem ungültigen Request.
 
 **Lesen:** `GET /api/v1/profiles/{principalId}` enthält auch die
-gesperrten Bildreferenzen als Nur-Lese-Informationen. Private Profile
-benötigen den Eigentümer oder `admin:*`. Der Profilbild-Endpunkt
-`GET /api/v1/profiles/{principalId}/image` liefert nur autorisierte Bilder.
+gesperrten Bildreferenzen als Nur-Lese-Informationen. Der Profilbild-Endpunkt
+`GET /api/v1/profiles/{principalId}/image` liest **ausschließlich die
+in `userprofile.profileImage` hinterlegte Asset-UUID**.
+
+- `profileAllowPublish = 1` (`visibility: "public"`): Das Profil
+  einschließlich seines Profilbilds ist ohne Login öffentlich lesbar.
+  Eine zusätzliche Prüfung der Inventar- oder Exportberechtigungen
+  erfolgt **nicht**. Es wird weiterhin nur die Profilbildreferenz
+  ausgeliefert, kein beliebiger Asset-Lookup.
+- `profileAllowPublish = 0` (`visibility: "private"`): Sowohl das
+  Profil als auch das Profilbild benötigen `profile:read` und die
+  Eigentümeridentität oder `admin:*`. Ohne passende Rechte erfolgt
+  keine öffentliche Ausgabe.
+- Nicht vorhandene Assets, leere Bytes, ungültige Assettypen,
+  Überschreiten der Größenbegrenzung und fehlerhafte Bilddekodierung
+  bleiben getrennte Fehlerfälle. JPEG2000-Texturen werden für Browser
+  als PNG aufbereitet.
+
+**Datenschutz und Rechte:** Durch `visibility: "public"` wird auch
+ein Bild öffentlich abrufbar, dessen Inventarobjekt kein Exportrecht
+besitzt oder das ursprünglich ein anderer Avatar erstellt hat.
+Die Betreiber müssen sicherstellen, dass solche Veröffentlichungen
+zulässig sind. Eine automatische Prüfung von Lizenz- und
+Weiterverwendungsrechten erfolgt nicht.
+
 Ein direkter Bild-Upload gehört **nicht** zum aktuellen Profil-PATCH.
 
 Die Profile-API erfordert `[UserProfilesService] Enabled = true` mit
