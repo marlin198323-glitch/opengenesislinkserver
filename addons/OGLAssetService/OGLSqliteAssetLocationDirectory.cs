@@ -10,7 +10,7 @@ namespace OpenGenesisLINK.Addons.AssetService
     /// SQLite-backed, transactional asset location directory for a single shared
     /// SQLite database file. Not a distributed lease or node-authentication layer.
     /// </summary>
-    public sealed class OGLSqliteAssetLocationDirectory
+    public sealed class OGLSqliteAssetLocationDirectory : IOGLAssetLocationDirectory
     {
         private readonly string connectionString;
 
