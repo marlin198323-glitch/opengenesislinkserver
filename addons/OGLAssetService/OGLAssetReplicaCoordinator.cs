@@ -18,6 +18,23 @@ namespace OpenGenesisLINK.Addons.AssetService
         }
 
         /// <summary>
+        /// Verifies a node-scoped authenticated acknowledgement before
+        /// forwarding it to the revision-checked directory promotion.
+        /// Caller must enforce nonce replay protection and remote durability.
+        /// </summary>
+        public OGLAssetLocationDirectory.Entry ConfirmSignedReplica(
+            string assetId, string replicaNode, string contentHash, long expectedRevision,
+            long issuedAtUnixSeconds, string nonce, string signature,
+            OGLReplicaReceiptAuthenticator authenticator, DateTimeOffset now)
+        {
+            if (authenticator == null) throw new ArgumentNullException(nameof(authenticator));
+            if (!authenticator.Verify(assetId, contentHash, expectedRevision,
+                issuedAtUnixSeconds, nonce, signature, now))
+                throw new InvalidDataException("Replica acknowledgement signature rejected.");
+            return ConfirmReplica(assetId, replicaNode, contentHash, expectedRevision);
+        }
+
+        /// <summary>
         /// A caller must independently authenticate the target node and obtain
         /// a durable receipt for the exact hash before calling this method.
         /// CAS prevents promotion of a replica for a superseded asset revision.
