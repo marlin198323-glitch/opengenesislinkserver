@@ -20,5 +20,9 @@
       <HintPath>../../bin/Nini.dll</HintPath>
       <Private>false</Private>
     </Reference>
+    <Reference Include="log4net">
+      <HintPath>../../bin/log4net.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
   </ItemGroup>
 </Project>
