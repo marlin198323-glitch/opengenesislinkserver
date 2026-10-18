@@ -17,19 +17,29 @@ for x in ("GetImage(UserAccount", "profile.PublishProfile",
     assert x in profile, "profile image security or transcode missing: " + x
 assert "profilesData,\n                            assets," in connector, "asset service not wired"
 
-# MySQL's SELECT reader must be disposed before a first-read INSERT, and
-# updating a privacy preference must persist DataVal (not DataKey).
+# userprofile owns the picture UUID and both publication flags.
+# MySQL BINARY(1) flags contain ASCII 0/1 in production exports.
 mysql = (root / "OpenSim/Data/MySQL/MySQLUserProfilesData.cs").read_text()
+profile_start = mysql.index("public bool GetAvatarProperties(")
+profile_end = mysql.index("public bool UpdateAvatarProperties(", profile_start)
+profile_reader = mysql[profile_start:profile_end]
+profile_writer_end = mysql.index("#endregion Avatar Properties", profile_end)
+profile_writer = mysql[profile_end:profile_writer_end]
+for column in ('reader["profileAllowPublish"]', 'reader["profileMaturePublish"]'):
+    assert column in profile_reader, "publication flag not read: " + column
+for parameter in ('profileAllowPublish=?publish', 'profileMaturePublish=?mature',
+                  'cmd.Parameters.AddWithValue("?publish"', 'cmd.Parameters.AddWithValue("?mature"'):
+    assert parameter in profile_writer, "publication flag not persisted: " + parameter
+assert "bytes[0] == (byte)'1'" in mysql, "BINARY(1) publication flag decoding missing"
+
 read_start = mysql.index("public bool GetUserAppData(")
 write_start = mysql.index("public bool SetUserAppData(", read_start)
 end = mysql.index("#endregion Integration", write_start)
 read_body = mysql[read_start:write_start]
 write_body = mysql[write_start:end]
-for value in ("using (MySqlDataReader reader", "found = reader.Read();",
-              "if (!found)", "INSERT IGNORE INTO userdata"):
-    assert value in read_body, "missing safe MySQL privacy read: " + value
-assert read_body.index("using (MySqlDataReader reader") < read_body.index("if (!found)"), (
-    "a profile data reader must close before a new row is inserted"
+assert "using (MySqlDataReader reader" in read_body
+assert "INSERT" not in read_body and "ExecuteNonQuery" not in read_body, (
+    "GET of privacy preferences must never create database rows"
 )
 for value in ("ON DUPLICATE KEY UPDATE", "DataVal = VALUES(DataVal)",
               'cmd.Parameters.AddWithValue("?DataVal", (object)props.DataVal'):
