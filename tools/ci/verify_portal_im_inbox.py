@@ -105,6 +105,7 @@ for item in (
     '["/api/v1/messages/history"]',
     "CitizenImEventsResponse",
     "CitizenImConversationsResponse",
+    '["available"] = new { type = "boolean" }',
 ):
     assert item in openapi,item
 for item in ("Opt-in","PATCH /api/v1/messages/settings","GET /api/v1/messages/events",
