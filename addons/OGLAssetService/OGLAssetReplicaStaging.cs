@@ -10,15 +10,19 @@ namespace OpenGenesisLINK.Addons.AssetService
     public sealed class OGLAssetReplicaStaging
     {
         private readonly OGLNodeObjectStore objects;
+        private readonly OGLReplicaTransferPolicy policy;
 
-        public OGLAssetReplicaStaging(OGLNodeObjectStore objects)
+        public OGLAssetReplicaStaging(OGLNodeObjectStore objects,
+            OGLReplicaTransferPolicy policy = null)
         {
             this.objects = objects ?? throw new ArgumentNullException(nameof(objects));
+            this.policy = policy;
         }
 
         public string Prepare(byte[] payload, string expectedHash)
         {
             if (payload == null) throw new ArgumentNullException(nameof(payload));
+            policy?.ValidatePayloadSize(payload.LongLength);
             if (String.IsNullOrWhiteSpace(expectedHash))
                 throw new ArgumentException("Expected hash required.", nameof(expectedHash));
             string actual = OGLObjectCache.ContentHash(payload);
