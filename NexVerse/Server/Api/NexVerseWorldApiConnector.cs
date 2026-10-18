@@ -1012,31 +1012,9 @@ namespace NexVerse.Server.Api
                     if (profilesData == null)
                         throw new InvalidOperationException("Unable to load NexVerse WebProfileV3 profile datastore.");
 
-                    // FSAssets does not store an asset creator ID. Profile
-                    // images use a read-only, exact owner+asset inventory lookup
-                    // to verify creator provenance or explicit export rights.
-                    // Respect the inventory DB override, not the profiles DB.
-                    IConfig inventoryDataConfig = config.Configs["InventoryService"];
-                    string inventoryStorageProvider = inventoryDataConfig == null
-                        ? string.Empty : inventoryDataConfig.GetString("StorageProvider", string.Empty);
-                    string inventoryConnectionString = inventoryDataConfig == null
-                        ? string.Empty : inventoryDataConfig.GetString("ConnectionString", string.Empty);
-                    if (string.IsNullOrWhiteSpace(inventoryStorageProvider))
-                        inventoryStorageProvider = databaseConfig?.GetString("StorageProvider", string.Empty);
-                    if (string.IsNullOrWhiteSpace(inventoryConnectionString))
-                        inventoryConnectionString = databaseConfig?.GetString("ConnectionString", string.Empty);
-
-                    IXInventoryData profileInventoryData = null;
-                    if (!string.IsNullOrWhiteSpace(inventoryStorageProvider) &&
-                        !string.IsNullOrWhiteSpace(inventoryConnectionString))
-                    {
-                        profileInventoryData = ServerUtils.LoadPlugin<IXInventoryData>(
-                            inventoryStorageProvider,
-                            new object[] { inventoryConnectionString, string.Empty });
-                    }
-                    if (profileInventoryData == null)
-                        m_Log.Warn("[NEX-WEBPROFILE-V3]: Profile image inventory provenance provider unavailable; creatorless assets will fail closed.");
-
+                    // Publication belongs to userprofile.profileAllowPublish.
+                    // No InventoryService database dependency is needed for
+                    // the public (or owner/admin private) profile image route.
                     NexWebProfileV3Api webProfileV3 =
                         new NexWebProfileV3Api(
                             userAccounts,
@@ -1044,8 +1022,7 @@ namespace NexVerse.Server.Api
                             assets,
                             authenticator,
                             auditSink,
-                            () => AssetServiceConnector.GetLocalService(config, "AssetService"),
-                            profileInventoryData);
+                            () => AssetServiceConnector.GetLocalService(config, "AssetService"));
 
                     server.AddSimpleStreamHandler(
                         new SimpleStreamHandler(
