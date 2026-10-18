@@ -55,34 +55,75 @@ Nachrichteninhalt.
 
 ## Avatarprofil
 
-- `GET /api/v1/profiles/{principalId}` — Profil einschließlich
-  Anzeigename, Beschreibung, Web-URL, Reifegrad, Interessen, Picks,
-  Classifieds, Sichtbarkeitsregeln und `profile_image`-Asset-UUID.
-- `PATCH /api/v1/profiles/{principalId}` — eigene erlaubte Felder
-  bearbeiten, z. B.:
+Die World API verwendet die autoritative `userprofile`-Tabelle. Das
+Stadtportal kann das eigene Avatarprofil mit einem OAuth-Bearer-Token
+(Scope **`profile:write`**) bearbeiten; eine andere Avatar-UUID erfordert
+`admin:*`. Ohne Token oder mit unzureichendem Scope erfolgen keine Änderungen.
+
+**Schreibgeschützt, auch für Admin-Token und bei direkten API-Anfragen:**
+
+- `useruuid`: Identität wird ausschließlich über den URL-Pfad bestimmt
+- `profileImage`: Profilbild-Asset-UUID; nur über Viewer/anderweitig autorisierte Mechanismen
+- `profileFirstImage`: First-Life-Bild-UUID; ebenfalls gesperrt
+
+Ein `PATCH /api/v1/profiles/{principalId}` darf dagegen die **elf**
+verbleibenden `userprofile`-Spalten ändern:
+
+| Datenbankspalte | JSON-Feld im Portal |
+| --- | --- |
+| `profilePartner` | `partner_id` |
+| `profileAllowPublish` | `visibility` (`public`/`private`) |
+| `profileMaturePublish` | `mature` (Boolean) |
+| `profileURL` | `web_url` |
+| `profileWantToMask` | `interests.want_to_mask` |
+| `profileWantToText` | `interests.want_to_text` |
+| `profileSkillsMask` | `interests.skills_mask` |
+| `profileSkillsText` | `interests.skills_text` |
+| `profileLanguages` | `interests.language` |
+| `profileAboutText` | `about` |
+| `profileFirstText` | `first_life_text` |
+
+Die Datenbankspaltennamen selbst werden als alternative JSON-Schlüssel
+ebenfalls akzeptiert (z. B. `profileURL` statt `web_url`). Doppelte
+Benennung derselben Spalte in einem PATCH ist unzulässig. Der Partner muss
+ein vorhandener anderer lokaler Avatar sein oder als `null` gelöscht werden.
+
+Beispiel für einen vollständigen zulässigen PATCH-Body:
 
 ```json
 {
-  "about":"Willkommen in NexVerse!",
-  "web_url":"https://stadt-nexverse.de",
-  "profile_image":"<bereits hochgeladene Textur-UUID>",
-  "visibility":"public",
-  "online_visibility":"friends",
-  "groups_visibility":"public",
-  "search_visibility":"public"
+  "about": "Willkommen in Stadt NexVerse",
+  "web_url": "https://stadt-nexverse.de",
+  "partner_id": null,
+  "visibility": "public",
+  "mature": false,
+  "first_life_text": "Mein First-Life-Profil",
+  "interests": {
+    "want_to_mask": 0,
+    "want_to_text": "Neue Kontakte",
+    "skills_mask": 0,
+    "skills_text": "Stadtentwicklung",
+    "language": "Deutsch"
+  }
 }
 ```
 
-Private Profile benötigen ab jetzt den Eigentümer oder `admin:*`.
-Die eigentlichen Profilinformationen liegen im autoritativen OpenSim-
-UserProfiles-Datenspeicher. Die Profile-API ist nur aktiv, wenn
-`[UserProfilesService] Enabled = true` und der Datenbankprovider
-konfiguriert ist.
+Nur übermittelte Felder werden aktualisiert. Die SQL-UPDATE-Anweisung enthält
+**weder** `useruuid`, `profileImage` **noch** `profileFirstImage` in
+ihrer `SET`-Liste; `useruuid` wird ausschließlich als `WHERE`-Schlüssel
+genutzt. Versuche, eines dieser Felder zu ändern (oder Felder außerhalb
+`userprofile`, etwa `online_visibility`), werden mit HTTP 403
+`profile_field_readonly` abgewiesen. Falsche Feldtypen werden mit HTTP 400
+zurückgewiesen. Keine Änderung erfolgt bei einem ungültigen Request.
 
-**Profilbild:** Die API referenziert eine **bereits vorhandene,
-gültige Asset-UUID**. Ein neuer Web-Upload mit Bildvalidierung,
-Kostenprüfung und eigenem Asset-Endpunkt gehört in eine separate
-Umsetzungsphase; dieses Update beansprucht keine solche Funktion.
+**Lesen:** `GET /api/v1/profiles/{principalId}` enthält auch die
+gesperrten Bildreferenzen als Nur-Lese-Informationen. Private Profile
+benötigen den Eigentümer oder `admin:*`. Der Profilbild-Endpunkt
+`GET /api/v1/profiles/{principalId}/image` liefert nur autorisierte Bilder.
+Ein direkter Bild-Upload gehört **nicht** zum aktuellen Profil-PATCH.
+
+Die Profile-API erfordert `[UserProfilesService] Enabled = true` mit
+konfiguriertem Datenbankprovider.
 
 ## Display Name
 
