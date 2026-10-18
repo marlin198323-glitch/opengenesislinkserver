@@ -18,7 +18,8 @@ namespace OpenGenesisLINK.Addons.AssetService
         public OGLAssetNodeCoordinator(string nodeId, OGLNodeObjectStore objects,
             OGLAssetLocationDirectory locations)
         {
-            if (String.IsNullOrWhiteSpace(nodeId) || nodeId.Length > 128)
+            if (String.IsNullOrWhiteSpace(nodeId) || nodeId.Length > 128 ||
+                nodeId != nodeId.Trim())
                 throw new ArgumentException("Node identity required.", nameof(nodeId));
             this.nodeId = nodeId;
             this.objects = objects ?? throw new ArgumentNullException(nameof(objects));
