@@ -76,6 +76,28 @@ assert "new NexCitizenImStore(" in connector
 assert "new NexCitizenImIngress(" in connector
 assert '"/internal/nexportal/im/v1"' in connector
 assert "NEX_PORTAL_IM_SECRET" in connector
+# A not-yet-configured archive must not break the portal's settings
+# screen with HTTP 503. It must report disabled/unavailable rather than
+# falsely granting opt-in; writes and transcript requests remain blocked.
+settings_fallback = api.split("if (m_Store == null)", 1)[1].split("try\n", 1)[0]
+assert 'path == "/api/v1/messages/settings" && method == "GET"' in settings_fallback
+assert "HttpStatusCode.OK" in settings_fallback
+assert "enabled = false" in settings_fallback
+assert "available = false" in settings_fallback
+assert "HttpStatusCode.ServiceUnavailable" in settings_fallback
+assert "portal_im_archive_disabled" in settings_fallback
+assert api.index("m_Auth.TryAuthenticate(request,") < api.index("if (m_Store == null)")
+assert "available = true" in api
+assert 'm_Store.SetEnabled(owner.Guid, enabled)' in api
+assert 'm_Log.Error("[NEX-PORTAL-IM]: Failed to access portal IM settings or archive.", e)' in api
+for ini in ("bin/Robust.HG.ini", "bin/OpenSim.ini"):
+    config = Path(ini).read_text()
+    assert "[NexPortalIM]" in config, f"portal IM config not present: {ini}"
+    config_section = config.split("[NexPortalIM]", 1)[1].split("\n[", 1)[0]
+    assert "Enabled = false" in config_section, "never turn on archive without provisioned secret"
+    assert 'SharedSecret = "${Environment|NEX_PORTAL_IM_SECRET}"' in config_section
+assert 'StorePath = "data/nexverse-portal-im.sqlite"' in Path("bin/Robust.HG.ini").read_text()
+assert 'IngestUrl = "http://127.0.0.1/internal/nexportal/im/v1"' in Path("bin/OpenSim.ini").read_text()
 assert '<Reference name="Mono.Data.Sqlite"/>' in prebuild
 for item in (
     '["/api/v1/messages/events"]',
@@ -83,6 +105,7 @@ for item in (
     '["/api/v1/messages/history"]',
     "CitizenImEventsResponse",
     "CitizenImConversationsResponse",
+    '["available"] = new { type = "boolean" }',
 ):
     assert item in openapi,item
 for item in ("Opt-in","PATCH /api/v1/messages/settings","GET /api/v1/messages/events",
