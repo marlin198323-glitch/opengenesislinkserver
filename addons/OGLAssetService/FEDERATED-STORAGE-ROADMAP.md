@@ -10,6 +10,10 @@ The production connector still accepts only `Mode=compatibility` and delegates a
 
 `OGLAssetLocationDirectory` now persists a JSON snapshot mapping canonical asset UUIDs to SHA-256 content hashes, a primary node, replica node IDs and monotonic revisions. `Publish` rejects stale expected revisions and persists before changing in-memory state. This is a **single-process prototype only**: concurrent processes can overwrite each other, and there is no fsync of the containing directory, lease, replica-health tracking, ACL, authenticated node registration, deletion/tombstone protocol or database transaction. Do not expose it as an authoritative federated directory. It is not wired into ROBUST.
 
+## Local staging coordination
+
+`OGLAssetNodeCoordinator` now joins the isolated object store and JSON location directory. `Stage` writes an immutable payload before publishing a revision-checked local UUID mapping; `ReadLocal` resolves the mapping, checks local primary ownership and reads the hash-verified object. The coordinator serializes calls only within one instance. Failed mapping publications can leave orphaned payloads, deliberately retained until a safe reference-aware garbage collector exists. There is no deletion, remote transport, replication, multi-process locking, network identity verification, or production connector integration. This is **not** a federated asset service.
+
 ## Required before enabling federated mode
 
 1. Durable metadata directory: map Asset UUID to current content hash, owning node, replicas, version and retention policy. Use a transactional database and optimistic concurrency controls.
