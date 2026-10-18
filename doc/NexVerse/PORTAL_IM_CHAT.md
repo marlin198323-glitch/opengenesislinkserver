@@ -86,6 +86,77 @@ Das Stadtportal speichert den `next_cursor` **nur für das eigene eingeloggte Ko
 
 Mit `GET /messages/with/{peerId}` erhält man die betreffende Unterhaltung. `GET /messages` listet gespeicherte Gesprächspartner mit letzter Nachrichtenzeit (keine globalen Nachrichtenlisten). `after` ist ein monoton steigender Sequenzcursor, kein Zeitstempel; `limit` 1–100.
 
+## HTTP 503 bei Nachrichten-Einstellungen
+
+`GET /api/v1/messages/settings` benötigt `relationships:read` eines
+angemeldeten **lokalen** Einwohners, `PATCH` benötigt
+`relationships:write`. Das ist kein `profile:read`-Problem.
+
+Wenn `[NexPortalIM]` fehlt oder `Enabled = false` ist, wird
+**kein** Chatarchiv initialisiert. Zuvor antwortete selbst
+`GET /messages/settings` mit HTTP 503
+(`portal_im_archive_disabled`). Jetzt meldet der lesende Endpunkt
+**HTTP 200** mit:
+
+```json
+{
+  "enabled": false,
+  "available": false,
+  "archive": "opt_in",
+  "retention_days": "configured",
+  "polling_interval_seconds": 5
+}
+```
+
+Bei aktivem, funktionsfähigem Store kommt ebenfalls HTTP 200, jetzt
+mit `available: true` und dem echten nutzerspezifischen
+`enabled`-Wert. Das Portal muss `available: false` als
+**Betreiber-Konfiguration fehlt** darstellen und die
+Chat-Aktivierung deaktivieren. Es darf diesen Status nicht als
+erfolgreich eingeschalteten Chat ausgeben. Solange kein Store
+existiert, bleiben `PATCH /messages/settings` und Nachrichtenabrufe
+mit `503 portal_im_archive_disabled` gesperrt. Ein laufender Store mit
+Datenbankproblemen meldet dagegen
+`503 portal_im_store_unavailable`; Details stehen im ROBUST-Log unter
+`[NEX-PORTAL-IM]`. Keine automatischen Datenbankneuanlagen durch
+einen bloßen Lesezugriff außerhalb des konfigurierten Store-Starts.
+
+Die produktive `bin/Robust.HG.ini` und `bin/OpenSim.ini` enthalten
+nun beide die `[NexPortalIM]`-Sektion, aus Sicherheitsgründen zunächst
+`Enabled = false`. Für die tatsächliche Chat-Nutzung:
+
+1. EINE geheime, zufällige Schlüsselzeichenfolge mit mindestens
+   32 UTF-8-Bytes erzeugen, z. B. `openssl rand -hex 32`.
+   Sie geschützt als `NEX_PORTAL_IM_SECRET` in
+   `/etc/nexverse/nexverse.env` (oder der tatsächlich benutzten
+   Secret-Quelle) auf ROBUST **und jedem beteiligten Simulator**
+   mit demselben Wert hinterlegen. Bereits existierende Secrets
+   nicht ohne Migrationsplanung ersetzen.
+2. In `bin/Robust.HG.ini` `[NexPortalIM] Enabled = true`
+   setzen. Der ROBUST-Dienstbenutzer muss den Ordner
+   `data/` sowie `data/nexverse-portal-im.sqlite`
+   schreibend erreichen; `StorePath` wird relativ zum
+   **Arbeitsverzeichnis** des ROBUST-Prozesses aufgelöst.
+3. Für Firestorm-Empfang in jedem beteiligten Simulator
+   `bin/OpenSim.ini` auf `[NexPortalIM] Enabled = true`
+   stellen. `IngestUrl` muss auf den geschützten ROBUST-
+   Endpunkt `/internal/nexportal/im/v1` zeigen. Loopback
+   `127.0.0.1` nur verwenden, wenn ROBUST tatsächlich auf
+   **demselben Host** läuft; andernfalls einen privaten,
+   abgesicherten HTTPS-Endpunkt nutzen und den Ingest-Zugang
+   für Fremde sperren.
+4. ROBUST und betroffene Simulatoren vollständig neu starten.
+   `GET /api/v1/messages/settings` mit einem lokalen
+   `relationships:read`-Token prüfen (`available: true`,
+   `enabled: false`). Erst danach per `PATCH` mit
+   `relationships:write` und `{"enabled": true}`
+   das persönliche Opt-in aktivieren.
+
+Ein Tokenproblem liefert 401/403 statt der
+`portal_im_archive_disabled`-Antwort. HTTP 503 aufgrund
+fehlender Speicheranbindung darf **nicht** durch ein allgemeines
+`enabled: true` verdeckt werden.
+
 ## Robust-Konfiguration
 
 Die Beispielsektionen liegen in `bin/Robust.HG.ini.example` und `bin/Robust.ini.example`:
