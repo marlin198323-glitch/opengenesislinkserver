@@ -22,6 +22,10 @@ The directory validates primary and replica node identifiers against whitespace-
 
 `OGLSqliteAssetLocationDirectory` introduces a separate SQLite-backed mapping with a primary-key UUID, SHA-256 hash, primary node, JSON replica list and positive revision. `Publish` uses an INSERT-with-conflict-rejection for revision 0 and a revision-guarded UPDATE for subsequent revisions, both inside a SQLite transaction. The implementation opens separate connections and therefore supports SQLite file-level coordination between processes on a supported local filesystem. It does **not** make the JSON coordinator transactional, and it is not wired into the active asset connector or ROBUST. SQLite is not an appropriate shared database over arbitrary network filesystems; PostgreSQL/MariaDB backends, authenticated node enrollment, durable write/outbox protocol, replica verification, migrations, backups, and final acceptance are still outstanding. No production mode has been enabled.
 
+## SQLite coordinator integration
+
+`IOGLAssetLocationDirectory` is now implemented by the JSON prototype and SQLite CAS directory. `OGLAssetNodeCoordinator` depends on this interface, allowing its staging and local read operations to use the transactional SQLite mapping. This is code-level integration only: there is no automatic configuration selection, no active ROBUST route, no remote node transport, and no replicated commit guarantee. Cross-process concurrency is guarded at the SQLite mapping layer, not across payload writes and metadata publication as one atomic transaction.
+
 ## Required before enabling federated mode
 
 1. Durable metadata directory: map Asset UUID to current content hash, owning node, replicas, version and retention policy. Use a transactional database and optimistic concurrency controls.
