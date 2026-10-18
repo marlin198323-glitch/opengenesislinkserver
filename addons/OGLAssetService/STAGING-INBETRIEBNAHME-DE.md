@@ -114,7 +114,38 @@ abgeschlossen wurde.** Die FSAssets-Meldung allein belegt das nicht.
    siehe [CUTOVER-BENCHMARKS.md](CUTOVER-BENCHMARKS.md) und
    [CUTOVER-ROLLBACK.md](../OGLAssetService.Migration/CUTOVER-ROLLBACK.md).
 
-## 6. Was weiterhin gesperrt ist
+## 6. Staging-Vergleich vorhandener Assets (ohne Schreibzugriff)
+
+Dieser Test verwendet **ausschließlich** eine konsistente, isolierte Kopie der Datenbank und des FSAssets-Verzeichnisses. Die Quelle niemals parallel durch zwei ROBUST-Prozesse beschreiben.
+
+1. Alle Produktionsschreiber nach vereinbartem Wartungsverfahren stoppen, Spool vollständig leeren, zusammengehörige SQL- und FSAssets-Snapshots anfertigen und die Produktivdienste nach Sicherung regulär wiederherstellen.
+2. Die Snapshots in einen eigenen, privaten Staging-Datenbanknamen sowie getrennte Asset- und Spoolpfade wiederherstellen; den vollständigen Hash-/Metadaten-Audit aus CUTOVER-ROLLBACK.md bestehen.
+3. Zwischen 10 und 100 wirklich vorhandene UUIDs verschiedener Assettypen als eine UUID je Zeile in einer geschützten Datei /private/staging-asset-ids.txt hinterlegen.
+4. Den **alten FSAssetConnector** auf dem Staging-Klon starten, ausschließlich über Loopback und Testports erreichbar. Baseline erfassen:
+
+```bash
+python3 tools/ci/verify_ogl_assetservice_staging_readback.py capture \
+  --endpoint http://127.0.0.1:19496 \
+  --ids /private/staging-asset-ids.txt \
+  --manifest /private/ogl-legacy-baseline.json
+```
+
+5. Alten Staging-ROBUST vollständig stoppen, keine Schreiber mehr zulassen und erst danach den **OGLAssetConnector** im Kompatibilitätsmodus auf demselben **Staging-Klon** starten.
+6. Die zuvor gesicherten Inhalte erneut abrufen und vergleichen:
+
+```bash
+python3 tools/ci/verify_ogl_assetservice_staging_readback.py verify \
+  --endpoint http://127.0.0.1:19496 \
+  --manifest /private/ogl-legacy-baseline.json
+```
+
+Das Readback-Werkzeug verwendet nur HTTP GET, vergleicht Get/GetMetadata/GetData, Bytes per SHA-256, Länge und relevante Metadaten. Es folgt keinen Redirects, akzeptiert nur Loopback-HTTP, erlaubt maximal 100 UUIDs und verändert keine Assetdaten. Das Manifest enthält UUIDs und Metadaten, aber **keine Asset-Nutzdaten**; es wird mit Berechtigung 0600 angelegt.
+
+7. Für den Rollback-Gate OGL-Staging vollständig stoppen, einen weiteren **separaten Wiederherstellungsklon** des Original-Snapshots aufbauen und den alten Connector darauf erneut erfolgreich prüfen. Kein Datenbank- oder FSAssets-Restore auf dem laufenden Produktivserver.
+
+Der Vergleich ersetzt noch nicht Viewer-/Hypergrid-Praxistests, Mehrprozess-Tests und die Fehler-/Ausfallbehandlung.
+
+## 7. Was weiterhin gesperrt ist
 
 Keine produktive Umschaltung, kein Entfernen bisheriger FSAssets,
 kein Redis-Distributed-Cache und kein Aktivieren des Admin-HTTP-Listeners,
