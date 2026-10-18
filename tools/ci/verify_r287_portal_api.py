@@ -18,7 +18,7 @@ for x in ("GetImage(UserAccount", "profile.PublishProfile",
           '"image/png"', "profile_image_url", "MaxProfileAssetBytes",
           "private, no-store"):
     assert x in profile, "profile image publication or transcode missing: " + x
-assert "profilesData,\\n                            assets," in connector, "asset service not wired"
+assert 'new NexWebProfileV3Api(' in connector and "profilesData," in connector and "assets," in connector, "asset service not wired"
 image_body = profile.split("private void GetImage(", 1)[1].split("private void Patch(", 1)[0]
 image_get = profile.split("private void Get(", 1)[1].split("private void GetImage(", 1)[0]
 assert 'm_Profiles.GetAvatarProperties(ref profile, ref error)' in image_body
