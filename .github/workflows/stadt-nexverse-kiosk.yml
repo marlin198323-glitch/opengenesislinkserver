@@ -38,7 +38,7 @@ jobs:
       - name: Apply v1.2 API dashboard update
         run: |
           cd apps
-          patch --batch --fuzz=0 -p0 < StadtNexVerseKiosk-v1.2.patch
+          sed '/^--- StadtNexVerseKiosk\/README.md$/,$d' StadtNexVerseKiosk-v1.2.patch | patch --batch --fuzz=0 -p0
           grep -F "versionName '1.2.0'" StadtNexVerseKiosk/app/build.gradle
       - name: Assemble debug APK
         working-directory: apps/StadtNexVerseKiosk
