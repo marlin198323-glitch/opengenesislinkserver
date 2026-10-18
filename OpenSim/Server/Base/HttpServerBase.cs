@@ -149,6 +149,8 @@ namespace OpenSim.Server.Base
             IConfig admin = Config.Configs["OGLAssetServiceAdmin"];
             if (admin == null || !admin.GetBoolean("Enabled", false))
                 return;
+            if (!admin.GetBoolean("DedicatedListenerConfirmed", false))
+                throw new InvalidOperationException("Dedicated OGL admin listener must be confirmed.");
             int requested = admin.GetInt("ExpectedTlsPort", 0);
             if (requested <= 0 || requested > 65535)
                 throw new InvalidOperationException("Invalid OGL admin TLS port.");
