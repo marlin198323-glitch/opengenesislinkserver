@@ -3,14 +3,20 @@ on:
   push:
     paths:
       - 'addon-modules/OGLAssetService/**'
+      - 'addons/OGLAssetService/OGLAssetService.csproj'
+      - 'OpenSim/Server/Directory.Build.targets'
       - 'runprebuild.sh'
       - '.github/workflows/ogl-assetservice-addon-modules.yml'
   pull_request:
     paths:
       - 'addon-modules/OGLAssetService/**'
+      - 'addons/OGLAssetService/OGLAssetService.csproj'
+      - 'OpenSim/Server/Directory.Build.targets'
       - 'runprebuild.sh'
       - '.github/workflows/ogl-assetservice-addon-modules.yml'
   workflow_dispatch:
+permissions:
+  contents: read
 jobs:
   addon-build:
     runs-on: ubuntu-latest
@@ -19,12 +25,23 @@ jobs:
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '8.0.x'
-      - name: Generate OpenSim solution and build dependencies
+      - name: Generate OpenSim solution and actual operator build script
         run: |
           chmod +x runprebuild.sh
           ./runprebuild.sh
-          dotnet build -c Release OpenSim.sln
-      - name: Build and stage OGL AssetService
-        run: bash addon-modules/OGLAssetService/build.sh Release
-      - name: Verify staged addon
-        run: test -s bin/OpenGenesisLINK.Addons.OGLAssetService.dll
+          test -s compile.sh
+          bash -n compile.sh addon-modules/OGLAssetService/build.sh
+      - name: Compile full server and install OGL AssetService using operator script
+        run: bash ./compile.sh
+      - name: Verify shared ROBUST bin deployment
+        run: |
+          set -euo pipefail
+          for dll in \
+            OpenGenesisLINK.Addons.OGLAssetService.dll \
+            OpenSim.Services.FSAssetService.dll \
+            StackExchange.Redis.dll \
+            Pipelines.Sockets.Unofficial.dll \
+            Microsoft.Data.Sqlite.dll \
+            Microsoft.Extensions.Logging.Abstractions.dll; do
+            test -s "bin/$dll" || { echo "::error::Missing bin/$dll"; exit 1; }
+          done
