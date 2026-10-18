@@ -17,6 +17,31 @@ for x in ("GetImage(UserAccount", "profile.PublishProfile",
     assert x in profile, "profile image security or transcode missing: " + x
 assert "profilesData,\n                            assets," in connector, "asset service not wired"
 
+# Standard FSAssets persists no CreatorID. A missing asset creator must never
+# make a profile image permanently unreachable, or permit arbitrary asset UUIDs.
+# A read-only, owner-and-asset-scoped inventory query verifies provenance.
+fs = (root / "OpenSim/Data/MySQL/MySQLFSAssetData.cs").read_text()
+assert "select id, name, description, type, hash" in fs
+assert "meta.CreatorID =" not in fs, "FSAssets creator metadata semantics changed"
+assert "IXInventoryData profileInventoryData" in connector
+assert "ServerUtils.LoadPlugin<IXInventoryData>" in connector
+assert "profileInventoryData);" in connector
+assert 'new[] { "avatarID", "assetID" }' in profile
+assert "item.avatarID != account.PrincipalID" in profile
+assert "item.assetID != profile.ImageId" in profile
+assert "item.assetType != (int)asset.Type" in profile
+assert "UUID.TryParse(item.creatorID, out UUID itemCreator)" in profile
+assert "PermissionMask.Copy | PermissionMask.Transfer | PermissionMask.Export" in profile
+assert "(item.inventoryCurrentPermissions & requiredExportPermissions)" in profile
+assert "creator != account.PrincipalID)" not in profile, (
+    "creatorless FSAssets must be verified against inventory instead of always denied"
+)
+# The missing/unreadable asset and unauthorized inventory item remain hidden
+# from clients behind the existing non-enumerating 404 response.
+assert profile.count('new { error = "profile_image_not_found" }') >= 3
+assert "Referen" in profile and "no readable payload" in profile
+
+
 # AssetServiceConnector (two-argument module constructor) owns the already
 # initialized FSAsset/OGLAsset service. The World API must not construct its
 # own separate instance with LoadOptionalService(... one argument).
