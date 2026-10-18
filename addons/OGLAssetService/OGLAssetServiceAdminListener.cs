@@ -60,6 +60,8 @@ namespace OpenGenesisLINK.Addons.AssetService
                 listener.registered =
                     OGLAssetServiceAdminHostConfiguration.RegisterIfEnabled(
                         config, server, connector, journal);
+                if (!listener.registered)
+                    throw new InvalidOperationException("Administrative listener was disabled during registration.");
                 return listener;
             }
             catch
