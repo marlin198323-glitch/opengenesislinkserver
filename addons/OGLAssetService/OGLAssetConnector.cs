@@ -13,6 +13,9 @@ namespace OpenGenesisLINK.Addons.AssetService
     /// </summary>
     public sealed class OGLAssetConnector : FSAssetConnector, IAssetService
     {
+        private static readonly log4net.ILog OglLog =
+            log4net.LogManager.GetLogger(typeof(OGLAssetConnector));
+
         private readonly OGLObjectCache cache;
         private readonly OGLDiskCache diskCache;
         private readonly object cacheSync = new object();
@@ -91,6 +94,10 @@ namespace OpenGenesisLINK.Addons.AssetService
             if (!String.Equals(mode, "compatibility", StringComparison.OrdinalIgnoreCase))
                 throw new NotSupportedException(
                     "OGL AssetService currently supports only Mode = compatibility. Distributed storage is not implemented.");
+            OglLog.InfoFormat(
+                "[OGL-ASSETS]: OGL AssetService geladen; authoritative=FSAssets; " +
+                "mode=compatibility; local_cache={0}; redis_coordination={1}; atomic_updates={2}",
+                localCacheEnabled, redisEnabled, atomicUpdatesEnabled);
         }
 
         /// <summary>
