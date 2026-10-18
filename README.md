@@ -1,81 +1,115 @@
-# OpenGenesisLINK
+# OpenGenesisLINK Server — Generation 1
 
-**OpenGenesisLINK v0.9.3.10 Stable** concludes the stabilization train under a documented operator-approved release exception. The delivered feature scope includes .NET 8, login/Hypergrid, economy and authorized GRID SERVICES Masterbank, inventory/asset foundations, World API and operational recovery. **NexExperiences / Firestorm development is paused** and disabled in the RC deployment profile while existing security tests remain. **OGL Pathfinding 2.0, OGL My Outfits 2.0 and any OGL Experiences 2.0 are deferred to the own-viewer project**. OGLVoice remains deferred to its own train. The previous stable release was **v0.9.3.8**.
+**Deutsch** · [English](#english)
 
-This repository starts from the published **OpenSimulator 0.9.3.0 ("Nessie") Release** source package. It is intentionally maintained as its own repository rather than as a GitHub fork. The long-term objective is an independent OpenGenesisLINK development line whose architecture, services, protocols, modules, tooling and branding may diverge substantially from OpenSimulator.
+OpenGenesisLINK (OGL) ist eine eigenständig weiterentwickelte Serverplattform für virtuelle 3D-Welten. Das Projekt ist aus dem Quellcode von OpenSimulator 0.9.3.0 hervorgegangen, hat sich aber durch eigene Dienste, Schnittstellen, Sicherheitsmechanismen und Betriebsfunktionen deutlich über diese historische Ausgangsbasis hinausentwickelt.
 
-## Upstream baseline
+**OpenGenesisLINK ist die Plattform. Stadt NexVerse ist eine darauf betriebene virtuelle Welt.** Der frühere Produktname „NexVerse Server“ wird nicht mehr für die Plattform verwendet; bestehende `NexVerse.*`-Namensräume und Konfigurationsschlüssel bleiben dort erhalten, wo Kompatibilität erforderlich ist.
 
-- Upstream project: OpenSimulator
-- Baseline release: 0.9.3.0 ("Nessie" Release)
-- Release date: 8 November 2024
-- Imported archive: `opensim-0.9.3.0-source.tar.gz`
-- SHA-256: `8dc78639e47859e76a36a03304c1d44c905aac7807f44c1c0af671d156342eab`
-- Original OpenSimulator copyright and license notices remain preserved. The primary OpenSimulator BSD license is stored at `LICENSES/BSD/OpenSimulator-0.9.3.0.txt`; contributor and third-party notices remain available in `CONTRIBUTORS.txt`, `LICENSES/` and `ThirdPartyLicenses/`.
+## Plattform und Funktionen
 
-## OpenGenesisLINK licensing
+- **Simulator und ROBUST:** Mehrregionenbetrieb, Regions- und Estate-Verwaltung, Login, Teleportation sowie kompatible Viewer- und Hypergrid-Schnittstellen.
+- **World API v1:** HTTP-basierte Schnittstellen für Plattformverwaltung, Identität, Profile, Regionen, Statistiken und weitere freigeschaltete Dienste. Geschützte Aktionen verwenden Authentifizierung, Berechtigungen und Scopes.
+- **Inventar und Assets:** Persistente Inventar- und Asset-Dienste, Inventar-Thumbnails sowie OAR-/IAR-Verwaltung und Hintergrundaufträge.
+- **NV$-Ökonomie:** Konten, Transaktionen und Double-Entry-Ledger; besonders sensible Bankfunktionen sind separat autorisiert und standardmäßig nicht automatisch freigeschaltet.
+- **Kommunikation und Dienste:** NexBus für dienstübergreifende Ereignisse, Gruppen-, Profil-, Such- und Weltkartenfunktionen.
+- **Sicherheit und Betrieb:** Zugriffskontrollen, Auditierung, Konfigurationsprüfungen, Regressionstests und CI-Prüfungen.
 
-New original OpenGenesisLINK contributions are licensed under the **Mozilla Public License 2.0 (MPL-2.0)** unless a file or directory explicitly states otherwise.
+Die tatsächliche Verfügbarkeit hängt von Version, Konfiguration und aktivierten Modulen ab. Vorhandener Code ist nicht automatisch eine produktiv freigegebene Funktion.
 
-Imported OpenSimulator files do **not** lose or replace their existing BSD/third-party licensing. OpenGenesisLINK changes to inherited files must preserve all applicable copyright and license notices. See `LICENSE_POLICY.md`, `NOTICE.md` and `LICENSES/BSD/README.md`.
+## Entwicklungsstand
 
-## Versioning
+Der Quellcode meldet derzeit **OpenGenesisLINK 0.9.3.12**. Der Versionsstring allein ist kein Nachweis einer veröffentlichten oder vollständig abgenommenen Stable-Version. Maßgeblich für freigegebene Pakete sind die [GitHub-Releases](https://github.com/opengenesislink/opengenesislinkserver/releases) und die jeweilige Betreiberabnahme.
 
-The current stable release is **OpenGenesisLINK v0.9.3.10** (operator-approved, with explicitly documented waived evidence requirements). The previous release **v0.9.3.8** remains intact. Version 0.9.3.10 includes runtime stabilization, NV$ ledger/Viewer/Masterbank, inventory foundations and World API. Experience viewer-CAPS, consent/revoke and K/V remain unaccepted and **out of release scope**, with the Experience viewer adapter disabled; historical code/tests remain. My Outfits 2.0, OGL Pathfinding 2.0, any Experiences 2.0 and their viewer-specific acceptance gates are deferred; OGLVoice is also deferred. The standard RC1/Stable evidence policy required 22/23 individually documented tests; this one-time operator-approved Stable closure does **not** assert that the entire formal evidence record was completed. See [release decision](doc/NexVerse/09310_OPERATOR_RELEASE_DECISION.md) and [release notes](doc/NexVerse/RELEASE_0.9.3.10.md). No separate 0.9.3.9 Stable release is planned.
+Die Plattform wird weiterhin aktiv entwickelt. Insbesondere der **OGL AssetService** mit Cache-, Migrations- und Verwaltungsfunktionen befindet sich in gesonderter Integrations- und Abnahmeprüfung. Ein exklusiver Produktivwechsel von FSAssets auf OGL AssetService darf nicht aus einem erfolgreichen Build abgeleitet werden.
 
-**Deferred Viewer navigation:** [`doc/NexVerse/FUTURE_VIEWER_NAVIGATION.md`](doc/NexVerse/FUTURE_VIEWER_NAVIGATION.md). The current server provides no OGL Pathfinding engine or NavMesh CAPS. The old Experiences/LSL/KV implementation is retained but paused and is not an active 0.9.3.10 release feature.
+OGLVoice, die eigene Viewer-Generation sowie weitergehende Rendering-, Pathfinding- und Experience-Funktionen sind eigenständige Entwicklungsbereiche. Experimentelle oder pausierte Komponenten werden nicht als allgemein verfügbare Stable-Funktionen beworben.
 
-**Inventory thumbnail compatibility (0.9.3.10 Stable):** The server-side `InventoryThumbnailUpload` capability, persistent item/folder previews, and inventory fetch metadata are implemented. **Known limitation:** Firestorm 7.2.4.80712 on the tested NexVerse/OpenSim configuration does not reliably refresh a replaced outfit-folder thumbnail from its existing inventory cache after relog; rebuilding the inventory cache restores the persisted preview. INV01 is closed as an accepted compatibility limitation, **not** as a fixed viewer refresh bug. See [`doc/NexVerse/FIRESTORM_INVENTORY_THUMBNAIL_09310.md`](doc/NexVerse/FIRESTORM_INVENTORY_THUMBNAIL_09310.md). This does not change the remaining stable release gates.
+## Architektur auf einen Blick
 
-OpenGenesisLINK continues the existing 0.9.3.x development line. OpenSimulator 0.9.3.0 remains the historical source baseline; upstream OpenSimulator version numbers do not automatically become OpenGenesisLINK version numbers.
+| Bereich | Rolle |
+| --- | --- |
+| ROBUST | Zentrale Grid- und Plattformdienste |
+| Simulator | Regionen, Szenen, Avatare und Skriptausführung |
+| World API | Authentifizierte Verwaltungs- und Integrationsschnittstelle |
+| NexBus | Ereignis- und Dienstkommunikation |
+| NV$ | Virtuelle Währung und Buchungslogik |
+| OGL-Addons | Optionale, separat konfigurierte Erweiterungen |
 
-The former product name **NexVerse Server** is retired as the server-platform name. **NexVerse remains the virtual world/grid deployment built on OpenGenesisLINK.** Existing internal `NexVerse.*` namespaces, API paths and compatibility-sensitive configuration keys may remain temporarily until they can be migrated without breaking existing deployments.
+Die Plattform setzt derzeit auf **.NET 8**. Kompatibilität mit bestehenden OpenSimulator-/Firestorm-Workflows bleibt ein Entwicklungsziel, wird jedoch für neue Funktionen einzeln geprüft.
 
-Every release or development milestone that changes the product version must update `OpenSim/Framework/VersionInfo.cs` together with the corresponding release documentation.
+## Bauen und mitarbeiten
 
-See `VERSIONING.md` for the versioning policy.
+Voraussetzung ist eine zur Repository-Konfiguration passende .NET-8-SDK-Umgebung. Die vorhandene Prebuild-Generierung erstellt Projektdateien für die OpenSimulator-Lösung. Ein typischer Entwicklungsbuild lautet:
 
-## Roadmap
+```bash
+./runprebuild.sh
+dotnet build OpenSim.sln -c Release
+```
 
-The active development roadmap is maintained in:
+Ein erfolgreicher Build ersetzt weder Konfigurationsprüfung noch Laufzeit-, Sicherheits- oder Migrationstests. Bestehende produktive `bin/`-Konfigurationen, Datenbanken und Asset-Verzeichnisse vor Updates sichern; keine lokalen Betreiberdateien blind überschreiben.
 
-**[`doc/NexVerse/ROADMAP.md`](doc/NexVerse/ROADMAP.md)**
+Fehlerberichte und Beiträge können über [Issues](https://github.com/opengenesislink/opengenesislinkserver/issues) und [Pull Requests](https://github.com/opengenesislink/opengenesislinkserver/pulls) eingereicht werden. Änderungen an kompatibilitätskritischen Komponenten sollten vorhandene Protokolle und gespeicherte Daten berücksichtigen.
 
-The roadmap covers the NEXJAST legacy-cleanup milestone and the World API, identity/social platform, simulator/region/estate control plane, inventory/OAR/IAR, NV$ economy and banking, Groups, Experiences, Search/Places/Land/Destination services, OGLVoice (centralized LiveKit/WebRTC voice), Pathfinding, LSL parity, modern assets/rendering, marketplace, advertising, monitoring, developer platform and the OpenGenesisLINK v0.9.4.0 consolidation target.
+## Herkunft und Lizenzen
 
-See **[`doc/NexVerse/RELEASE_TRAIN_0.9.3.10.md`](doc/NexVerse/RELEASE_TRAIN_0.9.3.10.md)** for the revised 0.9.3.10 runtime/stabilization release gates and **[`doc/NexVerse/OGLVOICE_ARCHITECTURE.md`](doc/NexVerse/OGLVOICE_ARCHITECTURE.md)** for the central voice design.
+Historische Quellbasis ist **OpenSimulator 0.9.3.0 („Nessie“)**, nicht der aktuelle Funktionsstand von OpenGenesisLINK. Originale Urheberrechts- und Lizenzhinweise bleiben erhalten. Neue eigenständige OpenGenesisLINK-Beiträge stehen, soweit nicht anders gekennzeichnet, unter **MPL-2.0**. Übernommener OpenSimulator-Code und Drittanbieterkomponenten behalten ihre jeweiligen Lizenzbedingungen. Einzelheiten stehen in `LICENSE_POLICY.md`, `NOTICE.md` und `LICENSES/`.
 
-## Aktueller Versionsstand
+---
 
-**Aktuelle Stable-Version: [OpenGenesisLINK 0.9.3.10](https://github.com/opengenesislink/opengenesislinkserver/releases/tag/v0.9.3.10)** (veröffentlicht am 12. Oktober 2026). Der vorherige Stable-Stand `v0.9.3.8` bleibt erhalten.
+## English
 
-**Nächste geplante Entwicklungslinie: 0.9.4.0 – OpenGenesisLINK Generation 1.** Die Planung ist noch keine veröffentlichte oder bereits gestartete Version. OGL Pathfinding 2.0, OGL My Outfits 2.0 und gegebenenfalls OGL Experiences 2.0 sind auf die eigene Viewer-Generation verschoben.
+OpenGenesisLINK (OGL) is an independently developed server platform for virtual 3D worlds. It originated from the OpenSimulator 0.9.3.0 source release, but its services, APIs, security controls and operational architecture have evolved substantially beyond that historical baseline.
 
-## Historischer Meilenstein 0.9.3.5 – abgeschlossen
+**OpenGenesisLINK is the server platform; Stadt NexVerse is a virtual world running on it.** The former platform name “NexVerse Server” has been retired. Compatibility-sensitive `NexVerse.*` namespaces and configuration keys may remain in existing integrations.
 
-`0.9.3.5 Dev` war eine frühere Entwicklungsphase für Inventory, OAR/IAR, den persistenten Job Engine und NexBus. Auch `0.9.3.8 Stable` wurde danach abgeschlossen. **Diese Versionsnummern bezeichnen keine aktuelle Entwicklung.**
+### Capabilities
 
-Die damals eingeführten Kompatibilitäts- und Servicekomponenten sind in den späteren OpenGenesisLINK-Versionen aufgegangen. Die vollständige historische Abfolge steht in [VERSIONING.md](VERSIONING.md).
+- **Simulator and ROBUST:** Multi-region hosting, region and estate administration, login, teleportation, and compatible viewer/Hypergrid interfaces.
+- **World API v1:** HTTP APIs for platform administration, identity, profiles, regions, statistics and other enabled services, with authentication and scoped authorization for protected operations.
+- **Inventory and assets:** Persistent inventory and asset services, inventory thumbnails, OAR/IAR workflows and background jobs.
+- **NV$ economy:** Accounts, transactions and double-entry accounting; sensitive banking operations require explicit authorization.
+- **Platform services:** NexBus events, groups, profiles, search and world-map integration.
+- **Operations and security:** Access controls, auditing, configuration checks, regression coverage and continuous integration.
 
-## NexVerse 0.9.3.1 NEXJAST release foundation
+Availability depends on the deployed version, configuration and enabled modules. Code present in the repository does not necessarily represent an accepted production feature.
 
-The NexVerse 0.9.3.1 release contains the first NexVerse-native assemblies:
+### Current status
 
-- `NexVerse.Core` — platform metadata, RBAC/scope contracts, audit contracts and NexBus foundation.
-- `NexVerse.Server.Api` — Robust-hosted World API foundation.
+The current source version string is **OpenGenesisLINK 0.9.3.12**. This does not by itself establish a published or fully accepted stable release. Consult [GitHub Releases](https://github.com/opengenesislink/opengenesislinkserver/releases) for published artifacts and release status.
 
-Current World API base:
+The **OGL AssetService** is undergoing separate integration and acceptance work; successful compilation alone does not authorize a production cutover from FSAssets. OGLVoice, the future OGL viewer and advanced rendering, pathfinding and experience features follow separate development and validation tracks.
 
-`http://world.stadt-nexverse.de/api/v1`
+### Architecture
 
-See `doc/NexVerse/WORLD_API.md`, `doc/NexVerse/DISPLAY_NAMES.md` and `doc/NexVerse/LEGACY_COMPONENTS.md`.
+| Component | Responsibility |
+| --- | --- |
+| ROBUST | Central grid and platform services |
+| Simulator | Regions, scenes, avatars and scripts |
+| World API | Authenticated management and integration API |
+| NexBus | Cross-service event communication |
+| NV$ | Virtual currency and accounting |
+| OGL addons | Optional, separately configured extensions |
 
-## Development model
+The current build targets **.NET 8**. Firestorm and OpenSimulator compatibility are important goals, with feature-specific verification required.
 
-OpenGenesisLINK is a continuation and substantial independent development based on the OpenSimulator 0.9.3.0 source baseline. Compatibility with Firestorm, Second Life protocols, Hypergrid and LSL is retained where useful, while obsolete administration and service implementations are progressively replaced by OpenGenesisLINK-owned components.
+### Building and contributing
 
-New major systems should be API-first, testable, observable and documented. Compatibility-sensitive code must be assessed before removal.
+Use a compatible .NET 8 SDK and the repository's project-generation workflow:
 
-## Build baseline
+```bash
+./runprebuild.sh
+dotnet build OpenSim.sln -c Release
+```
 
-The imported OpenSimulator 0.9.3.0 baseline uses the .NET 8 SDK. The original build instructions are retained in this repository.
+A successful build is not equivalent to runtime, security or migration acceptance. Back up production configuration, databases and asset storage before upgrading. Do not overwrite local operator files indiscriminately.
+
+Contributions and bug reports are welcome through [Issues](https://github.com/opengenesislink/opengenesislinkserver/issues) and [Pull Requests](https://github.com/opengenesislink/opengenesislinkserver/pulls).
+
+### Provenance and licensing
+
+The historical source baseline is **OpenSimulator 0.9.3.0 (“Nessie”)**, not the present OpenGenesisLINK feature set. Original copyright and license notices are retained. New original OpenGenesisLINK contributions are generally licensed under **MPL-2.0** unless stated otherwise. Imported OpenSimulator code and third-party dependencies retain their applicable licenses. See `LICENSE_POLICY.md`, `NOTICE.md` and `LICENSES/`.
+
+---
+
+**OpenGenesisLINK Generation 1** · Independent virtual-world server development
