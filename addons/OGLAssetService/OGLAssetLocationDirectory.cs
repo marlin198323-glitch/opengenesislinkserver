@@ -9,7 +9,7 @@ namespace OpenGenesisLINK.Addons.AssetService
     /// Prototype durable UUID-to-node directory. Single-process writer only:
     /// not a substitute for transactional SQL or a multi-node consensus protocol.
     /// </summary>
-    public sealed class OGLAssetLocationDirectory
+    public sealed class OGLAssetLocationDirectory : IOGLAssetLocationDirectory
     {
         private readonly object gate = new object();
         private readonly string path;
