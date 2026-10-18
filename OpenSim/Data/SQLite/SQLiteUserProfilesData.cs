@@ -701,6 +701,88 @@ namespace OpenSim.Data.SQLite
             return true;
         }
 
+        public bool UpdateAvatarPortalProperties(UserProfileProperties props, System.Collections.Generic.IReadOnlyCollection<string> columns, ref string result)
+        {
+            // Only explicitly requested userprofile columns are ever assigned.
+            // Never allow changes to useruuid, profileImage, profileFirstImage.
+            if (props == null || props.UserId == UUID.Zero || columns == null || columns.Count == 0)
+            { result = "invalid_profile_patch"; return false; }
+            try
+            {
+                using (SqliteCommand cmd = (SqliteCommand)m_connection.CreateCommand())
+                {
+                    var assignments = new System.Collections.Generic.List<string>();
+                    var seen = new System.Collections.Generic.HashSet<string>(StringComparer.Ordinal);
+                    foreach (string column in columns)
+                    {
+                        if (!seen.Add(column))
+                        { result = "duplicate_profile_field"; return false; }
+                        switch (column)
+                        {
+                            case "profilePartner":
+                                assignments.Add("profilePartner=:profilePartner");
+                                cmd.Parameters.AddWithValue(":profilePartner", props.PartnerId.ToString());
+                                break;
+                            case "profileAllowPublish":
+                                assignments.Add("profileAllowPublish=:profileAllowPublish");
+                                cmd.Parameters.AddWithValue(":profileAllowPublish", props.PublishProfile);
+                                break;
+                            case "profileMaturePublish":
+                                assignments.Add("profileMaturePublish=:profileMaturePublish");
+                                cmd.Parameters.AddWithValue(":profileMaturePublish", props.PublishMature);
+                                break;
+                            case "profileURL":
+                                assignments.Add("profileURL=:profileURL");
+                                cmd.Parameters.AddWithValue(":profileURL", props.WebUrl);
+                                break;
+                            case "profileWantToMask":
+                                assignments.Add("profileWantToMask=:profileWantToMask");
+                                cmd.Parameters.AddWithValue(":profileWantToMask", props.WantToMask);
+                                break;
+                            case "profileWantToText":
+                                assignments.Add("profileWantToText=:profileWantToText");
+                                cmd.Parameters.AddWithValue(":profileWantToText", props.WantToText);
+                                break;
+                            case "profileSkillsMask":
+                                assignments.Add("profileSkillsMask=:profileSkillsMask");
+                                cmd.Parameters.AddWithValue(":profileSkillsMask", props.SkillsMask);
+                                break;
+                            case "profileSkillsText":
+                                assignments.Add("profileSkillsText=:profileSkillsText");
+                                cmd.Parameters.AddWithValue(":profileSkillsText", props.SkillsText);
+                                break;
+                            case "profileLanguages":
+                                assignments.Add("profileLanguages=:profileLanguages");
+                                cmd.Parameters.AddWithValue(":profileLanguages", props.Language);
+                                break;
+                            case "profileAboutText":
+                                assignments.Add("profileAboutText=:profileAboutText");
+                                cmd.Parameters.AddWithValue(":profileAboutText", props.AboutText);
+                                break;
+                            case "profileFirstText":
+                                assignments.Add("profileFirstText=:profileFirstText");
+                                cmd.Parameters.AddWithValue(":profileFirstText", props.FirstLifeText);
+                                break;
+                            default:
+                                result = "profile_field_readonly";
+                                return false;
+                        }
+                    }
+                    cmd.CommandText = "UPDATE userprofile SET " +
+                        string.Join(", ", assignments) + " WHERE useruuid=:uuid";
+                    cmd.Parameters.AddWithValue(":uuid", props.UserId.ToString());
+                    cmd.ExecuteNonQuery();
+                }
+            }
+            catch (Exception e)
+            {
+                m_log.Error("[PROFILES_DATA]: UpdateAvatarPortalProperties failed.", e);
+                result = e.Message;
+                return false;
+            }
+            return true;
+        }
+
         public bool UpdateAvatarInterests(UserProfileProperties up, ref string result)
         {
             string query = string.Empty;
