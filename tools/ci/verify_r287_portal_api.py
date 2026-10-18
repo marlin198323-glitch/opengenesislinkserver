@@ -56,6 +56,55 @@ assert "Func<IAssetService> assetResolver = null" in profile
 assert "IAssetService assets = m_AssetResolver?.Invoke() ?? m_Assets;" in profile
 assert "AssetBase asset = assets.Get(profile.ImageId.ToString());" in profile
 
+# Portal writes cover all and only the 11 editable database columns.
+# The three image/identity columns must not be assigned by ANY portal SQL.
+allowed = {
+    "profilePartner", "profileAllowPublish", "profileMaturePublish",
+    "profileURL", "profileWantToMask", "profileWantToText",
+    "profileSkillsMask", "profileSkillsText", "profileLanguages",
+    "profileAboutText", "profileFirstText",
+}
+protected = {"useruuid", "profileImage", "profileFirstImage"}
+iface = (root / "OpenSim/Data/IProfilesData.cs").read_text()
+assert "UpdateAvatarPortalProperties(UserProfileProperties props" in iface
+assert "m_Profiles.UpdateAvatarPortalProperties(profile, columns, ref storeError)" in profile
+assert "m_Profiles.UpdateAvatarProperties(ref profile, ref storeError)" not in profile
+assert "m_Profiles.UpdateAvatarInterests(profile, ref storeError)" not in profile
+assert "m_Profiles.SetUserAppData(" not in profile.split("private void Patch(", 1)[1].split("private sealed class ProfilePrivacy", 1)[0]
+assert "if (!columns.Add(column))" in profile and '"duplicate_profile_field"' in profile
+assert "if (columns.Count == 0)" in profile
+assert "if (!self && !principal.HasScope(NexScopes.AdminAll))" in profile
+assert "NexScopes.ProfileWrite" in profile
+for field in allowed:
+    assert f'column = "{field}";' in profile, f"Portal API does not accept {field}"
+for column in protected:
+    assert f'column = "{column}";' not in profile, f"Protected column selectable in API: {column}"
+assert '"profile_field_readonly"' in profile
+for engine in ("MySQL", "PGSQL", "SQLite"):
+    file = ("OpenSim/Data/" + engine + "/" +
+            ("SQLiteUserProfilesData.cs" if engine == "SQLite" else
+             engine + "UserProfilesData.cs" if engine == "MySQL" else
+             "PGSQLUserProfilesData.cs"))
+    if engine == "MySQL":
+        file = "OpenSim/Data/MySQL/MySQLUserProfilesData.cs"
+    data = (root / file).read_text()
+    section = data.split("public bool UpdateAvatarPortalProperties(", 1)[1].split("return true;", 1)[0]
+    for col in allowed:
+        assert f'case "{col}":' in section, f"{engine}: missing allowed column {col}"
+    for col in protected:
+        assert f'case "{col}":' not in section, f"{engine}: forbidden update {col}"
+    assert "WHERE " in section and "uuid" in section, engine
+    assert "string.Join(" in section, f"{engine}: missing field-selective UPDATE"
+    assert 'result = "profile_field_readonly"' in section, engine
+schema = (root / "NexVerse/Server/Api/NexVerseWorldApiHandlers.cs").read_text()
+patch_schema = schema.split('["CitizenAvatarProfilePatch"] = new', 1)[1].split('["CitizenAvatarProfileResponse"] = new', 1)[0]
+assert "additionalProperties = false" in patch_schema
+for key in ("partner_id", "first_life_text", "about", "web_url",
+            "visibility", "mature", "interests"):
+    assert f'["{key}"]' in patch_schema, key
+for key in ("useruuid", "profileImage", "profileFirstImage", "profile_image"):
+    assert f'["{key}"]' not in patch_schema, f"protected portal field in OpenAPI: {key}"
+
 # userprofile owns the picture UUID and both publication flags.
 # MySQL BINARY(1) flags contain ASCII 0/1 in production exports.
 mysql = (root / "OpenSim/Data/MySQL/MySQLUserProfilesData.cs").read_text()
