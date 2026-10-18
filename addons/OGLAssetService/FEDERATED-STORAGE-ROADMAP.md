@@ -6,6 +6,10 @@
 
 The production connector still accepts only `Mode=compatibility` and delegates authoritative reads and writes to FSAssetConnector. Redis distributed payload reads remain disabled.
 
+## New single-process directory prototype
+
+`OGLAssetLocationDirectory` now persists a JSON snapshot mapping canonical asset UUIDs to SHA-256 content hashes, a primary node, replica node IDs and monotonic revisions. `Publish` rejects stale expected revisions and persists before changing in-memory state. This is a **single-process prototype only**: concurrent processes can overwrite each other, and there is no fsync of the containing directory, lease, replica-health tracking, ACL, authenticated node registration, deletion/tombstone protocol or database transaction. Do not expose it as an authoritative federated directory. It is not wired into ROBUST.
+
 ## Required before enabling federated mode
 
 1. Durable metadata directory: map Asset UUID to current content hash, owning node, replicas, version and retention policy. Use a transactional database and optimistic concurrency controls.
