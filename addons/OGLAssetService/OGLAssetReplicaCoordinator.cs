@@ -28,6 +28,8 @@ namespace OpenGenesisLINK.Addons.AssetService
             OGLReplicaReceiptAuthenticator authenticator, DateTimeOffset now)
         {
             if (authenticator == null) throw new ArgumentNullException(nameof(authenticator));
+            if (!String.Equals(replicaNode, authenticator.NodeId, StringComparison.Ordinal))
+                throw new InvalidDataException("Receipt signer does not match replica node.");
             if (!authenticator.Verify(assetId, contentHash, expectedRevision,
                 issuedAtUnixSeconds, nonce, signature, now))
                 throw new InvalidDataException("Replica acknowledgement signature rejected.");
