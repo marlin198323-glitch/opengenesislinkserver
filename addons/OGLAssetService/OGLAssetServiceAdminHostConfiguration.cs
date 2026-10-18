@@ -25,33 +25,14 @@ namespace OpenGenesisLINK.Addons.AssetService
             if (connector == null) throw new ArgumentNullException(nameof(connector));
             if (journal == null)
                 throw new InvalidOperationException("Persistent audit journal is required.");
-            if (server.SSLPort == 0 || !server.UseSSL)
-                throw new InvalidOperationException("The administrative listener must use TLS.");
-            uint expectedPort = (uint)section.GetInt("ExpectedTlsPort", 0);
-            if (expectedPort == 0 || expectedPort != server.SSLPort)
-                throw new InvalidOperationException("Administrative TLS port does not match host configuration.");
-            if (!section.GetBoolean("DedicatedListenerConfirmed", false))
-                throw new InvalidOperationException("A dedicated restricted admin listener must be confirmed.");
+            // One authoritative security preflight for direct registration and
+            // host-managed listener startup. Never bypass placeholder checks.
+            OGLAssetServiceAdminPreflight.Check(config, server);
 
-            // Do not allow implicit Network-section credential inheritance or
-            // a policy-only IServiceAuth that authenticates without credentials.
-            if (!String.Equals(section.GetString("AuthType", ""), "BasicHttpAuthentication",
-                StringComparison.Ordinal))
-                throw new InvalidOperationException("Dedicated BasicHttpAuthentication required.");
             string username = section.GetString("HttpAuthUsername", "");
             string password = section.GetString("HttpAuthPassword", "");
-            if (String.IsNullOrWhiteSpace(username) || String.IsNullOrWhiteSpace(password) ||
-                username.Contains(":") || username.Length < 8 || password.Length < 16 ||
-                username.StartsWith("REPLACE_", StringComparison.OrdinalIgnoreCase) ||
-                password.StartsWith("REPLACE_", StringComparison.OrdinalIgnoreCase))
-                throw new InvalidOperationException("Invalid dedicated admin credentials.");
-
             string role = section.GetString("Role", "");
-            if (role != "Viewer" && role != "Administrator")
-                throw new InvalidOperationException("Explicit Viewer or Administrator role required.");
             string serviceName = section.GetString("ServiceName", "");
-            if (String.IsNullOrWhiteSpace(serviceName))
-                throw new InvalidOperationException("Dedicated service identity required.");
 
             // Credentials are read only from this dedicated section.
             // A dedicated host listener must enforce TLS and network ACLs.
