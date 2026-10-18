@@ -11,6 +11,7 @@ using System.Text.Json;
 using NexVerse.Core.Security;
 using NexVerse.Core.Audit;
 using System.Collections.Generic;
+using log4net;
 using OpenMetaverse;
 using OpenSim.Data;
 using OpenSim.Framework;
@@ -26,6 +27,7 @@ namespace NexVerse.Server.Api
     /// </summary>
     internal sealed class NexWebProfileV3Api
     {
+        private static readonly ILog m_Log = LogManager.GetLogger(typeof(NexWebProfileV3Api));
         private readonly IUserAccountService m_Accounts;
         private readonly IProfilesData m_Profiles;
         private readonly IAssetService m_Assets;
@@ -102,10 +104,17 @@ namespace NexVerse.Server.Api
 
         private void Get(UserAccount account, IOSHttpRequest request, IOSHttpResponse response)
         {
-            ProfilePrivacy privacy = LoadPrivacy(account.PrincipalID);
+            // Publication status and the linked picture come from userprofile.
+            // Resolve and authorize them before reading optional userdata privacy.
             UserProfileProperties profile = new UserProfileProperties { UserId = account.PrincipalID };
             string error = string.Empty;
-            m_Profiles.GetAvatarProperties(ref profile, ref error);
+            if (!m_Profiles.GetAvatarProperties(ref profile, ref error))
+            {
+                m_Log.Error("[NEX-WEBPROFILE-V3]: Unable to load avatar userprofile.");
+                WriteJson(response, HttpStatusCode.ServiceUnavailable,
+                    new { error = "profile_service_unavailable" });
+                return;
+            }
 
             if (!profile.PublishProfile)
             {
@@ -124,6 +133,7 @@ namespace NexVerse.Server.Api
                 }
             }
 
+            ProfilePrivacy privacy = LoadPrivacy(account.PrincipalID);
             WriteJson(response, HttpStatusCode.OK, new
             {
                 id = account.PrincipalID.ToString(),
@@ -165,6 +175,7 @@ namespace NexVerse.Server.Api
         {
             if (m_Assets == null)
             {
+                m_Log.Warn("[NEX-WEBPROFILE-V3]: Profile image asset service is not initialized.");
                 WriteJson(response, HttpStatusCode.ServiceUnavailable,
                     new { error = "profile_image_service_unavailable" });
                 return;
@@ -175,8 +186,9 @@ namespace NexVerse.Server.Api
             string error = string.Empty;
             if (!m_Profiles.GetAvatarProperties(ref profile, ref error))
             {
-                WriteJson(response, HttpStatusCode.NotFound,
-                    new { error = "profile_image_not_found" });
+                m_Log.Error("[NEX-WEBPROFILE-V3]: Failed to load avatar userprofile for image lookup.");
+                WriteJson(response, HttpStatusCode.ServiceUnavailable,
+                    new { error = "profile_image_service_unavailable" });
                 return;
             }
             if (!profile.PublishProfile)
@@ -294,9 +306,10 @@ namespace NexVerse.Server.Api
                 response.KeepAlive = false;
                 response.RawBuffer = result;
             }
-            catch (Exception)
+            catch (Exception e)
             {
-                // Do not disclose backend URLs, raw asset metadata or IDs.
+                // Keep backend details server-side; the client sees only a controlled error.
+                m_Log.Error("[NEX-WEBPROFILE-V3]: Profile image loading or conversion failed.", e);
                 WriteJson(response, HttpStatusCode.ServiceUnavailable,
                     new { error = "profile_image_service_unavailable" });
             }
