@@ -577,7 +577,7 @@ namespace NexVerse.Server.Api
                 case "profileWantToMask":
                 case "want_to_mask":
                     column = "profileWantToMask";
-                    if (!value.TryGetInt32(out int wantMask))
+                    if (value.ValueKind != JsonValueKind.Number || !value.TryGetInt32(out int wantMask))
                         return false;
                     profile.WantToMask = wantMask;
                     break;
@@ -591,7 +591,7 @@ namespace NexVerse.Server.Api
                 case "profileSkillsMask":
                 case "skills_mask":
                     column = "profileSkillsMask";
-                    if (!value.TryGetInt32(out int skillsMask))
+                    if (value.ValueKind != JsonValueKind.Number || !value.TryGetInt32(out int skillsMask))
                         return false;
                     profile.SkillsMask = skillsMask;
                     break;
