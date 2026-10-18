@@ -26,6 +26,7 @@
  */
 
 using System;
+using System.Collections.Generic;
 using System.IO;
 using Nini.Config;
 using OpenMetaverse;
@@ -41,6 +42,28 @@ namespace OpenSim.Server.Handlers.Asset
 {
     public class AssetServiceConnector : ServiceConnector
     {
+        // ROBUST's asset connector is the authoritative in-process owner of
+        // the configured asset service. Reuse it for internal APIs instead of
+        // constructing a second FSAsset/OGLAsset instance (writer threads,
+        // caches and database initialization must not be duplicated).
+        private static readonly object s_ServiceSync = new object();
+        private static readonly Dictionary<IConfigSource, Dictionary<string, IAssetService>> s_LocalServices =
+            new Dictionary<IConfigSource, Dictionary<string, IAssetService>>(
+                ReferenceEqualityComparer.Instance);
+
+        public static IAssetService GetLocalService(IConfigSource config, string sectionName = "AssetService")
+        {
+            if (config == null || string.IsNullOrWhiteSpace(sectionName))
+                return null;
+            lock (s_ServiceSync)
+            {
+                if (s_LocalServices.TryGetValue(config, out Dictionary<string, IAssetService> services) &&
+                    services.TryGetValue(sectionName, out IAssetService service))
+                    return service;
+            }
+            return null;
+        }
+
         private IAssetService m_AssetService;
         private string m_ConfigName = "AssetService";
 
@@ -64,6 +87,18 @@ namespace OpenSim.Server.Handlers.Asset
 
             if (m_AssetService == null)
                 throw new Exception(string.Format("Failed to load AssetService from {0}; config is {1}", assetService, m_ConfigName));
+
+            // Publish only after successful service construction. Each config
+            // section retains its own entry (HGAssetService != AssetService).
+            lock (s_ServiceSync)
+            {
+                if (!s_LocalServices.TryGetValue(config, out Dictionary<string, IAssetService> services))
+                {
+                    services = new Dictionary<string, IAssetService>(StringComparer.OrdinalIgnoreCase);
+                    s_LocalServices.Add(config, services);
+                }
+                services[m_ConfigName] = m_AssetService;
+            }
 
             string redirectURL = serverConfig.GetString("RedirectURL", string.Empty);
             IServiceAuth auth = ServiceAuth.Create(config, m_ConfigName);
