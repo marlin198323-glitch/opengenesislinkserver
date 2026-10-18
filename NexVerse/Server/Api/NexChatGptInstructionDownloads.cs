@@ -202,7 +202,7 @@ namespace NexVerse.Server.Api
             md.AppendLine("- GET /messages, GET /messages/events?after=0 und GET /messages/with/{peerId}?after=0: nur eigene Konversationen und neue IMs (5s Polling).");
             md.AppendLine("- DELETE /messages/history loescht die eigene Portal-IM-Historie, opt-out ebenfalls.");
             md.AppendLine("- Fuer Antworten aus Firestorm muss [NexPortalIM] in Robust und Simulator mit demselben HMAC-Secret aktiviert sein.");
-            md.AppendLine("- GET/PATCH /profiles/{principalId} liest/bearbeitet das OpenSim-Avatarprofil einschliesslich profile_image als existierende Asset-UUID. Ein Webupload ist noch kein Bestandteil.");
+            md.AppendLine("- GET /profiles/{principalId} liest das OpenSim-Profil einschliesslich Bildreferenzen. PATCH /profiles/{principalId} (profile:write + Owner/Admin) darf nur die elf editierbaren Spalten der userprofile-Tabelle setzen; useruuid, profileImage, profileFirstImage sind ausnahmslos schreibgeschuetzt (HTTP 403). Ein Webupload ist kein Bestandteil.");
             md.AppendLine("- GET /profiles/{principalId}/image liefert autorisiert tatsaechliche PNG/JPEG-Bilddaten der *aktuell* hinterlegten Profiltextur. Oeffentlich nur bei PublishProfile, sonst ProfileRead + eigener Avatar/Admin; kein Asset-Browser oder beliebige Texture-UUID.");
             md.AppendLine("- profile_image_url ist ein relativer Pfad und kann null sein. Keine Schluessel/Tokens in Querystrings ablegen; Browser-Fetch fuer private Profile braucht den authentifizierten Kontext.");
             md.AppendLine("- Display Name via PATCH /users/{principalId} mit display_name, sieben Tage Cooldown fuer Self-Service.");
