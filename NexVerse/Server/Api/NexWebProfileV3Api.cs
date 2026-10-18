@@ -13,6 +13,7 @@ using NexVerse.Core.Audit;
 using System.Collections.Generic;
 using log4net;
 using OpenMetaverse;
+using PermissionMask = OpenSim.Framework.PermissionMask;
 using OpenSim.Data;
 using OpenSim.Framework;
 using OpenSim.Framework.Servers.HttpServer;
