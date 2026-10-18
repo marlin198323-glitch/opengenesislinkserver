@@ -51,7 +51,7 @@ namespace OpenGenesisLINK.Addons.AssetService
         public long DiskCacheMisses => diskCache?.Misses ?? 0;
         public long DiskCacheEvictions => diskCache?.Evictions ?? 0;
         public OGLAssetConnector(IConfigSource config, string configName)
-            : base(config)
+            : base(config, configName)
         {
             IConfig settings = config.Configs["OGLAssetService"];
             if (settings == null || !settings.GetBoolean("Enabled", false))
