@@ -26,6 +26,10 @@ The directory validates primary and replica node identifiers against whitespace-
 
 `IOGLAssetLocationDirectory` is now implemented by the JSON prototype and SQLite CAS directory. `OGLAssetNodeCoordinator` depends on this interface, allowing its staging and local read operations to use the transactional SQLite mapping. This is code-level integration only: there is no automatic configuration selection, no active ROBUST route, no remote node transport, and no replicated commit guarantee. Cross-process concurrency is guarded at the SQLite mapping layer, not across payload writes and metadata publication as one atomic transaction.
 
+## Replica preparation primitive
+
+`OGLAssetReplicaStaging` verifies the SHA-256 of received payload bytes before placing them in immutable local object storage. It does not register a replica as available, authenticate a remote node, perform a network transfer, or guarantee multi-replica durability. The central directory must advertise a replica only after the destination has durably stored and acknowledged the exact hash. Until an authenticated transport and transactional directory update protocol exist, replica preparation is an isolated development primitive.
+
 ## Required before enabling federated mode
 
 1. Durable metadata directory: map Asset UUID to current content hash, owning node, replicas, version and retention policy. Use a transactional database and optimistic concurrency controls.
