@@ -1,0 +1,430 @@
+--- StadtNexVerseKiosk/app/src/main/java/de/stadtnexverse/kiosk/MainActivity.java
++++ StadtNexVerseKiosk/app/src/main/java/de/stadtnexverse/kiosk/MainActivity.java
+@@ -36,6 +36,8 @@
+ import android.widget.TextView;
+ 
+ import org.json.JSONObject;
++import org.json.JSONArray;
++import java.util.ArrayList;
+ 
+ import java.io.BufferedReader;
+ import java.io.InputStreamReader;
+@@ -79,7 +81,7 @@
+     private long lastUpdateMillis;
+     private TextView clockLabel, dateLabel, statusLabel, lastUpdateLabel, lockLabel;
+     private TextView[] valueLabels;
+-    private final String[] lastValues = { "—", "—", "—", "—", "—", "—", "—", "—", "—", "—", "—", "—", "—" };
++    private final String[] lastValues = new String[22];
+ 
+     private final Runnable clockTick = new Runnable() {
+         @Override public void run() {
+@@ -101,6 +103,7 @@
+         prefs = getSharedPreferences("kiosk", MODE_PRIVATE);
+         policy = (DevicePolicyManager) getSystemService(Context.DEVICE_POLICY_SERVICE);
+         admin = new ComponentName(this, KioskDeviceAdminReceiver.class);
++        java.util.Arrays.fill(lastValues, "—");
+         showingSettings = !prefs.contains("api_url") || !prefs.contains("pin_hash");
+         initialSetup = showingSettings;
+         if (showingSettings) renderSettings(); else renderDashboard();
+@@ -179,6 +182,13 @@
+     private long lastLatencyMs;
+     private String lastError = "";
+     private int healthState; // 0 unknown, 1 healthy, -1 unavailable
++    private String gridServiceStatus = "";
++    private String assetServiceStatus = "";
++    private String assetProbe = "";
++    private String regionStatusSource = "";
++    private String generatedAt = "";
++    private String dataQuality = "";
++    private final ArrayList<NexVerseDashboardView.RegionRecord> regions = new ArrayList<>();
+ 
+     private void renderDashboard() {
+         showingSettings = false;
+@@ -205,7 +215,9 @@
+     private void updateStatus() {
+         if (showingSettings || dashboardView == null) return;
+         dashboardView.updateData(lastValues, online, lastUpdateMillis, lastLatencyMs,
+-                lastError, isDeviceOwner(), prefs.getBoolean("kiosk_enabled", false), healthState);
++                lastError, isDeviceOwner(), prefs.getBoolean("kiosk_enabled", false), healthState,
++                gridServiceStatus, assetServiceStatus, assetProbe,
++                regionStatusSource, generatedAt, dataQuality, regions);
+     }
+ 
+     private void refresh() {
+@@ -239,21 +251,61 @@
+                 JSONObject residents = root.getJSONObject("residents");
+                 JSONObject hypergrid = root.getJSONObject("hypergrid");
+                 JSONObject onlineData = root.getJSONObject("online");
++                JSONObject summary = root.optJSONObject("region_summary");
++                JSONObject services = root.optJSONObject("services");
++                JSONObject gridService = services == null ? null : services.optJSONObject("grid");
++                JSONObject assetService = services == null ? null : services.optJSONObject("asset");
++                JSONObject quality = root.optJSONObject("data_quality");
+                 String[] values = {
+-                        String.valueOf(residents.getInt("online_now")),
+-                        String.valueOf(hypergrid.getInt("online_now")),
+-                        String.valueOf(onlineData.getInt("total")),
+-                        String.valueOf(residents.getInt("registered_total")),
+-                        String.valueOf(hypergrid.getInt("known_visitors_total")),
+-                        String.valueOf(hypergrid.getInt("home_grids_online_now")),
+-                        String.valueOf(residents.optInt("active_last_24_hours", 0)),
+-                        String.valueOf(residents.optInt("active_last_7_days", 0)),
+-                        String.valueOf(hypergrid.optInt("visitors_last_7_days", 0)),
+-                        String.valueOf(hypergrid.optInt("known_home_grids", 0)),
+-                        String.valueOf(residents.optInt("registrations_last_7_days", 0)),
+-                        String.valueOf(hypergrid.optInt("visitors_last_30_days", 0)),
+-                        String.valueOf(residents.optInt("active_last_30_days", 0))
++                        stat(residents,"online_now"),                       // 0
++                        stat(hypergrid,"online_now"),                       // 1
++                        stat(onlineData,"total"),                          // 2
++                        stat(residents,"registered_total"),                // 3
++                        stat(hypergrid,"known_visitors_total"),            // 4
++                        stat(hypergrid,"home_grids_online_now"),           // 5
++                        stat(residents,"active_last_24_hours"),            // 6
++                        stat(residents,"active_last_7_days"),              // 7
++                        stat(hypergrid,"visitors_last_7_days"),            // 8
++                        stat(hypergrid,"known_home_grids"),                // 9
++                        stat(residents,"registrations_last_7_days"),       // 10
++                        stat(hypergrid,"visitors_last_30_days"),           // 11
++                        stat(residents,"active_last_30_days"),             // 12
++                        stat(summary,"registered_total"),                 // 13
++                        stat(summary,"online_total"),                     // 14
++                        stat(summary,"offline_total"),                    // 15
++                        stat(summary,"reserved_total"),                   // 16
++                        stat(summary,"hypergrid_links"),                  // 17
++                        stat(residents,"active_accounts"),                // 18
++                        stat(residents,"restricted_accounts"),            // 19
++                        stat(residents,"never_logged_in"),                // 20
++                        stat(residents,"registrations_last_30_days")       // 21
+                 };
++                ArrayList<NexVerseDashboardView.RegionRecord> regionRows = new ArrayList<>();
++                JSONArray regionArray = root.optJSONArray("regions");
++                if (regionArray != null) {
++                    for (int i=0;i<Math.min(regionArray.length(), 500);i++) {
++                        JSONObject region = regionArray.optJSONObject(i);
++                        if (region == null) continue;
++                        String name = region.optString("region_name", "").trim();
++                        if (name.isEmpty()) continue;
++                        String dimensions = dimension(region.optInt("size_x",0),region.optInt("size_y",0));
++                        String coords = region.has("grid_x") && region.has("grid_y")
++                                ? region.optInt("grid_x") + "/" + region.optInt("grid_y") : "";
++                        Boolean regionOnline = region.has("online") && !region.isNull("online")
++                                ? region.optBoolean("online") : null;
++                        regionRows.add(new NexVerseDashboardView.RegionRecord(name,
++                                coords, dimensions, regionOnline));
++                    }
++                }
++                String nextGridStatus = gridService == null ? "" : gridService.optString("status", "");
++                String nextAssetStatus = assetService == null ? "" : assetService.optString("status", "");
++                String nextAssetProbe = assetService == null ? "" : assetService.optString("probe", "");
++                String nextRegionSource = summary == null ? "" : summary.optString("status_source", "");
++                String nextGeneratedAt = root.optString("generated_at", "");
++                String nextQuality = quality == null ? "" :
++                        (quality.optBoolean("complete", false) ? "vollständig" : "eingeschränkt");
++                if (quality != null && quality.optJSONArray("missing_metrics") != null &&
++                        quality.optJSONArray("missing_metrics").length() > 0) nextQuality = "Metriken fehlen";
+                 final long requestMs = java.util.concurrent.TimeUnit.NANOSECONDS.toMillis(System.nanoTime()-startedAt);
+                 // Only actual responses become graph samples; no demo values are fabricated.
+                 final int sampleResidents = residents.getInt("online_now");
+@@ -267,6 +319,14 @@
+                     lastLatencyMs = requestMs;
+                     lastError = "";
+                     healthState = health;
++                    gridServiceStatus = nextGridStatus;
++                    assetServiceStatus = nextAssetStatus;
++                    assetProbe = nextAssetProbe;
++                    regionStatusSource = nextRegionSource;
++                    generatedAt = nextGeneratedAt;
++                    dataQuality = nextQuality;
++                    regions.clear();
++                    regions.addAll(regionRows);
+                     if (!showingSettings && dashboardView != null) {
+                         dashboardView.appendSample(sampleResidents, sampleTotal, lastUpdateMillis);
+                     }
+@@ -285,6 +345,18 @@
+         });
+     }
+ 
++    private static String stat(JSONObject source, String field) {
++        if (source == null || !source.has(field) || source.isNull(field)) return "—";
++        Object v = source.opt(field);
++        if (!(v instanceof Number)) return "—";
++        long value = ((Number)v).longValue();
++        return value >= 0 && value <= Integer.MAX_VALUE ? Long.toString(value) : "—";
++    }
++
++    private static String dimension(int x, int y) {
++        return x > 0 && y > 0 ? x + "×" + y : "—";
++    }
++
+     private int checkWorldApiHealth(String statsUrl) {
+         HttpURLConnection conn = null;
+         try {
+@@ -424,6 +496,13 @@
+             online = false;
+             lastUpdateMillis = 0;
+             for (int i = 0; i < lastValues.length; i++) lastValues[i] = "—";
++            gridServiceStatus = "";
++            assetServiceStatus = "";
++            assetProbe = "";
++            regionStatusSource = "";
++            dataQuality = "";
++            generatedAt = "";
++            regions.clear();
+             renderDashboard();
+             if (enable.isChecked() && !isDeviceOwner()) {
+                 new AlertDialog.Builder(this)
+--- StadtNexVerseKiosk/app/src/main/java/de/stadtnexverse/kiosk/NexVerseDashboardView.java
++++ StadtNexVerseKiosk/app/src/main/java/de/stadtnexverse/kiosk/NexVerseDashboardView.java
+@@ -40,7 +40,22 @@
+     private final ArrayList<Integer> totalHistory = new ArrayList<>();
+     private final ArrayList<Long> timeHistory = new ArrayList<>();
+     private final TimeZone timezone = TimeZone.getTimeZone("Europe/Berlin");
+-    private String[] values = new String[13];
++    private String[] values = new String[22];
++    public static final class RegionRecord {
++        public final String name, coordinates, dimensions;
++        public final Boolean online; // null means not reported
++        public RegionRecord(String name, String coordinates, String dimensions, Boolean online) {
++            this.name = name;
++            this.coordinates = coordinates;
++            this.dimensions = dimensions;
++            this.online = online;
++        }
++    }
++    private final ArrayList<RegionRecord> regionRows = new ArrayList<>();
++    private String gridServiceStatus="", assetServiceStatus="", assetProbe="";
++    private String regionSource="", generatedAt="", quality="";
++    private int regionPage = 0;
++    private static final int REGIONS_PER_PAGE = 6;
+     private boolean connected, deviceOwner, kioskEnabled;
+     private int healthState; // 0: unknown, 1: HTTP 200, -1: unavailable
+     private long lastUpdateMs, latencyMs;
+@@ -58,7 +73,10 @@
+     }
+ 
+     public void updateData(String[] data, boolean online, long updateAt, long latency,
+-                           String error, boolean isOwner, boolean enabled, int apiHealth) {
++                           String error, boolean isOwner, boolean enabled, int apiHealth,
++                           String gridStatus, String assetStatus, String probe,
++                           String statusSource, String timestamp, String qualityText,
++                           ArrayList<RegionRecord> newRegions) {
+         if (data != null) values = data.clone();
+         connected = online;
+         lastUpdateMs = updateAt;
+@@ -67,6 +85,15 @@
+         deviceOwner = isOwner;
+         kioskEnabled = enabled;
+         healthState = apiHealth;
++        gridServiceStatus = gridStatus == null ? "" : gridStatus;
++        assetServiceStatus = assetStatus == null ? "" : assetStatus;
++        assetProbe = probe == null ? "" : probe;
++        regionSource = statusSource == null ? "" : statusSource;
++        generatedAt = timestamp == null ? "" : timestamp;
++        quality = qualityText == null ? "" : qualityText;
++        regionRows.clear();
++        if(newRegions != null) regionRows.addAll(newRegions);
++        regionPage=Math.max(0,Math.min(regionPage,Math.max(0,(regionRows.size()-1)/REGIONS_PER_PAGE)));
+         invalidate();
+     }
+ 
+@@ -139,7 +166,7 @@
+         drawMetric(real,0,"BEWOHNER ONLINE",v(0),BLUE);
+         drawMetric(real,1,"HYPERGRID ONLINE",v(1),CYAN);
+         drawMetric(real,2,"GESAMT ONLINE",v(2),GOLD);
+-        drawMetric(real,3,"HEIMATGRIDS ONLINE",v(5),BLUE);
++        drawMetric(real,3,"REGIONEN (GRIDSTORE)",v(14),BLUE);
+         drawMetric(real,4,"REGISTRIERTE BEWOHNER",v(3),MAGENTA);
+         drawMetric(real,5,"STATUS",connected?"ONLINE":"OFFLINE",connected?GREEN:GOLD);
+         drawClock(real);
+@@ -169,6 +196,7 @@
+         gradientPanel(c,466,610,1175,857,BLUE);
+         final String[] tabs={"Übersicht","Regionen","Bewohner","Dienste","Statistiken","Mehr"};
+         if (activeTab!=0) {
++            if (activeTab==1) { drawRegionsPanel(c); return; }
+             text(c,tabs[activeTab].toUpperCase(Locale.GERMANY),497,656,26,WHITE,true);
+             drawTabDetails(c);
+             return;
+@@ -208,32 +236,74 @@
+         int last=nums.size()-1;
+         p.setColor(accent);c.drawCircle(r,b-(b-t)*nums.get(last)/(float)max,5,p);
+     }
++    private void drawRegionsPanel(Canvas c) {
++        text(c,"REGIONEN · GRIDSTORE",493,650,25,WHITE,true);
++        String top = "Registriert " + v(13) + "   Gemeldet online " + v(14)
++                + "   Offline " + v(15);
++        text(c,top,492,684,17,CYAN,true);
++        if (regionRows.isEmpty()) {
++            text(c,"Keine Regionseinträge von der API übermittelt",493,736,20,MUTED,false);
++            text(c,"Zusammenfassung: " + v(13) + " registriert",493,771,18,WHITE,true);
++        } else {
++            int pages = Math.max(1,(regionRows.size()+REGIONS_PER_PAGE-1)/REGIONS_PER_PAGE);
++            regionPage = Math.min(regionPage,pages-1);
++            for(int i=0;i<REGIONS_PER_PAGE;i++) {
++                int n=regionPage*REGIONS_PER_PAGE+i;
++                if(n>=regionRows.size())break;
++                RegionRecord region = regionRows.get(n);
++                int y=710+i*22;
++                String name = region.name.length()>30 ? region.name.substring(0,28)+"…" : region.name;
++                text(c,name,494,y,18,WHITE,true);
++                String where = region.coordinates + "  " + region.dimensions;
++                text(c,where,825,y,15,MUTED,false);
++                String status = region.online==null ? "—" : region.online ? "gemeldet" : "offline";
++                text(c,status,1060,y,16,Boolean.TRUE.equals(region.online)?GREEN:MUTED,true);
++                p.setColor(0x3343b9fc);p.setStrokeWidth(1);
++                c.drawLine(496,y+5,1146,y+5,p);
++            }
++            String paging = "◀    Seite " + (regionPage+1) + " / " + pages + "    ▶";
++            center(c,paging,845,848,18,CYAN,true);
++        }
++        String hint = regionSource.toLowerCase(Locale.ROOT).contains("registration state")
++                ? "GridStore-Registrierung – kein aktiver Netzwerktest"
++                : "Regionsstatus laut Statistikdienst, kein eigener Netzwerktest";
++        text(c,hint,494,865,14,GOLD,false);
++    }
++
+     private void drawTabDetails(Canvas c) {
+         String[][] rows;
+         switch(activeTab) {
+-            case 1: rows=new String[][]{{"Heimatgrids derzeit online",v(5)},
+-                    {"Bekannte Herkunftsgrids",v(9)},
+-                    {"Aktive Regionen", "Nicht in öffentlicher Statistik"}};break;
+-            case 2: rows=new String[][]{{"Einwohner online",v(0)},
+-                    {"Registrierte Einwohner",v(3)},
+-                    {"In den letzten 24 Stunden aktiv",v(6)}};break;
+-            case 3: rows=new String[][]{{"World API",healthState==1?"HTTP 200":healthState==-1?"Nicht erreichbar":"Nicht geprüft"},
+-                    {"Statistik-Schnittstelle",connected?"Verbunden":"Nicht verbunden"},
+-                    {"Weitere Dienste","Einzelstatus nicht verfügbar"}};break;
+-            case 4: rows=new String[][]{{"Einwohner aktiv (7 Tage)",v(7)},
+-                    {"Hypergrid-Besucher (7 Tage)",v(8)},
+-                    {"Neuregistrierungen (7 Tage)",v(10)}};break;
+-            default: rows=new String[][]{{"Verwaltung","STADT NEXVERSE oben links lange halten"},
+-                    {"Gerätemodus",deviceOwner?"Device Owner":"Nur Vollbild"},
+-                    {"Kiosk aktiviert",kioskEnabled?"Ja":"Nein"}};
++            case 2: rows=new String[][]{{"Bewohner online",v(0)},
++                    {"Konten aktiv / eingeschränkt",v(18)+" / "+v(19)},
++                    {"Registrierte Bewohner",v(3)},
++                    {"In 24 Stunden aktiv",v(6)}};break;
++            case 3: rows=new String[][]{{"World API Health",healthState==1?"OK":healthState==-1?"nicht erreichbar":"—"},
++                    {"Grid-Service (Statistik)",serviceString(gridServiceStatus)},
++                    {"Asset-Service (Existenzprüfung)",serviceString(assetServiceStatus)},
++                    {"Datenqualität",quality.isEmpty()?"—":quality}};break;
++            case 4: rows=new String[][]{{"Bewohner aktiv (7 / 30 Tage)",v(7)+" / "+v(12)},
++                    {"HG-Gäste (7 / 30 Tage)",v(8)+" / "+v(11)},
++                    {"Neuregistrierungen (7 / 30 Tage)",v(10)+" / "+v(21)},
++                    {"Bekannte Heimatgrids / online",v(9)+" / "+v(5)}};break;
++            default: rows=new String[][]{{"HG-Regionenverknüpfungen",v(17)},
++                    {"Reservierte Regionen",v(16)},
++                    {"Noch nie angemeldet",v(20)},
++                    {"Gerätemodus",deviceOwner?"Device Owner":"Nur Vollbild"}};
+         }
+         for(int i=0;i<rows.length;i++) {
+-            float y=699+56*i;
++            float y=697+43*i;
+             text(c,rows[i][0],500,y,19,MUTED,false);
+-            text(c,rows[i][1],805,y,19,i==2?CYAN:WHITE,true);
+-            p.setColor(0x3343b9fc);p.setStrokeWidth(1);c.drawLine(498,y+16,1142,y+16,p);
++            text(c,rows[i][1],1000,y,20,WHITE,true);
++            p.setColor(0x3343b9fc);p.setStrokeWidth(1);c.drawLine(498,y+10,1142,y+10,p);
+         }
+     }
++
++    private String serviceString(String status) {
++        if(status.isEmpty())return "—";
++        if("ok".equalsIgnoreCase(status))return "OK";
++        return status.length()>16?status.substring(0,16):status;
++    }
++
+     private void drawServicePanel(Canvas c) {
+         gradientPanel(c,1188,610,1576,857,CYAN);
+         text(c,"◇  WORLD API",1212,652,25,WHITE,true);
+@@ -243,8 +313,8 @@
+         p.setColor(0x6659baff);p.setStrokeWidth(1);c.drawLine(1211,709,1551,709,p);
+         serviceRow(c,735,"Statistik",connected?"OK":"FEHLER",connected);
+         serviceRow(c,772,"API Health",healthState==1?"OK":healthState==-1?"FEHLER":"—",healthState==1);
+-        serviceRow(c,809,"Grid Service","—",false);
+-        serviceRow(c,846,"Asset Service","—",false);
++        serviceRow(c,809,"Grid Service",serviceString(gridServiceStatus),"ok".equalsIgnoreCase(gridServiceStatus));
++        serviceRow(c,846,"Asset Service",serviceString(assetServiceStatus),"ok".equalsIgnoreCase(assetServiceStatus));
+     }
+     private void serviceRow(Canvas c,int y,String label,String value,boolean healthy) {
+         p.setColor(healthy?GREEN:MUTED); c.drawCircle(1227,y-6,6,p);
+@@ -257,7 +327,8 @@
+         if(lastUpdateMs==0)last="Noch keine Statistikdaten";
+         else last=(connected?"Letzte Aktualisierung: ":"Verbindung getrennt · Letzte Daten: ")+fmt(lastUpdateMs,"HH:mm:ss");
+         if(!connected && !connectionError.isEmpty()) last="API-Fehler: "+connectionError;
+-        if(last.length()>48) last=last.substring(0,46)+"…";
++        if(connected && generatedAt.length()>=19) last += "  |  API UTC " + generatedAt.substring(11,19);
++        if(last.length()>65) last=last.substring(0,63)+"…";
+         text(c,"⟳  Aktualisierung alle 15 Sekunden",41,910,20,CYAN,true);
+         text(c,last,41,946,17,connected?MUTED:GOLD,false);
+         String[] names={"Übersicht","Regionen","Bewohner","Dienste","Statistiken","Mehr"};
+@@ -281,6 +352,18 @@
+                 if(downX<565 && downY<370 && SystemClock.elapsedRealtime()-downAt>=650) {
+                     adminAction.openAdmin();return true;
+                 }
++                if(activeTab==1 && y>=694 && y<=866 && x>=470 && x<=1175) {
++                    int pageCount=Math.max(1,(regionRows.size()+REGIONS_PER_PAGE-1)/REGIONS_PER_PAGE);
++                    if(y>=830) {
++                        if(x<830)regionPage=Math.max(0,regionPage-1);
++                        else regionPage=Math.min(pageCount-1,regionPage+1);
++                        invalidate(); return true;
++                    }
++                    if(Math.abs(y-downY)>45) {
++                        regionPage=Math.max(0,Math.min(pageCount-1,regionPage+(y<downY?1:-1)));
++                        invalidate();return true;
++                    }
++                }
+                 if(y>=872&&y<=976&&x>=650) {
+                     int i=(int)((x-654)/(146+8));
+                     if(i>=0&&i<6) {
+--- StadtNexVerseKiosk/app/build.gradle
++++ StadtNexVerseKiosk/app/build.gradle
+@@ -10,8 +10,8 @@
+         applicationId 'de.stadtnexverse.kiosk'
+         minSdk 23
+         targetSdk 35
+-        versionCode 2
+-        versionName '1.1.0'
++        versionCode 3
++        versionName '1.2.0'
+     }
+ 
+     buildTypes {
+--- StadtNexVerseKiosk/README.md
++++ StadtNexVerseKiosk/README.md
+@@ -3,15 +3,20 @@
+ Android-Nativ-App für ein stationäres Tablet-Dashboard im Querformat mit echter
+ Device-Owner-/Lock-Task-Kioskunterstützung.
+ 
+-## Neon-Design v1.1.0
++## Neon-Design v1.2.0
+ 
+ - Die freigegebene Stadt-NexVerse-Vorlage mit drei Figuren wird unverfremdet als
+   Kopfbereich verwendet. Darunter liegen **echte**, dynamische Android-Anzeigen.
+ - Sechs Statuskarten, große Berlin-Uhr, Live-Verlaufsdiagramm auf Basis tatsächlich
+   abgerufener Daten, API-Health-Anzeige und sechs umschaltbare Informationsansichten.
+-- Die öffentliche World API liefert derzeit **keine vollständige Zahl aktiver
+-  Regionen** und keinen separaten Asset-/Grid-Dienststatus. Solche Daten werden
+-  bewusst nicht erfunden. Die Kachel zeigt stattdessen Heimatgrids online.
++- Die erweiterte World API liefert `region_summary` mit registrierten/online
++  **gemeldeten** Regionen und `services.grid` / `services.asset`. Diese Werte
++  werden live abgerufen. GridStore-"online" ist ein Registrierungsflag und
++  **keine aktive Erreichbarkeitsprobe** eines Simulators.
++- Der neue Tab *Regionen* zeigt Namen, Grid-Koordinaten, Regionsgrößen,
++  Online-Registrierungsflag und blättert durch sechs Regionen pro Seite.
++- Das Asset-Service-`ok` bedeutet die dokumentierte Lese-Existenzprüfung,
++  keinen belegten vollständigen Schreib-/Downloadtest.
+ - Bei Verbindungsfehlern erscheinen keine erfundenen Online-Zahlen.
+ - Administrator: **Stadt-NexVerse-Schriftzug links oben für mind. 0,65 Sekunden
+   gedrückt halten**, anschließend PIN eingeben.
+@@ -25,6 +30,9 @@
+ - registrierte Einwohner (`residents.registered_total`)
+ - bekannte HG-Besucher (`hypergrid.known_visitors_total`)
+ - aktive Herkunfts-Grids (`hypergrid.home_grids_online_now`)
++- registrierte, online gemeldete, offline gemeldete, reservierte Regionen und HG-Links (`region_summary`)
++- `services.grid.status`, `services.asset.status`, `data_quality.complete`, API-Erzeugungszeit
++- Liste aller von der API übermittelten Regionen, bis maximal 500 Einträge pro Poll
+ - Aktualisierung alle 15 Sekunden (HTTPS, keine Tokens auf dem Tablet)
+ - Verbindungsstatus / sichtbarer Hinweis bei veralteten Werten
+ - 24/7 Display an; Querformat, Immersive Fullscreen; Admin-PIN mit PBKDF2
