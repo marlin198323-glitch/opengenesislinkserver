@@ -771,47 +771,47 @@ namespace OpenSim.Data.PGSQL
                         switch (column)
                         {
                             case "profilePartner":
-                                assignments.Add(""profilePartner"=:profilePartner");
+                                assignments.Add("\"profilePartner\"=:profilePartner");
                                 cmd.Parameters.Add(m_database.CreateParameter("profilePartner", props.PartnerId));
                                 break;
                             case "profileAllowPublish":
-                                assignments.Add(""profileAllowPublish"=:profileAllowPublish");
+                                assignments.Add("\"profileAllowPublish\"=:profileAllowPublish");
                                 cmd.Parameters.Add(m_database.CreateParameter("profileAllowPublish", props.PublishProfile));
                                 break;
                             case "profileMaturePublish":
-                                assignments.Add(""profileMaturePublish"=:profileMaturePublish");
+                                assignments.Add("\"profileMaturePublish\"=:profileMaturePublish");
                                 cmd.Parameters.Add(m_database.CreateParameter("profileMaturePublish", props.PublishMature));
                                 break;
                             case "profileURL":
-                                assignments.Add(""profileURL"=:profileURL");
+                                assignments.Add("\"profileURL\"=:profileURL");
                                 cmd.Parameters.Add(m_database.CreateParameter("profileURL", props.WebUrl));
                                 break;
                             case "profileWantToMask":
-                                assignments.Add(""profileWantToMask"=:profileWantToMask");
+                                assignments.Add("\"profileWantToMask\"=:profileWantToMask");
                                 cmd.Parameters.Add(m_database.CreateParameter("profileWantToMask", props.WantToMask));
                                 break;
                             case "profileWantToText":
-                                assignments.Add(""profileWantToText"=:profileWantToText");
+                                assignments.Add("\"profileWantToText\"=:profileWantToText");
                                 cmd.Parameters.Add(m_database.CreateParameter("profileWantToText", props.WantToText));
                                 break;
                             case "profileSkillsMask":
-                                assignments.Add(""profileSkillsMask"=:profileSkillsMask");
+                                assignments.Add("\"profileSkillsMask\"=:profileSkillsMask");
                                 cmd.Parameters.Add(m_database.CreateParameter("profileSkillsMask", props.SkillsMask));
                                 break;
                             case "profileSkillsText":
-                                assignments.Add(""profileSkillsText"=:profileSkillsText");
+                                assignments.Add("\"profileSkillsText\"=:profileSkillsText");
                                 cmd.Parameters.Add(m_database.CreateParameter("profileSkillsText", props.SkillsText));
                                 break;
                             case "profileLanguages":
-                                assignments.Add(""profileLanguages"=:profileLanguages");
+                                assignments.Add("\"profileLanguages\"=:profileLanguages");
                                 cmd.Parameters.Add(m_database.CreateParameter("profileLanguages", props.Language));
                                 break;
                             case "profileAboutText":
-                                assignments.Add(""profileAboutText"=:profileAboutText");
+                                assignments.Add("\"profileAboutText\"=:profileAboutText");
                                 cmd.Parameters.Add(m_database.CreateParameter("profileAboutText", props.AboutText));
                                 break;
                             case "profileFirstText":
-                                assignments.Add(""profileFirstText"=:profileFirstText");
+                                assignments.Add("\"profileFirstText\"=:profileFirstText");
                                 cmd.Parameters.Add(m_database.CreateParameter("profileFirstText", props.FirstLifeText));
                                 break;
                             default:
@@ -820,7 +820,7 @@ namespace OpenSim.Data.PGSQL
                         }
                     }
                     cmd.CommandText = "UPDATE userprofile SET " +
-                        string.Join(", ", assignments) + " WHERE "useruuid"=:uuid";
+                        string.Join(", ", assignments) + " WHERE \"useruuid\"=:uuid";
                     cmd.Parameters.Add(m_database.CreateParameter("uuid", props.UserId));
                     cmd.ExecuteNonQuery();
                 }
