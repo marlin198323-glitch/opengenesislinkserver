@@ -60,7 +60,38 @@ PortalAvatarRegistrationEnabled = true
 
 Dazu einen **eigenen**, auf genau `users:register` begrenzten
 World-API-Maschinenschlüssel ausstellen und **nur im Backend**
-des Stadtportals speichern. Es darf weder ein breiter
+des Stadtportals speichern.
+
+### Registrierungsschlüssel im World API Control Center erstellen
+
+1. Die geschützte World-API-Oberfläche unter
+   `https://world.stadt-nexverse.de/api/v1/docs` aufrufen und als
+   Administrator (UserLevel mindestens 200 mit `admin:*`) anmelden.
+2. Im Menü **Schlüssel & Einrichten** den eigenständigen Button
+   **Nur Registrierungs-API-Key erstellen** betätigen. Er ignoriert die
+   Vorauswahl der Experiences-/NexBus-Schlüssel und stellt **nur**
+   `users:register` aus. Alternativ das neue Kontrollkästchen
+   **Stadtportal / Avatarregistrierung** bei der gemeinsamen Ausgabe wählen.
+3. Die einmalige Ausgabe `NEXVERSE_REGISTER_API_KEY=nxk_...` über
+   **Konfiguration kopieren** sichern und **ausschließlich** in die
+   geschützte `.env` des Stadtportal-Backends einfügen. Nicht in HTML,
+   Frontend-JavaScript, einen öffentlichen API-Explorer oder einen
+   Quellcode-Commit übernehmen. Die API erwartet den Key im
+   HTTP-Header `X-NexVerse-Api-Key`.
+4. Bei einem bereits vorhandenen aktiven Schlüssel mit gleichem Namen
+   und Scope erscheint eine Duplikatmeldung; der alte Klartextschlüssel
+   wird **nicht erneut angezeigt**. Vor einer Rotation bestehenden
+   Schlüssel kontrolliert deaktivieren und das Backend ohne Unterbrechung
+   auf den neuen Schlüssel umstellen.
+
+Das Anlegen des Schlüssels aktiviert **nicht** automatisch
+`PortalAvatarRegistrationEnabled`. Die Modelle und Sicherheitsgates
+müssen weiterhin wie unten beschrieben geprüft werden. Die
+Cloudflare-Turnstile-Schlüssel `NEXVERSE_TURNSTILE_SITE_KEY` und
+`NEXVERSE_TURNSTILE_SECRET` werden unabhängig davon im Cloudflare
+Dashboard eingerichtet; deren Tokenvalidierung erfolgt ausschließlich
+im Stadtportal-Backend.
+ Es darf weder ein breiter
 `users:write`-Key noch ein Admin-Token an den Browser gelangen.
 `HTTPS` ist zwingend; bei TLS-Offloading wird
 `X-Forwarded-Proto: https` nur von einer lokalen Loopback-Verbindung
