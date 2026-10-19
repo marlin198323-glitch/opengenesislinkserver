@@ -92,7 +92,7 @@ for marker in ('data-page="adminlogin"','id="page-adminlogin"','id="adminLoginPa
 assert 'id="secretExperienceManage"' in ui
 assert "'NEXVERSE_EXPERIENCES_VIEWER_MANAGE_API_KEY'" in ui
 assert "scopes:['experiences:viewer:manage']" in ui
-assert "const wantManage=$('secretExperienceManage').checked;" in ui
+assert "const wantManage=!onlyRegistration&&$('secretExperienceManage').checked;" in ui
 # Registration credential: the browser issues a dedicated server-only key,
 # never a generic users:write/admin key. The shortcut must ignore existing
 # Experiences/NexBus defaults (and must not demand NexBus peer URLs).
