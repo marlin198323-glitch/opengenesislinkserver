@@ -92,7 +92,25 @@ for marker in ('data-page="adminlogin"','id="page-adminlogin"','id="adminLoginPa
 assert 'id="secretExperienceManage"' in ui
 assert "'NEXVERSE_EXPERIENCES_VIEWER_MANAGE_API_KEY'" in ui
 assert "scopes:['experiences:viewer:manage']" in ui
-assert "const wantManage=$('secretExperienceManage').checked;" in ui
+assert "const wantManage=!onlyRegistration&&$('secretExperienceManage').checked;" in ui
+# Registration credential: the browser issues a dedicated server-only key,
+# never a generic users:write/admin key. The shortcut must ignore existing
+# Experiences/NexBus defaults (and must not demand NexBus peer URLs).
+for marker in ('id="secretRegister"', 'id="secretGenerateRegistration"',
+               "'NEXVERSE_REGISTER_API_KEY'",
+               "scopes:['users:register'],env:'NEXVERSE_REGISTER_API_KEY'",
+               "const wantRegister=onlyRegistration||$('secretRegister').checked;",
+               "const wantBus=!onlyRegistration&&$('secretNexBus').checked;",
+               "secretGenerate(true)"):
+    assert marker in ui, f"Registration API key control missing: {marker}"
+assert "let secretIssuePending=false;" in ui
+assert "$('secretGenerateRegistration').disabled=true;" in ui
+assert "$('secretGenerateRegistration').disabled=false;" in ui
+assert "NEXVERSE_REGISTER_API_KEY" in contents("doc/NexVerse/PORTAL_REGISTRATION_IAR_HARDENING.md")
+portal_api=contents("NexVerse/Server/Api/OglPortalRegistrationApi.cs")
+assert "NexScopes.UsersRegister" in portal_api
+assert 'request.Headers?["X-NexVerse-Api-Key"]' in portal_api
+assert 'principal.Subject.StartsWith("api-key:"' in portal_api
 assert "localStorage.setItem(" not in ui
 assert "sessionStorage.setItem(" not in ui
 assert 'id="secretAdminPassword"' not in ui, "secrets must use shared admin session"
