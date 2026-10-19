@@ -605,8 +605,13 @@ Archivprüfungen bleiben auch für freigegebene Importe aktiv.</div>
 <label class="change"><input type="checkbox" id="secretExperiences" checked style="width:auto" /> <strong>Experiences / Script</strong><p><code>experiences:script</code>. Eigener Schlüssel für die Simulator-LSL-Funktionen.</p></label>
 <label class="change"><input type="checkbox" id="secretExperiencePermissions" style="width:auto" /> <strong>Experiences / Firestorm-Rechte</strong><p><code>experiences:viewer:permissions</code>. Separater Service-Schlüssel für Firestorm Allow/Block/Forget; nur für kontrolliert aktivierte Permission-CAPS.</p></label>
 <label class="change"><input type="checkbox" id="secretExperienceManage" style="width:auto" /> <strong>Experiences / Firestorm-Erwerb und Editor</strong><p><code>experiences:viewer:manage</code>. Eigenständiger privilegierter Simulator-Service-Schlüssel für „Erlebnis erwerben“ und die Bearbeitung eigener Experiences; nicht mit anderen Scopes kombinieren.</p></label>
+<label class="change"><input type="checkbox" id="secretRegister" style="width:auto" /> <strong>Stadtportal / Avatarregistrierung</strong><p><code>users:register</code>. Dedizierter Schlüssel ausschließlich für die sichere Server-zu-Server-Registrierung durch das Stadtportal-Backend.</p></label>
 <label class="change"><input type="checkbox" id="secretNexBus" checked style="width:auto" /> <strong>NexBus / NodeAgent</strong><p>Gemeinsamer zufälliger HMAC-Signaturschlüssel für Robust und alle Simulator-Nodes.</p></label>
 </div>
+<div class="row" style="margin-top:14px;flex-wrap:wrap">
+<button class="action" id="secretGenerateRegistration">Nur Registrierungs-API-Key erstellen</button>
+</div>
+<p class="authnote">Für die Stadtportal-Registrierung genügt dieser einzelne Schlüssel. Der Button ignoriert die Vorauswahl für Experiences und NexBus und verlangt keine NexBus-URLs. <code>NEXVERSE_REGISTER_API_KEY</code> gehört ausschließlich in die geschützte Umgebung des Stadtportal-Backends, niemals in Browser-JavaScript oder auf öffentliche Seiten.</p>
 <p class="authnote">Der NexBus-SharedKey ist kein World-API-Key. Er wird lokal im Browser per kryptografisch sicherem Zufall erzeugt und muss auf allen beteiligten Nodes identisch sein.</p>
 <div class="grid2">
 <div><label class="label2" for="secretPeerUrl">Simulator → Robust (NexBus-URL)</label><input id="secretPeerUrl" autocomplete="off" spellcheck="false" placeholder="https://intern.example/internal/nexbus/v1/events"></div>
@@ -622,7 +627,7 @@ Archivprüfungen bleiben auch für freigegebene Importe aktiv.</div>
 </div>
 <div class="section">
 <h2>3. In Secret-Datei übernehmen</h2>
-<p class="sectionlead">Die Secret-Datei verwendet <code>NAME=WERT</code>, keine INI-Sektionen. Die bisherige Standarddatei heißt <code>/etc/nexverse/nexverse.env</code> (nicht <code>.ini</code>). Bestehende Einträge, insbesondere dein Economy-Key, müssen erhalten bleiben.</p>
+<p class="sectionlead">Die Secret-Datei verwendet <code>NAME=WERT</code>, keine INI-Sektionen. Die OGL-Serverdatei heißt üblicherweise <code>/etc/nexverse/nexverse.env</code> (nicht <code>.ini</code>). Bestehende Einträge, insbesondere dein Economy-Key, müssen erhalten bleiben. <strong>Wichtig:</strong> <code>NEXVERSE_REGISTER_API_KEY</code> ausschließlich in die <code>.env</code> des Stadtportal-Backends eintragen – nicht auf ROBUST oder den Simulatoren erforderlich.</p>
 <textarea id="secretOutput" readonly autocomplete="off" spellcheck="false" style="min-height:210px" placeholder="Die einmalig angezeigten Schlüssel erscheinen nach erfolgreicher Erzeugung hier."></textarea>
 <p class="authnote">Die vollständigen API-Keys zeigt die World API nur beim Erstellen an. Eine Seite oder den Browser erst verlassen, wenn du die neuen Werte sicher übernommen hast. Sie werden weder dauerhaft im Browserspeicher noch in Cookies oder URLs abgelegt.</p>
 <p class="authnote">Setze für die Secret-Datei <code>chmod 600 /etc/nexverse/nexverse.env</code>. Starte zunächst Robust mit dem neuen NexBus-Key und dem PR-#104-Code neu, danach die Simulatoren. Bereits vorhandene Prozessvariablen haben Vorrang vor der Datei.</p>
@@ -1646,7 +1651,7 @@ function secretValidateEndpoint(text) {
   return url.href;
 }
 function secretBuildLines(values) {
-  const names=['NEXVERSE_ECONOMY_API_KEY','NEXVERSE_EXPERIENCES_API_KEY',
+  const names=['NEXVERSE_REGISTER_API_KEY','NEXVERSE_ECONOMY_API_KEY','NEXVERSE_EXPERIENCES_API_KEY',
     'NEXVERSE_EXPERIENCES_VIEWER_PERMISSIONS_API_KEY',
     'NEXVERSE_EXPERIENCES_VIEWER_MANAGE_API_KEY',
     'NEXVERSE_NEXBUS_SHARED_KEY','NEXVERSE_NEXBUS_PEER_URL','NEXVERSE_NEXBUS_PEERS'];
@@ -1745,15 +1750,21 @@ async function secretAdminToken() {
   if(!token)throw new Error('Eine aktive Admin-Sitzung mit UserLevel 200 ist erforderlich.');
   return token;
 }
-async function secretGenerate() {
-  const wantEconomy=$('secretEconomy').checked;
-  const wantExperiences=$('secretExperiences').checked;
-  const wantPermissions=$('secretExperiencePermissions').checked;
-  const wantManage=$('secretExperienceManage').checked;
-  const wantBus=$('secretNexBus').checked;
-  if(!wantEconomy&&!wantExperiences&&!wantPermissions&&!wantManage&&!wantBus){
+let secretIssuePending=false;
+async function secretGenerate(onlyRegistration=false) {
+  if(secretIssuePending)return;
+  const wantRegister=onlyRegistration||$('secretRegister').checked;
+  const wantEconomy=!onlyRegistration&&$('secretEconomy').checked;
+  const wantExperiences=!onlyRegistration&&$('secretExperiences').checked;
+  const wantPermissions=!onlyRegistration&&$('secretExperiencePermissions').checked;
+  const wantManage=!onlyRegistration&&$('secretExperienceManage').checked;
+  const wantBus=!onlyRegistration&&$('secretNexBus').checked;
+  if(!wantRegister&&!wantEconomy&&!wantExperiences&&!wantPermissions&&!wantManage&&!wantBus){
     secretStatus('Bitte mindestens einen Schlüssel auswählen.',false);return;
   }
+  secretIssuePending=true;
+  $('secretGenerate').disabled=true;
+  $('secretGenerateRegistration').disabled=true;
   const values={};
   let peers=[];
   let peerUrl='';
@@ -1766,6 +1777,8 @@ async function secretGenerate() {
     if(!window.isSecureContext)throw new Error('Schlüssel nur über HTTPS generieren.');
     const token=await secretAdminToken();
     const plan=[
+      {wanted:wantRegister,name:'OGL Stadtportal Registrierung',
+       scopes:['users:register'],env:'NEXVERSE_REGISTER_API_KEY'},
       {wanted:wantEconomy,name:'OGL Simulator Economy',
        scopes:['economy:read','economy:transfer'],env:'NEXVERSE_ECONOMY_API_KEY'},
       {wanted:wantExperiences,name:'OGL Simulator Experiences',
@@ -1788,8 +1801,9 @@ async function secretGenerate() {
       if(match)throw new Error('Ein aktiver Schlüssel für '+match.name+
         ' existiert bereits. Unter Abschnitt 4 prüfen und bei nötiger Rotation gezielt deaktivieren.');
     }
-    if(!window.confirm('Neue Maschinen-API-Schlüssel werden sofort serverseitig registriert. Erstellung starten?'))return;
-    $('secretGenerate').disabled=true;
+    if(!window.confirm(onlyRegistration?
+      'Neuen dedizierten Registrierungs-API-Key (nur users:register) für das Stadtportal-Backend erstellen?':
+      'Neue Maschinen-API-Schlüssel werden sofort serverseitig registriert. Erstellung starten?'))return;
     $('secretCopy').disabled=true;
     $('secretOutput').value='';
     secretStatus('Schlüssel werden registriert…',null);
@@ -1812,14 +1826,18 @@ async function secretGenerate() {
         secretBuildLines(values);
       }
     }
-    secretStatus('Alle ausgewählten Schlüssel erstellt. Konfigurationsblock jetzt sicher kopieren.',true);
+    secretStatus(onlyRegistration?
+      'Registrierungs-API-Key erstellt. NEXVERSE_REGISTER_API_KEY jetzt ausschließlich ins Stadtportal-Backend kopieren.':
+      'Alle ausgewählten Schlüssel erstellt. Konfigurationsblock jetzt sicher kopieren.',true);
     if(plan.length)await secretLoadKeys();
   }catch(err){
     secretBuildLines(values);
     secretStatus('Einrichtung nicht vollständig: '+String(err.message||err)+
       '. Bereits erstellte Schlüssel stehen im Ausgabefeld; kopieren, bevor du erneut startest.',false);
   }finally{
+    secretIssuePending=false;
     $('secretGenerate').disabled=false;
+    $('secretGenerateRegistration').disabled=false;
   }
 }
 async function secretCopy() {
@@ -1908,7 +1926,8 @@ $('adminLoginSubmit').addEventListener('click',adminLogin);
 $('adminLoginLogout').addEventListener('click',adminLogout);
 $('adminLoginPassword').addEventListener('keydown',event=>{if(event.key==='Enter'){event.preventDefault();adminLogin()}});
 $('adminLoginTotp').addEventListener('keydown',event=>{if(event.key==='Enter'){event.preventDefault();adminLogin()}});
-$('secretGenerate').addEventListener('click',secretGenerate);
+$('secretGenerate').addEventListener('click',()=>secretGenerate());
+$('secretGenerateRegistration').addEventListener('click',()=>secretGenerate(true));
 $('secretCopy').addEventListener('click',secretCopy);
 $('secretClear').addEventListener('click',secretClear);
 $('secretLoadKeys').addEventListener('click',secretLoadKeys);
