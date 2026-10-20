@@ -48,10 +48,11 @@ for item in (
     "Weltkarte",
     "world-map",
     "world-map/view",
-    "pointerdown",
-    "pointerup",
+    "maplibre-gl@6.15.0",
+    "new maplibregl.Map(",
+    "'/api/v1/deutschland/xyz/{z}/{x}/{y}.jpg'",
+    "minzoom:17,maxzoom:24",
     "fetch(apiRoot+",
-    "map-1-",
     "teleport_uri",
     "encodeURIComponent(q)",
     ".textContent",
@@ -59,11 +60,9 @@ for item in (
 ):
     assert item in page, item
 
-# The old pointermove implementation caused one HTTP request per pointer movement.
-pointermove=page.split("world.addEventListener('pointermove',", 1)[1].split(
-    "world.addEventListener('wheel',", 1
-)[0]
-assert "load()" not in pointermove
+# MapLibre movement triggers bounded metadata updates on moveend, not mousemove.
+assert "map.on('moveend',viewport)" in page
+assert "map.on('mousemove',e=>" in page
 assert "innerHTML" not in page, "Region names must never enter HTML unsanitized"
 # Public Deutschland tile proxy is strictly bounded and must not disclose
 # private region or privileged placement data.
@@ -71,6 +70,9 @@ for item in (
     '"/api/v1/deutschland"',
     '"/api/v1/deutschland/view"',
     '"/api/v1/deutschland/tiles/"',
+    '"/api/v1/deutschland/xyz/"',
+    "HandleXyzTile(path, response)",
+    "const long gridShift = 1L << 22",
     "zoom < 1 || zoom > 8",
     "x % span != 0 || y % span != 0",
     "GetMapTile(fileName, UUID.Zero",
