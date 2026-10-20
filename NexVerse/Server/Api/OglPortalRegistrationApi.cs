@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MPL-2.0
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Net;
 using System.Net.Mail;
@@ -7,6 +8,7 @@ using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using NexVerse.Core.Security;
+using log4net;
 using OpenMetaverse;
 using OpenSim.Framework.Servers.HttpServer;
 using OpenSim.Services.Interfaces;
@@ -21,6 +23,7 @@ namespace NexVerse.Server.Api
     internal sealed class OglPortalRegistrationApi
     {
         private const int MaxBodyCharacters = 8192;
+        private static readonly ILog m_Log = LogManager.GetLogger(typeof(OglPortalRegistrationApi));
         private static readonly Regex s_Username = new(
             @"^[\p{L}][\p{L}\p{M}\p{Nd}_-]{1,30}$",
             RegexOptions.CultureInvariant | RegexOptions.Compiled,
@@ -29,14 +32,51 @@ namespace NexVerse.Server.Api
         private readonly IUserAccountService m_Accounts;
         private readonly IOglPortalAccountProvisioner m_Provisioner;
         private readonly bool m_Enabled;
+        private readonly HashSet<string> m_TrustedProxyIps;
+        private readonly HashSet<string> m_TrustedHttpPeers;
+        private readonly string m_DefaultRegionName;
+        private readonly float m_DefaultHomeX;
+        private readonly float m_DefaultHomeY;
+        private readonly float m_DefaultHomeZ;
 
         public OglPortalRegistrationApi(
-            NexApiAuthenticator authenticator, IUserAccountService accounts, bool enabled)
+            NexApiAuthenticator authenticator, IUserAccountService accounts, bool enabled,
+            string trustedProxyIps = "", string trustedHttpPeers = "",
+            string defaultRegionName = "Magdeburg",
+            float defaultX = 116, float defaultY = 120, float defaultZ = 22)
         {
             m_Authenticator = authenticator ?? throw new ArgumentNullException(nameof(authenticator));
             m_Accounts = accounts ?? throw new ArgumentNullException(nameof(accounts));
             m_Provisioner = accounts as IOglPortalAccountProvisioner;
             m_Enabled = enabled;
+            m_TrustedProxyIps = ParseIpAddresses(trustedProxyIps);
+            m_TrustedHttpPeers = ParseIpAddresses(trustedHttpPeers);
+            m_DefaultRegionName = defaultRegionName;
+            m_DefaultHomeX = defaultX;
+            m_DefaultHomeY = defaultY;
+            m_DefaultHomeZ = defaultZ;
+        }
+
+        private static HashSet<string> ParseIpAddresses(string csv)
+        {
+            var addresses = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (string value in (csv ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries))
+            {
+                if (!IPAddress.TryParse(value.Trim(), out IPAddress address))
+                    throw new ArgumentException("Portal registration trusted peer list requires literal IP addresses.");
+                addresses.Add(address.IsIPv4MappedToIPv6
+                    ? address.MapToIPv4().ToString() : address.ToString());
+            }
+            return addresses;
+        }
+
+        private static bool TrustedPeer(IOSHttpRequest request, HashSet<string> allowed)
+        {
+            IPAddress peer = request.RemoteIPEndPoint?.Address;
+            if (peer == null)
+                return false;
+            string value = peer.IsIPv4MappedToIPv6 ? peer.MapToIPv4().ToString() : peer.ToString();
+            return allowed.Contains(value);
         }
 
         public void Handle(IOSHttpRequest request, IOSHttpResponse response)
@@ -57,13 +97,19 @@ namespace NexVerse.Server.Api
                 return;
             }
 
-            // Proxy may terminate TLS locally. Only a *loopback peer* can
-            // assert X-Forwarded-Proto. Never trust a public remote client.
-            bool secured = request.IsSecured ||
-                (request.RemoteIPEndPoint != null &&
-                 IPAddress.IsLoopback(request.RemoteIPEndPoint.Address) &&
-                 string.Equals(request.Headers?["X-Forwarded-Proto"], "https",
-                     StringComparison.OrdinalIgnoreCase));
+            // A KeyHelp proxy may terminate HTTPS on another host before
+            // forwarding HTTP to ROBUST. Trust X-Forwarded-Proto only from
+            // loopback or an explicitly configured exact proxy IP address.
+            IPAddress peer = request.RemoteIPEndPoint?.Address;
+            bool isLoopback = peer != null && IPAddress.IsLoopback(peer);
+            bool trustedProxy = isLoopback || TrustedPeer(request, m_TrustedProxyIps);
+            bool forwardedHttps = trustedProxy &&
+                string.Equals(request.Headers?["X-Forwarded-Proto"], "https",
+                    StringComparison.OrdinalIgnoreCase);
+            // Backend HTTP is a separate, explicit per-IP opt-in. Use
+            // loopback or a private/VPN link to protect passwords/API keys.
+            bool trustedBackendHttp = TrustedPeer(request, m_TrustedHttpPeers);
+            bool secured = request.IsSecured || forwardedHttps || trustedBackendHttp;
             if (!secured)
             {
                 Reply(response, HttpStatusCode.Forbidden,
@@ -178,7 +224,17 @@ namespace NexVerse.Server.Api
                     return;
                 }
 
-                UserAccount newAccount = m_Provisioner.CreatePortalAvatar(first, last, pass, email, modelAlias);
+                if (!TryReadHomeRegion(root, out string homeRegionId,
+                    out string homeRegionName, out Vector3 homePosition))
+                {
+                    Reply(response, HttpStatusCode.BadRequest, "invalid_home_region",
+                        "Ungueltige Startregion oder Position: home_region.id/name/position pruefen.");
+                    return;
+                }
+
+                UserAccount newAccount = m_Provisioner.CreatePortalAvatar(
+                    first, last, pass, email, modelAlias,
+                    homeRegionId, homeRegionName, homePosition);
                 if (newAccount == null)
                 {
                     Reply(response, HttpStatusCode.UnprocessableEntity, "registration_failed",
@@ -196,6 +252,13 @@ namespace NexVerse.Server.Api
                     last_name = newAccount.LastName,
                     model_name = modelName,
                     avatar_id = newAccount.PrincipalID.ToString(),
+                    ready = true,
+                    home_region = new {
+                        id = string.IsNullOrWhiteSpace(homeRegionId) ? null : homeRegionId,
+                        name = homeRegionName,
+                        position = new { x = homePosition.X, y = homePosition.Y, z = homePosition.Z }
+                    },
+                    last_position = new { x = homePosition.X, y = homePosition.Y, z = homePosition.Z },
                     message = "Avatar " + newAccount.FirstName + " " + newAccount.LastName + " wurde erfolgreich registriert."
                 });
             }
@@ -204,12 +267,59 @@ namespace NexVerse.Server.Api
                 Reply(response, HttpStatusCode.BadRequest, "invalid_json",
                     "Registrierungsdaten haben kein gueltiges JSON-Format.");
             }
-            catch (Exception)
+            catch (Exception e)
             {
-                // Do not expose internal SQL, password or inventory errors.
+                // Never put password, API key or database details into a
+                // response. Correlate failures with restricted server logs.
+                m_Log.Error("[OGL PORTAL REGISTRATION]: Provisioning failed; correlation_id=" +
+                    NexApiRequestContext.Ensure(response), e);
                 Reply(response, HttpStatusCode.ServiceUnavailable, "registration_unavailable",
                     "Registrierung zurzeit nicht moeglich. Bitte spaeter erneut versuchen.");
             }
+        }
+
+        private bool TryReadHomeRegion(JsonElement root, out string regionId,
+            out string regionName, out Vector3 position)
+        {
+            regionId = null;
+            regionName = m_DefaultRegionName;
+            position = new Vector3(m_DefaultHomeX, m_DefaultHomeY, m_DefaultHomeZ);
+            if (!root.TryGetProperty("home_region", out JsonElement region))
+                return true;
+            if (region.ValueKind != JsonValueKind.Object)
+                return false;
+
+            bool hasId = region.TryGetProperty("id", out JsonElement id);
+            bool hasName = region.TryGetProperty("name", out JsonElement name);
+            if (hasId && id.ValueKind != JsonValueKind.String)
+                return false;
+            if (hasName && name.ValueKind != JsonValueKind.String)
+                return false;
+            string selectedId = hasId ? id.GetString()?.Trim() : null;
+            string selectedName = hasName ? name.GetString()?.Trim() : null;
+            if (!string.IsNullOrWhiteSpace(selectedId))
+            {
+                if (!UUID.TryParse(selectedId, out UUID parsed) || parsed.IsZero())
+                    return false;
+                regionId = parsed.ToString();
+                regionName = !string.IsNullOrWhiteSpace(selectedName) ? selectedName : null;
+            }
+            else if (!string.IsNullOrWhiteSpace(selectedName))
+                regionName = selectedName;
+
+            if (!region.TryGetProperty("position", out JsonElement coords))
+                return true;
+            if (coords.ValueKind != JsonValueKind.Object ||
+                !coords.TryGetProperty("x", out JsonElement x) ||
+                !coords.TryGetProperty("y", out JsonElement y) ||
+                !coords.TryGetProperty("z", out JsonElement z) ||
+                !x.TryGetSingle(out float px) ||
+                !y.TryGetSingle(out float py) ||
+                !z.TryGetSingle(out float pz) ||
+                !float.IsFinite(px) || !float.IsFinite(py) || !float.IsFinite(pz))
+                return false;
+            position = new Vector3(px, py, pz);
+            return true;
         }
 
         private static string Value(JsonElement root, string key, bool trim = true)
@@ -250,7 +360,8 @@ namespace NexVerse.Server.Api
             {
                 success = false,
                 error = code,
-                message
+                message,
+                correlation_id = NexApiRequestContext.CurrentCorrelationId
             });
         }
     }
