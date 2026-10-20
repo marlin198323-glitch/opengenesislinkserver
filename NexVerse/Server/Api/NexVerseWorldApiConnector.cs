@@ -1146,10 +1146,10 @@ namespace NexVerse.Server.Api
                 // The already-registered route lazily loads the same public
                 // aggregate services; no duplicate handler or database plugin.
                 m_Log.Info(
-                    "[NEX-WORLD-API]: Privileged endpoints are disabled; privacy-safe aggregate statistics remain available.");
+                    "[NEX-WORLD-API]: Administrative API-Endpunkte deaktiviert; datenschutzgerechte aggregierte Statistiken bleiben verfügbar.");
             }
 
-            m_Log.InfoFormat("[NEX-WORLD-API]: World API {0} enabled at {1}/api/v1", Core.NexVersePlatform.ApiVersion, publicBaseUrl);
+            m_Log.InfoFormat("[NEX-WORLD-API]: World API {0} aktiviert unter {1}/api/v1", Core.NexVersePlatform.ApiVersion, publicBaseUrl);
         }
 
         private static INexEventBus CreateEventBus(IConfigSource config, IHttpServer server)
