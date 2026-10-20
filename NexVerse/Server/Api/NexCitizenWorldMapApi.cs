@@ -54,6 +54,12 @@ namespace NexVerse.Server.Api
             string path = (request.UriPath ?? string.Empty).TrimEnd('/');
             bool deutschland = path.StartsWith("/api/v1/deutschland", StringComparison.OrdinalIgnoreCase);
             if (deutschland &&
+                path.StartsWith("/api/v1/deutschland/xyz/", StringComparison.OrdinalIgnoreCase))
+            {
+                HandleXyzTile(path, response);
+                return;
+            }
+            if (deutschland &&
                 path.StartsWith("/api/v1/deutschland/tiles/", StringComparison.OrdinalIgnoreCase))
             {
                 HandleTile(path, response);
@@ -199,6 +205,47 @@ namespace NexVerse.Server.Api
                 m_Log.Error("[NEX-WORLD-MAP]: Failed to resolve public map viewport.", e);
                 Json(response, HttpStatusCode.ServiceUnavailable, new { error = "world_map_unavailable" });
             }
+        }
+
+        // MapLibre uses standard XYZ indices, while OpenSimulator stores map
+        // tiles by bottom-left grid coordinate and inverse native LOD.
+        // The fixed shift places all nonnegative OpenSim coordinates within
+        // the 24-bit virtual WebMercator tile plane, away from the poles.
+        // These longitude/latitude values are SYNTHETIC, never real geography.
+        private void HandleXyzTile(string path, IOSHttpResponse response)
+        {
+            const string prefix = "/api/v1/deutschland/xyz/";
+            const long mapAxis = 1L << 24;
+            const long gridShift = 1L << 22;
+            string[] parts = path.Substring(prefix.Length).Split('/');
+            if (parts.Length != 3 ||
+                !int.TryParse(parts[0], out int z) || z < 17 || z > 24 ||
+                !long.TryParse(parts[1], out long tileX) ||
+                !parts[2].EndsWith(".jpg", StringComparison.OrdinalIgnoreCase) ||
+                !long.TryParse(parts[2].Substring(0, parts[2].Length - 4), out long tileY))
+            {
+                Json(response, HttpStatusCode.BadRequest, new { error = "invalid_xyz_tile" });
+                return;
+            }
+            long count = 1L << z;
+            if (tileX < 0 || tileY < 0 || tileX >= count || tileY >= count)
+            {
+                Json(response, HttpStatusCode.BadRequest, new { error = "invalid_xyz_bounds" });
+                return;
+            }
+            long span = 1L << (24 - z);
+            long gridX = tileX * span - gridShift;
+            long gridY = mapAxis - (tileY + 1) * span - gridShift;
+            if (gridX < 0 || gridY < 0 ||
+                gridX > MaxCellCoordinate - span + 1 ||
+                gridY > MaxCellCoordinate - span + 1)
+            {
+                Json(response, HttpStatusCode.NotFound, new { error = "map_tile_not_found" });
+                return;
+            }
+            int zoom = 25 - z;
+            HandleTile("/api/v1/deutschland/tiles/" + zoom + "/" +
+                gridX + "/" + gridY + ".jpg", response);
         }
 
         // Zoom=1 is one 256m grid cell; levels 2..8 are the native
