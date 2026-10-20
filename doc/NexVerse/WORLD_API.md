@@ -608,6 +608,70 @@ Default runtime path:
 
 The path can be changed with `AuditStorePath` in `[NexVerseWorldApi]`. Runtime audit data is excluded from Git.
 
+
+### ROBUST-Auditkonsole: lesbar und ohne Healthcheck-Spam
+
+Der Endpunkt `/api/v1/health` wird bei Monitoring-Systemen haeufig
+(z. B. alle 15 Sekunden) abgerufen. Solche anonymen, oeffentlichen
+Lesezugriffe muessen nicht als langformatierte
+`[NEX-AUDIT]`-Zeile die ROBUST-Konsole fuellen. Der Healthcheck
+selbst, dessen HTTP-Antwort, die Request-Metriken und das
+`api.request`-Event bleiben unveraendert.
+
+Die **Konsolenausgabe** wird ausschliesslich durch diese Einstellungen
+gesteuert (in der aktiven `[NexVerseWorldApi]`-Sektion):
+
+```ini
+[NexVerseWorldApi]
+AuditConsoleMode = "important"
+AuditConsolePublicReads = false
+AuditConsoleShowIds = false
+AuditStorePath = "data/nexverse-audit.jsonl"
+```
+
+- `AuditConsoleMode = "important"` (**Standard**): zeigt Aktionen
+  mit Aenderungscharakter und andere nicht-routinemaessige Ereignisse.
+  Regelmaessige `*.read`-, `*.list`-, `*.search`-,
+  `*.query`-, `*.status`-, `*.view`- und `*.check`-Ereignisse
+  werden in der Konsole ausgeblendet.
+- `AuditConsoleMode = "all"`: schreibt alle Audit-Ereignisse in
+  die Konsole, **ausser** oeffentlichen World-API-Lesezugriffen,
+  solange `AuditConsolePublicReads = false` ist.
+- `AuditConsoleMode = "off"`: keine Konsoleneintraege mit
+  `[NEX-AUDIT]`, unabhaengig von den anderen Einstellungen.
+- `AuditConsolePublicReads = true` schaltet bei `all` auch
+  die oeffentlichen `worldapi.*.read`-Ereignisse wieder ein,
+  einschliesslich `worldapi.health.read`. Bei `important`
+  bleiben reine Lesevorgaenge unterdrueckt.
+- `AuditConsoleShowIds = true`: zeigt zusaetzlich die
+  vollstaendige `correlation_id` und `event_id` bei
+  den noch ausgegebenen Ereignissen an.
+
+Die Darstellung ist kompakt, auf Deutsch beschriftet und nach
+Funktionsbereich gruppiert, beispielsweise:
+
+```text
+[NEX-AUDIT] Benutzer | Aktion: users.update | Akteur: admin | Ziel: user:...
+```
+
+**Sicherheit und Nachvollziehbarkeit:** Diese Schalter beeinflussen
+nur `LogNexAuditSink` und **nicht**
+`PersistentNexAuditStore`. Auch wenn die Konsolenausgabe
+komplett abgeschaltet ist, werden privilegierte
+World-API-, OAuth- und Verwaltungsereignisse weiter in
+`data/nexverse-audit.jsonl` gespeichert und koennen per
+`GET /api/v1/audit` mit `admin:*` abgefragt werden.
+Ausserdem bleiben unabhaengige `WARN`-/`ERROR`-Meldungen
+anderer Module und die bestehenden HTTP-Sicherheitskontrollen
+aktiv. Oeffentliche, anonyme Healthchecks wurden bislang
+nur an den Konsolen-Sink uebergeben; ihre Unterdrueckung
+erzeugt daher keinen Verlust privilegierter Audit-Historie.
+
+Nach einer Aenderung der INI ist ROBUST neu zu starten.
+`AuditConsoleMode` ist ein Konsolenfilter, kein Schalter
+zum Loeschen, Deaktivieren oder Rueckgaengigmachen der
+persistenten Audit-Historie.
+
 Administrative query endpoints:
 
 - `GET /api/v1/audit`
