@@ -61,7 +61,7 @@ namespace OpenSim.Services.GridService
         public GridService(IConfigSource config)
             : base(config)
         {
-            m_log.DebugFormat("[GRID SERVICE]: Starting...");
+            m_log.DebugFormat("[GRID-DIENST]: Grid-Verzeichnis wird initialisiert.");
 
             m_config = config;
             IConfig gridConfig = config.Configs["GridService"];
