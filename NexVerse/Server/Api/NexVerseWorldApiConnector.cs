@@ -628,7 +628,13 @@ namespace NexVerse.Server.Api
                 OglPortalRegistrationApi portalRegistration = new OglPortalRegistrationApi(
                     authenticator,
                     userAccounts,
-                    apiConfig.GetBoolean("PortalAvatarRegistrationEnabled", false));
+                    apiConfig.GetBoolean("PortalAvatarRegistrationEnabled", false),
+                    apiConfig.GetString("PortalRegistrationTrustedProxyIPs", ""),
+                    apiConfig.GetString("PortalRegistrationTrustedHttpPeers", ""),
+                    apiConfig.GetString("PortalRegistrationDefaultRegionName", "Magdeburg"),
+                    apiConfig.GetFloat("PortalRegistrationDefaultX", 116f),
+                    apiConfig.GetFloat("PortalRegistrationDefaultY", 120f),
+                    apiConfig.GetFloat("PortalRegistrationDefaultZ", 22f));
                 server.AddSimpleStreamHandler(new SimpleStreamHandler(
                     "/api/v1/portal/avatars/register",
                     apiGate.Wrap(portalRegistration.Handle),
