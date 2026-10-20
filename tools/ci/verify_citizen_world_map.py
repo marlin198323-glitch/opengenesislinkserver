@@ -74,7 +74,9 @@ for item in (
     "zoom < 1 || zoom > 8",
     "x % span != 0 || y % span != 0",
     "GetMapTile(fileName, UUID.Zero",
-    "GetRegionRange(UUID.Zero, minX, maxX, minY, maxY)",
+    "GetRegionRange(UUID.Zero, searchX, maxX, searchY, maxY)",
+    "Overlaps(r, minX, maxX, minY, maxY)",
+    "MaxRegionAxisCells = 16",
     "map_image_service_unavailable",
     "map_tile_not_found",
 ):
