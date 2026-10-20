@@ -91,6 +91,36 @@ Beispielantwort (Struktur):
 Das ist **nur ein Schema-Beispiel**, keine Behauptung über tatsächlich
 vorhandene Regions-UUIDs oder aktuelle Antwortdaten.
 
+## MapLibre GL JS als Karten-Renderer
+
+Die einbettbare Ansicht unter `/api/v1/deutschland/view` sowie die
+bestehende `/api/v1/world-map/view` verwenden jetzt **MapLibre GL JS 6.15.0**
+als echte Rasterkarten-Engine. Damit übernimmt MapLibre Pan, Zoom,
+Mausbedienung, interaktive Regionenpolygone, Navigationsbuttons und
+Suchsprünge. Die eigenen Warp3D-Rasterbilder werden über eine
+standardisierte XYZ-Schicht dargestellt:
+
+`GET /api/v1/deutschland/xyz/{z}/{x}/{y}.jpg`
+
+Die XYZ-Schnittstelle ist nur ein **Kachelindex-Adapter** für den vorhandenen
+OpenSimulator MapImageService: z = 24 entspricht nativem Level 1 (eine
+256-m-Zelle pro Kachel); z = 17 entspricht Level 8 (128 Zellen pro Kachel).
+Intern gilt `zoom = 25 - z`; der Ausschnitt wird mit einem festen
+Offsetsystem in die zulässigen XYZ-Indizes projiziert. Es handelt sich um
+**synthetische** Mercator-Koordinaten; dargestellte Geokoordinaten
+dürfen niemals als echte Standorte/Stadtgeografie interpretiert werden.
+
+Der XYZ-Server prüft Zoom (17–24), gültige nichtnegative XYZ-Indizes,
+Grenzen und Existenz veröffentlichter Regionen und reicht nur bereits
+vorliegende JPEG-Kacheln durch. Keine freien Dateipfade, administrativen
+Metadaten, MapLibre-/Google-API-Schlüssel oder unnötigen Renderjobs.
+
+**Externe Bibliothek:** MapLibre 6.15.0 wird in dieser Ausbaustufe über
+eine fest versionierte unpkg-ESM-/CSS-URL bezogen. Für streng abgesicherte
+Produktivportale MapLibre CSS/JS später in der Webauslieferung selbst
+hosten und die eigene Content-Security-Policy entsprechend konfigurieren.
+Es werden keine Google-Satelliten-/OSM-Kartenkacheln abgerufen.
+
 ## Stadtportal-Einbindung
 
 Der einfachste Einstieg ist ein Link oder ein gleichoriginiges iframe zu

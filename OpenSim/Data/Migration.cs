@@ -263,13 +263,13 @@ namespace OpenSim.Data
 
         private void InsertVersion(string type, int version)
         {
-            m_log.InfoFormat("[MIGRATIONS]: Creating {0} at version {1}", type, version);
+            m_log.InfoFormat("[DATENBANK]: Erstelle {0} mit Version {1}", type, version);
             ExecuteScript("insert into migrations(name, version) values('" + type + "', " + version + ")");
         }
 
         private void UpdateVersion(string type, int version)
         {
-            m_log.InfoFormat("[MIGRATIONS]: Updating {0} to version {1}", type, version);
+            m_log.InfoFormat("[DATENBANK]: Aktualisiere {0} auf Version {1}", type, version);
             ExecuteScript("update migrations set version=" + version + " where name='" + type + "'");
         }
 
@@ -407,7 +407,7 @@ scan_old_style:
             }
 
             if (migrations.Count < 1)
-                m_log.DebugFormat("[MIGRATIONS]: {0} data tables already up to date at revision {1}", _type, after);
+                m_log.DebugFormat("[DATENBANK]: {0} – Tabellen sind auf aktuellem Stand (Revision {1})", _type, after);
 
             return migrations;
         }

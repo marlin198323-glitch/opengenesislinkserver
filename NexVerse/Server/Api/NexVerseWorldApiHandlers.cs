@@ -209,11 +209,16 @@ namespace NexVerse.Server.Api
                     ("post", "NV$-Konto sperren, freigeben oder schließen", "admin:*", "200")),
                 ["/api/v1/economy/accounts/ensure"] = AuthenticatedOperations(
                     ("post", "Vertrauenswürdiges Gruppen-, Business-, Estate- oder Objekt-Wallet provisionieren", "economy:transfer (service/admin)", "200")),
+                ["/api/v1/portal/avatars/register"] = AuthenticatedOperations(
+                    ("post", "Stadtportal-Avatar mit users:register-Maschinenkey anlegen (Home und Last setzen)", "users:register", "201")),
+                ["/api/v1/portal/avatars/name-availability"] = AuthenticatedOperations(
+                    ("get", "Live-Namenspruefung (leerer last_name wird Resident); nur Stadtportal-Backend und users:register-Maschinenkey", "users:register", "200")),
                 ["/api/v1/world-map"] = GetOperation("Oeffentliche Weltkarte: Regionen und Kartenkachel-Koordinaten in begrenztem Rasterfenster"),
                 ["/api/v1/world-map/view"] = GetOperation("Interaktive, einbettbare Weltkarte fuer das NexVerse Buergerportal"),
                 ["/api/v1/deutschland"] = GetOperation("Stadt NexVerse Deutschland: oeffentliche Warp3D-Kartenmetadaten und Regionssuche, begrenzte Viewports"),
                 ["/api/v1/deutschland/view"] = GetOperation("Interaktive Stadt NexVerse Deutschland-Karte mit Warp3D-Regionenkacheln"),
                 ["/api/v1/deutschland/tiles/{zoom}/{x}/{y}.jpg"] = GetOperation("Oeffentliche Original-Warp3D-Kartenkacheln von sichtbaren Regionen, Zoom 1 bis 8; 256 Pixel JPEG"),
+                ["/api/v1/deutschland/xyz/{z}/{x}/{y}.jpg"] = GetOperation("MapLibre-kompatible XYZ-Kartenbilder (synthetische Gridkoordinaten, z 17 bis 24)"),
                 ["/api/v1/search"] = GetOperation(
                     "NexSearch über Personen, Gruppen, Regionen, Parcels, Places, Events, Land, Classifieds, Experiences und Destinations"),
                 ["/api/v1/places"] = MergeOperations(

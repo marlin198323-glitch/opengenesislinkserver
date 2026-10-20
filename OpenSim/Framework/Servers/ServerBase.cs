@@ -129,15 +129,15 @@ namespace OpenSim.Framework.Servers
         {
             // FIXME: This should be done down in ServerBase but we need to sort out and refactor the log4net
             // XmlConfigurator calls first accross servers.
-            m_log.Info($"[SERVER BASE]: Starting in {m_startupDirectory}");
+            m_log.Info($"[SERVER BASE]: Arbeitsverzeichnis: {m_startupDirectory}");
 
-            m_log.Info($"[SERVER BASE]: OpenSimulator version: {m_version}");
+            m_log.Info($"[SERVER BASE]: OpenGenesisLINK-Version: {m_version}");
 
             // clr version potentially is more confusing than helpful, since it doesn't tell us if we're running under Mono/MS .NET and
             // the clr version number doesn't match the project version number under Mono.
             //m_log.Info("[STARTUP]: Virtual machine runtime version: " + Environment.Version + Environment.NewLine);
             m_log.Info(
-                $"[SERVER BASE]: Operating system version: {Environment.OSVersion}, .NET platform {Util.RuntimePlatformStr}, {(Environment.Is64BitProcess ? "64" : "32")}-bit");
+                $"[SERVER BASE]: Betriebssystem: {Environment.OSVersion}, .NET-Plattform: {Util.RuntimePlatformStr}, {(Environment.Is64BitProcess ? "64" : "32")}-bit");
         }
 
         public void RegisterCommonAppenders(IConfig startupConfig)
@@ -188,7 +188,7 @@ namespace OpenSim.Framework.Servers
                     m_logFileAppender.ActivateOptions();
                 }
 
-                m_log.InfoFormat("[SERVER BASE]: Logging started to file {0}", m_logFileAppender.File);
+                m_log.InfoFormat("[SERVER BASE]: Protokolldatei geöffnet: {0}", m_logFileAppender.File);
             }
 
             if (m_statsLogFileAppender != null && startupConfig != null)
@@ -200,7 +200,7 @@ namespace OpenSim.Framework.Servers
                     m_statsLogFileAppender.ActivateOptions();
                 }
 
-                m_log.InfoFormat("[SERVER BASE]: Stats Logging started to file {0}", m_statsLogFileAppender.File);
+                m_log.InfoFormat("[SERVER BASE]: Statistikprotokoll geöffnet: {0}", m_statsLogFileAppender.File);
             }
         }
 

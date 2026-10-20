@@ -79,22 +79,15 @@ namespace NexVerse.Server.Api
             return allowed.Contains(value);
         }
 
-        public void Handle(IOSHttpRequest request, IOSHttpResponse response)
+        // Both signup and live name lookup must share identical
+        // transport, enablement and machine-key security requirements.
+        private bool AuthorizePortal(IOSHttpRequest request, IOSHttpResponse response)
         {
-            response.AddHeader("Cache-Control", "no-store");
-            response.AddHeader("X-Content-Type-Options", "nosniff");
-            if (request == null || !string.Equals(request.HttpMethod, "POST", StringComparison.OrdinalIgnoreCase))
-            {
-                response.AddHeader("Allow", "POST");
-                Reply(response, HttpStatusCode.MethodNotAllowed,
-                    "method_not_allowed", "POST ist erforderlich.");
-                return;
-            }
             if (!m_Enabled || m_Provisioner == null)
             {
                 Reply(response, HttpStatusCode.ServiceUnavailable,
                     "registration_disabled", "Avatarregistrierung ist derzeit nicht freigeschaltet.");
-                return;
+                return false;
             }
 
             // A KeyHelp proxy may terminate HTTPS on another host before
@@ -114,7 +107,7 @@ namespace NexVerse.Server.Api
             {
                 Reply(response, HttpStatusCode.Forbidden,
                     "https_required", "Eine verschluesselte Verbindung ist erforderlich.");
-                return;
+                return false;
             }
 
             // Restrict this route to a machine credential, not interactive
@@ -128,8 +121,76 @@ namespace NexVerse.Server.Api
                 response.AddHeader("WWW-Authenticate", "ApiKey");
                 Reply(response, HttpStatusCode.Unauthorized, "unauthorized_portal",
                     "Portalzugang nicht autorisiert.");
+                return false;
+            }
+
+            return true;
+        }
+
+        /// <summary>
+        /// Read-only preflight. The final POST repeats this authoritative
+        /// lookup; this response must never be interpreted as a reservation.
+        /// </summary>
+        public void HandleNameAvailability(IOSHttpRequest request, IOSHttpResponse response)
+        {
+            response.AddHeader("Cache-Control", "no-store");
+            response.AddHeader("X-Content-Type-Options", "nosniff");
+            if (request == null || !string.Equals(request.HttpMethod, "GET", StringComparison.OrdinalIgnoreCase))
+            {
+                response.AddHeader("Allow", "GET");
+                Reply(response, HttpStatusCode.MethodNotAllowed,
+                    "method_not_allowed", "GET ist erforderlich.");
                 return;
             }
+            if (!AuthorizePortal(request, response))
+                return;
+
+            string first = (request.QueryString?["first_name"] ?? string.Empty).Trim();
+            string last = (request.QueryString?["last_name"] ?? string.Empty).Trim();
+            if (string.IsNullOrWhiteSpace(last))
+                last = "Resident";
+            if (!IsValidName(first) || !IsValidName(last))
+            {
+                Reply(response, HttpStatusCode.BadRequest, "invalid_avatar_name",
+                    "Vor- und Nachname müssen 2 bis 31 gültige Zeichen besitzen.");
+                return;
+            }
+            try
+            {
+                bool available = m_Accounts.GetUserAccount(UUID.Zero, first, last) == null;
+                response.StatusCode = (int)HttpStatusCode.OK;
+                response.ContentType = "application/json; charset=utf-8";
+                response.RawBuffer = JsonSerializer.SerializeToUtf8Bytes(new
+                {
+                    available,
+                    status = available ? "available" : "taken",
+                    first_name = first,
+                    last_name = last,
+                    avatar_name = first + " " + last
+                });
+            }
+            catch (Exception e)
+            {
+                m_Log.Error("[OGL PORTAL REGISTRATION]: Name availability lookup failed; correlation_id=" +
+                    NexApiRequestContext.Ensure(response), e);
+                Reply(response, HttpStatusCode.ServiceUnavailable, "name_check_unavailable",
+                    "Namensprüfung ist momentan nicht verfügbar.");
+            }
+        }
+
+        public void Handle(IOSHttpRequest request, IOSHttpResponse response)
+        {
+            response.AddHeader("Cache-Control", "no-store");
+            response.AddHeader("X-Content-Type-Options", "nosniff");
+            if (request == null || !string.Equals(request.HttpMethod, "POST", StringComparison.OrdinalIgnoreCase))
+            {
+                response.AddHeader("Allow", "POST");
+                Reply(response, HttpStatusCode.MethodNotAllowed,
+                    "method_not_allowed", "POST ist erforderlich.");
+                return;
+            }
+            if (!AuthorizePortal(request, response))
+                return;
 
             if (request.ContentLength64 > MaxBodyCharacters * 4L ||
                 request.ContentLength64 < 0 && !request.HasEntityBody)
