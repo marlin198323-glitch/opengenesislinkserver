@@ -90,6 +90,58 @@ namespace OpenSim.Server
             }
         }
 
+        // Categories only organize log output; the real connector startup order
+        // comes unchanged from [ServiceList] so dependencies stay intact.
+        private static string GroupRobustService(string name)
+        {
+            if (name.Contains("Asset")) return "ASSETS";
+            if (name.Contains("Inventory")) return "INVENTAR";
+            if (name.Contains("Grid") || name.Contains("Map")) return "GRID-KARTE";
+            if (name.Contains("UserAccount") || name.Contains("Avatar") ||
+                name.Contains("Authentication") || name.Contains("Login") ||
+                name.Contains("Preferences")) return "BENUTZER";
+            if (name.Contains("Friend") || name.Contains("Message") ||
+                name.Contains("Groups") || name.Contains("Mute")) return "SOZIALES";
+            if (name.Contains("Economy")) return "WAEHRUNG";
+            if (name.Contains("WorldApi")) return "WORLD-API";
+            if (name.Contains("Gatekeeper") || name.Contains("UserAgent") ||
+                name.Contains("Helo")) return "HYPERGRID";
+            return "SYSTEM";
+        }
+
+        private static string DescribeRobustService(string name)
+        {
+            switch (name)
+            {
+                case "AssetServiceConnector": return "Asset-Dienst";
+                case "XInventoryInConnector": return "Inventar-Schnittstelle";
+                case "GridServiceConnector": return "Grid-Verzeichnis";
+                case "GridInfoServerInConnector": return "Grid-Informationen";
+                case "NexVerseWorldApiConnector": return "Stadt NexVerse World API";
+                case "NexEconomyConnector": return "NV$-Waehrungsdienst";
+                case "AuthenticationServiceConnector": return "Benutzer-Authentifizierung";
+                case "AvatarServiceConnector": return "Avatar-Dienst";
+                case "LLLoginServiceInConnector": return "Viewer-Anmeldung";
+                case "PresenceServiceConnector": return "Online-Praesenz";
+                case "UserAccountServiceConnector": return "Benutzerkonten";
+                case "GridUserServiceConnector": return "Grid-Benutzerpositionen";
+                case "AgentPreferencesServiceConnector": return "Avatar-Einstellungen";
+                case "FriendsServiceConnector": return "Freundesdienst";
+                case "MapAddServiceConnector": return "Kartenbild-Empfang";
+                case "MapGetServiceConnector": return "Kartenbild-Auslieferung";
+                case "GroupsServiceRobustConnector": return "Gruppendienst";
+                case "HGGroupsServiceRobustConnector": return "Hypergrid-Gruppen";
+                case "UserProfilesConnector": return "Avatar-Profile";
+                case "MuteListServiceConnector": return "Ignorierlisten";
+                case "GatekeeperServiceInConnector": return "Hypergrid-Gatekeeper";
+                case "UserAgentServerConnector": return "Hypergrid-Benutzeragent";
+                case "HeloServiceInConnector": return "Hypergrid-Handshake";
+                case "HGFriendsServerConnector": return "Hypergrid-Freunde";
+                case "InstantMessageServerConnector": return "Sofortnachrichten";
+                default: return "Erweiterungsdienst";
+            }
+        }
+
         public static int Main(string[] args)
         {
             Culture.SetCurrentCulture();
@@ -207,7 +259,10 @@ namespace OpenSim.Server
                 if (friendlyName == "LLLoginServiceInConnector")
                     server.AddSimpleStreamHandler(new IndexPHPHandler(server));
 
-                m_log.InfoFormat("[SERVER]: Loading {0} on port {1}", friendlyName, server.Port);
+                string description = DescribeRobustService(friendlyName);
+                string group = GroupRobustService(friendlyName);
+                m_log.InfoFormat("[SERVER][{0}]: Starte {1} ({2}) auf Port {3}", group,
+                    description, friendlyName, server.Port);
 
                 IServiceConnector connector = null;
 
@@ -223,11 +278,11 @@ namespace OpenSim.Server
                 if (connector != null)
                 {
                     m_ServiceConnectors.Add(connector);
-                    m_log.InfoFormat("[SERVER]: {0} loaded successfully", friendlyName);
+                    m_log.InfoFormat("[SERVER][{0}]: {1} ({2}) erfolgreich geladen", group, description, friendlyName);
                 }
                 else
                 {
-                    m_log.ErrorFormat("[SERVER]: Failed to load {0}", conn);
+                    m_log.ErrorFormat("[SERVER][{0}]: Dienst {1} konnte nicht geladen werden ({2})", group, description, conn);
                 }
             }
 
