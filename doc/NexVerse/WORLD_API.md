@@ -143,6 +143,28 @@ The response reports its effective privacy level through:
 - `detail_level=aggregate|authenticated|partial`
 - `protected_details=false|true`
 
+## Deutschland-Warp3D-Karte und Gridplaner
+
+Die öffentliche **Stadt NexVerse Deutschland-Karte** ist unter
+`GET /api/v1/deutschland` erreichbar. Sie liefert Regionsmetadaten für ein
+begrenztes Fenster mit bis zu 16 × 16 Basiszellen. Die vollständige Welt wird
+über wiederholte, begrenzte Viewport-Anfragen erschlossen, nicht als
+unbeschränkt großes, speicherintensives Gesamtbild.
+
+- `GET /api/v1/deutschland/view`: responsive Pan-/Zoom-Karte mit Suche und Teleport.
+- `GET /api/v1/deutschland?q=Freiburg`: aktive veröffentlichte Regionen suchen.
+- `GET /api/v1/deutschland?min_x=995&max_x=1010&min_y=1000&max_y=1015`: Ausschnitt laden.
+- `GET /api/v1/deutschland/tiles/1/1000/1010.jpg`: eine originale Warp3D-Kachel.
+- `GET /api/v1/deutschland/tiles/{zoom}/{x}/{y}.jpg`: bereits vorhandene
+  MapImageService-Mehrfachauflösungen von 1 bis 8; Level 1 ist 256 × 256 Meter.
+
+Die Tiles liegen im eigenen OpenSim-Koordinatensystem. Google-Mercator- oder
+Google-Satellitenkarten sind **kein** unmittelbarer Ersatz. Der privilegierte
+Gridplaner nutzt optional die gleichen Bilder über dem gesicherten
+Belegungsraster. Die bisherige `/api/v1/world-map` bleibt unverändert verfügbar.
+
+Details und Rollout: [DEUTSCHLAND_GRID_MAP.md](DEUTSCHLAND_GRID_MAP.md).
+
 ## LunaTexture diagnostics projection
 
 LunaTexture keeps detailed recovery diagnostics on the simulator where the rendering failure occurs. Each enabled Warp3D region persists a bounded diagnostic store under `LunaTextureDiagnosticStore` (default: `data/lunatexture`) using per-region JSON files, store format version `1`, and atomic file replacement. `nex texture clear` clears both the in-memory state and the persistent region store.

@@ -50,7 +50,7 @@ for item in (
     "world-map/view",
     "pointerdown",
     "pointerup",
-    "fetch('/api/v1/world-map'",
+    "fetch(apiRoot+",
     "map-1-",
     "teleport_uri",
     "encodeURIComponent(q)",
@@ -65,6 +65,32 @@ pointermove=page.split("world.addEventListener('pointermove',", 1)[1].split(
 )[0]
 assert "load()" not in pointermove
 assert "innerHTML" not in page, "Region names must never enter HTML unsanitized"
+# Public Deutschland tile proxy is strictly bounded and must not disclose
+# private region or privileged placement data.
+for item in (
+    '"/api/v1/deutschland"',
+    '"/api/v1/deutschland/view"',
+    '"/api/v1/deutschland/tiles/"',
+    "zoom < 1 || zoom > 8",
+    "x % span != 0 || y % span != 0",
+    "GetMapTile(fileName, UUID.Zero",
+    "GetRegionRange(UUID.Zero, searchX, maxX, searchY, maxY)",
+    "Overlaps(r, minX, maxX, minY, maxY)",
+    "MaxRegionAxisCells = 16",
+    "map_image_service_unavailable",
+    "map_tile_not_found",
+):
+    assert item in api, item
+assert '"/api/v1/deutschland"' in connector
+assert "ConfigureTiles(LoadOptionalService<IMapImageService>" in connector
+assert "apiRoot+'?q='" in page
+assert "data.tile_url_template" in page
+for item in ('["/api/v1/deutschland"]', '["/api/v1/deutschland/view"]',
+             '["/api/v1/deutschland/tiles/{zoom}/{x}/{y}.jpg"]'):
+    assert item in openapi, item
+assert 'id="gridShowWarp3d"' in (root/"NexApiDocsPage.cs").read_text(encoding="utf-8")
+assert "applyGridImagery" in (root/"NexApiDocsPage.cs").read_text(encoding="utf-8")
+
 assert "GET /api/v1/world-map" in docs
 assert "verify_citizen_world_map.py" in ci
 print("Citizen world-map API, portal view, security boundaries and CI contract: OK")

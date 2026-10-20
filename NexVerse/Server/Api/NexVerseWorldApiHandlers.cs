@@ -211,6 +211,9 @@ namespace NexVerse.Server.Api
                     ("post", "Vertrauenswürdiges Gruppen-, Business-, Estate- oder Objekt-Wallet provisionieren", "economy:transfer (service/admin)", "200")),
                 ["/api/v1/world-map"] = GetOperation("Oeffentliche Weltkarte: Regionen und Kartenkachel-Koordinaten in begrenztem Rasterfenster"),
                 ["/api/v1/world-map/view"] = GetOperation("Interaktive, einbettbare Weltkarte fuer das NexVerse Buergerportal"),
+                ["/api/v1/deutschland"] = GetOperation("Stadt NexVerse Deutschland: oeffentliche Warp3D-Kartenmetadaten und Regionssuche, begrenzte Viewports"),
+                ["/api/v1/deutschland/view"] = GetOperation("Interaktive Stadt NexVerse Deutschland-Karte mit Warp3D-Regionenkacheln"),
+                ["/api/v1/deutschland/tiles/{zoom}/{x}/{y}.jpg"] = GetOperation("Oeffentliche Original-Warp3D-Kartenkacheln von sichtbaren Regionen, Zoom 1 bis 8; 256 Pixel JPEG"),
                 ["/api/v1/search"] = GetOperation(
                     "NexSearch über Personen, Gruppen, Regionen, Parcels, Places, Events, Land, Classifieds, Experiences und Destinations"),
                 ["/api/v1/places"] = MergeOperations(
@@ -609,6 +612,7 @@ namespace NexVerse.Server.Api
                 "200");
             ApplyJsonContract(paths, "/api/v1/economy/accounts/ensure", "post", "EconomyWalletEnsureRequest", "EconomyBalanceResponse", "200");
             ApplyJsonContract(paths, "/api/v1/world-map", "get", null, "CitizenWorldMapResponse", "200");
+            ApplyJsonContract(paths, "/api/v1/deutschland", "get", null, "CitizenWorldMapResponse", "200");
             ApplyJsonContract(paths, "/api/v1/profiles/{principalId}", "get", null, "CitizenAvatarProfileResponse", "200");
             ApplyJsonContract(paths, "/api/v1/profiles/{principalId}", "patch", "CitizenAvatarProfilePatch", "CitizenAvatarProfileResponse", "200");
             ApplyJsonContract(paths, "/api/v1/relationships/{principalId}", "get", null, "CitizenFriendListResponse", "200");
