@@ -28,6 +28,7 @@ namespace NexVerse.Server.Api
         private const int MaxWindowAxis = 16;
         private const int MaxCellCoordinate = (int.MaxValue - (CellMeters - 1)) / CellMeters;
         private readonly IGridService m_Grid;
+        private IMapImageService m_MapImages;
         private readonly string m_TeleportBaseUri;
 
         public NexCitizenWorldMapApi(IGridService grid, string teleportBaseUri)
@@ -35,6 +36,10 @@ namespace NexVerse.Server.Api
             m_Grid = grid;
             m_TeleportBaseUri = (teleportBaseUri ?? string.Empty).TrimEnd('/');
         }
+
+        // MapImageService publishes Warp3D imagery already uploaded by simulators.
+        // A missing optional map service must not break the existing World API.
+        internal void ConfigureTiles(IMapImageService mapImages) => m_MapImages = mapImages;
 
         public void Handle(IOSHttpRequest request, IOSHttpResponse response)
         {
@@ -45,8 +50,17 @@ namespace NexVerse.Server.Api
                 return;
             }
 
-            if ((request.UriPath ?? string.Empty).TrimEnd('/').Equals(
-                "/api/v1/world-map/view", StringComparison.OrdinalIgnoreCase))
+            string path = (request.UriPath ?? string.Empty).TrimEnd('/');
+            bool deutschland = path.StartsWith("/api/v1/deutschland", StringComparison.OrdinalIgnoreCase);
+            if (deutschland &&
+                path.StartsWith("/api/v1/deutschland/tiles/", StringComparison.OrdinalIgnoreCase))
+            {
+                HandleTile(path, response);
+                return;
+            }
+
+            if (path.Equals("/api/v1/world-map/view", StringComparison.OrdinalIgnoreCase) ||
+                path.Equals("/api/v1/deutschland/view", StringComparison.OrdinalIgnoreCase))
             {
                 response.StatusCode = (int)HttpStatusCode.OK;
                 response.ContentType = "text/html; charset=utf-8";
@@ -56,12 +70,15 @@ namespace NexVerse.Server.Api
                 return;
             }
 
-            if (!(request.UriPath ?? string.Empty).TrimEnd('/').Equals(
-                "/api/v1/world-map", StringComparison.OrdinalIgnoreCase))
+            if (!path.Equals("/api/v1/world-map", StringComparison.OrdinalIgnoreCase) &&
+                !path.Equals("/api/v1/deutschland", StringComparison.OrdinalIgnoreCase))
             {
                 Json(response, HttpStatusCode.NotFound, new { error = "not_found" });
                 return;
             }
+            string tileTemplate = deutschland
+                ? "/api/v1/deutschland/tiles/1/{x}/{y}.jpg"
+                : "/map/map-1-{x}-{y}-objects.jpg";
 
             if (m_Grid == null)
             {
@@ -93,6 +110,7 @@ namespace NexVerse.Server.Api
                         mode = "search",
                         query = search,
                         count = matches.Length,
+                        tile_url_template = tileTemplate,
                         regions = matches.Select(PublicRegion).ToArray(),
                         correlation_id = NexApiRequestContext.Ensure(response)
                     });
@@ -128,7 +146,9 @@ namespace NexVerse.Server.Api
                             cell_size_meters = CellMeters,
                             mode = "viewport",
                             has_default_region = false,
-                            tile_url_template = "/map/map-1-{x}-{y}-objects.jpg",
+                            tile_url_template = tileTemplate,
+                            max_window_axis = MaxWindowAxis,
+                            zoom_levels = 8,
                             regions = Array.Empty<object>(),
                             correlation_id = NexApiRequestContext.Ensure(response)
                         });
@@ -157,7 +177,9 @@ namespace NexVerse.Server.Api
                     mode = "viewport",
                     has_default_region = true,
                     bounds = new { min_x = minX, max_x = maxX, min_y = minY, max_y = maxY },
-                    tile_url_template = "/map/map-1-{x}-{y}-objects.jpg",
+                    tile_url_template = tileTemplate,
+                    max_window_axis = MaxWindowAxis,
+                    zoom_levels = 8,
                     regions = regions.Select(PublicRegion).ToArray(),
                     count = regions.Length,
                     correlation_id = NexApiRequestContext.Ensure(response)
@@ -167,6 +189,72 @@ namespace NexVerse.Server.Api
             {
                 m_Log.Error("[NEX-WORLD-MAP]: Failed to resolve public map viewport.", e);
                 Json(response, HttpStatusCode.ServiceUnavailable, new { error = "world_map_unavailable" });
+            }
+        }
+
+        // Zoom=1 is one 256m grid cell; levels 2..8 are the native
+        // OpenSimulator multi-resolution files (2,4,8,...,128 cells per tile).
+        // Never interpret the coordinates as geographic longitude/latitude.
+        private void HandleTile(string path, IOSHttpResponse response)
+        {
+            const string prefix = "/api/v1/deutschland/tiles/";
+            string[] parts = path.Substring(prefix.Length).Split('/');
+            if (parts.Length != 3 ||
+                !int.TryParse(parts[0], out int zoom) || zoom < 1 || zoom > 8 ||
+                !int.TryParse(parts[1], out int x) ||
+                !parts[2].EndsWith(".jpg", StringComparison.OrdinalIgnoreCase) ||
+                !int.TryParse(parts[2].Substring(0, parts[2].Length - 4), out int y))
+            {
+                Json(response, HttpStatusCode.BadRequest, new { error = "invalid_map_tile" });
+                return;
+            }
+            int span = 1 << (zoom - 1);
+            if (x < 0 || y < 0 || x > MaxCellCoordinate - span + 1 ||
+                y > MaxCellCoordinate - span + 1 || x % span != 0 || y % span != 0)
+            {
+                Json(response, HttpStatusCode.BadRequest, new { error = "invalid_map_tile_bounds" });
+                return;
+            }
+            if (m_Grid == null || m_MapImages == null)
+            {
+                Json(response, HttpStatusCode.ServiceUnavailable, new { error = "map_image_service_unavailable" });
+                return;
+            }
+            try
+            {
+                // Expose only already-public active grid regions, never arbitrary
+                // filesystem paths, unknown scopes or private/reserved grid cells.
+                int minX = checked(x * CellMeters);
+                int minY = checked(y * CellMeters);
+                int maxX = checked((x + span) * CellMeters - 1);
+                int maxY = checked((y + span) * CellMeters - 1);
+                bool available = (m_Grid.GetRegionRange(UUID.Zero, minX, maxX, minY, maxY) ??
+                    new List<GridRegion>()).Any(Visible);
+                if (!available)
+                {
+                    Json(response, HttpStatusCode.NotFound, new { error = "map_tile_not_found" });
+                    return;
+                }
+
+                string fileName = "map-" + zoom + "-" + x + "-" + y + "-objects.jpg";
+                byte[] data = m_MapImages.GetMapTile(fileName, UUID.Zero, out string format);
+                if (data == null || data.Length == 0 || data.Length > 2 * 1024 * 1024 ||
+                    !string.Equals(format, ".jpg", StringComparison.OrdinalIgnoreCase))
+                {
+                    Json(response, HttpStatusCode.NotFound, new { error = "map_tile_not_found" });
+                    return;
+                }
+                response.KeepAlive = false;
+                response.StatusCode = (int)HttpStatusCode.OK;
+                response.ContentType = "image/jpeg";
+                response.AddHeader("Cache-Control", "public, max-age=60");
+                response.AddHeader("X-Content-Type-Options", "nosniff");
+                response.RawBuffer = data;
+            }
+            catch (Exception e)
+            {
+                m_Log.Error("[NEX-DEUTSCHLAND-MAP]: Tile retrieval failed.", e);
+                Json(response, HttpStatusCode.ServiceUnavailable, new { error = "map_tile_unavailable" });
             }
         }
 
