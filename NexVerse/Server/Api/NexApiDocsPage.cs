@@ -982,7 +982,15 @@ function renderStatistics(data){
   (data.hypergrid_home_grids||[]).forEach(item=>appendStatsRow('statsHgBody',[
     item.home_grid,item.known_visitors,item.online_now,item.last_7_days,item.last_30_days
   ]));
-  if(!(data.hypergrid_home_grids||[]).length)appendStatsRow('statsHgBody',[protectedDetails?'Keine Hypergrid-Daten':'Geschützte Details – statistics:read erforderlich','','','','']);
+  if(!(data.hypergrid_home_grids||[]).length){
+    const originStatus=(data.data_quality||{}).hypergrid_origin_status;
+    const originLabel=!protectedDetails?'Geschützte Details – statistics:read erforderlich':
+      originStatus==='unavailable'?'GridUser-Datenquelle nicht verfügbar':
+      originStatus==='incomplete_home_uri'?'Gespeicherte HG-Besucher ohne zuordenbare HomeURI':
+      originStatus==='no_recorded_visitors'?'Noch keine HG-Besucher in GridUser erfasst':
+      'Keine auswertbaren Hypergrid-Herkunftszeilen';
+    appendStatsRow('statsHgBody',[originLabel,'','','','']);
+  }
   $('statsRegionBody').replaceChildren();
   (data.regions||[]).forEach(item=>appendStatsRow('statsRegionBody',[
     item.region_name||item.region_id,item.online_total,item.residents,item.hypergrid
@@ -1005,6 +1013,9 @@ function renderStatistics(data){
     datenqualitaet:{
       vollstaendig:quality.complete,
       griduser_datenquelle:quality.griduser_source,
+      hg_herkunftsstatus:quality.hypergrid_origin_status,
+      hg_herkunftszeilen:quality.hypergrid_origin_rows,
+      hg_ohne_heimat_uri:quality.hypergrid_identities_without_home_uri,
       fehlende_kennzahlen:quality.missing_metrics||[],
       registrierungsquelle:qv(quality.registered_source),
       online_quelle:qv(quality.online_source),
