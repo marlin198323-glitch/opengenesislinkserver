@@ -811,6 +811,15 @@
     RateLimitWindowSeconds = 60
     TrustForwardedFor = false
     AuditStorePath = "data/nexverse-audit.jsonl"
+    ; AuditConsoleMode = important (Standard), all oder off.
+    ; important = nur Aktionen mit Änderungen und wichtige Ereignisse,
+    ; all = auch reguläre Leseaufrufe, off = keine [NEX-AUDIT]-Konsolenzeilen.
+    ; Die persistente administrative Audit-Datei bleibt IMMER erhalten.
+    AuditConsoleMode = "important"
+    ; Öffentliche GETs wie /api/v1/health auch bei all standardmäßig ausblenden.
+    AuditConsolePublicReads = false
+    ; Lange Korrelations- und Ereignis-UUIDs nur bei Diagnose einblenden.
+    AuditConsoleShowIds = false
     ApiKeyStorePath = "data/nexverse-api-keys.json"
     IdempotencyStorePath = "data/nexverse-idempotency.json"
     IdempotencyTtlSeconds = 86400

@@ -269,7 +269,21 @@ namespace NexVerse.Server.Api
                     eventBus,
                     nodeStaleAfterSeconds);
 
-            INexAuditSink publicAuditSink = new LogNexAuditSink();
+            // Console verbosity is independent of the persistent audit
+            // store: suppress routine health checks without losing audited
+            // privileged actions in data/nexverse-audit.jsonl.
+            string auditConsoleMode = apiConfig.GetString("AuditConsoleMode", "important");
+            bool auditConsolePublicReads =
+                apiConfig.GetBoolean("AuditConsolePublicReads", false);
+            bool auditConsoleShowIds =
+                apiConfig.GetBoolean("AuditConsoleShowIds", false);
+            INexAuditSink publicAuditSink = new LogNexAuditSink(
+                auditConsoleMode,
+                auditConsolePublicReads,
+                auditConsoleShowIds);
+            m_Log.InfoFormat(
+                "[NEX-WORLD-API]: Auditkonsole={0}, öffentliche Lesezugriffe={1}, IDs={2}; persistentes Audit bleibt unabhängig.",
+                auditConsoleMode, auditConsolePublicReads, auditConsoleShowIds);
             INexAuthorizationService authorization = new NexAuthorizationService();
 
             NexApiRequestGate apiGate = new NexApiRequestGate(
@@ -1360,22 +1374,119 @@ namespace NexVerse.Server.Api
         }
     }
 
+    // Console-only filtering. Do NOT wrap/filter PersistentNexAuditStore:
+    // administrative accountability must survive quiet/off console modes.
     internal sealed class LogNexAuditSink : INexAuditSink
     {
         private static readonly ILog m_Log = LogManager.GetLogger(typeof(LogNexAuditSink));
 
+        private readonly string m_Mode;
+        private readonly bool m_PublicReads;
+        private readonly bool m_ShowIds;
+
+        public LogNexAuditSink(string mode = "important",
+            bool publicReads = false, bool showIds = false)
+        {
+            string normalized = (mode ?? string.Empty).Trim().ToLowerInvariant();
+            if (normalized != "important" && normalized != "all" && normalized != "off")
+            {
+                m_Log.WarnFormat(
+                    "[NEX-AUDIT]: Ungültiger AuditConsoleMode '{0}'; verwende 'important'.",
+                    mode);
+                normalized = "important";
+            }
+            m_Mode = normalized;
+            m_PublicReads = publicReads;
+            m_ShowIds = showIds;
+        }
+
+        // Public API reads, particularly /api/v1/health polling every
+        // 15 seconds, aren't security-relevant writes. Keep their metrics
+        // and events but stop spamming ROBUST's standard console.
+        private static bool IsPublicRoutine(NexAuditEvent auditEvent)
+        {
+            string action = auditEvent.Action ?? string.Empty;
+            return action.Equals("worldapi.root", StringComparison.OrdinalIgnoreCase) ||
+                action.StartsWith("worldapi.", StringComparison.OrdinalIgnoreCase) &&
+                (action.EndsWith(".read", StringComparison.OrdinalIgnoreCase) ||
+                 action.EndsWith(".list", StringComparison.OrdinalIgnoreCase));
+        }
+
+        private static bool IsRoutine(NexAuditEvent auditEvent)
+        {
+            if (IsPublicRoutine(auditEvent))
+                return true;
+            string action = auditEvent.Action ?? string.Empty;
+            foreach (string ending in new[] {
+                ".read", ".list", ".search", ".query", ".status", ".view", ".check"
+            })
+            {
+                if (action.EndsWith(ending, StringComparison.OrdinalIgnoreCase))
+                    return true;
+            }
+            return false;
+        }
+
+        private bool ShouldLog(NexAuditEvent auditEvent)
+        {
+            if (m_Mode == "off")
+                return false;
+            if (!m_PublicReads && IsPublicRoutine(auditEvent))
+                return false;
+            return m_Mode != "important" || !IsRoutine(auditEvent);
+        }
+
+        private static string Category(string action)
+        {
+            string area = (action ?? string.Empty).Split('.')[0].ToLowerInvariant();
+            switch (area)
+            {
+                case "worldapi": return "World API";
+                case "users": return "Benutzer";
+                case "auth":
+                case "oauth": return "Anmeldung";
+                case "security": return "Sicherheit";
+                case "economy":
+                case "ledger":
+                case "banking": return "NV$ / Finanzen";
+                case "inventory": return "Inventar";
+                case "regions":
+                case "region": return "Regionen";
+                case "estates":
+                case "estate": return "Grundstücke";
+                case "relationship":
+                case "relationships":
+                case "friends": return "Freundschaften";
+                case "portal": return "Stadtportal";
+                case "groups":
+                case "group": return "Gruppen";
+                default: return "System";
+            }
+        }
+
         public void Record(NexAuditEvent auditEvent)
         {
-            if (auditEvent == null)
+            if (auditEvent == null || !ShouldLog(auditEvent))
                 return;
 
-            m_Log.InfoFormat(
-                "[NEX-AUDIT]: id={0} actor={1} action={2} resource={3} correlation={4}",
-                auditEvent.EventId,
-                auditEvent.Actor,
-                auditEvent.Action,
-                auditEvent.Resource,
-                auditEvent.CorrelationId);
+            // Compact, consistent German-language console presentation.
+            // Correlation/event IDs remain fully available in JSONL and
+            // are optionally displayed for live incident investigation.
+            if (m_ShowIds)
+            {
+                m_Log.InfoFormat(
+                    "[NEX-AUDIT] {0} | Aktion: {1} | Akteur: {2} | Ziel: {3} | Vorgang: {4} | ID: {5}",
+                    Category(auditEvent.Action), auditEvent.Action,
+                    auditEvent.Actor, auditEvent.Resource,
+                    auditEvent.CorrelationId, auditEvent.EventId);
+            }
+            else
+            {
+                m_Log.InfoFormat(
+                    "[NEX-AUDIT] {0} | Aktion: {1} | Akteur: {2} | Ziel: {3}",
+                    Category(auditEvent.Action), auditEvent.Action,
+                    auditEvent.Actor, auditEvent.Resource);
+            }
         }
     }
 }
