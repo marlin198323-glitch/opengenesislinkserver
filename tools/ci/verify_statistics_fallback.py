@@ -75,6 +75,14 @@ assert "$('bearer').value.trim()" not in start, "Unrelated explorer bearer must 
 assert "$('apiKey').value.trim()" not in start, "Unrelated explorer API key must never break public stats"
 assert "Teilweise (Datenquelle fehlt)" in start
 assert "feh" in ui
+for label in (
+    "GridUser-Datenquelle nicht verfügbar",
+    "Gespeicherte HG-Besucher ohne zuordenbare HomeURI",
+    "Noch keine HG-Besucher in GridUser erfasst",
+    "Geschützte Details – statistics:read erforderlich",
+    "hg_herkunftsstatus:quality.hypergrid_origin_status",
+):
+    assert label in ui, "Missing actionable HG origin UI diagnosis: " + label
 
 # The public region inventory must enumerate GridStore rows even with no online
 # avatars; do not fall back to the avatar-derived region breakdown.
