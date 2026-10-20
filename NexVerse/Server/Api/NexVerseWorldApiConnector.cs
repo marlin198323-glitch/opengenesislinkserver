@@ -318,7 +318,7 @@ namespace NexVerse.Server.Api
                 "/api/v1/statistics/summary",
                 apiGate.Wrap(statisticsRoute.Summary),
                 "NexVerse statistics summary"));
-            m_Log.Info("[NEX-WORLD-API]: Statistics summary route registered.");
+            m_Log.Info("[NEX-WORLD-API]: Endpunkt für Statistikübersicht registriert.");
 
             server.AddSimpleStreamHandler(new SimpleStreamHandler("/api/v1/version", apiGate.Wrap(handlers.Version), "NexVerse World API Version"));
             server.AddSimpleStreamHandler(new SimpleStreamHandler("/api/v1/capabilities", apiGate.Wrap(handlers.Capabilities), "NexVerse World API Capabilities"));
@@ -590,7 +590,7 @@ namespace NexVerse.Server.Api
                         oidcKeyPath,
                         oidcTokenLifetimeSeconds);
 
-                    m_Log.Info("[NEX-WORLD-API]: NexVerse native scoped access tokens and persistent OAuth/OIDC are enabled.");
+                    m_Log.Info("[NEX-WORLD-API]: Bereichsgebundene Zugriffstoken und dauerhaftes OAuth/OIDC sind aktiv.");
                 }
 
                 NexApiAuthenticator authenticator = new NexApiAuthenticator(
@@ -783,8 +783,8 @@ namespace NexVerse.Server.Api
                         experienceStorePath);
                 AppDomain.CurrentDomain.ProcessExit +=
                     (_, __) => experienceStore.Dispose();
-                m_Log.Info("[NEX-EXPERIENCES]: SingleWriterJson authority acquired. " +
-                    "One Robust writer only; no cross-host shared-file failover.");
+                m_Log.Info("[NEX-EXPERIENCES]: Exklusive Schreibberechtigung für den JSON-Datenspeicher übernommen. " +
+                    "Es darf nur einen schreibenden ROBUST-Knoten geben; kein dateibasierter Failover zwischen Hosts.");
 
                 NexExperiencesApi experiencesApi =
                     new NexExperiencesApi(
@@ -1063,7 +1063,7 @@ namespace NexVerse.Server.Api
                             "NexVerse WebProfileV3"),
                         true);
 
-                    m_Log.Info("[NEX-WEBPROFILE-V3]: WebProfileV3 enabled using the authoritative UserProfilesService store.");
+                    m_Log.Info("[NEX-WEBPROFILE-V3]: Avatarprofile über den maßgeblichen UserProfilesService-Datenspeicher aktiviert.");
                 }
 
                 // Preserve authenticated statistics: the early route now delegates
@@ -1139,7 +1139,7 @@ namespace NexVerse.Server.Api
                     new SimpleStreamHandler("/api", apiGate.Wrap(userRouter.Handle), "NexVerse World API privileged router"),
                     true);
 
-                m_Log.Warn("[NEX-WORLD-API]: Privileged endpoints are enabled. Use only over a transport that protects bearer tokens.");
+                m_Log.Warn("[NEX-WORLD-API]: Sicherheitswarnung: Administrative API-Endpunkte sind aktiv. Zugriffstoken ausschließlich über geschützte Transportverbindungen übertragen.");
             }
             else
             {
@@ -1199,7 +1199,7 @@ namespace NexVerse.Server.Api
                 new SimpleStreamHandler(inboundPath, endpoint.Handle, "NexBus peer transport"));
 
             m_Log.WarnFormat(
-                "[NEXBUS]: Distributed HTTP transport enabled for node {0} with {1} configured peer(s). Protect this transport with TLS/firewall policy.",
+                "[NEXBUS]: Verteilter HTTP-Transport für Knoten {0} mit {1} Gegenstelle(n) aktiv. Sicherheitswarnung: TLS und Firewall-Zugriffsregeln erforderlich.",
                 nodeId,
                 peers.Length);
 
