@@ -92,6 +92,52 @@ If **both** GridUser history and account enumeration fail, a controlled
 `503 statistics_unavailable` remains correct. The route itself must not
 disappear as a 404 merely because privileged endpoints are disabled.
 
+### Hypergrid-Herkunft und `statistics:read`
+
+`GET /api/v1/statistics/summary` liefert mit einem gueltigen
+`statistics:read`-Bearer-Token oder `X-NexVerse-Api-Key`:
+
+- `protected_details: true`: Die Anmeldedaten wurden autorisiert.
+- `hypergrid_home_grids`: Heimat-Grid-Zeilen mit `home_grid`,
+  `known_visitors`, `online_now`, `last_7_days` und
+  `last_30_days`. Diese Liste ist **nur** bei autorisiertem Abruf
+  freigegeben. Ohne Token bleibt sie absichtlich leer.
+- `data_quality.hypergrid_origin_status`:
+  `available`, `no_recorded_visitors`, `incomplete_home_uri`
+  oder `unavailable`.
+- `data_quality.hypergrid_origin_rows` und
+  `data_quality.hypergrid_identities_without_home_uri`:
+  ausschliesslich autorisierte Diagnosedaten. Bei anonymem Zugriff
+  sind diese Felder `null`.
+
+Die Datenbasis ist die Tabelle `GridUser` im konfigurierten
+`GridUserService`-Datastore. Hypergrid-Besucher werden ueber die
+vollstaendige UUI `avatarUUID;HomeURI;Name` gezaehlt. Der
+`GridUserService` muss diese Identitaet bei neuen Anmeldungen,
+Abmeldungen und Positionsaktualisierungen als **exakten**
+Datensatz fuehren, damit Besucher mit gleicher Avatar-UUID aus
+unterschiedlichen Grids nicht gegenseitig ihre Herkunftszeilen
+ueberschreiben.
+
+**Wichtig bei Altdaten:** Bereits zusammengefallene
+`GridUser`-Zeilen koennen die urspruengliche `HomeURI` unwiederbringlich
+verloren haben. Ohne nachgewiesene Herkunft kann die World API die
+historische Aufteilung nicht rueckwirkend berechnen; neue
+authentifizierte HG-Anmeldungen erzeugen kuenftig separat zuordenbare
+Datensaetze. Es gibt **keine** automatische Migration und keine
+erratene Herkunft aus Avatar-Namen, IP-Adressen oder Landobjekten.
+
+**Diagnose:** Zuerst `protected_details` und
+`data_quality.griduser_source` auswerten. Ist
+`protected_details=false`, fehlt eine akzeptierte
+`statistics:read`-Autorisierung fuer die Abfrage. Ist
+`griduser_source=unavailable`, den konfigurierten
+`[GridUserService]`-Provider und dessen Speicherverbindung
+auf ROBUST untersuchen. Liefert die Antwort trotz
+`protected_details=true` eine leere `hypergrid_home_grids`-Liste,
+gibt `hypergrid_origin_status` an, ob keine HG-Besucher
+aufgezeichnet sind oder die Herkunfts-URI fehlt.
+
 The response reports its effective privacy level through:
 
 - `detail_level=aggregate|authenticated|partial`
