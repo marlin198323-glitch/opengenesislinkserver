@@ -12,6 +12,61 @@ Ziel: Inworld-IM aus Firestorm empfängt der Avatar im Bürgerportal und umgekeh
 - `202 Accepted` bedeutet vom Server akzeptiert, nicht „gelesen“. Eine Firestorm-Lesebestätigung existiert nicht.
 - Neues Verhalten setzt sowohl Robust- als auch Simulator-Konfiguration voraus; ohne Aktivierung bleibt die bisherige Web-IM-Versandfunktion erhalten.
 
+## Diagnose: World-Nachrichtendienst meldet HTTP 503
+
+Das Stadtportal kann einen World-API-Upstream-Fehler als
+`world_upstream_error` zusammenfassen. Dieser Code ist **kein**
+spezifischer World-API-Fehler. Bei
+`POST /api/v1/messages` ist der echte World-Response-Body und
+`X-Correlation-Id` fuer die Ursachensuche ausschlaggebend.
+`relationships:write` wird zum Senden benoetigt; ein
+`relationships:read`-Token allein reicht nicht.
+
+| HTTP-Code / World-Fehler | Bedeutung |
+| --- | --- |
+| 503 `instant_message_service_unavailable` | Der konfigurierte `HGInstantMessageService` wurde weder beim World-API-Start noch beim spaeteren Nachladen aufgeloest |
+| 503 `recipient_lookup_unavailable` | Benutzerkonto-Abfrage beim `UserAccountService` hat eine Exception geworfen |
+| 503 `friendship_lookup_unavailable` | Freundschafts-Datenquelle hat eine Exception geworfen |
+| 503 `message_delivery_unavailable` | `HGInstantMessageService.IncomingInstantMessage` hat eine Exception geworfen |
+| 503 `message_not_delivered` | Der IM-Dienst hat weder Online-Zustellung noch eine akzeptierte Offline-IM bestaetigt |
+| 503 `portal_im_archive_disabled` | Ein Archiv- oder Opt-in-Schreibzugriff wurde ohne aktivierten `NexPortalIM`-Store angefordert |
+| 503 `portal_im_store_unavailable` | Die optionale SQLite-Archivabfrage ist fehlgeschlagen |
+
+Bei den IM-Zustellungsfehlern protokolliert ROBUST jetzt den genauen
+Schritt und die `correlation_id`; der Nachrichtentext wird nicht
+protokolliert. Der World-Response bei diesen Fehlern enthaelt
+`error` und `correlation_id`. Ein blosses HTTP 503 im Portal ohne
+World-Body darf nicht als eindeutig festgestellte Ausfallursache
+interpretiert werden.
+
+Der bestehende `HGInstantMessageService` wird beim World-API-Start
+geladen und bei noch fehlendem Transport zum ersten Versand
+erneut aufgeloest. Erzeugen mehrere Dienste unabhaengige
+IM-Serviceinstanzen, lesen **alle** ihre `[Messaging].MessageKey`-Einstellung.
+Ein fehlgeschlagener nachtraeglicher Audit-Eintrag verwandelt eine
+bereits akzeptierte IM nicht in HTTP 503; damit verhindert der
+Dienst, dass das Stadtportal wegen eines Auditproblems die
+Nachricht automatisch doppelt versendet.
+
+Zur Pruefung mit einem echten Einwohner-Token und bestaetigter
+lokaler Freundschaft:
+
+```bash
+curl -i -X POST "https://world.stadt-nexverse.de/api/v1/messages" \
+  -H "Authorization: Bearer ${WORLD_TOKEN}" \
+  -H "Content-Type: application/json" \
+  --data '{"to_agent_id":"<EMPFAENGER-UUID>","message":"Nachrichtentest"}'
+```
+
+Den zurueckgegebenen `error`-Wert und die `X-Correlation-Id`
+mit dem ROBUST-Log abgleichen. **Nachrichten nach einem
+unklaren HTTP-Fehler nicht blind erneut senden:** Eine
+Netzwerkunterbrechung kann nach erfolgreicher Zustellung
+eingetreten sein. Ob eine IM im Simulator ankam oder im
+OfflineIMService archiviert wurde, ist gesondert zu pruefen.
+`NexPortalIM` ist nur fuer das optionale Portalarchiv zustaendig,
+nicht fuer die eigentliche Hypergrid-IM-Zustellung.
+
 ## HTTP-Endpunkte
 
 Basis: konfigurierte World API, bei NexVerse voraussichtlich `https://hg.stadt-nexverse.de/api/v1`. **Auf dem tatsächlich genutzten Host prüfen.**
