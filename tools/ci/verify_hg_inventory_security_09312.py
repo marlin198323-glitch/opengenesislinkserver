@@ -32,7 +32,7 @@ assert 'serverConfig.GetBoolean("AllowLegacyPublicHGInventory", false)' in conne
 assert 'bool allowLegacyPublicHypergridInventory = publicHypergridInventory &&' in connector
 assert 'publicHypergridInventory && !allowLegacyPublicHypergridInventory' in connector
 assert 'm_DenyPublicHypergridInventory = denyPublicHypergridInventory' in handler
-assert "Unauthorized inventory reads/writes may be possible" in connector
+assert "Unberechtigte Inventar-Lese- und Schreibzugriffe sind möglicherweise möglich" in connector
 
 process = handler.split("protected override byte[] ProcessRequest", 1)[1]
 denial = process.split("string body;", 1)[0]
