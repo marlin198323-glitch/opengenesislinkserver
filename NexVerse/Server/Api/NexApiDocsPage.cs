@@ -353,6 +353,12 @@ main:before {content:"";position:fixed;inset:0;pointer-events:none;opacity:.17;z
 <span class="legenditem"><span class="legendswatch" style="background:#5a461c"></span>Reserviert</span>
 <span class="legenditem"><span class="legendswatch" style="background:#6a2323"></span>Konflikt</span>
 </div>
+<div class="planner-actions">
+<label class="legenditem"><input id="gridShowWarp3d" type="checkbox" checked> Warp3D-Kartenbilder über belegten Zellen anzeigen</label>
+<a class="action actionlink" href="/api/v1/deutschland/view" target="_blank" rel="noopener noreferrer">Deutschland-Karte öffnen ↗</a>
+<a class="action actionlink" href="/api/v1/deutschland" target="_blank" rel="noopener noreferrer">Öffentliche Karten-API ↗</a>
+</div>
+<p class="sectionlead" id="gridMapTileStatus">Kartenkacheln werden bei Bedarf aus der öffentlichen Deutschland-API nachgeladen.</p>
 <div class="gridboardwrap"><div class="gridboard" id="gridBoard"><div class="empty">Noch keine Grid-Daten geladen.</div></div></div>
 </div>
 <div class="section">
@@ -1219,6 +1225,24 @@ function gridViewport(){
   return {minX,minY,maxX:minX+width-1,maxY:minY+height-1,width,height};
 }
 function gridCellKey(x,y){return x+':'+y}
+// Tile images are decorative; the authoritative occupancy/placement data
+// remains the authenticated Grid Control API. Cap requests for large viewports.
+function applyGridImagery(){
+  const enabled=$('gridShowWarp3d').checked;
+  let loaded=0, skipped=0;
+  document.querySelectorAll('#gridBoard .gridcell').forEach(cell=>{
+    if(enabled&&cell.classList.contains('occupied')){
+      if(loaded<200){
+        const x=Number(cell.dataset.x),y=Number(cell.dataset.y);
+        cell.style.backgroundImage='linear-gradient(rgba(6,18,32,.22),rgba(6,18,32,.22)),url("/api/v1/deutschland/tiles/1/'+x+'/'+y+'.jpg")';
+        cell.style.backgroundSize='cover';
+        loaded++;
+      }else{cell.style.backgroundImage='';skipped++;}
+    }else cell.style.backgroundImage='';
+  });
+  $('gridMapTileStatus').textContent=!enabled?'Kartenbilder ausgeblendet.'
+    :loaded+' Warp3D-Kacheln eingeblendet.'+(skipped?' Für große Ausschnitte sind maximal 200 Bilder gleichzeitig aktiv.':'');
+}
 function applyGridFilter(){
   const filter=$('gridFilter').value;
   document.querySelectorAll('#gridBoard .gridcell').forEach(cell=>{
@@ -1312,6 +1336,7 @@ function renderGridLayout(data){
     }
   }
   applyGridFilter();
+  applyGridImagery();
   const counts=data.counts||{};
   setGridStatus('Live · '+(counts.regions||0)+' Regionen · '+(counts.free||0)+' frei · '+(counts.occupied||0)+' belegt','good');
 }
@@ -1956,7 +1981,7 @@ $('revokeFeatureLicense').addEventListener('click',()=>saveFeatureLicense(true))
 $('loadNodes').addEventListener('click',loadNodes);$('clearNodesCredentials').addEventListener('click',()=>{$('nodesBearer').value='';$('nodesApiKey').value=''});
 $('gridWest').addEventListener('click',()=>panGrid(-1,0));$('gridEast').addEventListener('click',()=>panGrid(1,0));$('gridSouth').addEventListener('click',()=>panGrid(0,-1));$('gridNorth').addEventListener('click',()=>panGrid(0,1));
 $('validateGridPlacement').addEventListener('click',validateGridPlacement);$('gridRegionSizeX').addEventListener('change',()=>{if(gridSelected)validateGridPlacement()});$('gridRegionSizeY').addEventListener('change',()=>{if(gridSelected)validateGridPlacement()});
-$('gridCellPixels').addEventListener('input',()=>{$('gridBoard').style.setProperty('--cell',$('gridCellPixels').value+'px')});$('gridFilter').addEventListener('change',applyGridFilter);
+$('gridCellPixels').addEventListener('input',()=>{$('gridBoard').style.setProperty('--cell',$('gridCellPixels').value+'px')});$('gridFilter').addEventListener('change',applyGridFilter);$('gridShowWarp3d').addEventListener('change',applyGridImagery);
 
 window.addEventListener('message',event=>{
   if(event.origin!==window.parent.location.origin || event.source!==window.parent ||
