@@ -87,7 +87,7 @@ namespace OpenSim.Server.Handlers.Inventory
             if (publicHypergridInventory)
             {
                 if (allowLegacyPublicHypergridInventory)
-                    m_log.Warn("[OGL SECURITY][LEGACY HG]: Public /xinventory explicitly " +
+                    m_log.Warn("[OGL SECURITY][LEGACY HG]: Öffentliches /xinventory ausdrücklich " +
                         "ENABLED without verified per-avatar authorization. " +
                         "Unauthorized inventory reads/writes may be possible. " +
                         "Disable AllowLegacyPublicHGInventory when no longer required.");
