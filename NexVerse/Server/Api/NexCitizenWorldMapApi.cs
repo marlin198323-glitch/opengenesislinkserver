@@ -26,6 +26,7 @@ namespace NexVerse.Server.Api
         private static readonly ILog m_Log = LogManager.GetLogger(typeof(NexCitizenWorldMapApi));
         private const int CellMeters = 256;
         private const int MaxWindowAxis = 16;
+        private const int MaxRegionAxisCells = 16; // up to 4096m VarRegions
         private const int MaxCellCoordinate = (int.MaxValue - (CellMeters - 1)) / CellMeters;
         private readonly IGridService m_Grid;
         private IMapImageService m_MapImages;
@@ -162,12 +163,20 @@ namespace NexVerse.Server.Api
                     maxY = Math.Min(MaxCellCoordinate, minY + 11);
                 }
 
-                int fromX = checked(minX * CellMeters);
-                int fromY = checked(minY * CellMeters);
+                long cellMinX = (long)minX * CellMeters;
+                long cellMinY = (long)minY * CellMeters;
+                long cellMaxX = (long)maxX * CellMeters + CellMeters - 1;
+                long cellMaxY = (long)maxY * CellMeters + CellMeters - 1;
+                // The underlying GridService searches region ORIGINS, not complete
+                // VarRegion footprints. Query a bounded south/west margin and
+                // intersect the actual 256..4096m footprint with the viewport.
+                int fromX = checked(Math.Max(0, minX - MaxRegionAxisCells + 1) * CellMeters);
+                int fromY = checked(Math.Max(0, minY - MaxRegionAxisCells + 1) * CellMeters);
                 int toX = checked(maxX * CellMeters + CellMeters - 1);
                 int toY = checked(maxY * CellMeters + CellMeters - 1);
                 GridRegion[] regions = (m_Grid.GetRegionRange(UUID.Zero, fromX, toX, fromY, toY) ??
-                    new List<GridRegion>()).Where(Visible)
+                    new List<GridRegion>()).Where(r => Visible(r) &&
+                        Overlaps(r, cellMinX, cellMaxX, cellMinY, cellMaxY))
                     .GroupBy(r => r.RegionID).Select(g => g.First())
                     .Take(256).ToArray();
 
@@ -228,8 +237,12 @@ namespace NexVerse.Server.Api
                 int minY = checked(y * CellMeters);
                 int maxX = checked((x + span) * CellMeters - 1);
                 int maxY = checked((y + span) * CellMeters - 1);
-                bool available = (m_Grid.GetRegionRange(UUID.Zero, minX, maxX, minY, maxY) ??
-                    new List<GridRegion>()).Any(Visible);
+                // Preserve tiles in the non-origin cells of VarRegions.
+                int searchX = Math.Max(0, (x - MaxRegionAxisCells + 1) * CellMeters);
+                int searchY = Math.Max(0, (y - MaxRegionAxisCells + 1) * CellMeters);
+                bool available = (m_Grid.GetRegionRange(UUID.Zero, searchX, maxX, searchY, maxY) ??
+                    new List<GridRegion>()).Any(r => Visible(r) &&
+                        Overlaps(r, minX, maxX, minY, maxY));
                 if (!available)
                 {
                     Json(response, HttpStatusCode.NotFound, new { error = "map_tile_not_found" });
@@ -256,6 +269,16 @@ namespace NexVerse.Server.Api
                 m_Log.Error("[NEX-DEUTSCHLAND-MAP]: Tile retrieval failed.", e);
                 Json(response, HttpStatusCode.ServiceUnavailable, new { error = "map_tile_unavailable" });
             }
+        }
+
+        private static bool Overlaps(GridRegion region,
+            long minX, long maxX, long minY, long maxY)
+        {
+            long left = region.RegionLocX;
+            long bottom = region.RegionLocY;
+            long right = left + Math.Max(CellMeters, region.RegionSizeX) - 1L;
+            long top = bottom + Math.Max(CellMeters, region.RegionSizeY) - 1L;
+            return left <= maxX && right >= minX && bottom <= maxY && top >= minY;
         }
 
         private static bool Cell(IOSHttpRequest request, string name, out int value)
