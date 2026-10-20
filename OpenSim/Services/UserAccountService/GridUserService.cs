@@ -127,48 +127,82 @@ namespace OpenSim.Services.UserAccountService
         }
 
         private static ExpiringCacheOS<string, GridUserData> cache = new ExpiringCacheOS<string, GridUserData>(100000);
+
+        // A foreign visitor is identified by UUID;HomeURI;display-name,
+        // not the bare 36-character UUID. Separate cache entries are
+        // essential: UUID collisions can exist across distinct home grids.
+        private static string GridUserCacheKey(string userID)
+        {
+            if (userID.Length > 36 && userID[36] == ';')
+                return userID;
+            return userID.Length > 36 ? userID.Substring(0, 36) : userID;
+        }
+
+        private static void CacheGridUser(string userID, GridUserData data)
+        {
+            cache.Add(GridUserCacheKey(userID), data, 300000);
+        }
+
         private GridUserData GetGridUserData(string userID)
         {
-            if (userID.Length > 36)
-                userID = userID.Substring(0, 36);
+            string cacheKey = GridUserCacheKey(userID);
+            if (cache.TryGetValue(cacheKey, out GridUserData cached))
+                return cached;
 
-            if (cache.TryGetValue(userID, out GridUserData d))
-               return d;
+            // A fully qualified HG identity must NEVER resolve to an
+            // arbitrary row sharing its bare avatar UUID. The SQLite,
+            // PostgreSQL and MariaDB plugins implement Get as an exact
+            // UserID lookup.
+            if (userID.Length > 36 && userID[36] == ';')
+            {
+                GridUserData exact = m_Database.Get(userID);
+                CacheGridUser(userID, exact);
+                return exact;
+            }
 
-            GridUserData[] ds = m_Database.GetAll(userID);
+            // Retain the legacy UUID-only lookup for callers that have no
+            // UUI, but prefer the genuinely local row over foreign records.
+            string bareId = cacheKey;
+            GridUserData local = m_Database.Get(bareId);
+            if (local != null)
+            {
+                CacheGridUser(bareId, local);
+                return local;
+            }
+
+            GridUserData[] ds = m_Database.GetAll(bareId);
             if (ds == null || ds.Length == 0)
             {
-                cache.Add(userID, null, 300000);
+                CacheGridUser(bareId, null);
                 return null;
             }
 
-            d = ds[0];
+            GridUserData d = ds[0];
             if (ds.Length > 1)
             {
-                // try find most recent record
                 try
                 {
-                    int tsta = int.Parse(d.Data["Login"]);
-                    int tstb = int.Parse(d.Data["Logout"]);
-                    int cur = tstb > tsta? tstb : tsta;
-
-                    for (int i = 1; i < ds.Length; ++i)
+                    long cur = 0;
+                    foreach (GridUserData candidate in ds)
                     {
-                        GridUserData dd = ds[i];
-                        tsta = int.Parse(dd.Data["Login"]);
-                        tstb = int.Parse(dd.Data["Logout"]);
-                        if(tsta > tstb)
-                            tstb = tsta;
-                        if (tstb > cur) 
+                        if (candidate?.Data == null)
+                            continue;
+                        candidate.Data.TryGetValue("Login", out string loginText);
+                        candidate.Data.TryGetValue("Logout", out string logoutText);
+                        long.TryParse(loginText, out long login);
+                        long.TryParse(logoutText, out long logout);
+                        long stamp = Math.Max(login, logout);
+                        if (stamp >= cur)
                         {
-                            cur = tstb;
-                            d = dd;
+                            cur = stamp;
+                            d = candidate;
                         }
                     }
                 }
                 catch { }
             }
-            cache.Add(userID, d, 300000);
+
+            CacheGridUser(bareId, d);
             return d;
         }
 
@@ -249,8 +283,7 @@ namespace OpenSim.Services.UserAccountService
             d.Data["Login"] = Util.UnixTimeSinceEpoch().ToString();
 
             m_Database.Store(d);
-            if (userID.Length >= 36)
-                cache.Add(userID.Substring(0, 36), d, 300000);
+            CacheGridUser(userID, d);
 
             return ToInfo(d);
         }
@@ -275,8 +308,7 @@ namespace OpenSim.Services.UserAccountService
 
             if(m_Database.Store(d))
             {
-                if (userID.Length >= 36)
-                    cache.Add(userID.Substring(0, 36), d, 300000);
+                CacheGridUser(userID, d);
                 return true;
             }
             return false;
@@ -298,8 +330,7 @@ namespace OpenSim.Services.UserAccountService
 
             if(m_Database.Store(d))
             {
-                if (userID.Length >= 36)
-                    cache.Add(userID.Substring(0, 36), d, 300000);
+                CacheGridUser(userID, d);
                 return true;
             }
             return false;
@@ -323,8 +354,7 @@ namespace OpenSim.Services.UserAccountService
 
             if(m_Database.Store(d))
             {
-                if (userID.Length >= 36)
-                    cache.Add(userID.Substring(0, 36), d, 300000);
+                CacheGridUser(userID, d);
                 return true;
             }
             return false;
