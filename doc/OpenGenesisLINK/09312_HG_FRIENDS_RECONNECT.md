@@ -37,6 +37,63 @@ Die gewohnten Firestorm-/Viewer-Pakete `SendAgentOnline` und
 `SendAgentOffline` sowie bestehende Hypergrid-Protokolle bleiben
 unverändert.
 
+## Zusatzfix 20.10.2026: HG-Online-Status nach erneutem Login
+
+Bei lokalen Freunden wurde die Presence bereits korrekt aktualisiert.
+Bei auswärtigen Freunden wie `Sven.Wagner@...` stellte der Simulator
+dagegen beim eigenen Viewer-Login **nur eine einmalige Anfrage** an den
+fremden `FriendsServerURI`-Endpunkt. War der externe Home-Agent während
+dieses kurzen Zeitfensters nicht erreichbar, antwortete leer, oder
+lieferte die URI-Discovery wegen eines vorübergehenden Ausfalls
+noch nichts, bekam Firestorm danach **keinen zweiten Versuch**. Bei
+erneuter Freundschaft wurde der Fehler durch einen neuen Online-Lookup
+vorübergehend umgangen.
+
+Die HG-Freunde-Abfrage nach dem Login wird jetzt durch eine begrenzte
+Wiederherstellungsprüfung ergänzt:
+
+- Beim Login liefert die bisherige Abfrage sofort alle bestätigten
+  Online-Freunde. Bereits bestätigte HG-Freunde werden danach nicht
+  noch einmal abgefragt.
+- Ausschließlich **noch offline dargestellte HG-Freunde** mit aktivem
+  `CanSeeOnline`-Recht werden nach 135, 270 und 540 Sekunden
+  Warteintervall erneut beim autoritativen Home-Grid nachgefragt;
+  spätestens beim Disconnect endet die Prüfung. Die 135 Sekunden
+  überschreiten den Backoff von `UserManagementModule` für
+  vorübergehend fehlende Home-Server.
+- Nur vom Home-Grid bestätigte UUIDs, die auch in der angefragten
+  Freundesliste stehen, lösen `SendAgentOnline` an Firestorm aus.
+  Ein fehlgeschlagener Remote-Lookup führt **nie** zu einer
+  erfundenen Online- oder Offline-Meldung.
+- Lokale Freundschaften, Login-Benachrichtigungen und das
+  HG-Protokoll werden nicht verändert. Die bestehende
+  `statusnotification`-Methode wird wiederverwendet; diese teilt
+  dem Gegenserver den aktuellen Online-Zustand des anfragenden
+  Avatars zusätzlich mit. Deshalb ist die Zahl der Wiederholungen
+  begrenzt, um fremde Home-Grids nicht dauerhaft zu belasten.
+
+```ini
+[HGFriendsModule]
+PresenceRetrySeconds = 135
+PresenceRetryAttempts = 3
+```
+
+`PresenceRetryAttempts = 0` deaktiviert diese Nachprüfung.
+Die maximal unterstützten Werte sind 4 Wiederholungen und
+30 Minuten Basisintervall. Die Einstellungen gehören auf
+**jeden betroffenen Simulator** (z. B. `config-include/GridCommon.ini`),
+nicht nur in ROBUST.
+
+**Grenzen:** Ein fremdes Grid muss den interoperablen
+`/hgfriends`-Statusdienst unterstützen und eine gültige
+gegenseitige Freundschaft mit passendem Secret und
+Online-Sichtbarkeitsrecht speichern. Ohne diese Bedingungen
+kann das eigene Grid keine korrekte Präsenz ermitteln. Der Fix
+kann keine komplett ausbleibenden Statusmeldungen des fremden
+Home-Grids reparieren. Er dient der verzögerten Wiederherstellung
+des beim Relog verpassten Status; er ersetzt keine
+permanente, spekulative Anwesenheitsüberwachung.
+
 ## Live-Abnahme
 
 Die Änderung muss auf dem eigenen OGL-Grid bei **Robust UND den
