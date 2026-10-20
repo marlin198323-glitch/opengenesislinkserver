@@ -21,11 +21,44 @@ for marker in (
     'total = gridUserAvailable ? allOnline.Count : (int?)null',
     'missing_metrics = (gridUserAvailable',
     'griduser_source = gridUserAvailable ? "available" : "unavailable"',
-    'complete = gridUserAvailable && completeAccountEnumeration',
+    'complete = gridUserAvailable && completeAccountEnumeration &&',
 ):
     assert marker in stats, "Statistics fallback contract missing: " + marker
 
 assert "m_UserAccounts == null || m_GridUsers == null" not in stats
+
+# Full OpenSim HG UUIs must be looked up exactly. Prefixing all lookups
+# with the bare 36-character UUID merges different HG homes and can erase
+# the GridUser origin rows expected by statistics:read.
+griduser = (root / "OpenSim/Services/UserAccountService/GridUserService.cs").read_text(encoding="utf-8")
+for marker in (
+    "private static string GridUserCacheKey(string userID)",
+    "userID.Length > 36 && userID[36] == ';'",
+    "GridUserData exact = m_Database.Get(userID);",
+    "CacheGridUser(userID, exact);",
+    "GridUserData local = m_Database.Get(bareId);",
+    "CacheGridUser(userID, d);",
+):
+    assert marker in griduser, "HG UUI provenance regression: " + marker
+assert 'cache.Add(userID.Substring(0, 36), d, 300000)' not in griduser
+assert 'userID = userID.Substring(0, 36);' not in griduser
+
+# Protected HG origin rows are published only with statistics:read. The
+# data-quality envelope differentiates missing source, zero known HG users,
+# and legacy records with no recoverable home URI.
+for marker in (
+    "NexScopes.StatisticsRead",
+    "hypergrid_home_grids = includeProtectedDetails",
+    "hypergrid_origin_status = hypergridOriginStatus",
+    "hypergrid_origin_rows = includeProtectedDetails",
+    "hypergrid_identities_without_home_uri = includeProtectedDetails",
+    '"no_recorded_visitors"',
+    '"incomplete_home_uri"',
+    '"hypergrid_home_grid_identity"',
+    "missingHomeGridIdentities == 0",
+):
+    assert marker in stats, "Protected HG origin diagnostics missing: " + marker
+
 assert stats.index('if (m_UserAccounts == null)') < stats.index('BuildSummary(response, includeProtectedDetails);')
 assert '"/api/v1/statistics/summary"' in routes
 assert routes.count('"/api/v1/statistics/summary"') == 1, "One early statistics route must serve both auth modes"
@@ -42,6 +75,14 @@ assert "$('bearer').value.trim()" not in start, "Unrelated explorer bearer must 
 assert "$('apiKey').value.trim()" not in start, "Unrelated explorer API key must never break public stats"
 assert "Teilweise (Datenquelle fehlt)" in start
 assert "feh" in ui
+for label in (
+    "GridUser-Datenquelle nicht verfügbar",
+    "Gespeicherte HG-Besucher ohne zuordenbare HomeURI",
+    "Noch keine HG-Besucher in GridUser erfasst",
+    "Geschützte Details – statistics:read erforderlich",
+    "hg_herkunftsstatus:quality.hypergrid_origin_status",
+):
+    assert label in ui, "Missing actionable HG origin UI diagnosis: " + label
 
 # The public region inventory must enumerate GridStore rows even with no online
 # avatars; do not fall back to the avatar-derived region breakdown.
