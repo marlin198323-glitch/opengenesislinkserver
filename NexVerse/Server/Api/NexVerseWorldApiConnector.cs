@@ -654,6 +654,13 @@ namespace NexVerse.Server.Api
                     apiGate.Wrap(portalRegistration.Handle),
                     "OpenGenesisLINK Stadtportal avatar registration"));
 
+                // Name checks are backend-to-backend and use the same
+                // users:register machine key as the final POST.
+                server.AddSimpleStreamHandler(new SimpleStreamHandler(
+                    "/api/v1/portal/avatars/name-availability",
+                    apiGate.Wrap(portalRegistration.HandleNameAvailability),
+                    "OpenGenesisLINK Stadtportal live avatar name lookup"));
+
                 NexUserApiRouter userRouter = new NexUserApiRouter(
                     userService,
                     authenticator,
