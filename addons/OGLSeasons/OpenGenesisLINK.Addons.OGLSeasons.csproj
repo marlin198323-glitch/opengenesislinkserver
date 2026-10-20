@@ -13,6 +13,7 @@
     <Reference Include="Nini"><HintPath>../../bin/Nini.dll</HintPath><Private>false</Private></Reference>
     <Reference Include="Mono.Addins"><HintPath>../../bin/Mono.Addins.dll</HintPath><Private>false</Private></Reference>
     <Reference Include="OpenMetaverse"><HintPath>../../bin/OpenMetaverse.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="OpenMetaverseTypes"><HintPath>../../bin/OpenMetaverseTypes.dll</HintPath><Private>false</Private></Reference>
     <Reference Include="log4net"><HintPath>../../bin/log4net.dll</HintPath><Private>false</Private></Reference>
   </ItemGroup>
 </Project>
