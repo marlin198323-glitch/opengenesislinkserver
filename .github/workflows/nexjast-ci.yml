@@ -265,6 +265,10 @@ jobs:
         shell: bash
         run: dotnet run --configuration Release --project tools/ci/NexAuditRegression/NexAuditRegression.csproj
 
+      - name: Verify quiet ROBUST audit console and durable audit separation
+        shell: bash
+        run: python3 tools/ci/verify_audit_console.py
+
       - name: Verify idempotency store
         shell: bash
         run: dotnet run --configuration Release --project tools/ci/NexIdempotencyRegression/NexIdempotencyRegression.csproj
