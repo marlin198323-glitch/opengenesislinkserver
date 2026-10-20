@@ -53,7 +53,7 @@ section{position:relative;overflow:hidden;background:#10253a}
   <form id="searchForm" autocomplete="off"><input id="search" aria-label="Region suchen" placeholder="Regionsname suchen (mind. 2 Zeichen)" maxlength="80"><button type="submit">Suchen</button></form>
   <div id="status" class="status" role="status" aria-live="polite">Lade Weltkarte …</div>
   <div id="results" aria-label="Suchergebnisse"></div>
-  <p>Die Karte zeigt veröffentlichte, aktive Regionen. Kartenkacheln werden vom OpenSim MapImageService geladen, sofern dieser verfügbar ist.</p>
+  <p>Die interaktive Karte zeigt alle erreichbaren veröffentlichten Regionen in beliebigen Kartenausschnitten. Die Warp3D-Bilder werden aus dem OpenSim MapImageService geladen. Leere oder nicht verfügbare Regionen bleiben frei.</p>
 </aside>
 <section aria-label="Interaktive NexVerse-Weltkarte">
   <div id="world" role="application" aria-label="Weltkarte ziehen zum Verschieben"><div id="layers"></div></div>
@@ -67,6 +67,12 @@ section{position:relative;overflow:hidden;background:#10253a}
   'use strict';
   const $=id=>document.getElementById(id), world=$('world'), layers=$('layers');
   const status=$('status'), results=$('results'), info=$('info');
+  const deutschland=location.pathname.toLowerCase().startsWith('/api/v1/deutschland');
+  const apiRoot=deutschland?'/api/v1/deutschland':'/api/v1/world-map';
+  if(deutschland){
+    document.title='Stadt NexVerse · Deutschland';
+    document.querySelector('header h1').textContent='Deutschland · Warp3D-Karte';
+  }
   let center={x:1000,y:1000}, axis=12, bounds=null, requestId=0, drag=null;
   const axisChoices=[3,5,8,12,16];
   const clamp=n=>Math.max(0,Math.min(8388606,Math.round(n)));
@@ -101,7 +107,8 @@ section{position:relative;overflow:hidden;background:#10253a}
         const p=pos(x,y),cell=add('div','tile',layers);
         Object.assign(cell.style,{left:p.x+'px',top:p.y+'px',width:unit+'px',height:unit+'px'});
         const im=document.createElement('img');im.loading='lazy';im.decoding='async';im.alt='';
-        im.src='/map/map-1-'+x+'-'+y+'-objects.jpg';
+        im.src=(data.tile_url_template||'/map/map-1-{x}-{y}-objects.jpg')
+          .replace('{x}',String(x)).replace('{y}',String(y));
         im.onerror=()=>im.remove();cell.appendChild(im);
       }
     }
@@ -119,7 +126,7 @@ section{position:relative;overflow:hidden;background:#10253a}
     const v=view();const p=new URLSearchParams(defaultView?{}:v);
     setStatus('Kartenbereich wird geladen …');
     try{
-      const response=await fetch('/api/v1/world-map'+(p.size?'?'+p:''),{cache:'no-store'});
+      const response=await fetch(apiRoot+(p.size?'?'+p:''),{cache:'no-store'});
       if(!response.ok)throw Error('HTTP '+response.status);
       const data=await response.json();if(current!==requestId)return;
       if(!data.bounds){setStatus('Keine Standardregion gefunden. Bitte nach einer Region suchen.');return;}
@@ -133,7 +140,7 @@ section{position:relative;overflow:hidden;background:#10253a}
     if(q.length<2){setStatus('Bitte mindestens zwei Zeichen eingeben.');return;}
     setStatus('Suche läuft …');results.replaceChildren();
     try{
-      const response=await fetch('/api/v1/world-map?q='+encodeURIComponent(q),{cache:'no-store'});
+      const response=await fetch(apiRoot+'?q='+encodeURIComponent(q),{cache:'no-store'});
       if(!response.ok)throw Error('HTTP '+response.status);
       const data=await response.json(), found=data.regions||[];
       setStatus(found.length+' passende Regionen gefunden.');
