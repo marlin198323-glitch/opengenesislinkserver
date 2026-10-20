@@ -369,7 +369,8 @@ namespace NexVerse.Server.Api
                             .Count()
                         : (int?)null
                 },
-                detail_level = !gridUserAvailable || !regions.Available || assetStatus != "ok"
+                detail_level = !gridUserAvailable || !regions.Available || assetStatus != "ok" ||
+                    missingHomeGridIdentities > 0
                     ? "partial"
                     : includeProtectedDetails ? "authenticated" : "aggregate",
                 protected_details = includeProtectedDetails,
@@ -417,7 +418,8 @@ namespace NexVerse.Server.Api
                     : Array.Empty<object>(),
                 data_quality = new
                 {
-                    complete = gridUserAvailable && completeAccountEnumeration && regions.Available && assetStatus == "ok",
+                    complete = gridUserAvailable && completeAccountEnumeration &&
+                        regions.Available && assetStatus == "ok" && missingHomeGridIdentities == 0,
                     griduser_source = gridUserAvailable ? "available" : "unavailable",
                     hypergrid_origin_status = hypergridOriginStatus,
                     hypergrid_origin_rows = includeProtectedDetails
