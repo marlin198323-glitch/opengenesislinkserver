@@ -337,7 +337,14 @@ namespace OpenSim.Region.CoreModules.Avatar.Friends
                         "FriendsServerURI");
 
                 if (string.IsNullOrEmpty(friendsServerURI))
+                {
+                    // Never log the complete UUI: its final component may
+                    // contain the per-friend shared verification secret.
+                    m_log.WarnFormat(
+                        "[HGFRIENDS MODULE]: FriendsServerURI unavailable for HG friend {0} on local user {1}; the relog recovery will retry",
+                        foreignFriendID, userID);
                     continue;
+                }
 
                 if (!foreignFriendsPerServer.TryGetValue(
                         friendsServerURI,
