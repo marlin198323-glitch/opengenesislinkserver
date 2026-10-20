@@ -828,6 +828,17 @@ namespace NexVerse.Server.Api
                         "OpenGenesisLINK Citizen World Map"),
                     true);
 
+                // Reuse the native MapImageService that receives Warp3D tiles
+                // from all region servers. Public read-only, bounded, no admin API keys.
+                citizenWorldMap.ConfigureTiles(LoadOptionalService<IMapImageService>(
+                    config, "MapImageService"));
+                server.AddSimpleStreamHandler(
+                    new SimpleStreamHandler(
+                        "/api/v1/deutschland",
+                        apiGate.Wrap(citizenWorldMap.Handle),
+                        "Stadt NexVerse Deutschland map and Warp3D tiles"),
+                    true);
+
                 server.AddSimpleStreamHandler(
                     new SimpleStreamHandler(
                         "/api/v1/search",
