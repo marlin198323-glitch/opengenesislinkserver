@@ -214,6 +214,7 @@ namespace NexVerse.Server.Api
                 ["/api/v1/deutschland"] = GetOperation("Stadt NexVerse Deutschland: oeffentliche Warp3D-Kartenmetadaten und Regionssuche, begrenzte Viewports"),
                 ["/api/v1/deutschland/view"] = GetOperation("Interaktive Stadt NexVerse Deutschland-Karte mit Warp3D-Regionenkacheln"),
                 ["/api/v1/deutschland/tiles/{zoom}/{x}/{y}.jpg"] = GetOperation("Oeffentliche Original-Warp3D-Kartenkacheln von sichtbaren Regionen, Zoom 1 bis 8; 256 Pixel JPEG"),
+                ["/api/v1/deutschland/xyz/{z}/{x}/{y}.jpg"] = GetOperation("MapLibre-kompatible XYZ-Kartenbilder (synthetische Gridkoordinaten, z 17 bis 24)"),
                 ["/api/v1/search"] = GetOperation(
                     "NexSearch über Personen, Gruppen, Regionen, Parcels, Places, Events, Land, Classifieds, Experiences und Destinations"),
                 ["/api/v1/places"] = MergeOperations(
