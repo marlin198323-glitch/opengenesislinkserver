@@ -17,6 +17,34 @@ for marker in (
     'GetBoolean("PortalAvatarRegistrationEnabled", false)',
 ):
     assert marker in connector, "Missing disabled-by-default portal route: " + marker
+# Backend-only live availability must use the same machine key and
+# normalized names as the authoritative final registration POST.
+for marker in (
+    '"/api/v1/portal/avatars/name-availability"',
+    "apiGate.Wrap(portalRegistration.HandleNameAvailability)",
+):
+    assert marker in connector, "Live name availability registration missing: " + marker
+
+for marker in (
+    "public void HandleNameAvailability(",
+    'string.Equals(request.HttpMethod, "GET"',
+    "if (!AuthorizePortal(request, response))",
+    'request.QueryString?["first_name"]',
+    'request.QueryString?["last_name"]',
+    'last = "Resident";',
+    "m_Accounts.GetUserAccount(UUID.Zero, first, last) == null",
+    "status = available ? \"available\" : \"taken\"",
+    "HttpStatusCode.OK",
+    '"name_check_unavailable"',
+    '"invalid_avatar_name"',
+):
+    assert marker in api, "Live name availability API security/contract missing: " + marker
+assert api.count("if (!AuthorizePortal(request, response))") == 2, "Both routes must share identical security checks."
+assert api.count("m_Accounts.GetUserAccount(UUID.Zero, first, last)") >= 2, "Live lookup must match final POST lookup."
+assert api.index("NexScopes.UsersRegister") < api.index("public void HandleNameAvailability(")
+assert api.index("public void HandleNameAvailability(") < api.index("public void Handle(")
+assert "X-NexVerse-Api-Key" in api and "HttpStatusCode.Created" in api
+
 for marker in (
     "IOglPortalAccountProvisioner",
     "CreatePortalAvatar(",
