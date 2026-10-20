@@ -209,6 +209,10 @@ namespace NexVerse.Server.Api
                     ("post", "NV$-Konto sperren, freigeben oder schließen", "admin:*", "200")),
                 ["/api/v1/economy/accounts/ensure"] = AuthenticatedOperations(
                     ("post", "Vertrauenswürdiges Gruppen-, Business-, Estate- oder Objekt-Wallet provisionieren", "economy:transfer (service/admin)", "200")),
+                ["/api/v1/portal/avatars/register"] = AuthenticatedOperations(
+                    ("post", "Stadtportal-Avatar mit users:register-Maschinenkey anlegen (Home und Last setzen)", "users:register", "201")),
+                ["/api/v1/portal/avatars/name-availability"] = AuthenticatedOperations(
+                    ("get", "Live-Namenspruefung (leerer last_name wird Resident); nur Stadtportal-Backend und users:register-Maschinenkey", "users:register", "200")),
                 ["/api/v1/world-map"] = GetOperation("Oeffentliche Weltkarte: Regionen und Kartenkachel-Koordinaten in begrenztem Rasterfenster"),
                 ["/api/v1/world-map/view"] = GetOperation("Interaktive, einbettbare Weltkarte fuer das NexVerse Buergerportal"),
                 ["/api/v1/deutschland"] = GetOperation("Stadt NexVerse Deutschland: oeffentliche Warp3D-Kartenmetadaten und Regionssuche, begrenzte Viewports"),
