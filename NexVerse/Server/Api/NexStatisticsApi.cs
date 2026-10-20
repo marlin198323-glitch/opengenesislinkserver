@@ -283,6 +283,19 @@ namespace NexVerse.Server.Api
                     .Cast<object>()
                     .ToArray();
 
+            // A successful GridUser query does not guarantee that its HG
+            // identities include a HomeURI. Never claim origin coverage when
+            // only bare UUIDs (or malformed historical UUI rows) are present.
+            int missingHomeGridIdentities = knownHypergrid.Count(
+                x => string.IsNullOrWhiteSpace(x.HomeGrid));
+            string hypergridOriginStatus = !gridUserAvailable
+                ? "unavailable"
+                : knownHypergrid.Count == 0
+                    ? "no_recorded_visitors"
+                    : missingHomeGridIdentities > 0
+                        ? "incomplete_home_uri"
+                        : "available";
+
             Dictionary<string, int> accountStates =
                 accounts.GroupBy(
                         x => string.IsNullOrWhiteSpace(x.NexVerseState)
@@ -406,6 +419,11 @@ namespace NexVerse.Server.Api
                 {
                     complete = gridUserAvailable && completeAccountEnumeration && regions.Available && assetStatus == "ok",
                     griduser_source = gridUserAvailable ? "available" : "unavailable",
+                    hypergrid_origin_status = hypergridOriginStatus,
+                    hypergrid_origin_rows = includeProtectedDetails
+                        ? homeGridBreakdown.Length : (int?)null,
+                    hypergrid_identities_without_home_uri = includeProtectedDetails
+                        ? missingHomeGridIdentities : (int?)null,
                     region_source = regions.Available ? "GridStore" : "unavailable",
                     asset_service_probe = assetStatus,
                     missing_metrics = (gridUserAvailable
@@ -413,6 +431,9 @@ namespace NexVerse.Server.Api
                         : new[] { "activity_history", "hypergrid_visitors", "hypergrid_online", "total_online" })
                         .Concat(regions.Available ? Array.Empty<string>() : new[] { "registered_regions", "online_regions" })
                         .Concat(assetStatus == "ok" ? Array.Empty<string>() : new[] { "asset_service_health" })
+                        .Concat(missingHomeGridIdentities == 0
+                            ? Array.Empty<string>()
+                            : new[] { "hypergrid_home_grid_identity" })
                         .ToArray(),
                     registered_source =
                         completeAccountEnumeration
