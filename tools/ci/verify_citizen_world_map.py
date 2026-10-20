@@ -31,6 +31,7 @@ for item in (
 ):
     assert item in api, item
 
+assert '"/api/v1/world-map/view"' in api
 assert "server_uri" not in api
 assert "node_id" not in api
 assert "owner_id" not in api
@@ -47,7 +48,6 @@ for item in (
 for item in (
     "Weltkarte",
     "world-map",
-    "world-map/view",
     "maplibre-gl@6.15.0",
     "new maplibregl.Map(",
     "'/api/v1/deutschland/xyz/{z}/{x}/{y}.jpg'",
