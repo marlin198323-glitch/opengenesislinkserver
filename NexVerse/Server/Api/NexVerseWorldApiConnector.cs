@@ -282,7 +282,7 @@ namespace NexVerse.Server.Api
                 auditConsolePublicReads,
                 auditConsoleShowIds);
             m_Log.InfoFormat(
-                "[NEX-AUDIT]: Konsole={0}, öffentliche Lesezugriffe={1}, IDs={2}; persistentes Audit bleibt unabhängig.",
+                "[NEX-WORLD-API]: Auditkonsole={0}, öffentliche Lesezugriffe={1}, IDs={2}; persistentes Audit bleibt unabhängig.",
                 auditConsoleMode, auditConsolePublicReads, auditConsoleShowIds);
             INexAuthorizationService authorization = new NexAuthorizationService();
 
