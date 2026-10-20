@@ -315,6 +315,13 @@ namespace OpenSim.Services.Interfaces
     {
         UserAccount CreatePortalAvatar(string firstName, string lastName,
             string password, string email, string modelAlias);
+
+        // Backend-provisioned starter spawn. The caller has already verified
+        // its dedicated users:register API key. Validate the region before
+        // creating the account; both Home and Last must be written.
+        UserAccount CreatePortalAvatar(string firstName, string lastName,
+            string password, string email, string modelAlias,
+            string homeRegionId, string homeRegionName, Vector3 position);
     }
 
     public interface IUserAccountService

@@ -646,6 +646,92 @@ namespace OpenSim.Services.UserAccountService
             return CreateUser(UUID.Zero, UUID.Random(), firstName, lastName, password, email, modelAlias);
         }
 
+        public UserAccount CreatePortalAvatar(string firstName, string lastName,
+            string password, string email, string modelAlias,
+            string homeRegionId, string homeRegionName, Vector3 position)
+        {
+            // For a portal signup the viewer's first spawn is not optional.
+            // Validate the authoritative destination *before* creating an
+            // avatar, inventory, password or starter outfit.
+            if ((modelAlias != "ogl:benjamin" && modelAlias != "ogl:luna") ||
+                m_GridService == null || m_GridUserService == null ||
+                !float.IsFinite(position.X) || !float.IsFinite(position.Y) ||
+                !float.IsFinite(position.Z))
+                return null;
+
+            GridRegion home = null;
+            if (!string.IsNullOrWhiteSpace(homeRegionId))
+            {
+                if (!UUID.TryParse(homeRegionId.Trim(), out UUID id) || id.IsZero())
+                    return null;
+                home = m_GridService.GetRegionByUUID(UUID.Zero, id);
+                if (home != null && !string.IsNullOrWhiteSpace(homeRegionName) &&
+                    !string.Equals(home.RegionName, homeRegionName.Trim(), StringComparison.OrdinalIgnoreCase))
+                    return null;
+            }
+            else if (!string.IsNullOrWhiteSpace(homeRegionName))
+                home = m_GridService.GetRegionByName(UUID.Zero, homeRegionName.Trim());
+
+            if (home == null || home.RegionID.IsZero() ||
+                home.RegionSizeX < 16 || home.RegionSizeY < 16 ||
+                position.X < 0 || position.Y < 0 ||
+                position.X >= home.RegionSizeX || position.Y >= home.RegionSizeY ||
+                position.Z < 1 || position.Z > 4096)
+            {
+                m_log.Warn("[OGL PORTAL REGISTRATION]: No valid registered home region or position");
+                return null;
+            }
+
+            UserAccount account = CreateUser(
+                UUID.Zero, UUID.Random(), firstName, lastName, password, email, modelAlias);
+            if (account == null)
+                return null;
+
+            bool positioned = false;
+            try
+            {
+                string userId = account.PrincipalID.ToString();
+                Vector3 lookAt = new Vector3(0, 1, 0);
+                // Writing both values is essential. OpenSim login can pick
+                // Last even when Home has already been initialized.
+                bool homeOk = m_GridUserService.SetHome(
+                    userId, home.RegionID, position, lookAt);
+                bool lastOk = m_GridUserService.SetLastPosition(
+                    userId, UUID.Zero, home.RegionID, position, lookAt);
+                positioned = homeOk && lastOk;
+            }
+            catch (Exception e)
+            {
+                m_log.Error("[OGL PORTAL REGISTRATION]: Failed to seed Home/Last positions", e);
+            }
+
+            if (!positioned)
+            {
+                // Do not return a login-capable orphan on partial placement
+                // failure. Recovery is explicit: never silently claim 201.
+                account.Active = false;
+                account.NexVerseState = "provisioning_failed";
+                account.NexVerseStateReason = "Home/Last position initialization failed";
+                account.NexVerseStateChanged = Math.Max(
+                    OpenSim.Framework.Util.UnixTimeSinceEpoch(),
+                    account.NexVerseStateChanged + 1);
+                try
+                {
+                    if (!StoreUserAccount(account))
+                        m_log.ErrorFormat("[OGL PORTAL REGISTRATION]: Manual account lock required for {0}",
+                            account.PrincipalID);
+                    InvalidateCache(account.PrincipalID);
+                }
+                catch (Exception e)
+                {
+                    m_log.Error("[OGL PORTAL REGISTRATION]: Unable to lock incomplete account", e);
+                }
+                return null;
+            }
+
+            return account;
+        }
+
         public UserAccount CreateUser(UUID scopeID, UUID principalID, string firstName, string lastName, string password, string email, string model = "")
         {
             if (string.IsNullOrWhiteSpace(firstName) || string.IsNullOrWhiteSpace(lastName))

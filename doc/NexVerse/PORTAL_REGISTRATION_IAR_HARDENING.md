@@ -49,6 +49,114 @@ X-NexVerse-Api-Key: <SERVER_ONLY_KEY>
   E-Mail ⇒ `409 email_registered`. Nicht vorbereitete Startervorlage
   ⇒ `422 registration_failed`.
 
+### KeyHelp-Reverse-Proxy, HTTP-Backend und Startposition
+
+Das Stadtportal nutzt öffentlich HTTPS. KeyHelp beendet TLS am
+VHost und leitet die Registrierung intern per HTTP an ROBUST
+weiter; ROBUST selbst muss deshalb **kein HTTPS-Zertifikat**
+bereitstellen. Der bereits vorhandene `POST
+/api/v1/portal/avatars/register`-Handler erkennt die HTTPS-Verbindung
+über `X-Forwarded-Proto: https` **nur**, wenn der tatsächliche
+TCP-Absender eine lokale Loopback-Adresse oder eine unter
+`PortalRegistrationTrustedProxyIPs` exakt freigegebene Proxy-IP ist.
+`X-Forwarded-For` wird hierfür **nicht** ausgewertet, damit ein
+beliebiger Browser keine interne Proxy-IP vortäuschen kann.
+
+```ini
+[NexVerseWorldApi]
+PortalAvatarRegistrationEnabled = false
+; Die IP muss die bei ROBUST ankommende KeyHelp-IP sein, nicht die Besucher-IP!
+PortalRegistrationTrustedProxyIPs = "10.78.0.2"
+PortalRegistrationTrustedHttpPeers = ""
+PortalRegistrationDefaultRegionName = "Magdeburg"
+PortalRegistrationDefaultX = 116
+PortalRegistrationDefaultY = 120
+PortalRegistrationDefaultZ = 22
+```
+
+Die IP `10.78.0.2` ist nur ein **Beispiel**; die tatsächliche
+Quell-IP des KeyHelp-Proxys ermitteln und einsetzen. Beim KeyHelp-VHost
+die vorhandene `X-Forwarded-Proto`-Angabe serverseitig auf
+`https` setzen/überschreiben (nur im HTTPS-VHost).
+Der HTTP-Ursprungsport von ROBUST muss per Firewall nur für
+KeyHelp beziehungsweise die relevanten Dienste erreichbar sein.
+Ein KeyHelp-Proxy über das öffentliche Internet ohne VPN oder
+anderweitig geschützte Backend-Strecke verschlüsselt die
+**Verbindung KeyHelp → ROBUST nicht**: API-Schlüssel und
+Registrierungspasswort könnten dabei mitgelesen werden.
+
+Falls das Stadtportal-Backend statt über KeyHelp direkt
+`http://<ROBUST-INTERN>:80/api/v1/portal/avatars/register`
+aufrufen soll, kann ausschließlich dessen tatsächliche feste
+Quell-IP in `PortalRegistrationTrustedHttpPeers` eingetragen
+werden. Dies gilt **nur für eine private, geschützte
+Backend-Verbindung (Loopback oder VPN)** und ist bewusst
+standardmäßig leer. Eine unbeschränkte Freigabe von HTTP oder
+`X-Forwarded-Proto` für beliebige öffentliche Clients wird
+nicht unterstützt. Beide Listen akzeptieren kommagetrennte
+**literale IPv4-/IPv6-Adressen**, keine Hostnamen oder
+`0.0.0.0/0`.
+
+Bei aktivierter Registrierung kann das Stadtportal-Backend
+eine Startregion/Position im Request auswählen; dies ist kein
+frei zugängliches Browser-Formular, sondern eine autorisierte
+serverseitige Auswahl über den Key mit `users:register`:
+
+```json
+{
+  "first_name": "Alex",
+  "last_name": "Resident",
+  "email": "alex@example.org",
+  "password": "ein-langes-sicheres-passwort",
+  "gender": "female",
+  "home_region": {
+    "name": "Magdeburg",
+    "position": { "x": 116, "y": 120, "z": 22 }
+  }
+}
+```
+
+Statt `home_region.name` kann `home_region.id` die
+existierende Region-UUID bestimmen. Werden beide übergeben,
+müssen Name und UUID zusammenpassen. Ohne `home_region`
+gelten die `PortalRegistrationDefault*`-Einstellungen.
+Die Region muss im **autoritativen GridService** registriert
+sein; die Position muss innerhalb der Region liegen
+(`z` 1–4096). ROBUST erstellt dann die kopierte
+Benjamin- bzw. Luna-Starterausstattung und schreibt **sowohl
+Home als auch Last** in den GridUser-Service. Nur wenn beide
+Positionen erfolgreich gespeichert wurden, antwortet die
+API mit **HTTP 201**, `success: true`, `ready: true`
+und der bestätigten Startposition. Bei teilweisem
+Provisionierungsfehler wird keine Erfolgsmeldung ausgegeben,
+und der Account wird nach Möglichkeit gesperrt;
+wegen fehlender Multi-Service-Transaktion kann eine
+manuelle Bereinigung erforderlich sein.
+
+**Prüfbefehl** (nur vom autorisierten Backend/Proxy aus;
+nicht in einem Browser oder auf einem öffentlichen Netz
+mit nacktem HTTP ausführen):
+
+```bash
+curl -i 'https://world.stadt-nexverse.de/api/v1/portal/avatars/register' \
+  -H "X-NexVerse-Api-Key: ${NEXVERSE_REGISTER_API_KEY}" \
+  -H 'Content-Type: application/json' \
+  --data '{"first_name":"Alex","last_name":"Resident","email":"alex@example.org","password":"ein-sehr-langes-sicheres-passwort","gender":"male"}'
+```
+
+Bei `403 https_required` kommt die Anfrage nicht als
+autorisierte HTTPS-Proxy-Anfrage an; Proxy-IP und
+`X-Forwarded-Proto` prüfen. `503 registration_disabled`
+bedeutet fehlende Freigabe oder einen nicht verfügbaren
+`IOglPortalAccountProvisioner`. `422 registration_failed`
+erfordert Prüfung von Modell-Freigabe und Home-/Last-
+Initialisierung im ROBUST-Log. `401 unauthorized_portal`
+deutet auf fehlenden/falschen Key oder Scope hin.
+`409 avatar_name_taken`/ `email_registered` bedeutet,
+dass ein Name beziehungsweise die E-Mail bereits existiert.
+Bei einem Netzwerkausfall nach dem POST vor erneuter
+Registrierung nachsehen, ob der Avatar bereits angelegt wurde.
+
 ### Freigabe
 
 In der aktiven Robust-INI (Standard **false**):
@@ -93,10 +201,10 @@ Dashboard eingerichtet; deren Tokenvalidierung erfolgt ausschließlich
 im Stadtportal-Backend.
  Es darf weder ein breiter
 `users:write`-Key noch ein Admin-Token an den Browser gelangen.
-`HTTPS` ist zwingend; bei TLS-Offloading wird
-`X-Forwarded-Proto: https` nur von einer lokalen Loopback-Verbindung
-akzeptiert. Über einen unverschlüsselten öffentlichen Port 80
-ist die Registrierung gesperrt.
+Externes HTTPS bleibt Voraussetzung. Internes HTTP funktioniert nur
+fuer explizit freigegebene KeyHelp-Proxy-IPs mit vom Proxy gesetztem
+`X-Forwarded-Proto: https` oder fuer gesondert freigegebene
+private Backend-IPs. Weitere Details und Firewall-Regeln stehen oben.
 
 Die bestehenden OGL-Starter-Vorlagen müssen separat freigegeben
 werden: `[OglAvatarTemplates] Enabled=true`,
