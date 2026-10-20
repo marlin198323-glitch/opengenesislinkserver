@@ -22,9 +22,28 @@ updateParticles()
 
     integer snow = (m_weather == "schneefall" || m_weather == "schneesturm");
     integer hail = (m_weather == "hagel");
-    vector startColor = snow ? <0.97, 0.98, 1.0> : (hail ? <0.80, 0.95, 1.0> : <0.63, 0.77, 1.0>);
-    vector startScale = snow ? <0.14, 0.14, 0.0> : (hail ? <0.08, 0.08, 0.0> : <0.035, 0.50, 0.0>);
-    vector accel = snow ? <0.0, 0.0, -0.65> : <0.0, 0.0, -5.0>;
+    vector startColor = <0.63, 0.77, 1.0>;
+    vector startScale = <0.035, 0.50, 0.0>;
+    vector endScale = <0.03, 0.25, 0.0>;
+    vector accel = <0.0, 0.0, -5.0>;
+    float age = 5.0;
+    float minSpeed = 0.6;
+    float maxSpeed = 1.4;
+    if (snow)
+    {
+        startColor = <0.97, 0.98, 1.0>;
+        startScale = <0.14, 0.14, 0.0>;
+        endScale = <0.06, 0.06, 0.0>;
+        accel = <0.0, 0.0, -0.65>;
+        age = 8.0;
+        minSpeed = 0.1;
+        maxSpeed = 0.8;
+    }
+    else if (hail)
+    {
+        startColor = <0.80, 0.95, 1.0>;
+        startScale = <0.08, 0.08, 0.0>;
+    }
     integer count = 2 + (m_intensity / 13);
     if (count > 10) count = 10;
     float rate = 0.08;
@@ -36,13 +55,13 @@ updateParticles()
         PSYS_PART_START_ALPHA, 0.8,
         PSYS_PART_END_ALPHA, 0.0,
         PSYS_PART_START_SCALE, startScale,
-        PSYS_PART_END_SCALE, snow ? <0.06, 0.06, 0.0> : <0.03, 0.25, 0.0>,
-        PSYS_PART_MAX_AGE, snow ? 8.0 : 5.0,
+        PSYS_PART_END_SCALE, endScale,
+        PSYS_PART_MAX_AGE, age,
         PSYS_SRC_BURST_RATE, rate,
         PSYS_SRC_BURST_PART_COUNT, count,
         PSYS_SRC_BURST_RADIUS, 7.5,
-        PSYS_SRC_BURST_SPEED_MIN, snow ? 0.1 : 0.6,
-        PSYS_SRC_BURST_SPEED_MAX, snow ? 0.8 : 1.4,
+        PSYS_SRC_BURST_SPEED_MIN, minSpeed,
+        PSYS_SRC_BURST_SPEED_MAX, maxSpeed,
         PSYS_SRC_ACCEL, accel,
         PSYS_SRC_MAX_AGE, 0.0
     ]);
