@@ -43,6 +43,68 @@ for marker in (
     "avatar_name = newAccount.FirstName",
 ):
     assert marker in api, "Portal API missing security or response requirement: " + marker
+# HTTPS at KeyHelp + explicit HTTP backend transport:
+# headers from unknown remote IPs may not assert TLS. Only the dedicated
+# users:register key can request registration, and disabled defaults remain.
+for marker in (
+    "PortalRegistrationTrustedProxyIPs",
+    "PortalRegistrationTrustedHttpPeers",
+    'PortalRegistrationDefaultRegionName", "Magdeburg"',
+    'PortalRegistrationDefaultX", 116f',
+    'PortalRegistrationDefaultY", 120f',
+    'PortalRegistrationDefaultZ", 22f',
+):
+    assert marker in connector, "Missing proxy/spawn config binding: " + marker
+for marker in (
+    "private static HashSet<string> ParseIpAddresses(",
+    "private static bool TrustedPeer(",
+    "request.RemoteIPEndPoint?.Address",
+    'request.Headers?["X-Forwarded-Proto"]',
+    'string.Equals(request.Headers?["X-Forwarded-Proto"], "https"',
+    "bool forwardedHttps = trustedProxy &&",
+    "bool trustedBackendHttp = TrustedPeer(request, m_TrustedHttpPeers)",
+    "bool secured = request.IsSecured || forwardedHttps || trustedBackendHttp",
+    "TryReadHomeRegion(root, out string homeRegionId,",
+    "new Vector3(m_DefaultHomeX, m_DefaultHomeY, m_DefaultHomeZ)",
+    "m_Provisioner.CreatePortalAvatar(",
+    '"invalid_home_region"',
+    "home_region = new {",
+    "last_position = new {",
+    "ready = true",
+    "correlation_id = NexApiRequestContext.CurrentCorrelationId",
+):
+    assert marker in api, "Registration API proxy/spawn regression: " + marker
+assert api.index("if (!secured)") < api.index('NexScopes.UsersRegister')
+assert api.index("NexScopes.UsersRegister") < api.index("TryReadHomeRegion(root")
+assert api.index("TryReadHomeRegion(root") < api.index("m_Provisioner.CreatePortalAvatar(")
+assert 'request.Headers?["X-Forwarded-For"]' not in api
+assert 'request.Headers?["X-Real-IP"]' not in api
+
+for marker in (
+    "m_GridService.GetRegionByUUID(UUID.Zero, id)",
+    "m_GridService.GetRegionByName(UUID.Zero, homeRegionName.Trim())",
+    "home.RegionSizeX",
+    "home.RegionSizeY",
+    "m_GridUserService.SetHome(",
+    "m_GridUserService.SetLastPosition(",
+    'account.NexVerseState = "provisioning_failed";',
+    "account.Active = false;",
+):
+    assert marker in account, "Missing atomic-ish starter spawn gate: " + marker
+account_portal = account.split("public UserAccount CreatePortalAvatar(string firstName, string lastName,", 2)[2].split("public UserAccount CreateUser(", 1)[0]
+assert account_portal.index("m_GridService.GetRegionByName") < account_portal.index("UserAccount account = CreateUser(")
+assert account_portal.index("SetHome(") < account_portal.index("SetLastPosition(")
+assert account_portal.index("SetLastPosition(") < account_portal.index("return account;")
+for path in ("bin/Robust.HG.ini", "bin/Robust.HG.ini.example",
+             "bin/Robust.HG.OGLAsset.ini.example", "bin/Robust.ini.example"):
+    config = Path(path).read_text()
+    for marker in ("PortalRegistrationTrustedProxyIPs = \"\"",
+                   "PortalRegistrationTrustedHttpPeers = \"\"",
+                   'PortalRegistrationDefaultRegionName = "Magdeburg"',
+                   "PortalRegistrationDefaultX = 116",
+                   "PortalRegistrationDefaultY = 120",
+                   "PortalRegistrationDefaultZ = 22"):
+        assert marker in config, path + ": " + marker
 assert 'public const string UsersRegister = "users:register"' in security
 assert "NexScopes.UsersRegister," in key_store
 for path in ("bin/Robust.HG.ini", "bin/Robust.HG.ini.example", "bin/Robust.ini.example"):
