@@ -14,7 +14,7 @@ for path in (
     "bin/Robust.ini.example",
 ):
     config = (root / path).read_text(encoding="utf-8")
-    section = config.split("[NexVerseWorldApi]", 1)[1].split("\n[", 1)[0]
+    section = config.split("\n[NexVerseWorldApi]\n", 1)[1].split("\n[", 1)[0]
     for setting in (
         'AuditConsoleMode = "important"',
         "AuditConsolePublicReads = false",
