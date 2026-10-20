@@ -86,7 +86,10 @@ for item in (
 assert '"/api/v1/deutschland"' in connector
 assert "ConfigureTiles(LoadOptionalService<IMapImageService>" in connector
 assert "apiRoot+'?q='" in page
-assert "data.tile_url_template" in page
+# MapLibre consumes the XYZ tile source directly; the metadata response
+# retains tile_url_template for external/non-MapLibre portal clients.
+assert "tile_url_template = tileTemplate" in api
+assert "'/api/v1/deutschland/xyz/{z}/{x}/{y}.jpg'" in page
 for item in ('["/api/v1/deutschland"]', '["/api/v1/deutschland/view"]',
              '["/api/v1/deutschland/tiles/{zoom}/{x}/{y}.jpg"]'):
     assert item in openapi, item
