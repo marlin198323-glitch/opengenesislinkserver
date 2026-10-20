@@ -49,6 +49,28 @@ for needle in (
     assert needle in im, "missing citizen IM safety contract: "+needle
 
 assert "new NexCitizenImApi(" in connector
+# A generic "world_upstream_error" in the portal must have an actionable
+# cause in the World API's HTTP 503 and restricted ROBUST log, without
+# logging message bodies, tokens, or turning accepted IMs into retryable 503s.
+for needle in (
+    "ResolveInstantMessageService()",
+    "Func<IInstantMessage> instantMessageResolver = null",
+    '"instant_message_service_unavailable"',
+    '"recipient_lookup_unavailable"',
+    '"friendship_lookup_unavailable"',
+    '"message_delivery_unavailable"',
+    '"message_not_delivered"',
+    "NexApiRequestContext.Ensure(response)",
+    "m_Log.Error(description, cause)",
+    "m_IM.IncomingInstantMessage(im)",
+    "Post-delivery audit failed; IM accepted.",
+):
+    assert needle in im, "missing World IM 503 delivery diagnostics: " + needle
+assert '() => LoadOptionalService<IInstantMessage>(config, "HGInstantMessageService")' in connector
+assert im.index('try\n            {\n                m_Audit.Record(new NexAuditEvent(principal.Subject, "portal.im.sent"') > im.index("m_IM.IncomingInstantMessage(im)")
+hg = Path("OpenSim/Services/HypergridService/HGInstantMessageService.cs").read_text(encoding="utf-8")
+assert 'm_messageKey = messaging?.GetString("MessageKey", string.Empty) ?? string.Empty;' in hg
+assert hg.index('m_messageKey = messaging?.GetString') < hg.index("if (!m_Initialized)")
 assert '"/api/v1/messages"' in connector
 for needle in (
     '["/api/v1/profiles/{principalId}"]',

@@ -76,6 +76,12 @@ namespace OpenSim.Services.HypergridService
             if (imConnector != null)
                 m_IMSimConnector = imConnector;
 
+            // Every service instance must carry the configured IM signing key.
+            // The World API may initialize an additional instance after the
+            // primary gatekeeper singleton set m_Initialized=true.
+            IConfig messaging = config.Configs["Messaging"];
+            m_messageKey = messaging?.GetString("MessageKey", string.Empty) ?? string.Empty;
+
             if (!m_Initialized)
             {
                 m_Initialized = true;
@@ -131,7 +137,6 @@ namespace OpenSim.Services.HypergridService
                     return;
                 }
 
-                m_messageKey = cnf.GetString("MessageKey", string.Empty);
                 m_ForwardOfflineGroupMessages = cnf.GetBoolean("ForwardOfflineGroupMessages", false);
 
                 if (m_InGatekeeper)

@@ -979,7 +979,8 @@ namespace NexVerse.Server.Api
                 }
                 NexCitizenImApi citizenImApi =
                     new NexCitizenImApi(userAccounts, friendsService, authenticator,
-                        citizenInstantMessages, auditSink, citizenImStore);
+                        citizenInstantMessages, auditSink, citizenImStore,
+                        () => LoadOptionalService<IInstantMessage>(config, "HGInstantMessageService"));
                 server.AddSimpleStreamHandler(
                     new SimpleStreamHandler(
                         "/api/v1/messages",
