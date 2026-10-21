@@ -1369,6 +1369,8 @@ namespace OpenSim.Services.LLLoginService
                     if (cmd.Length > 2)
                     {
                         m_WelcomeMessage = cmd[2];
+                        // An explicit runtime override must supersede configured rotation.
+                        m_WelcomeMessages = Array.Empty<string>();
                         MainConsole.Instance.Output("Login welcome message set to '{0}'", m_WelcomeMessage);
                         m_WelcomeMessage = m_WelcomeMessage.Replace("\\n", "\n");
                     }
