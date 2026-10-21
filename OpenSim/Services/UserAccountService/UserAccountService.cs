@@ -42,7 +42,7 @@ using PermissionMask = OpenSim.Framework.PermissionMask;
 
 namespace OpenSim.Services.UserAccountService
 {
-    public class UserAccountService : UserAccountServiceBase, IUserAccountService, IOglPortalAccountProvisioner
+    public class UserAccountService : UserAccountServiceBase, IUserAccountService, IOglPortalAccountProvisioner, IOglLocalAvatarDeletion
     {
         private static readonly ILog m_log = LogManager.GetLogger(MethodBase.GetCurrentMethod().DeclaringType);
         private static UserAccountService m_RootInstance;
@@ -699,6 +699,153 @@ namespace OpenSim.Services.UserAccountService
             {
                 m_log.ErrorFormat("[USER ACCOUNT]: delete user failed for {0}: {1}", userId, ex.Message);
                 MainConsole.Instance.Output("Deletion aborted / rolled back where supported: {0}", ex.Message);
+            }
+        }
+
+        /// <summary>
+        /// Core-only purge for an authenticated and password-reverified local
+        /// resident. This does NOT erase land, groups, money or external addons.
+        /// Never call directly from a client-supplied avatar identifier.
+        /// </summary>
+        public bool TryDeleteLocalAvatar(UUID avatarId, out string failureReason)
+        {
+            failureReason = "account_deletion_failed";
+            if (avatarId.IsZero() || avatarId == Constants.servicesGodAgentID)
+            {
+                failureReason = "protected_account";
+                return false;
+            }
+
+            UserAccount account = GetUserAccount(UUID.Zero, avatarId);
+            if (account == null || !account.LocalToGrid || account.UserLevel >= 200)
+            {
+                failureReason = "protected_account";
+                return false;
+            }
+
+            if (m_GridUserService == null)
+            {
+                failureReason = "grid_user_service_unavailable";
+                return false;
+            }
+            try
+            {
+                GridUserInfo state = m_GridUserService.GetGridUserInfo(avatarId.ToString());
+                if (state != null && state.Online)
+                {
+                    failureReason = "avatar_online";
+                    return false;
+                }
+
+                string provider = DeletionStorageSetting("UserAccountService", "StorageProvider");
+                string connectionString = DeletionStorageSetting("UserAccountService", "ConnectionString");
+                if (string.IsNullOrWhiteSpace(provider) || string.IsNullOrWhiteSpace(connectionString))
+                    throw new InvalidOperationException("Authoritative database not configured.");
+
+                foreach (string service in new[] {
+                    "AuthenticationService", "GridUserService", "InventoryService",
+                    "AvatarService", "PresenceService", "FriendsService" })
+                {
+                    if (!string.Equals(provider, DeletionStorageSetting(service, "StorageProvider"),
+                            StringComparison.OrdinalIgnoreCase) ||
+                        !string.Equals(connectionString, DeletionStorageSetting(service, "ConnectionString"),
+                            StringComparison.Ordinal))
+                        throw new InvalidOperationException("Differing " + service + " database configuration.");
+                }
+
+                foreach (string[] realm in new[] {
+                    new[] { "UserAccountService", "UserAccounts" },
+                    new[] { "AuthenticationService", "auth" },
+                    new[] { "GridUserService", "GridUser" },
+                    new[] { "AvatarService", "Avatars" },
+                    new[] { "FriendsService", "Friends" },
+                    new[] { "PresenceService", "Presence" } })
+                {
+                    string selected = m_DeletionConfig.Configs[realm[0]]?.GetString("Realm", string.Empty);
+                    if (!string.IsNullOrWhiteSpace(selected) &&
+                        !string.Equals(selected, realm[1], StringComparison.Ordinal))
+                        throw new InvalidOperationException("Custom realm not supported for " + realm[0]);
+                }
+
+                bool pg = provider.IndexOf("PGSQL", StringComparison.OrdinalIgnoreCase) >= 0;
+                bool mysql = provider.IndexOf("MySQL", StringComparison.OrdinalIgnoreCase) >= 0;
+                string typeName = mysql ? "MySql.Data.MySqlClient.MySqlConnection, MySql.Data" :
+                    pg ? "Npgsql.NpgsqlConnection, Npgsql" :
+                    provider.IndexOf("SQLite", StringComparison.OrdinalIgnoreCase) >= 0 ?
+                        "Mono.Data.Sqlite.SqliteConnection, Mono.Data.Sqlite" : null;
+                if (typeName == null)
+                    throw new InvalidOperationException("Unsupported deletion database.");
+                Type type = Type.GetType(typeName, false);
+                if (type == null || !typeof(DbConnection).IsAssignableFrom(type))
+                    throw new InvalidOperationException("Deletion database driver not available.");
+
+                using DbConnection db = (DbConnection)Activator.CreateInstance(type, connectionString);
+                db.Open();
+                using DbTransaction tx = db.BeginTransaction();
+                string quote = mysql ? "`" : "\"";
+                string Q(string value) => quote + value + quote;
+                string T(string table) => pg ? table : Q(table);
+                string C(string table, string column) =>
+                    pg && (table == "auth" || table == "tokens") && column == "UUID"
+                        ? "uuid" : Q(column);
+
+                int Count(string table, string column, bool guid)
+                {
+                    return DeletionSql(db, tx, "SELECT COUNT(*) FROM " + T(table) +
+                        " WHERE " + C(table, column) + " = @userId", avatarId, guid, false);
+                }
+
+                // Fail closed before any deletion when the record has changed,
+                // login is still in progress, or inventory/auth tables are missing.
+                if (Count("UserAccounts", "PrincipalID", pg) != 1 ||
+                    Count("Presence", "UserID", false) != 0)
+                {
+                    failureReason = "account_state_changed";
+                    return false;
+                }
+                GridUserInfo latest = m_GridUserService.GetGridUserInfo(avatarId.ToString());
+                if (latest != null && latest.Online)
+                {
+                    failureReason = "avatar_online";
+                    return false;
+                }
+
+                DeletionSql(db, tx,
+                    "DELETE FROM " + T("Friends") + " WHERE " + C("Friends", "Friend") + " LIKE @userId",
+                    avatarId, false, true, true);
+
+                string[][] records = {
+                    new[] { "tokens", "UUID", "uuid" },
+                    new[] { "auth", "UUID", "uuid" },
+                    new[] { "inventoryitems", "avatarID", "text" },
+                    new[] { "inventoryfolders", "agentID", "text" },
+                    new[] { "Avatars", "PrincipalID", "uuid" },
+                    new[] { "GridUser", "UserID", "text" },
+                    new[] { "Friends", "PrincipalID", "text" },
+                    new[] { "UserAccounts", "PrincipalID", "uuid" }
+                };
+                foreach (string[] record in records)
+                {
+                    int changed = DeletionSql(db, tx,
+                        "DELETE FROM " + T(record[0]) + " WHERE " + C(record[0], record[1]) + " = @userId",
+                        avatarId, pg && record[2] == "uuid", true);
+                    if (record[0] == "UserAccounts" && changed != 1)
+                        throw new InvalidOperationException("Account vanished before commit.");
+                }
+
+                tx.Commit();
+                InvalidateCache(avatarId);
+                m_log.WarnFormat("[USER ACCOUNT]: Authenticated self deletion committed for account {0}", avatarId);
+                failureReason = string.Empty;
+                return true;
+            }
+            catch (Exception e)
+            {
+                // No success or misleading 'complete deletion' result if the
+                // transaction failed. Never include connection strings in API.
+                m_log.ErrorFormat("[USER ACCOUNT]: Account self-deletion {0} failed: {1}", avatarId, e.Message);
+                failureReason = "deletion_backend_unavailable";
+                return false;
             }
         }
 
