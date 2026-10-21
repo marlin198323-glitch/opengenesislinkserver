@@ -38,8 +38,7 @@ Der abschließende Entwurfshinweis wurde unverändert beibehalten: Betreiber mus
 vor Aktivierung die Freigabe und Konsistenz mit dem Portal bestätigen.
 
 Die aktuelle verbindliche Seite ist
-`https://stadt-nexverse.de/service/tos`. ROBUST liefert diese exakte
-HTTPS-Adresse im Login-Fehler `reason=tos` als `message` an den Viewer.
+`https://stadt-nexverse.de/service/tos`. ROBUST verwendet diese HTTPS-Adresse als die verbindliche Portal-Seite.
 Die Seite muss dort die vollständige freigegebene Bürgerordnung anzeigen.
 
 **Kompatibilitätshinweis:** Einige ältere OpenSim-Firestorm-Builds erkennen
