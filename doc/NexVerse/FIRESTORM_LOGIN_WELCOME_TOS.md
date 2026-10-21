@@ -140,3 +140,21 @@ beziehungsweise Merge neue Konfigurationsoptionen gezielt manuell übernehmen.
 `git stash pop` kann bei geänderter Repo-INI Merge-Konflikte verursachen;
 sicherheitshalber ggf. die Datei aus der externen Sicherung wiederherstellen
 und die drei TOS-Schlüssel manuell ergänzen, statt produktive Werte zu ersetzen.
+
+
+## Firestorm 7.2.4: ToS-Fenster erscheint nach Bestätigung erneut
+
+Im XML-RPC-Login kann Firestorm die LLSD-Zustimmung als Boolean `true`
+oder als numerischen Wert `1` serialisieren. Beide bedeuten Zustimmung.
+Der Login-Handler normalisiert deshalb `true` und `1`; andere Werte
+einschließlich `false`, `0`, leer oder nicht übermittelte Felder werden
+nicht als Zustimmung anerkannt. Passwortprüfung, Versionsprüfung und
+persistentes Speichern bleiben unverändert erforderlich.
+
+Diagnose nach Deployment: Die ROBUST-Konsole muss bei Bestätigung zuerst
+`[NEX-TOS]: XML-RPC Zustimmungsflag empfangen.` (alternativ LLSD)
+und anschließend `[NEX-TOS]: Zustimmung am LoginService angekommen ...`
+melden. Danach muss `Buergerordnung 1.0 akzeptiert ...` erscheinen.
+Ohne die erste Meldung kommt das Flag nicht durch den Protokoll-Handler.
+Ohne die letzte Meldung DB-Migration/Account-Service-Protokoll prüfen.
+Keine Passwörter, Login-Tokens oder API-Schlüssel protokollieren.
