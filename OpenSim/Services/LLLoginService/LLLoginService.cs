@@ -222,7 +222,7 @@ namespace OpenSim.Services.LLLoginService
             m_NexVerseTosEnabled = m_LoginServerConfig.GetBoolean("NexVerseTosEnabled", false);
             m_NexVerseTosVersion = m_LoginServerConfig.GetString("NexVerseTosVersion", "1.0").Trim();
             m_NexVerseTosUrl = m_LoginServerConfig.GetString(
-                "NexVerseTosUrl", "http://stadt-nexverse.de/buergerverordnung").Trim();
+                "NexVerseTosUrl", "https://stadt-nexverse.de/service/tos").Trim();
             if (m_NexVerseTosEnabled &&
                 (!Regex.IsMatch(m_NexVerseTosVersion, @"^[a-zA-Z0-9_.-]{1,64}$") ||
                  !Uri.TryCreate(m_NexVerseTosUrl, UriKind.Absolute, out Uri tosUri) ||
@@ -550,9 +550,9 @@ namespace OpenSim.Services.LLLoginService
                         m_log.InfoFormat(
                             "[NEX-TOS]: Buergerordnung {0} muss von Avatar {1} {2} bestaetigt werden.",
                             m_NexVerseTosVersion, firstName, lastName);
-                        // OpenSim Firestorm treats an http:// ToS message as an
-                        // embedded browser URL. The HTTP entry point must redirect
-                        // to the canonical HTTPS page.
+                        // The official ToS URL is HTTPS. Some legacy viewers may
+                        // only render embedded HTML for HTTP URLs; verify the
+                        // selected Firestorm build's browser behavior.
                         return new LLFailedLoginResponse("tos", m_NexVerseTosUrl, "false");
                     }
 
