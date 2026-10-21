@@ -85,6 +85,37 @@ sind Folgephasen und **nicht in Phase 1 implementiert**.
 9. Emitter-`CHANNEL` und Modul-`LSLChannel` müssen identisch sein.
    Bei deaktiviertem Modul bleibt der Emitter ohne Niederschlag.
 
+### Mono.Addins-Registrierung auf dem Simulator prüfen
+
+OGL Seasons ist ein **Regionen-Addon**, kein ROBUST-Service. Die Datei
+`OpenGenesisLINK.Addons.OGLSeasons.dll` gehört in das `bin/` des
+**Simulators**. Ein ROBUST-Prozess, der dieselbe DLL scannt, kann Warnungen
+über den Erweiterungspunkt `/OpenSim/RegionModules` ausgeben, weil ROBUST
+kein Regionsmodul-Host ist. Die Warnung an `R.O.B.U.S.T.#` allein zeigt
+deshalb **keinen** Fehler in der Wetterberechnung des Simulators.
+
+Das Addon muss `OpenSim.Region.Framework` als Mono.Addins-Abhängigkeit
+deklarieren: Diese Assembly definiert `/OpenSim/RegionModules`. Die
+eindeutige Addin-ID lautet `OpenGenesisLINK.OGLSeasons` (ohne doppeltes
+`OpenGenesisLINK.`). Beide Metadaten werden durch den CI-Regressionstest
+geprüft.
+
+Auf dem **Developer-Simulator** nach Build und regulärem Neustart:
+
+```bash
+cd /opt/developer
+bash addon-modules/OGLSeasons/build.sh Release
+# Simulator neu starten; danach:
+grep -Ei 'OGLSeasons|OGL-JAHRESZEITEN|Plugin Error' bin/OpenSim.log | tail -n 50
+```
+
+Erwartet werden die Registrierung von **einem nicht geteilten Regionsmodul**
+sowie bei `Enabled = true` und passendem `AllowedRegions` die Meldung
+`[OGL-JAHRESZEITEN]: Region ... aktiviert`. Das Einlesen von
+`OGLSeasons.ini` allein reicht als Aktivierungsnachweis nicht aus.
+Die Einstellungen sind für jeden Simulatorprozess separat einzubinden;
+ein ROBUST-Neustart aktiviert keine Regionsmodule.
+
 ## Konfigurationsvertrag
 
 ```ini
