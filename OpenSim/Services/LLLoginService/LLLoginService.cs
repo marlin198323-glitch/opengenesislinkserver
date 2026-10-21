@@ -541,6 +541,10 @@ namespace OpenSim.Services.LLLoginService
                     !string.Equals(account.NexVerseTosAcceptedVersion,
                         m_NexVerseTosVersion, StringComparison.Ordinal))
                 {
+                    if (agreeToTos)
+                        m_log.InfoFormat(
+                            "[NEX-TOS]: Zustimmung am LoginService angekommen fuer Avatar {0}, Version={1}.",
+                            account.PrincipalID, m_NexVerseTosVersion);
                     if (!agreeToTos)
                     {
                         m_log.InfoFormat(

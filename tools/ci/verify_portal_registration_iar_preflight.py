@@ -88,7 +88,9 @@ for marker in (
     "private static bool TrustedPeer(",
     "request.RemoteIPEndPoint?.Address",
     'request.Headers?["X-Forwarded-Proto"]',
-    'string.Equals(request.Headers?["X-Forwarded-Proto"], "https"',
+    "private static bool IsForwardedHttps(string header)",
+    "bool forwardedHttps = trustedProxy && IsForwardedHttps(forwardedProto)",
+    "HTTPS-Proxy-Pruefung verweigert: peer={0}",
     "bool forwardedHttps = trustedProxy &&",
     "bool trustedBackendHttp = TrustedPeer(request, m_TrustedHttpPeers)",
     "bool secured = request.IsSecured || forwardedHttps || trustedBackendHttp",
@@ -126,8 +128,9 @@ assert account_portal.index("SetLastPosition(") < account_portal.index("return a
 for path in ("bin/Robust.HG.ini", "bin/Robust.HG.ini.example",
              "bin/Robust.HG.OGLAsset.ini.example", "bin/Robust.ini.example"):
     config = Path(path).read_text()
-    for marker in ("PortalRegistrationTrustedProxyIPs = \"\"",
-                   "PortalRegistrationTrustedHttpPeers = \"\"",
+    if path != "bin/Robust.HG.ini":
+        assert 'PortalRegistrationTrustedProxyIPs = ""' in config, path
+    for marker in ("PortalRegistrationTrustedHttpPeers = \"\"",
                    'PortalRegistrationDefaultRegionName = "Magdeburg"',
                    "PortalRegistrationDefaultX = 134",
                    "PortalRegistrationDefaultY = 111",
@@ -171,6 +174,7 @@ assert "NexScopes.UsersRegister," in key_store
 # Production HG configuration now enables registration only for the
 # users:register machine key and explicitly trusted KeyHelp/HTTP backend.
 assert "PortalAvatarRegistrationEnabled = true" in Path("bin/Robust.HG.ini").read_text()
+assert 'PortalRegistrationTrustedProxyIPs = "109.91.20.9"' in Path("bin/Robust.HG.ini").read_text(), "Production HG proxy IP must be configured"
 for path in ("bin/Robust.HG.ini.example", "bin/Robust.ini.example",
              "bin/Robust.HG.OGLAsset.ini.example"):
     assert "PortalAvatarRegistrationEnabled = false" in Path(path).read_text(), path

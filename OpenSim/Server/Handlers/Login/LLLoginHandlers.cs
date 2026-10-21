@@ -61,6 +61,16 @@ namespace OpenSim.Server.Handlers.Login
             m_Proxy = hasProxy;
         }
 
+        // Firestorm/XML-RPC may encode LLSD true as boolean, 1, or "1".
+        // Never treat an arbitrary non-empty string as acceptance.
+        private static bool TosAccepted(object value)
+        {
+            if (value is bool accepted)
+                return accepted;
+            string text = Convert.ToString(value)?.Trim();
+            return string.Equals(text, "true", StringComparison.OrdinalIgnoreCase) || text == "1";
+        }
+
         public XmlRpcResponse HandleXMLRPCLogin(XmlRpcRequest request, IPEndPoint remoteClient)
         {
             Hashtable requestData = (Hashtable)request.Params[0];
@@ -133,7 +143,9 @@ namespace OpenSim.Server.Handlers.Login
                     //m_log.InfoFormat("[LOGIN]: XMLRPC Login Requested for {0} {1}, starting in {2}, using {3}", first, last, startLocation, clientVersion);
 
                     bool agreeToTos = requestData.ContainsKey("agree_to_tos") &&
-                        bool.TryParse(Convert.ToString(requestData["agree_to_tos"]), out bool accepted) && accepted;
+                        TosAccepted(requestData["agree_to_tos"]);
+                    if (agreeToTos)
+                        m_log.Info("[NEX-TOS]: XML-RPC Zustimmungsflag empfangen.");
 
                     LoginResponse reply = null;
                     reply = m_LocalService.Login(first, last, passwd, startLocation, scopeID, clientVersion, channel, mac, id0, remoteClient, agreeToTos);
@@ -222,7 +234,9 @@ namespace OpenSim.Server.Handlers.Login
                     m_log.Info("[LOGIN]: LLSD Login Requested for: '" + first + "' '" + last + "' / " + startLocation);
 
                     bool agreeToTos = map.TryGetValue("agree_to_tos", out OSD tosValue) &&
-                        tosValue.AsBoolean();
+                        TosAccepted(tosValue.AsString());
+                    if (agreeToTos)
+                        m_log.Info("[NEX-TOS]: LLSD Zustimmungsflag empfangen.");
 
                     LoginResponse reply = null;
                     reply = m_LocalService.Login(first, last, passwd, startLocation, scopeID,

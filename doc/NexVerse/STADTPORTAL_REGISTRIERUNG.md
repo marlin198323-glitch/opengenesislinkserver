@@ -377,3 +377,46 @@ erneuter Login; anschließend Fehler- und Missbrauchsprüfungen.
 
 **Die ausführliche Betreiberanleitung mit vollständigen Browser-/Go-
 Beispielen ist zusätzlich als Markdown-Download in der Chat-Ausgabe verfügbar.**
+
+
+## 403 `https_required` bei Namensprüfung und Avatarregistrierung
+
+**Betrifft beide Endpunkte**, da `HandleNameAvailability` (GET) und
+`Handle` (POST) dieselbe Transportprüfung verwenden. Ein 403 hier
+liegt noch vor der eigentlichen Namensabfrage und sagt nichts über die
+Verfügbarkeit eines Avatarnamens aus.
+
+ROBUST meldet nach dem Transport-Diagnose-Fix unter
+`[OGL-REGISTRIERUNG] HTTPS-Proxy-Pruefung verweigert`:
+
+- `peer=`: echte TCP-Quelladresse aus Sicht des ROBUST-Dienstes, **nicht**
+  die Browseradresse aus `X-Forwarded-For`.
+- `tls=`: direkte TLS-Verbindung zu ROBUST.
+- `trustedProxy=`: Quell-IP ist Loopback oder steht in
+  `PortalRegistrationTrustedProxyIPs`.
+- `xfpPresent=` / `xfpHttps=`: ist `X-Forwarded-Proto` vorhanden und
+  lautet er ausschließlich `https`?
+- `trustedHttpPeer=`: direkter HTTP-Transport aus dem
+  besonders freigegebenen, privaten Backend-Segment.
+
+Bei einer KeyHelp-HTTPS-Terminierung mit internem HTTP-Hop die echte
+TCP-Quelladresse des Proxys in der **lokalen** `bin/Robust.HG.ini`
+unter `[NexVerseWorldApi]` eintragen:
+
+```ini
+PortalRegistrationTrustedProxyIPs = "109.91.20.9"
+PortalRegistrationTrustedHttpPeers = ""
+```
+
+Die Quell-IP `109.91.20.9` wurde vom Betreiber für den KeyHelp-Proxy angegeben. Der Wert muss bei `peer=` im ROBUST-Log mit der echten Quelladresse übereinstimmen. Bei anderer `peer`-Adresse ist die reale TCP-Quell-IP zu verwenden, nicht die Client-IP.
+
+Am HTTPS-VHost des Reverse Proxys muss `X-Forwarded-Proto: https`
+**vom Proxy gesetzt/überschrieben** werden (nicht vom Browser übernommen).
+Beispiel für einen geeigneten nginx-HTTPS-`location`-Block:
+`proxy_set_header X-Forwarded-Proto https;`.
+
+Robust neu starten und **beide** Endpunkte testen. Erst wenn die
+Verbindung die Transportprüfung passiert, können `401 unauthorized_portal`
+(ungültiger `users:register`-Maschinenkey) oder `200`/ `201` auftreten.
+`PortalRegistrationTrustedHttpPeers` nicht mit öffentlichen WAN-Adressen
+füllen. Den Schutz nicht abschalten und keine API-Keys an den Browser senden.
