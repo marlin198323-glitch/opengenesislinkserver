@@ -41,6 +41,9 @@ for marker in (
     assert marker in api, "Live name availability API security/contract missing: " + marker
 assert api.count("if (!AuthorizePortal(request, response))") == 2, "Both routes must share identical security checks."
 assert api.count("m_Accounts.GetUserAccount(UUID.Zero, first, last)") >= 2, "Live lookup must match final POST lookup."
+assert '"email_registered"' not in api, "Email contact address is reusable for multiple avatars"
+assert "m_Accounts.GetUserAccount(UUID.Zero, email)" not in api, "Do not treat shared email as unique avatar identity"
+assert "if (!IsValidEmail(email))" in api, "Contact email remains mandatory and syntactically validated"
 assert api.index("NexScopes.UsersRegister") < api.index("public void HandleNameAvailability(")
 assert api.index("public void HandleNameAvailability(") < api.index("public void Handle(")
 assert "X-NexVerse-Api-Key" in api and "HttpStatusCode.Created" in api
