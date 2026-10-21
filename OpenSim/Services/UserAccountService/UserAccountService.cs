@@ -678,14 +678,21 @@ namespace OpenSim.Services.UserAccountService
                 position.X >= home.RegionSizeX || position.Y >= home.RegionSizeY ||
                 position.Z < 1 || position.Z > 4096)
             {
-                m_log.Warn("[OGL PORTAL REGISTRATION]: No valid registered home region or position");
+                m_log.WarnFormat(
+                    "[OGL-REGISTRIERUNG] FEHLER: Startregion '{0}' (ID {1}) oder Position {2} ungültig/nicht im GridService registriert.",
+                    homeRegionName, homeRegionId, position);
                 return null;
             }
 
             UserAccount account = CreateUser(
                 UUID.Zero, UUID.Random(), firstName, lastName, password, email, modelAlias);
             if (account == null)
+            {
+                m_log.WarnFormat(
+                    "[OGL-REGISTRIERUNG] FEHLER: Modellvorlage oder Accountanlage für {0} {1} fehlgeschlagen (Modell {2}).",
+                    firstName, lastName, modelAlias);
                 return null;
+            }
 
             bool positioned = false;
             try
@@ -699,6 +706,11 @@ namespace OpenSim.Services.UserAccountService
                 bool lastOk = m_GridUserService.SetLastPosition(
                     userId, UUID.Zero, home.RegionID, position, lookAt);
                 positioned = homeOk && lastOk;
+                if (!positioned)
+                    m_log.ErrorFormat(
+                        "[OGL-REGISTRIERUNG] FEHLER: Home={0}, Last={1} für Avatar {2} (UUID {3}) auf {4}/{5}.",
+                        homeOk ? "OK" : "FEHLER", lastOk ? "OK" : "FEHLER",
+                        firstName + " " + lastName, account.PrincipalID, home.RegionName, position);
             }
             catch (Exception e)
             {
@@ -729,6 +741,10 @@ namespace OpenSim.Services.UserAccountService
                 return null;
             }
 
+            m_log.InfoFormat(
+                "[OGL-REGISTRIERUNG] ERFOLG: Avatar {0} {1} | UUID {2} | Vorlage {3} | Home+Last {4}/{5}",
+                account.FirstName, account.LastName, account.PrincipalID,
+                modelAlias, home.RegionName, position);
             return account;
         }
 
@@ -906,6 +922,11 @@ namespace OpenSim.Services.UserAccountService
                 else
                 {
                     m_log.ErrorFormat("[USER ACCOUNT SERVICE]: Account creation failed for account {0} {1}", firstName, lastName);
+                    // Never return a non-persisted UserAccount object as a
+                    // successfully provisioned portal avatar (HTTP 201).
+                    if (!string.IsNullOrEmpty(model) &&
+                        model.StartsWith("ogl:", StringComparison.OrdinalIgnoreCase))
+                        return null;
                 }
             }
             else
