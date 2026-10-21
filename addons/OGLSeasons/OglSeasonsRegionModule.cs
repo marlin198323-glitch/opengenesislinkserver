@@ -8,7 +8,11 @@ using OpenSim.Framework;
 using OpenSim.Region.Framework.Interfaces;
 using OpenSim.Region.Framework.Scenes;
 
-[assembly: Addin("OpenGenesisLINK.OGLSeasons", Namespace = "OpenGenesisLINK", Version = "0.1.0")]
+// Keep Name and Namespace separate: Mono.Addins prefixes the namespace automatically.
+[assembly: Addin("OGLSeasons", Namespace = "OpenGenesisLINK", Version = "0.1.1")]
+// The region framework owns /OpenSim/RegionModules; without this dependency
+// Mono.Addins can reject the extension (especially in shared ROBUST bins).
+[assembly: AddinDependency("OpenSim.Region.Framework", OpenSim.VersionInfo.VersionNumber)]
 
 namespace OpenGenesisLINK.Addons.OGLSeasons
 {
