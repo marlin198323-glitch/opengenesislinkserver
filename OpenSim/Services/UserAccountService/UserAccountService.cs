@@ -250,6 +250,11 @@ namespace OpenSim.Services.UserAccountService
 
             if (d.Data.ContainsKey("NexVerseStateChanged") && d.Data["NexVerseStateChanged"] != null)
                 Int32.TryParse(d.Data["NexVerseStateChanged"], out u.NexVerseStateChanged);
+            if (d.Data.ContainsKey("NexVerseTosAcceptedVersion"))
+                u.NexVerseTosAcceptedVersion = d.Data["NexVerseTosAcceptedVersion"] ?? string.Empty;
+            if (d.Data.ContainsKey("NexVerseTosAcceptedAtUtc") &&
+                d.Data["NexVerseTosAcceptedAtUtc"] != null)
+                Int32.TryParse(d.Data["NexVerseTosAcceptedAtUtc"], out u.NexVerseTosAcceptedAtUtc);
 
             if (d.Data.ContainsKey("ServiceURLs") && d.Data["ServiceURLs"] != null)
             {
@@ -372,6 +377,8 @@ namespace OpenSim.Services.UserAccountService
             d.Data["NexVerseState"] = string.IsNullOrWhiteSpace(data.NexVerseState) ? "active" : data.NexVerseState;
             d.Data["NexVerseStateReason"] = data.NexVerseStateReason ?? string.Empty;
             d.Data["NexVerseStateChanged"] = data.NexVerseStateChanged.ToString();
+            d.Data["NexVerseTosAcceptedVersion"] = data.NexVerseTosAcceptedVersion ?? string.Empty;
+            d.Data["NexVerseTosAcceptedAtUtc"] = data.NexVerseTosAcceptedAtUtc.ToString();
             List<string> parts = new List<string>();
 
             foreach (KeyValuePair<string, object> kvp in data.ServiceURLs)

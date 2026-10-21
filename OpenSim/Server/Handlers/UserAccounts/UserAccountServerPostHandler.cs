@@ -319,6 +319,16 @@ namespace OpenSim.Server.Handlers.UserAccounts
                 Int32.TryParse(otmp.ToString(), out int stateChanged))
                 existingAccount.NexVerseStateChanged = stateChanged;
 
+            // The LLLoginService can use a remote account connector. Persist
+            // the versioned ToS acceptance from its setaccount request, rather
+            // than silently returning success with the old account snapshot.
+            if (request.TryGetValue("NexVerseTosAcceptedVersion", out otmp))
+                existingAccount.NexVerseTosAcceptedVersion = otmp?.ToString() ?? string.Empty;
+
+            if (request.TryGetValue("NexVerseTosAcceptedAtUtc", out otmp) &&
+                Int32.TryParse(otmp?.ToString(), out int tosAcceptedAtUtc))
+                existingAccount.NexVerseTosAcceptedAtUtc = tosAcceptedAtUtc;
+
             if (!m_UserAccountService.StoreUserAccount(existingAccount))
             {
                 m_log.ErrorFormat(

@@ -27,49 +27,116 @@ Rollout: C#-Code neu bauen und die tatsaechlich eingesetzte Robust.HG.ini
 mit der Repository-Version abgleichen. ROBUST neu starten. Mehrere echte
 Firestorm-Logins durchfuehren, um wechselnde Meldungen zu pruefen.
 
-## Firestorm-ToS: technisch moeglich, noch nicht implementiert
+## Implementiert im Entwicklungsbranch: Firestorm-Bürgerordnung als ToS
 
-Der Viewer unterstuetzt die klassische Second-Life-kompatible ToS-Aufforderung.
-Antwortet ROBUST beim Login mit login=false, reason=tos und message=Text,
-zeigt Firestorm einen Dialog zur Annahme. Nach Zustimmung versucht der Viewer
-den Login erneut und setzt agree_to_tos=true.
+Dokumentquelle: `doc/NexVerse/STADT_NEXVERSE_BUERGERORDNUNG_1.0.md`,
+vollständig und unverändert aus der vom Stadtbetreiber bereitgestellten MD-Datei.
+Version **1.0**, Dokumentstand **20.10.2026**.
+Original-SHA256: `a57bee6dd48116684a872b736276c6c2ced3dbfff85acc81dfe7597b3ad13204`.
+Die Bürgerordnung nennt als Geltungsbeginn die **offizielle Veröffentlichung**.
+Der abschließende Entwurfshinweis wurde unverändert beibehalten: Betreiber muss
+vor Aktivierung die Freigabe und Konsistenz mit dem Portal bestätigen.
 
-Der Dialog erscheint nach der Passwortpruefung und vor dem Betreten der Welt.
-Ein umfangreiches HTML-Regelwerk ist nicht garantiert; daher soll das
-StadtPortal die Volltextfassung ueber eine dauerhafte HTTPS-Seite bereitstellen.
+Die vollständige Bürgerordnung soll in Firestorm über die bestehende Portal-Seite
+`https://stadt-nexverse.de/buergerverordnung` angezeigt werden. Die überprüfte
+Firestorm-OpenSim-Implementierung von `LLFloaterTOS` erkennt Weblinks nur
+an `http://` im Feld `message` und lädt danach die URL im eingebetteten
+Browser. Aus Kompatibilitätsgründen ist daher in ROBUST als ToS-Startpunkt
+`http://stadt-nexverse.de/buergerverordnung` vorgesehen, der unmittelbar auf die
+HTTPS-Version weiterleiten **muss**. ROBUST lädt dabei kein HTML in den Speicher,
+sondern übergibt die URL als ToS-`message`. Das Portal muss das **ganze** Dokument
+anzeigen, kein gekürztes Exzerpt. Wenn die HTTP-Weiterleitung nicht zuverlässig
+funktioniert, einen geeigneten ausschließlich dafür vorgesehenen HTTP-Einstieg
+bereitstellen und Firestorm 7.2.4 unter Linux und Windows testen.
 
-### Erforderlicher sicherer Login-Ablauf
+### Konfiguration
 
-1. ROBUST prueft Identitaet, Passwort, Accountstatus und Scope.
-2. ROBUST prueft die gespeicherte Annahme der aktuell gueltigen ToS-Version.
-3. Fehlt diese, antwortet ROBUST mit login=false, reason=tos und einer Meldung
-   mit Versionsnummer sowie Link auf die vollstaendigen Bedingungen.
-4. Bei agree_to_tos=true MUSS ROBUST das Passwort erneut korrekt pruefen,
-   dann die Annahme dauerhaft speichern: PrincipalID, Version/Hash, UTC-Zeit.
-5. Scheitert die Speicherung oder lehnt der User ab, wird kein Login gewaehrt.
-   Es duerfen zuvor keine Presence- oder Simulator-Sessions erstellt werden.
-6. Beim naechsten normalen Login bleibt der Dialog fuer diese Version aus.
-   Eine neue ToS-Version loest den Dialog erneut aus.
+```ini
+[LoginService]
+NexVerseTosEnabled = true
+NexVerseTosVersion = "1.0"
+NexVerseTosUrl = "http://stadt-nexverse.de/buergerverordnung"
+```
 
-Die Annahme muss im autoritativen gemeinsamen Datenbankdienst persistiert
-werden (SQLite, PostgreSQL, MariaDB), nicht in einer fluechtigen Datei.
-Passwoerter, Tokens oder Session-Geheimnisse gehoeren nicht in Audit-Protokolle.
-Es darf keine Sicherheitsumgehung durch ein gefaelschtes agree_to_tos geben.
+**Aktiv in der mitgelieferten `bin/Robust.HG.ini`** für Stadt NexVerse.
+Andere Beispielkonfigurationen bleiben standardmäßig deaktiviert und werden
+nicht automatisch für fremde Grids umgestellt. Bei bereits laufenden Servern
+kann eine lokale `Robust.HG.ini` abweichen: die drei Schlüssel dort gezielt
+eintragen bzw. den Enabled-Wert auf `true` setzen und ROBUST neu starten.
 
-Die Login-Datenschnittstellen fuer XML-RPC, LLSD und WebSocket muessen das
-Flag weitergeben. Hypergrid-Gaeste sowie bestehende Loginwege sind getrennt
-zu pruefen, um die Interoperabilitaet nicht zu beschaedigen.
+**Deployment:** Zunächst Datenbank und `Robust.HG.ini` sichern, dann
+den neuen Build einspielen. Die UserAccounts-Migration läuft über den
+konfigurierten Datenbankprovider. Bei unerwarteten Loginproblemen den
+Wert auf `false` zurücksetzen und ROBUST neu starten; bereits
+gespeicherte Zustimmungen bleiben dabei erhalten.
+Prüfe den Link per `curl -IL http://stadt-nexverse.de/buergerverordnung`,
+denn die native OpenSim-TOS-Ansicht benötigt die funktionierende Weiterleitung
+auf die volle HTTPS-Bürgerordnung.
 
-### Abnahmetests vor der Aktivierung
+### Verbindlicher Login-Ablauf
 
-- Firestorm 7.2.4: Erstlogin zeigt Dialog; noch kein Simulator-Eintritt.
-- Annehmen fuehrt zu dauerhaft gespeicherter Versionszustimmung und Login.
-- Ablehnen blockiert Login ohne gespeicherte Zustimmung.
-- Zweiter Login oder ROBUST-Neustart: Dialog bei gleicher Version unterdrueckt.
-- Neue Version: erneute Aufforderung.
-- Falsches Passwort zusammen mit agree_to_tos=true: kein Login, kein Store.
-- Parallele Logins, SQLite/PostgreSQL/MariaDB und HG-Reisen pruefen.
+1. ROBUST prüft Passwort, Konto- und Scope-Status wie bisher.
+2. Fehlt die Zustimmung zur **aktuell konfigurierten** Version, liefert ROBUST
+   `login=false`, `reason=tos`, `message=<ToS-Start-URL>`. Zu diesem
+   Zeitpunkt existiert noch **keine Simulator-Presence**.
+3. Firestorm blendet sein natives ToS-Fenster ein, dessen eingebetteter Browser
+   das gesamte Regelwerk anzeigt. Ablehnen führt zum Login-Abbruch.
+4. Nach Zustimmung sendet Firestorm `agree_to_tos=true` und führt den
+   Loginprozess erneut durch. Erst **nach erneuter Authentifizierung** speichert
+   ROBUST die Zustimmung: `PrincipalID`, `NexVerseTosAcceptedVersion`,
+   `NexVerseTosAcceptedAtUtc`.
+5. Die Speicherung erfolgt über den gemeinsamen UserAccountService; ROBUST
+   liest die Version unmittelbar erneut aus der Datenbank. Ein fehlgeschlagener
+   Write oder Readback führt zu einem **Login-Fehler** statt Umgehung.
+6. Bei späterem Login entfällt der Dialog für Version 1.0. Erhöht der Betreiber
+   `NexVerseTosVersion`, ist erneutes Zustimmen erforderlich.
 
-Status: ToS ist konzeptionell spezifiziert, aber NICHT aktiviert oder als
-Sicherheitsfunktion implementiert. Die Willkommensrotation ist unabhaengig
-davon bereits Bestandteil dieses Aenderungsbranches.
+Die Speicherung erfolgt über versionierte `UserAccounts`-Migrationen für
+SQLite, MariaDB/MySQL und PostgreSQL. Bei **remote** angebundenem
+UserAccountService werden die Felder zusätzlich im `setaccount`-Handler
+übernommen und können nur bei autorisiertem/aktiviertem `AllowSetAccount`
+persistiert werden. Die produktive HG-Konfiguration verwendet dagegen ein
+lokales UserAccountService-Plugin für den Login. Es erfolgt **keine** Speicherung von
+Passwort, API-Schlüssel oder Sitzungstoken im TOS-Protokoll.
+
+Die Zustimmung gilt **pro Account**. Bestehende Hypergrid-Gast-Einreisen
+gehen über einen anderen Pfad (HG Gatekeeper) und unterliegen derzeit **nicht**
+dieser ToS-Voranmeldung. Die Verpflichtung von HG-Gästen gemäß Bürgerordnung
+ist ein separater Integrationspunkt, kein automatisch verfügbares Feature.
+
+### Abnahme vor Live-Freigabe
+
+- Datei-Hash prüfen; publizierte Webseite mit identischer freigegebener Version abgleichen.
+- `curl -IL http://stadt-nexverse.de/buergerverordnung`: umgehend
+  Redirect auf HTTPS und erfolgreicher Abruf der vollen Seite.
+- Vollständige Bürgerordnung inklusive §§ 1–22 und abschließendem Hinweis
+  im TOS-Firestorm-Fenster sichtbar. Im derzeitigen Firestorm-OpenSim-Code
+  kann die Checkbox bereits vor Abschluss des Webseitenabrufs freigegeben
+  werden: Ein erzwungenes Lesen oder Scrollen bis zum Textende ist damit
+  **nicht** garantiert; die Zustimmung ist ein expliziter Klick.
+- Bei fehlender Portal-Seite oder nicht funktionierender HTTP-Weiterleitung
+  darf die TOS-Sperre nicht produktiv aktiviert werden. Der Server kann den
+  erfolgreichen Webseitenabruf durch Firestorm nicht selbst nachweisen.
+- Wird die Bürgerordnung im Portal inhaltlich geändert, **muss** die
+  NexVerseTosVersion mit erhöht und die archivierte MD-Fassung aktualisiert
+  werden, sonst bestätigt der Avatar keine eindeutig referenzierte Fassung.
+- Falsches Passwort (auch mit `agree_to_tos=true`): kein Write und kein Login.
+- Erstlogin: TOS erscheint, weder Presence noch Region wird vorher betreten.
+- Akzeptieren: Avatar kommt online; Zustimmung wird samt UTC-Datum gespeichert.
+- Ablehnen: kein Login, keine Zustimmung gespeichert.
+- Späterer Login und ROBUST-Neustart: kein Dialog bei derselben Version.
+- Versionserhöhung: Dialog wird erneut angezeigt.
+- Datenbankmatrix SQLite, PostgreSQL und MariaDB; zwei parallele Logins.
+- Bestehende Hypergrid- und Firestorm-Login-Prozesse dürfen nicht regressieren.
+
+Das zugehörige Repository-CI-Gate prüft Quellkontrakte und den exakten
+MD-Dokument-Hash. Es ersetzt **keinen** echten Firestorm- und DB-Livetest.
+
+### Umgang mit lokaler Robust.HG.ini
+
+Die produktive INI enthält Secrets und lokale Anpassungen. Vor `git pull`
+sichern, mit `git stash push -- bin/Robust.HG.ini` schützen und nach Pull
+beziehungsweise Merge neue Konfigurationsoptionen gezielt manuell übernehmen.
+`git stash pop` kann bei geänderter Repo-INI Merge-Konflikte verursachen;
+sicherheitshalber ggf. die Datei aus der externen Sicherung wiederherstellen
+und die drei TOS-Schlüssel manuell ergänzen, statt produktive Werte zu ersetzen.

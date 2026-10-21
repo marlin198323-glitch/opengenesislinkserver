@@ -477,6 +477,11 @@
     ; ClassifiedFee = 0
 
     WelcomeMessage = "Welcome, Avatar!"
+    ; Optional versioned Firestorm ToS (enable after migration and live test).
+    NexVerseTosEnabled = false
+    NexVerseTosVersion = "1.0"
+    NexVerseTosUrl = "http://stadt-nexverse.de/buergerverordnung"
+
     AllowRemoteSetLoginLevel = "false"
 
     ; For V2 map

@@ -92,6 +92,10 @@ namespace OpenSim.Services.LLLoginService
         protected string m_DeniedID0s;
         protected string m_MessageUrl;
         protected string m_DSTZone;
+        // Optional, versioned NexVerse Bürgerordnung (Firestorm/OpenSim ToS).
+        protected bool m_NexVerseTosEnabled;
+        protected string m_NexVerseTosVersion = string.Empty;
+        protected string m_NexVerseTosUrl = string.Empty;
 
         protected bool m_allowDuplicatePresences = false;
         protected bool m_EnableNexVerseResidentNames = true;
@@ -214,6 +218,20 @@ namespace OpenSim.Services.LLLoginService
                 .Where(message => !string.IsNullOrWhiteSpace(message))
                 .Select(message => message.Replace("\\n", "\n"))
                 .ToArray();
+
+            m_NexVerseTosEnabled = m_LoginServerConfig.GetBoolean("NexVerseTosEnabled", false);
+            m_NexVerseTosVersion = m_LoginServerConfig.GetString("NexVerseTosVersion", "1.0").Trim();
+            m_NexVerseTosUrl = m_LoginServerConfig.GetString(
+                "NexVerseTosUrl", "http://stadt-nexverse.de/buergerverordnung").Trim();
+            if (m_NexVerseTosEnabled &&
+                (!Regex.IsMatch(m_NexVerseTosVersion, @"^[a-zA-Z0-9_.-]{1,64}$") ||
+                 !Uri.TryCreate(m_NexVerseTosUrl, UriKind.Absolute, out Uri tosUri) ||
+                 (tosUri.Scheme != Uri.UriSchemeHttp && tosUri.Scheme != Uri.UriSchemeHttps) ||
+                 !string.Equals(tosUri.Host, "stadt-nexverse.de", StringComparison.OrdinalIgnoreCase)))
+            {
+                throw new InvalidOperationException(
+                    "NexVerse ToS: Versionskennung oder URL ist ungueltig.");
+            }
 
             m_DSTZone = m_LoginServerConfig.GetString("DSTZone", "America/Los_Angeles;Pacific Standard Time");
 
@@ -359,7 +377,7 @@ namespace OpenSim.Services.LLLoginService
         }
 
         public LoginResponse Login(string firstName, string lastName, string passwd, string startLocation, UUID scopeID,
-            string clientVersion, string channel, string mac, string id0, IPEndPoint clientIP)
+            string clientVersion, string channel, string mac, string id0, IPEndPoint clientIP, bool agreeToTos = false)
         {
             if (m_EnableNexVerseResidentNames &&
                 NexResidentNameResolver.TryResolveLoginInput(
@@ -514,6 +532,64 @@ namespace OpenSim.Services.LLLoginService
                         "[LLOGIN SERVICE]: Login failed for {0} {1}, reason: authentication failed",
                         firstName, lastName);
                     return LLFailedLoginResponse.UserProblem;
+                }
+
+                // The auth service has already verified this avatar's password. Do not
+                // create Presence, inventory sessions or simulator agents until the
+                // currently published Bürgerordnung has been explicitly accepted.
+                if (m_NexVerseTosEnabled &&
+                    !string.Equals(account.NexVerseTosAcceptedVersion,
+                        m_NexVerseTosVersion, StringComparison.Ordinal))
+                {
+                    if (!agreeToTos)
+                    {
+                        m_log.InfoFormat(
+                            "[NEX-TOS]: Buergerordnung {0} muss von Avatar {1} {2} bestaetigt werden.",
+                            m_NexVerseTosVersion, firstName, lastName);
+                        // OpenSim Firestorm treats an http:// ToS message as an
+                        // embedded browser URL. The HTTP entry point must redirect
+                        // to the canonical HTTPS page.
+                        return new LLFailedLoginResponse("tos", m_NexVerseTosUrl, "false");
+                    }
+
+                    // Never trust a stale account snapshot for a full-row update.
+                    UserAccount currentAccount = m_UserAccountService.GetUserAccount(
+                        account.ScopeID, account.PrincipalID);
+                    if (currentAccount == null || !currentAccount.LoginAllowed)
+                        return LLFailedLoginResponse.LoginBlockedProblem;
+
+                    if (!string.Equals(currentAccount.NexVerseTosAcceptedVersion,
+                            m_NexVerseTosVersion, StringComparison.Ordinal))
+                    {
+                        currentAccount.NexVerseTosAcceptedVersion = m_NexVerseTosVersion;
+                        currentAccount.NexVerseTosAcceptedAtUtc = Util.UnixTimeSinceEpoch();
+                        if (!m_UserAccountService.StoreUserAccount(currentAccount))
+                        {
+                            m_log.ErrorFormat(
+                                "[NEX-TOS]: Zustimmung von Avatar {0} konnte nicht gespeichert werden.",
+                                account.PrincipalID);
+                            return LLFailedLoginResponse.InternalError;
+                        }
+
+                        // A successful write and readback are mandatory. Failure
+                        // must not silently grant access or claim acceptance.
+                        UserAccount persistedAccount = m_UserAccountService.GetUserAccount(
+                            account.ScopeID, account.PrincipalID);
+                        if (persistedAccount == null ||
+                            !string.Equals(persistedAccount.NexVerseTosAcceptedVersion,
+                                m_NexVerseTosVersion, StringComparison.Ordinal))
+                        {
+                            m_log.ErrorFormat(
+                                "[NEX-TOS]: Speicherung der Zustimmung fuer Avatar {0} nicht verifizierbar.",
+                                account.PrincipalID);
+                            return LLFailedLoginResponse.InternalError;
+                        }
+
+                        m_log.InfoFormat(
+                            "[NEX-TOS]: Buergerordnung {0} akzeptiert von Avatar {1}; UTC={2}.",
+                            m_NexVerseTosVersion, account.PrincipalID,
+                            currentAccount.NexVerseTosAcceptedAtUtc);
+                    }
                 }
 
                 string PrincipalIDstr = account.PrincipalID.ToString();
