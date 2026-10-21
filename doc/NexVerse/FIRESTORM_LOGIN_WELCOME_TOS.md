@@ -156,3 +156,7 @@ melden. Danach muss `Buergerordnung 1.0 akzeptiert ...` erscheinen.
 Ohne die erste Meldung kommt das Flag nicht durch den Protokoll-Handler.
 Ohne die letzte Meldung DB-Migration/Account-Service-Protokoll prüfen.
 Keine Passwörter, Login-Tokens oder API-Schlüssel protokollieren.
+
+## Stand der HTTPS-URL in Firestorm
+
+Die offizielle Adresse ist https://stadt-nexverse.de/service/tos. Firestorm OpenSim 7.2.4 erkennt eine eingebettete TOS-Website nur an einem HTTP-Einstieg. Deshalb wird fuer Firestorm derselbe Pfad vor dem Redirect ueber HTTP angesprochen; der Portal-Webserver muss unverzueglich auf die offizielle HTTPS-Adresse weiterleiten. Das im vorstehenden Abschnitt beschriebene reine Text-Fallback ist mit der neuen serverseitigen Kompatibilitaetsregel nicht mehr der Normalfall.
