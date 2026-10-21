@@ -2140,17 +2140,36 @@ namespace NexVerse.Server.Api
                 // Access tokens are rejected after deletion because the
                 // authoritative UserAccount no longer exists. Refresh tokens
                 // are separately revoked for the deleted subject.
-                m_OAuthStore?.RevokeSubjectRefreshTokens(deletedSubject);
                 string correlationId = AddCorrelation(response);
-                m_Audit.Record(new NexAuditEvent(
-                    deletedSubject, "users.self_delete", deletedSubject,
-                    correlationId, new Dictionary<string, string> {
-                        ["scope"] = "core_identity_only"
-                    }));
-                m_EventBus.Publish(new NexEvent(
-                    "user.deleted", "nexverse.world-api",
-                    new Dictionary<string, string> { ["principal_id"] = deletedSubject },
-                    correlationId));
+                // The DB purge has COMMITTED: no external event or refresh-token
+                // storage exception may turn the successful delete into an
+                // ambiguous 500 that prevents the portal logout.
+                try
+                {
+                    m_OAuthStore?.RevokeSubjectRefreshTokens(deletedSubject);
+                }
+                catch (Exception revokeError)
+                {
+                    Trace.TraceWarning("[NEX-WORLD-API]: Self-delete refresh revocation failed: " +
+                        revokeError.GetType().Name);
+                }
+                try
+                {
+                    m_Audit.Record(new NexAuditEvent(
+                        deletedSubject, "users.self_delete", deletedSubject,
+                        correlationId, new Dictionary<string, string> {
+                            ["scope"] = "core_identity_only"
+                        }));
+                    m_EventBus.Publish(new NexEvent(
+                        "user.deleted", "nexverse.world-api",
+                        new Dictionary<string, string> { ["principal_id"] = deletedSubject },
+                        correlationId));
+                }
+                catch (Exception auditError)
+                {
+                    Trace.TraceWarning("[NEX-WORLD-API]: Self-delete postcommit notification failed: " +
+                        auditError.GetType().Name);
+                }
                 WriteJson(response, new {
                     success = true,
                     account_deleted = true,
