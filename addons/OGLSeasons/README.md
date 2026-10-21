@@ -1,6 +1,6 @@
 # OGL Seasons – Jahreszeiten & Wetter für Stadt NexVerse (Deutschland)
 
-**Stand:** 21.10.2026 · Entwicklungsbranch
+**Stand:** 21.10.2026 · Mergevorbereitung/optionaler Addon-Betrieb
 `feature/ogl-seasons-germany-weather-addon-20261021` · Phase 1 / technisch
 testbar, **nicht** für unkontrollierten Produktiveinsatz freigeschaltet.
 
@@ -30,6 +30,8 @@ bezieht **keine Live-DWD-Daten** und behauptet keine echte Wettervorhersage.
 
 - eigenständiges `INonSharedRegionModule`, pro Region getrennter Wetterzustand;
 - standardmäßig **deaktiviert**, optionale Regions-Whitelist;
+- optionale `WeatherZone`: eine zusammenhängende Wetterlage über mehrere Simulatoren;
+- `TemperatureOffsetC`: lokale Temperaturkorrektur für Höhenlagen (-15 bis +15 °C);
 - Zustandsberechnung in 30-Minuten-Fenstern (konfigurierbar, 5–1440 Minuten,
   nur Teiler von 1440), mit regionalem Seed und stabilen Wetterwerten;
 - zwölf Wetterarten: heiter, bewölkt, Nieselregen, Regen, Starkregen,
@@ -39,7 +41,7 @@ bezieht **keine Live-DWD-Daten** und behauptet keine echte Wettervorhersage.
 - `IOglSeasonsService.Current` und `StateChanged` für spätere Addons;
 - optionales Region-Chatprotokoll über `IWorldComm`, ausschließlich
   auf einem negativen Kanal, ohne IM- oder Avatar-Chatspam;
-- LSL-Partikel-Emitter für Regen/Schnee/Hagel/Sturm/Gewitter, der
+- LSL-Partikel-Emitter für Regen/Schnee/Hagel/Sturm/Gewitter mit begrenzter Partikellast und Senderprüfung, der
   ausschließlich **lokale Partikel** erzeugt und bei Ausfall nach
   zehn Minuten den Niederschlag abschaltet;
 - LSL-Wetterinformationstafel als Beispielintegration;
@@ -73,13 +75,14 @@ sind Folgephasen und **nicht in Phase 1 implementiert**.
 4. `Enabled = true` nur auf einem Testsimulator setzen.
 5. Optional `AllowedRegions = "OGL Developer Gen1,Freiburg Sued"`
    einstellen (Regionsnamen exakt, Groß-/Kleinschreibung egal).
-6. Simulator neu starten und in dessen Log nach
+6. Ergänze `Include-OGLSeasons = "config-include/OGLSeasons.ini"` im aktiven Include-Bereich `[Architecture]` der Simulator-Konfiguration, falls die Datei nicht bereits eingebunden ist. Bestehende Includes unbedingt erhalten.
+7. Simulator neu starten und in dessen Log nach
    `[OGL-JAHRESZEITEN]: Region ... aktiviert` suchen.
-7. In einem geeigneten Weather-Emitter-Prim `WeatherEmitter.lsl`
+8. In einem geeigneten Weather-Emitter-Prim `WeatherEmitter.lsl`
    einfügen. Prim über dem gewünschten Gebiet positionieren;
    gegebenenfalls mehrere Emitter einsetzen. Die Skriptdatei
    `WeatherInfoBoard.lsl` eignet sich für eine Wetteranzeige.
-8. Emitter-`CHANNEL` und Modul-`LSLChannel` müssen identisch sein.
+9. Emitter-`CHANNEL` und Modul-`LSLChannel` müssen identisch sein.
    Bei deaktiviertem Modul bleibt der Emitter ohne Niederschlag.
 
 ## Konfigurationsvertrag
@@ -89,11 +92,15 @@ sind Folgephasen und **nicht in Phase 1 implementiert**.
 Enabled = false
 AllowedRegions = ""
 WeatherIntervalMinutes = 30
+WeatherZone = ""
+TemperatureOffsetC = 0
 Seed = 2026
 CheckSeconds = 60
 BroadcastSeconds = 180
 LSLChannel = -835011
 ```
+
+`WeatherZone` muss für benachbarte Regionen auf allen beteiligten Simulatoren identisch sein (z. B. `Freiburg`). Leer bedeutet unabhängige Wetterzonen. Auf allen Simulatoren müssen `Seed`, `WeatherIntervalMinutes` und die Systemzeit übereinstimmen. `TemperatureOffsetC` erlaubt Gebirgs-/Küstenklima, kann jedoch den simulierten Niederschlag (Schnee/Regen) abweichen lassen. Der UTC-Zeitstempel der doppelten Stunde beim Winterzeitwechsel berücksichtigt den jeweils tatsächlichen UTC-Offset.
 
 `AllowedRegions` gilt für die Region auf dem jeweiligen Simulator, nicht
 für alle Grids global. Ein leerer Wert erlaubt alle Regionen des Prozesses,
