@@ -37,17 +37,11 @@ Die Bürgerordnung nennt als Geltungsbeginn die **offizielle Veröffentlichung**
 Der abschließende Entwurfshinweis wurde unverändert beibehalten: Betreiber muss
 vor Aktivierung die Freigabe und Konsistenz mit dem Portal bestätigen.
 
-Die vollständige Bürgerordnung soll in Firestorm über die bestehende Portal-Seite
-`https://stadt-nexverse.de/buergerverordnung` angezeigt werden. Die überprüfte
-Firestorm-OpenSim-Implementierung von `LLFloaterTOS` erkennt Weblinks nur
-an `http://` im Feld `message` und lädt danach die URL im eingebetteten
-Browser. Aus Kompatibilitätsgründen ist daher in ROBUST als ToS-Startpunkt
-`http://stadt-nexverse.de/buergerverordnung` vorgesehen, der unmittelbar auf die
-HTTPS-Version weiterleiten **muss**. ROBUST lädt dabei kein HTML in den Speicher,
-sondern übergibt die URL als ToS-`message`. Das Portal muss das **ganze** Dokument
-anzeigen, kein gekürztes Exzerpt. Wenn die HTTP-Weiterleitung nicht zuverlässig
-funktioniert, einen geeigneten ausschließlich dafür vorgesehenen HTTP-Einstieg
-bereitstellen und Firestorm 7.2.4 unter Linux und Windows testen.
+Die aktuelle verbindliche Seite ist
+`https://stadt-nexverse.de/service/tos`. ROBUST verwendet diese HTTPS-Adresse als die verbindliche Portal-Seite.
+Die Seite muss dort die vollständige freigegebene Bürgerordnung anzeigen.
+
+**Kompatibilitätshinweis:** Die Firestorm-OpenSim-Ausgabe 7.2.4 erkennt fuer die eingebettete TOS-Webseite nur einen HTTP-Einstieg. ROBUST verwendet deshalb bei Firestorm einen HTTP-Redirect-Einstieg zu `/service/tos`, waehrend die verbindliche Seite und die Konfiguration HTTPS verwenden. Voraussetzung ist eine funktionierende direkte Weiterleitung des HTTP-Pfads auf die HTTPS-Seite.
 
 ### Konfiguration
 
@@ -55,7 +49,7 @@ bereitstellen und Firestorm 7.2.4 unter Linux und Windows testen.
 [LoginService]
 NexVerseTosEnabled = true
 NexVerseTosVersion = "1.0"
-NexVerseTosUrl = "http://stadt-nexverse.de/buergerverordnung"
+NexVerseTosUrl = "https://stadt-nexverse.de/service/tos"
 ```
 
 **Aktiv in der mitgelieferten `bin/Robust.HG.ini`** für Stadt NexVerse.
@@ -69,9 +63,7 @@ den neuen Build einspielen. Die UserAccounts-Migration läuft über den
 konfigurierten Datenbankprovider. Bei unerwarteten Loginproblemen den
 Wert auf `false` zurücksetzen und ROBUST neu starten; bereits
 gespeicherte Zustimmungen bleiben dabei erhalten.
-Prüfe den Link per `curl -IL http://stadt-nexverse.de/buergerverordnung`,
-denn die native OpenSim-TOS-Ansicht benötigt die funktionierende Weiterleitung
-auf die volle HTTPS-Bürgerordnung.
+Pruefe den Firestorm-Einstieg mit `curl -IL http://stadt-nexverse.de/service/tos`: er muss sofort auf `https://stadt-nexverse.de/service/tos` weiterleiten. Danach die Browserdarstellung mit Firestorm pruefen.
 
 ### Verbindlicher Login-Ablauf
 
@@ -107,15 +99,13 @@ ist ein separater Integrationspunkt, kein automatisch verfügbares Feature.
 ### Abnahme vor Live-Freigabe
 
 - Datei-Hash prüfen; publizierte Webseite mit identischer freigegebener Version abgleichen.
-- `curl -IL http://stadt-nexverse.de/buergerverordnung`: umgehend
-  Redirect auf HTTPS und erfolgreicher Abruf der vollen Seite.
+- `curl -IL https://stadt-nexverse.de/service/tos`: die Seite liefert einen erfolgreichen HTTPS-Abruf (gegebenenfalls nach regulärer Weiterleitung).
 - Vollständige Bürgerordnung inklusive §§ 1–22 und abschließendem Hinweis
   im TOS-Firestorm-Fenster sichtbar. Im derzeitigen Firestorm-OpenSim-Code
   kann die Checkbox bereits vor Abschluss des Webseitenabrufs freigegeben
   werden: Ein erzwungenes Lesen oder Scrollen bis zum Textende ist damit
   **nicht** garantiert; die Zustimmung ist ein expliziter Klick.
-- Bei fehlender Portal-Seite oder nicht funktionierender HTTP-Weiterleitung
-  darf die TOS-Sperre nicht produktiv aktiviert werden. Der Server kann den
+- Bei fehlender Portal-Seite oder ungültigem Zertifikat muss die Erreichbarkeit vor dem produktiven Einsatz korrigiert werden. Der Server kann den
   erfolgreichen Webseitenabruf durch Firestorm nicht selbst nachweisen.
 - Wird die Bürgerordnung im Portal inhaltlich geändert, **muss** die
   NexVerseTosVersion mit erhöht und die archivierte MD-Fassung aktualisiert
@@ -158,3 +148,7 @@ melden. Danach muss `Buergerordnung 1.0 akzeptiert ...` erscheinen.
 Ohne die erste Meldung kommt das Flag nicht durch den Protokoll-Handler.
 Ohne die letzte Meldung DB-Migration/Account-Service-Protokoll prüfen.
 Keine Passwörter, Login-Tokens oder API-Schlüssel protokollieren.
+
+## Stand der HTTPS-URL in Firestorm
+
+Die offizielle Adresse ist https://stadt-nexverse.de/service/tos. Firestorm OpenSim 7.2.4 erkennt eine eingebettete TOS-Website nur an einem HTTP-Einstieg. Deshalb wird fuer Firestorm derselbe Pfad vor dem Redirect ueber HTTP angesprochen; der Portal-Webserver muss unverzueglich auf die offizielle HTTPS-Adresse weiterleiten. Das im vorstehenden Abschnitt beschriebene reine Text-Fallback ist mit der neuen serverseitigen Kompatibilitaetsregel nicht mehr der Normalfall.

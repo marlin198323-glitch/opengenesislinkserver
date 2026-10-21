@@ -22,13 +22,18 @@ assert "<USERNAME>" in login_section, "NexVerse welcome rotation must support pe
 assert 'Random.Shared.Next(m_WelcomeMessages.Length)' in login_source, "Welcome selection must happen per login"
 assert "NexVerseTosEnabled = true" in login_section, "NexVerse HG login must enforce versioned ToS"
 assert 'NexVerseTosVersion = "1.0"' in login_section
-assert 'NexVerseTosUrl = "http://stadt-nexverse.de/buergerverordnung"' in login_section
+assert 'NexVerseTosUrl = "https://stadt-nexverse.de/service/tos"' in login_section
 
 tos_document = Path("doc/NexVerse/STADT_NEXVERSE_BUERGERORDNUNG_1.0.md").read_bytes()
 import hashlib
 assert hashlib.sha256(tos_document).hexdigest() == "a57bee6dd48116684a872b736276c6c2ced3dbfff85acc81dfe7597b3ad13204", "Buergerordnung source must remain byte-for-byte intact"
 assert "NexVerseTosEnabled" in login_source
-assert '"tos", m_NexVerseTosUrl, "false"' in login_source
+assert '"tos", viewerTosUrl, "false"' in login_source
+assert 'channel.IndexOf("Firestorm", StringComparison.OrdinalIgnoreCase) >= 0' in login_source
+assert 'Scheme = Uri.UriSchemeHttp' in login_source
+assert 'Uri.TryCreate(viewerTosUrl, UriKind.Absolute' in login_source
+assert 'string viewerTosUrl = m_NexVerseTosUrl;' in login_source
+
 assert "if (!agreeToTos)" in login_source
 assert "StoreUserAccount(currentAccount)" in login_source
 assert "m_GridUserService.GetGridUserInfo" in login_source

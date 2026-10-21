@@ -222,7 +222,7 @@ namespace OpenSim.Services.LLLoginService
             m_NexVerseTosEnabled = m_LoginServerConfig.GetBoolean("NexVerseTosEnabled", false);
             m_NexVerseTosVersion = m_LoginServerConfig.GetString("NexVerseTosVersion", "1.0").Trim();
             m_NexVerseTosUrl = m_LoginServerConfig.GetString(
-                "NexVerseTosUrl", "http://stadt-nexverse.de/buergerverordnung").Trim();
+                "NexVerseTosUrl", "https://stadt-nexverse.de/service/tos").Trim();
             if (m_NexVerseTosEnabled &&
                 (!Regex.IsMatch(m_NexVerseTosVersion, @"^[a-zA-Z0-9_.-]{1,64}$") ||
                  !Uri.TryCreate(m_NexVerseTosUrl, UriKind.Absolute, out Uri tosUri) ||
@@ -550,10 +550,24 @@ namespace OpenSim.Services.LLLoginService
                         m_log.InfoFormat(
                             "[NEX-TOS]: Buergerordnung {0} muss von Avatar {1} {2} bestaetigt werden.",
                             m_NexVerseTosVersion, firstName, lastName);
-                        // OpenSim Firestorm treats an http:// ToS message as an
-                        // embedded browser URL. The HTTP entry point must redirect
-                        // to the canonical HTTPS page.
-                        return new LLFailedLoginResponse("tos", m_NexVerseTosUrl, "false");
+                        // Firestorm OpenSim 7.2.4 uses an embedded ToS browser
+                        // only if the message contains an http:// URL.
+                        // The official configured URL stays HTTPS; the public
+                        // HTTP entrypoint must redirect to exactly that page.
+                        string viewerTosUrl = m_NexVerseTosUrl;
+                        if (!string.IsNullOrEmpty(channel) &&
+                            channel.IndexOf("Firestorm", StringComparison.OrdinalIgnoreCase) >= 0 &&
+                            Uri.TryCreate(viewerTosUrl, UriKind.Absolute, out Uri canonicalTosUri) &&
+                            canonicalTosUri.Scheme == Uri.UriSchemeHttps)
+                        {
+                            UriBuilder entrypoint = new UriBuilder(canonicalTosUri)
+                            {
+                                Scheme = Uri.UriSchemeHttp,
+                                Port = -1
+                            };
+                            viewerTosUrl = entrypoint.Uri.AbsoluteUri;
+                        }
+                        return new LLFailedLoginResponse("tos", viewerTosUrl, "false");
                     }
 
                     // Never trust a stale account snapshot for a full-row update.

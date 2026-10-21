@@ -1059,10 +1059,19 @@ namespace OpenSim.Services.UserAccountService
                 (item.NextPermissions & required) != required)
             {
                 m_log.WarnFormat(
-                    "[OGL-REGISTRIERUNG] FEHLER: Getragenes Vorlagen-Item {0} von Avatar {1} fehlt oder besitzt keine Copy+Transfer-Rechte. Aktuell={2}, NächsterBesitzer={3}.",
-                    itemId, owner,
+                    "[OGL-REGISTRIERUNG] FEHLER: Getragenes Vorlagen-Item {0} (Name={1}, Asset={2}) " +
+                    "von Avatar {3} fehlt oder besitzt keine Copy+Transfer-Rechte. " +
+                    "Aktuell={4}, NächsterBesitzer={5}; CopyAktuell={6}, TransferAktuell={7}, " +
+                    "CopyNaechster={8}, TransferNaechster={9}. " +
+                    "Die Vorlage muss mit echten Copy+Transfer-Rechten neu bereitgestellt werden.",
+                    itemId, item != null ? item.Name : "nicht gefunden",
+                    item != null ? item.AssetID.ToString() : "nicht gefunden", owner,
                     item != null ? item.CurrentPermissions.ToString("X") : "nicht gefunden",
-                    item != null ? item.NextPermissions.ToString("X") : "nicht gefunden");
+                    item != null ? item.NextPermissions.ToString("X") : "nicht gefunden",
+                    item != null && (item.CurrentPermissions & (uint)PermissionMask.Copy) != 0,
+                    item != null && (item.CurrentPermissions & (uint)PermissionMask.Transfer) != 0,
+                    item != null && (item.NextPermissions & (uint)PermissionMask.Copy) != 0,
+                    item != null && (item.NextPermissions & (uint)PermissionMask.Transfer) != 0);
                 return false;
             }
             return true;

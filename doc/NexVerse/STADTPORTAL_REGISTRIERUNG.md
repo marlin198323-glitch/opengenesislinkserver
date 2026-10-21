@@ -420,3 +420,27 @@ Verbindung die Transportprüfung passiert, können `401 unauthorized_portal`
 (ungültiger `users:register`-Maschinenkey) oder `200`/ `201` auftreten.
 `PortalRegistrationTrustedHttpPeers` nicht mit öffentlichen WAN-Adressen
 füllen. Den Schutz nicht abschalten und keine API-Keys an den Browser senden.
+
+## Fehler 422 bei Starteravatar Benjamin Resident
+
+Eine Registrierung kann mit `registration_failed` (422) abbrechen, wenn die
+getragene Vorlage nicht mit den notwendigen Rechten vervielfältigt und an
+den neuen Avatar weitergegeben werden darf. Für die Kennung
+`518b3e10-2854-420e-9f6b-bf367e653409` wurden die Rechte
+`Aktuell=8C00F`, `NächsterBesitzer=8C000` gemeldet; beim
+Nächster-Besitzer-Wert fehlt das **Transfer**-Recht. Betroffen ist
+`Benjamin Resident` (Modell `ogl:benjamin`).
+
+Im Firestorm-Inventar des Original-Modellavatars das betroffene
+getragene Item beziehungsweise das durch einen COF-Link referenzierte
+Original ermitteln. In den Eigenschaften prüfen, ob Kopieren und
+Weitergeben für den aktuellen Besitzer **und** den nächsten Besitzer
+wirklich zulässig sind. Wenn keine Berechtigung zur Weitergabe besteht,
+einen eigenen oder korrekt lizenzierten Full-Perm-Ersatz verwenden,
+den Modellavatar neu anziehen und die Registrierung erneut versuchen.
+Bei komplexen Objekten und Attachments auch die enthaltenen Items prüfen.
+
+Der Server erweitert keine Rechte, die das Originalobjekt nicht besitzt.
+Die erweiterte Fehlermeldung nennt zusätzlich den Namen, die Asset-ID
+und für beide Masken die Copy-/Transfer-Bits. Andere, tatsächlich
+berechtigte Modelle bleiben nutzbar.
