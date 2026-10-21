@@ -381,6 +381,10 @@ jobs:
         shell: bash
         run: python3 tools/ci/verify_ogl_seasons.py
 
+      - name: Verify opt-in EEP and safe seasonal landscapes
+        shell: bash
+        run: python3 tools/ci/verify_ogl_seasons_eep.py
+
       - name: Regression-test seasonal calendar and simulated weather
         shell: bash
         run: dotnet run --configuration Release --project tools/ci/OglSeasonsRegression/OglSeasonsRegression.csproj
@@ -531,6 +535,10 @@ jobs:
       - name: Build optional OGL Seasons addon
         shell: bash
         run: bash addon-modules/OGLSeasons/build.sh Release
+
+      - name: Runtime regression OGL Seasons EEP sky, clouds and fog
+        shell: bash
+        run: dotnet run --configuration Release --project tools/ci/OglSeasonsEepRegression/OglSeasonsEepRegression.csproj
 
       - name: Runtime regression cross-region llListen delivery (two scenes)
         shell: bash
