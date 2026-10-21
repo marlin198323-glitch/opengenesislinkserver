@@ -8,7 +8,8 @@ using OpenSim.Framework;
 using OpenSim.Region.Framework.Interfaces;
 using OpenSim.Region.Framework.Scenes;
 
-[assembly: Addin("OpenGenesisLINK.OGLSeasons", Namespace = "OpenGenesisLINK", Version = "0.1.0")]
+// Keep Name and Namespace separate: Mono.Addins prefixes the namespace automatically.
+[assembly: Addin("OGLSeasons", Namespace = "OpenGenesisLINK", Version = "0.1.1")]
 
 namespace OpenGenesisLINK.Addons.OGLSeasons
 {
