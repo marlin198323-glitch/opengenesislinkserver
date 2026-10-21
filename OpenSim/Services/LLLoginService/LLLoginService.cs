@@ -550,10 +550,24 @@ namespace OpenSim.Services.LLLoginService
                         m_log.InfoFormat(
                             "[NEX-TOS]: Buergerordnung {0} muss von Avatar {1} {2} bestaetigt werden.",
                             m_NexVerseTosVersion, firstName, lastName);
-                        // The official ToS URL is HTTPS. Some legacy viewers may
-                        // only render embedded HTML for HTTP URLs; verify the
-                        // selected Firestorm build's browser behavior.
-                        return new LLFailedLoginResponse("tos", m_NexVerseTosUrl, "false");
+                        // Firestorm OpenSim 7.2.4 uses an embedded ToS browser
+                        // only if the message contains an http:// URL.
+                        // The official configured URL stays HTTPS; the public
+                        // HTTP entrypoint must redirect to exactly that page.
+                        string viewerTosUrl = m_NexVerseTosUrl;
+                        if (!string.IsNullOrEmpty(channel) &&
+                            channel.IndexOf("Firestorm", StringComparison.OrdinalIgnoreCase) >= 0 &&
+                            Uri.TryCreate(viewerTosUrl, UriKind.Absolute, out Uri canonicalTosUri) &&
+                            canonicalTosUri.Scheme == Uri.UriSchemeHttps)
+                        {
+                            UriBuilder entrypoint = new UriBuilder(canonicalTosUri)
+                            {
+                                Scheme = Uri.UriSchemeHttp,
+                                Port = -1
+                            };
+                            viewerTosUrl = entrypoint.Uri.AbsoluteUri;
+                        }
+                        return new LLFailedLoginResponse("tos", viewerTosUrl, "false");
                     }
 
                     // Never trust a stale account snapshot for a full-row update.
