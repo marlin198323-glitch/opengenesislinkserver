@@ -30,6 +30,11 @@ assert "OGLSEASONS" in emitter
 assert "id != NULL_KEY" in emitter
 assert "if (count > 5) count = 5;" in emitter
 assert 'm_weather == "sturm"' in emitter
+# Region modules must explicitly depend on the add-in root defining
+# /OpenSim/RegionModules. Otherwise Mono.Addins silently skips discovery.
+assert '[assembly: Addin("OGLSeasons", Namespace = "OpenGenesisLINK", Version = "0.1.1")]' in module
+assert '[assembly: AddinDependency("OpenSim.Region.Framework", OpenSim.VersionInfo.VersionNumber)]' in module
+assert 'Addin("OpenGenesisLINK.OGLSeasons", Namespace = "OpenGenesisLINK"' not in module
 assert "OGLSeasons.dll" in build
 assert "addon-modules/OGLSeasons/build.sh Release" in prebuild
 assert "tools/ci/OglSeasonsRegression/OglSeasonsRegression.csproj" in ci
