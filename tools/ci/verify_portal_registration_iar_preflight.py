@@ -44,6 +44,26 @@ assert api.count("m_Accounts.GetUserAccount(UUID.Zero, first, last)") >= 2, "Liv
 assert '"email_registered"' not in api, "Email contact address is reusable for multiple avatars"
 assert "m_Accounts.GetUserAccount(UUID.Zero, email)" not in api, "Do not treat shared email as unique avatar identity"
 assert "if (!IsValidEmail(email))" in api, "Contact email remains mandatory and syntactically validated"
+account_deletion = Path("OpenSim/Services/UserAccountService/UserAccountService.cs").read_text()
+for marker in (
+    '"delete user"',
+    'HandleDeleteUser',
+    '"--confirm"',
+    '"DELETE " + userId',
+    'GetGridUserInfo(userId.ToString())',
+    'connection.BeginTransaction()',
+    'deletionTransaction.Commit()',
+    '"UserAccounts", "PrincipalID"',
+    '"inventoryitems", "avatarID"',
+    '"inventoryfolders", "agentID"',
+    '"auth", "UUID"',
+    '"tokens", "UUID"',
+    '"Avatars", "PrincipalID"',
+    '"GridUser", "UserID"',
+    '"Friends", "PrincipalID"',
+):
+    assert marker in account_deletion, "Missing safe ROBUST avatar deletion boundary: " + marker
+
 assert api.index("NexScopes.UsersRegister") < api.index("public void HandleNameAvailability(")
 assert api.index("public void HandleNameAvailability(") < api.index("public void Handle(")
 assert "X-NexVerse-Api-Key" in api and "HttpStatusCode.Created" in api
