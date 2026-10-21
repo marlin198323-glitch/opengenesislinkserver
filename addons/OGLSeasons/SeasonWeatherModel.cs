@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MPL-2.0
 using System;
 using System.Globalization;
+using System.Text;
 
 namespace OpenGenesisLINK.Addons.OGLSeasons
 {
@@ -79,28 +80,44 @@ namespace OpenGenesisLINK.Addons.OGLSeasons
         }
 
         public static OglWeatherState Calculate(
-            DateTimeOffset instantUtc, Guid regionId, int intervalMinutes = 30, int seed = 2026)
+            DateTimeOffset instantUtc, Guid regionId, int intervalMinutes = 30, int seed = 2026,
+            string weatherZone = null, int temperatureOffsetC = 0)
         {
             if (intervalMinutes < 5 || intervalMinutes > 1440 || 1440 % intervalMinutes != 0)
                 throw new ArgumentOutOfRangeException(nameof(intervalMinutes),
                     "Interval must be a divisor of 1440 between 5 and 1440 minutes.");
 
+            if (temperatureOffsetC < -15 || temperatureOffsetC > 15)
+                throw new ArgumentOutOfRangeException(nameof(temperatureOffsetC));
+            if (weatherZone != null && weatherZone.Length > 80)
+                throw new ArgumentOutOfRangeException(nameof(weatherZone));
             DateTimeOffset local = TimeZoneInfo.ConvertTime(instantUtc, s_Zone);
             OglSeason season = ResolveSeason(instantUtc);
             int minutes = local.Hour * 60 + local.Minute;
             int slot = minutes / intervalMinutes;
-            // Seed by LOCAL day/slot + region; DST repeated hour remains stable
-            // but never drifts forward or back with simulator frame rate.
+            // Same nonempty weather zone on different simulators produces
+            // identical weather. Without a zone, each region is independent.
+            // Use stable UTF8 FNV-1a; string.GetHashCode differs per process.
             uint hash = 2166136261u;
-            foreach (byte value in regionId.ToByteArray())
-                hash = (hash ^ value) * 16777619u;
+            if (string.IsNullOrWhiteSpace(weatherZone))
+            {
+                foreach (byte value in regionId.ToByteArray())
+                    hash = (hash ^ value) * 16777619u;
+            }
+            else
+            {
+                foreach (byte value in Encoding.UTF8.GetBytes(
+                    weatherZone.Trim().Normalize(NormalizationForm.FormKC).ToUpperInvariant()))
+                    hash = (hash ^ value) * 16777619u;
+            }
             hash = Mix(hash, (uint)seed);
             hash = Mix(hash, (uint)local.Year);
             hash = Mix(hash, (uint)local.DayOfYear);
             hash = Mix(hash, (uint)slot);
             Random random = new Random(unchecked((int)(hash & 0x7fffffff)));
 
-            int temperature = s_BaseTemperature[local.Month - 1] + random.Next(-5, 6);
+            int temperature = s_BaseTemperature[local.Month - 1] + random.Next(-5, 6)
+                + temperatureOffsetC;
             int wind = Math.Max(0, 4 + random.Next(0, 20));
             int humidity = 40 + random.Next(0, 57);
             int roll = random.Next(1000);
@@ -169,10 +186,11 @@ namespace OpenGenesisLINK.Addons.OGLSeasons
                 OglWeather.Starkregen or OglWeather.Gewitter or OglWeather.Hagel => 50 + random.Next(51),
                 _ => 20 + random.Next(61)
             };
-            // Store window boundary as UTC instant; local midnight may differ in DST.
+            // Respect the ACTUAL offset for the occurrence of an ambiguous
+            // local clock hour at autumn's DST rollback. GetUtcOffset(DateTime)
+            // selects one of the two offsets and can return a future boundary.
             DateTime localStart = local.Date.AddMinutes(slot * intervalMinutes);
-            TimeSpan offset = s_Zone.GetUtcOffset(localStart);
-            DateTimeOffset boundary = new DateTimeOffset(localStart, offset).ToUniversalTime();
+            DateTimeOffset boundary = new DateTimeOffset(localStart, local.Offset).ToUniversalTime();
             return new OglWeatherState(season, weather, boundary, temperature, wind, humidity, intensity);
         }
 
