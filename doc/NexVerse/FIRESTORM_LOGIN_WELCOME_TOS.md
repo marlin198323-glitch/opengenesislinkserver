@@ -82,7 +82,11 @@ funktionieren. Erst dann die produktive ROBUST-Konfiguration auf
    `NexVerseTosVersion`, ist erneutes Zustimmen erforderlich.
 
 Die Speicherung erfolgt über versionierte `UserAccounts`-Migrationen für
-SQLite, MariaDB/MySQL und PostgreSQL. Es erfolgt **keine** Speicherung von
+SQLite, MariaDB/MySQL und PostgreSQL. Bei **remote** angebundenem
+UserAccountService werden die Felder zusätzlich im `setaccount`-Handler
+übernommen und können nur bei autorisiertem/aktiviertem `AllowSetAccount`
+persistiert werden. Die produktive HG-Konfiguration verwendet dagegen ein
+lokales UserAccountService-Plugin für den Login. Es erfolgt **keine** Speicherung von
 Passwort, API-Schlüssel oder Sitzungstoken im TOS-Protokoll.
 
 Die Zustimmung gilt **pro Account**. Bestehende Hypergrid-Gast-Einreisen
@@ -96,7 +100,16 @@ ist ein separater Integrationspunkt, kein automatisch verfügbares Feature.
 - `curl -IL http://stadt-nexverse.de/buergerverordnung`: umgehend
   Redirect auf HTTPS und erfolgreicher Abruf der vollen Seite.
 - Vollständige Bürgerordnung inklusive §§ 1–22 und abschließendem Hinweis
-  im TOS-Firestorm-Fenster sichtbar, Checkbox vor Seitenabruf nicht aktiv.
+  im TOS-Firestorm-Fenster sichtbar. Im derzeitigen Firestorm-OpenSim-Code
+  kann die Checkbox bereits vor Abschluss des Webseitenabrufs freigegeben
+  werden: Ein erzwungenes Lesen oder Scrollen bis zum Textende ist damit
+  **nicht** garantiert; die Zustimmung ist ein expliziter Klick.
+- Bei fehlender Portal-Seite oder nicht funktionierender HTTP-Weiterleitung
+  darf die TOS-Sperre nicht produktiv aktiviert werden. Der Server kann den
+  erfolgreichen Webseitenabruf durch Firestorm nicht selbst nachweisen.
+- Wird die Bürgerordnung im Portal inhaltlich geändert, **muss** die
+  NexVerseTosVersion mit erhöht und die archivierte MD-Fassung aktualisiert
+  werden, sonst bestätigt der Avatar keine eindeutig referenzierte Fassung.
 - Falsches Passwort (auch mit `agree_to_tos=true`): kein Write und kein Login.
 - Erstlogin: TOS erscheint, weder Presence noch Region wird vorher betreten.
 - Akzeptieren: Avatar kommt online; Zustimmung wird samt UTC-Datum gespeichert.
