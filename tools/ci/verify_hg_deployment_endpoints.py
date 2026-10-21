@@ -22,7 +22,7 @@ assert "<USERNAME>" in login_section, "NexVerse welcome rotation must support pe
 assert 'Random.Shared.Next(m_WelcomeMessages.Length)' in login_source, "Welcome selection must happen per login"
 assert "NexVerseTosEnabled = true" in login_section, "NexVerse HG login must enforce versioned ToS"
 assert 'NexVerseTosVersion = "1.0"' in login_section
-assert 'NexVerseTosUrl = "http://stadt-nexverse.de/buergerverordnung"' in login_section
+assert 'NexVerseTosUrl = "https://stadt-nexverse.de/service/tos"' in login_section
 
 tos_document = Path("doc/NexVerse/STADT_NEXVERSE_BUERGERORDNUNG_1.0.md").read_bytes()
 import hashlib
