@@ -480,7 +480,7 @@
     ; Optional versioned Firestorm ToS (enable after migration and live test).
     NexVerseTosEnabled = false
     NexVerseTosVersion = "1.0"
-    NexVerseTosUrl = "http://stadt-nexverse.de/buergerverordnung"
+    NexVerseTosUrl = "https://stadt-nexverse.de/service/tos"
 
     AllowRemoteSetLoginLevel = "false"
 
