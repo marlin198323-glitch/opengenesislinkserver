@@ -20,7 +20,7 @@ assert 'WelcomeMessage = "Willkommen in der Stadt NexVerse! ...Beyond the Realit
 assert 'WelcomeMessages = "' in login_section, "NexVerse welcome rotation must be enabled"
 assert "<USERNAME>" in login_section, "NexVerse welcome rotation must support personalized greetings"
 assert 'Random.Shared.Next(m_WelcomeMessages.Length)' in login_source, "Welcome selection must happen per login"
-assert "NexVerseTosEnabled = false" in login_section, "ToS must not auto-enable before production validation"
+assert "NexVerseTosEnabled = true" in login_section, "NexVerse HG login must enforce versioned ToS"
 assert 'NexVerseTosVersion = "1.0"' in login_section
 assert 'NexVerseTosUrl = "http://stadt-nexverse.de/buergerverordnung"' in login_section
 
