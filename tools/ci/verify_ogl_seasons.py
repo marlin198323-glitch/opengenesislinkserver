@@ -36,6 +36,14 @@ assert '[assembly: Addin("OGLSeasons", Namespace = "OpenGenesisLINK", Version = 
 assert '[assembly: AddinDependency("OpenSim.Region.Framework", OpenSim.VersionInfo.VersionNumber)]' in module
 assert 'Addin("OpenGenesisLINK.OGLSeasons", Namespace = "OpenGenesisLINK"' not in module
 assert "OGLSeasons.dll" in build
+# Plain ROBUST/CI builds must not load a simulator-only Mono.Addins plugin.
+assert "--sim-bin" in build, "installation must explicitly target a simulator"
+assert 'install -m 0644 "$DLL" "$SIM_BIN/OpenGenesisLINK.Addons.OGLSeasons.dll"' in build
+assert 'SIM_BIN' in build and '*/robust/bin' in build
+assert 'OpenSim.Region.Framework.dll' in build
+assert 'cp "$OUT/OpenGenesisLINK.Addons.OGLSeasons.dll" bin/' not in build
+assert "mkdir -p bin" not in build
+
 assert "addon-modules/OGLSeasons/build.sh Release" in prebuild
 assert "tools/ci/OglSeasonsRegression/OglSeasonsRegression.csproj" in ci
 assert "tools/ci/verify_ogl_seasons.py" in ci
