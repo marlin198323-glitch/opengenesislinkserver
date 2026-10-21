@@ -6,6 +6,11 @@ Enabled = false
 AllowedRegions = ""
 ; Nur Faktoren von 1440 im Bereich 5–1440
 WeatherIntervalMinutes = 30
+; Gleiche Zone = gleiches Wetter für benachbarte Regionen, auch auf anderen Simulatoren.
+; Leer = jede Region bekommt ihren eigenen, reproduzierbaren Wetterverlauf.
+WeatherZone = ""
+; Höhe/Mikroklima: -15 bis +15 °C gegenüber dem Basismodell.
+TemperatureOffsetC = 0
 ; Nur Status, kein echter DWD-Wetterabruf
 Seed = 2026
 CheckSeconds = 60
