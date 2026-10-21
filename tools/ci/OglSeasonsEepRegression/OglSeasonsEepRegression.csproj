@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <OutputType>Exe</OutputType>
+    <AssemblyName>OglSeasonsEepRegression</AssemblyName>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <Nullable>disable</Nullable>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../../addons/OGLSeasons/OpenGenesisLINK.Addons.OGLSeasons.csproj" />
+    <Reference Include="OpenMetaverse.StructuredData"><HintPath>../../../bin/OpenMetaverse.StructuredData.dll</HintPath><Private>true</Private></Reference>
+    <Reference Include="OpenMetaverse"><HintPath>../../../bin/OpenMetaverse.dll</HintPath></Reference>
+    <Reference Include="OpenMetaverseTypes"><HintPath>../../../bin/OpenMetaverseTypes.dll</HintPath></Reference>
+  </ItemGroup>
+</Project>

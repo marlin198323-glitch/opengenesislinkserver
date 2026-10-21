@@ -35,6 +35,9 @@ namespace OpenGenesisLINK.Addons.OGLSeasons
         private DateTime m_NextCheckUtc = DateTime.MinValue;
         private DateTime m_NextBroadcastUtc = DateTime.MinValue;
         private OglWeatherState m_Current;
+        private OglSeasonalEepOverlay m_EepOverlay;
+        private bool m_EnableEepOverlay;
+        private bool m_AllowCustomEnvironment;
 
         public string Name => "OGLSeasons";
         public Type ReplaceableInterface => null;
@@ -60,6 +63,8 @@ namespace OpenGenesisLINK.Addons.OGLSeasons
             m_Seed = settings.GetInt("Seed", 2026);
             m_Channel = settings.GetInt("LSLChannel", -835011);
             m_AllowedRegions = settings.GetString("AllowedRegions", "") ?? "";
+            m_EnableEepOverlay = settings.GetBoolean("EnableEepOverlay", false);
+            m_AllowCustomEnvironment = settings.GetBoolean("AllowCustomRegionEep", false);
             m_WeatherZone = (settings.GetString("WeatherZone", "") ?? "").Trim();
             m_TemperatureOffsetC = settings.GetInt("TemperatureOffsetC", 0);
             if (m_WeatherZone.Length > 80 ||
@@ -103,6 +108,15 @@ namespace OpenGenesisLINK.Addons.OGLSeasons
             if (m_Scene != scene || m_Started || !m_Enabled)
                 return;
             m_Started = true;
+            if (m_EnableEepOverlay)
+            {
+                IEnvironmentModule env = scene.RequestModuleInterface<IEnvironmentModule>();
+                if (env == null)
+                    Log.WarnFormat("[OGL-JAHRESZEITEN][EEP]: Region {0}: "
+                        + "EEP-Modul fehlt; Himmelsüberlagerung bleibt deaktiviert.", scene.Name);
+                else
+                    m_EepOverlay = new OglSeasonalEepOverlay(scene, env, m_AllowCustomEnvironment);
+            }
             m_NextCheckUtc = DateTime.MinValue;
             m_NextBroadcastUtc = DateTime.MinValue;
             scene.EventManager.OnFrame += OnFrame;
@@ -137,6 +151,8 @@ namespace OpenGenesisLINK.Addons.OGLSeasons
                             "Wind {4} km/h, Stärke {5} %.", scene.RegionInfo.RegionName,
                             next.Season, next.Weather, next.TemperatureC,
                             next.WindKmh, next.Intensity);
+                        if (m_EepOverlay != null)
+                            m_EepOverlay.Apply(next);
                         try { StateChanged?.Invoke(next); }
                         catch (Exception e)
                         {
@@ -176,6 +192,9 @@ namespace OpenGenesisLINK.Addons.OGLSeasons
                 return;
             if (m_Started)
                 scene.EventManager.OnFrame -= OnFrame;
+            // Only restore a snapshot still owned by OGLSeasons.
+            m_EepOverlay?.Restore();
+            m_EepOverlay = null;
             scene.UnregisterModuleInterface<IOglSeasonsService>(this);
             m_Started = false;
             m_Current = null;
