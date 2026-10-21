@@ -72,6 +72,7 @@ namespace OpenSim.Services.LLLoginService
         protected GatekeeperServiceConnector m_GatekeeperConnector;
 
         protected string m_WelcomeMessage;
+        protected string[] m_WelcomeMessages = Array.Empty<string>();
         protected bool m_RequireInventory;
         protected int m_MinLoginLevel;
         protected string m_GatekeeperURL;
@@ -203,6 +204,16 @@ namespace OpenSim.Services.LLLoginService
                 m_WelcomeMessage = m_LoginServerConfig.GetString("WelcomeMessage", "Welcome to OpenSim!");
 
             m_WelcomeMessage = m_WelcomeMessage.Replace("\\n", "\n");
+
+            // Optional rotation. Never mutate the shared welcome template for a
+            // single user: overlapping avatar logins must remain independent.
+            // WelcomeMessages overrides MessageUrl and WelcomeMessage when configured.
+            m_WelcomeMessages = m_LoginServerConfig
+                .GetString("WelcomeMessages", string.Empty)
+                .Split('|', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .Where(message => !string.IsNullOrWhiteSpace(message))
+                .Select(message => message.Replace("\\n", "\n"))
+                .ToArray();
 
             m_DSTZone = m_LoginServerConfig.GetString("DSTZone", "America/Los_Angeles;Pacific Standard Time");
 
@@ -672,7 +683,10 @@ namespace OpenSim.Services.LLLoginService
                 //
                 // Finally, fill out the response and return it
     
-                processedMessage = m_WelcomeMessage.Replace("<USERNAME>", firstName + " " + lastName);
+                string welcomeTemplate = m_WelcomeMessages.Length > 0
+                    ? m_WelcomeMessages[Random.Shared.Next(m_WelcomeMessages.Length)]
+                    : m_WelcomeMessage;
+                processedMessage = welcomeTemplate.Replace("<USERNAME>", firstName + " " + lastName);
 
                 // Get active gestures
                 List<InventoryItemBase> gestures = m_InventoryService.GetActiveGestures(account.PrincipalID);
