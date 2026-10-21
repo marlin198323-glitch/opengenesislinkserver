@@ -451,6 +451,12 @@ namespace NexVerse.Server.Api
         private static void Reply(IOSHttpResponse response, HttpStatusCode status,
             string code, string message)
         {
+            // Always give the ROBUST operator a useful failure code,
+            // without exposing the submitted password, email or API key.
+            string correlation = NexApiRequestContext.Ensure(response);
+            m_Log.WarnFormat(
+                "[OGL-REGISTRIERUNG] FEHLER: HTTP {0} | Grund={1} | Vorgang={2}",
+                (int)status, code, correlation);
             response.StatusCode = (int)status;
             response.ContentType = "application/json; charset=utf-8";
             response.RawBuffer = JsonSerializer.SerializeToUtf8Bytes(new
