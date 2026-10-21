@@ -319,12 +319,9 @@ namespace NexVerse.Server.Api
                         "Dieser Avatarname ist bereits vergeben.");
                     return;
                 }
-                if (m_Accounts.GetUserAccount(UUID.Zero, email) != null)
-                {
-                    Reply(response, HttpStatusCode.Conflict, "email_registered",
-                        "Die E-Mail-Adresse ist bereits registriert.");
-                    return;
-                }
+                // Email is a contact method, not a unique avatar identity.
+                // Multiple avatars may share it, but avatar names must remain unique.
+                // Keep validation and machine-key authorization unchanged.
 
                 if (!TryReadHomeRegion(root, out string homeRegionId,
                     out string homeRegionName, out Vector3 homePosition))

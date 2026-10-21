@@ -45,8 +45,8 @@ X-NexVerse-Api-Key: <SERVER_ONLY_KEY>
 - Nur gültige Avatarnamen (2–31 Zeichen; Unicode-Buchstaben,
   Ziffern, Unterstrich, Bindestrich), E-Mail und Passwörter
   zwischen 12 und 128 Zeichen werden akzeptiert.
-- Doppelter Avatarname ⇒ `409 avatar_name_taken`; registrierte
-  E-Mail ⇒ `409 email_registered`. Nicht vorbereitete Startervorlage
+- Doppelter Avatarname ⇒ `409 avatar_name_taken`; dieselbe
+  E-Mail darf mehreren Avataren zugeordnet werden. Nicht vorbereitete Startervorlage
   ⇒ `422 registration_failed`.
 
 ### KeyHelp-Reverse-Proxy, HTTP-Backend und Startposition
@@ -152,8 +152,7 @@ bedeutet fehlende Freigabe oder einen nicht verfügbaren
 erfordert Prüfung von Modell-Freigabe und Home-/Last-
 Initialisierung im ROBUST-Log. `401 unauthorized_portal`
 deutet auf fehlenden/falschen Key oder Scope hin.
-`409 avatar_name_taken`/ `email_registered` bedeutet,
-dass ein Name beziehungsweise die E-Mail bereits existiert.
+`409 avatar_name_taken` bedeutet, dass der Avatarname bereits existiert.\nDie E-Mail-Adresse darf mehrfach verwendet werden; das E-Mail-Pflichtfeld\nbleibt bestehen.
 Bei einem Netzwerkausfall nach dem POST vor erneuter
 Registrierung nachsehen, ob der Avatar bereits angelegt wurde.
 

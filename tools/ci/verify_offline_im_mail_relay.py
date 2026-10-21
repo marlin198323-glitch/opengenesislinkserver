@@ -10,6 +10,8 @@ for needle in (
     "CryptographicOperations.FixedTimeEquals",
     "RandomNumberGenerator.GetBytes",
     "TryValidate(",
+    "TryValidateReply(",
+    "replyingAgentId",
     "maximumFutureLifetime",
 ):
     assert needle in token, f"relay token helper missing {needle}"
@@ -32,13 +34,14 @@ for needle in (
     "ImapClient",
     "SearchQuery.NotSeen",
     "relay@im.stadt-nexverse.de",
-    "OfflineImMailRelayToken.TryValidate(",
-    "GetUserAccount(UUID.Zero, senderEmail)",
+    "OfflineImMailRelayToken.TryValidateReply(",
+    "GetUserAccount(UUID.Zero, replyingAgentId)",
+    "OfflineImMailRelayToken.NormalizeEmail(replyingAccount.Email)",
     "replyingAccount.LocalToGrid",
     "IncomingInstantMessage(im)",
     "MessageFlags.Seen",
     "MaximumReplyCharacters",
-    "Ignored catch-all mail from non-NexVerse sender",
+    "Rejected reply with absent, inactive or mismatched avatar identity",
 ):
     assert needle in relay, f"Robust IM mail relay missing {needle}"
 
