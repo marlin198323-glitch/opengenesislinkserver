@@ -153,7 +153,7 @@ namespace OpenGenesisLINK.Addons.OGLSeasons
             if (heavy || fog) light *= 0.72f;
 
             int transformed = 0;
-            foreach (var frame in frames)
+            foreach (System.Collections.Generic.KeyValuePair<string, OSD> frame in frames)
             {
                 if (frame.Value is not OSDMap sky ||
                     !sky.TryGetValue("type", out OSD type) ||
