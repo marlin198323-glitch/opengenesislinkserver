@@ -1051,7 +1051,11 @@ namespace OpenSim.Services.UserAccountService
                 (item.CurrentPermissions & required) != required ||
                 (item.NextPermissions & required) != required)
             {
-                m_log.Warn("[OGL AVATAR TEMPLATES]: Starter item missing, owner mismatch or lacks copy/transfer permissions");
+                m_log.WarnFormat(
+                    "[OGL-REGISTRIERUNG] FEHLER: Getragenes Vorlagen-Item {0} von Avatar {1} fehlt oder besitzt keine Copy+Transfer-Rechte. Aktuell={2}, NächsterBesitzer={3}.",
+                    itemId, owner,
+                    item != null ? item.CurrentPermissions.ToString("X") : "nicht gefunden",
+                    item != null ? item.NextPermissions.ToString("X") : "nicht gefunden");
                 return false;
             }
             return true;
