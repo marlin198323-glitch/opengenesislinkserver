@@ -63,3 +63,12 @@ ALTER TABLE `UserAccounts` ADD `NexVerseRoles` varchar(512) NOT NULL DEFAULT 're
 ALTER TABLE `UserAccounts` ADD `NexVerseScopes` varchar(2048) NOT NULL DEFAULT '';
 
 COMMIT;
+
+:VERSION 7        # NexVerse Firestorm ToS approval -------------------------
+
+BEGIN TRANSACTION;
+
+ALTER TABLE `UserAccounts` ADD `NexVerseTosAcceptedVersion` varchar(64) NOT NULL DEFAULT '';
+ALTER TABLE `UserAccounts` ADD `NexVerseTosAcceptedAtUtc` integer NOT NULL DEFAULT 0;
+
+COMMIT;
