@@ -15,6 +15,72 @@ Der Browser erhält **niemals** `NEXVERSE_REGISTER_API_KEY`. Er
 kommuniziert nur mit seinem eigenen Portal-Backend. Der Schlüssel gehört
 in die geschützte Backend-`.env`, nie in HTML, JS oder öffentlichen Quellcode.
 
+## Registrierungsablauf nach E-Mail-Bestätigung
+
+Das Stadtportal muss die E-Mail **zuerst selbst** bestätigen. Erst der
+serverseitige Handler, der einen gültigen einmaligen
+Bestätigungsnachweis verbraucht und die E-Mail-Adresse als bestätigt
+markiert hat, ruft die World API auf. Niemals beim bloßen Absenden des
+öffentlichen Formulars bereits einen Avatar in ROBUST anlegen!
+
+Reihenfolge:
+
+1. Registrierung im Stadtportal: Vorname, optionaler Nachname,
+   E-Mail-Adresse, Passwort und Startavatar-/Geschlechtsauswahl
+   aufnehmen. Die Validierung des Passwortes muss vor Übergabe erfolgen;
+   Klartext nie protokollieren.
+2. Portal erzeugt einen einmaligen, zeitlich begrenzten
+   E-Mail-Bestätigungslink und sendet ihn dem Benutzer.
+3. Bestätigungslink prüfen, verbrauchen und den Nutzer im Portal
+   auf `email_verified` setzen (serverseitig aus der Portal-Datenbank,
+   **kein** beliebiger Browser-Boolean).
+4. **Erst jetzt** ruft das Portal-Backend per dediziertem
+   `X-NexVerse-Api-Key` (Scope `users:register`) den
+   `POST /api/v1/portal/avatars/register` auf. ROBUST behandelt
+   den authentifizierten Backend-Aufruf als abgeschlossene
+   E-Mail-Bestätigung; ROBUST verschickt **keinen zweiten** Verifikationslink.
+5. ROBUST normalisiert `last_name` bei Abwesenheit auf `Resident`,
+   prüft Namens- und E-Mail-Kollisionen, wählt ausschließlich
+   `Benjamin Resident` oder `Luna Resident` als bestehende Modellvorlage,
+   erzeugt eine zufällige UUID, Authentifizierung, Inventar und das
+   getragene Outfit. Danach setzt er **Home und Last** auf dieselbe
+   registrierte Region `Magdeburg` und Position `134/111/23`.
+6. Das Portal markiert das World-Konto **nur** bei `HTTP 201`,
+   `success=true`, `ready=true` und gültiger `avatar_id` als
+   bestätigt. Bei Fehlern den echten HTTP-Status und
+   `error`-Code speichern; keinen zweiten Account behaupten.
+   Bei unklarem Timeout nicht blind wiederholen: zuerst
+   Namen/E-Mail/World-Konto prüfen.
+
+Die Firestorm-Viewer-Zieladresse lautet
+`hop://hg.stadt-nexverse.de:80/Magdeburg/134/111/23`. Intern werden
+**Regions-UUID, Positionsvektor und Blickrichtung** in den
+GridUser-Datensätzen gespeichert; die `hop://`-URL darf nicht als
+HomeRegionID oder LastRegionID in die Datenbank geschrieben werden.
+
+**Beispiele für kompatible JSON-Eingaben:**
+
+```json
+{
+  "FirstName": "Alex",
+  "LastName": "",
+  "Email": "alex@example.org",
+  "Password": "Langes-sicheres-Passwort-2026!",
+  "start_avatar": "Luna Resident"
+}
+```
+
+Das erzeugt `Alex Resident` mit Luna-Outfit. Alternativ
+`"first_name": "Alex", "last_name": "Muster",
+"gender": "male"` für `Alex Muster` mit Benjamin-Outfit.
+Die Registrierung akzeptiert `FirstName`, `firstName` und
+`first_name` sowie analoge Schreibweisen beim Nachnamen.
+Als Startavatar werden `Benjamin`, `Benjamin Resident`,
+`ogl:benjamin` sowie die entsprechenden Luna-Bezeichnungen
+akzeptiert. Kombinationen mit widersprüchlichem `gender`
+werden abgewiesen. Das Portal soll standardmäßig die kanonischen
+`first_name`/`last_name`-Felder senden.
+
 ## 2. ROBUST-Einstellungen (aktive bin/Robust.HG.ini)
 
 ```ini
@@ -26,9 +92,9 @@ PortalAvatarRegistrationEnabled = true
 PortalRegistrationTrustedProxyIPs = "<GENAUE_PROXY_QUELL_IP>"
 PortalRegistrationTrustedHttpPeers = ""
 PortalRegistrationDefaultRegionName = "Magdeburg"
-PortalRegistrationDefaultX = 116
-PortalRegistrationDefaultY = 120
-PortalRegistrationDefaultZ = 22
+PortalRegistrationDefaultX = 134
+PortalRegistrationDefaultY = 111
+PortalRegistrationDefaultZ = 23
 
 [UserAccountService]
 CreateDefaultAvatarEntries = true
@@ -36,16 +102,22 @@ CreateDefaultAvatarEntries = true
 [OglAvatarTemplates]
 Enabled = true
 RequirePublishedModels = true
-BenjaminPublishedModel = "<GEPRUEFTER_MODELLACCOUNT_MIT_VOR_UND_NACHNAME>"
-LunaPublishedModel = "<GEPRUEFTER_MODELLACCOUNT_MIT_VOR_UND_NACHNAME>"
+BenjaminModel = "Benjamin Resident"
+LunaModel = "Luna Resident"
+BenjaminPublishedModel = "Benjamin Resident"
+LunaPublishedModel = "Luna Resident"
 ```
 
-Keine Sektionen duplizieren. Die angezeigten Winkelklammern sind
-**Platzhalter**. Registrierungsfreigabe erst aktivieren, wenn beide
-Modellaccounts vollständig und mit Viewer getestet sind. Die Modellvorlagen
+Keine Sektionen duplizieren. Der Proxy-IP-Wert ist ein
+**Platzhalter**; er muss die Quelladresse des KeyHelp-Proxys enthalten.
+Im versionierten `Robust.HG.ini` sind die beiden Live-Modellaccounts
+`Benjamin Resident` und `Luna Resident` nun als explizit freigegebene
+Quellen hinterlegt. Die aktiven Dateien auf dem Server müssen
+entsprechend abgeglichen und ROBUST neu gestartet werden.
+Vor dem Livebetrieb prüfen, ob die Accounts vollständig und mit Viewer getestet sind. Die Modellvorlagen
 müssen veröffentlichte Wearables/Attachments und zulässige Copy-/Transferrechte
 besitzen. Die registrierte Startregion `Magdeburg` muss den
-Spawn `116/120/22` erlauben. Der Account-Service setzt Home **und**
+Spawn `134/111/23` erlauben. Der Account-Service setzt Home **und**
 Last; nur bei beiden Erfolgen kommt `201 ready:true`.
 
 Verbindungsabsicherung: KeyHelp-Proxies dürfen `X-Forwarded-Proto: https`
@@ -88,7 +160,7 @@ X-NexVerse-Api-Key: <BACKEND_API_KEY>
   "gender": "female",
   "home_region": {
     "name": "Magdeburg",
-    "position": { "x": 116, "y": 120, "z": 22 }
+    "position": { "x": 134, "y": 111, "z": 23 }
   }
 }
 ```
@@ -96,8 +168,8 @@ X-NexVerse-Api-Key: <BACKEND_API_KEY>
 `first_name`, `last_name`: 2–31 Zeichen, Unicode-Buchstaben am Anfang,
 danach Buchstaben/Ziffern/`_`/`-`; ein leerer Nachname wird `Resident`.
 Passwort 12–128 Zeichen, E-Mail gültig/maximal 254 Zeichen.
-`gender`: `male`/`maennlich`/`männlich` → `ogl:benjamin`;
-`female`/`weiblich` → `ogl:luna`. Die Vorlagen sind serverseitig fixiert,
+`gender`: `male`/`maennlich`/`männlich`/`m` → `ogl:benjamin`;
+`female`/`weiblich`/`w`/`f` → `ogl:luna`. Die Vorlagen sind serverseitig fixiert,
 kein frei wählbarer `model_alias`-Parameter. `home_region` ist optional,
 kann aber durch das **berechtigte Portal-Backend** aus seinen
 Admin-Einstellungen befüllt werden. `home_region.id` ist die echte
@@ -278,7 +350,7 @@ Vor diesem Aufruf müssen die Sicherheitsprüfungen durchgeführt werden.
 
 | HTTP | Code | Prüfung |
 |---|---|---|
-| 400 | `invalid_json`, `invalid_avatar_name`, `invalid_password`, `invalid_email`, `invalid_gender`, `invalid_home_region` | Eingaben |
+| 400 | `invalid_json`, `invalid_avatar_name`, `invalid_password`, `invalid_email`, `invalid_avatar_model`, `invalid_home_region` | Eingaben |
 | 401 | `unauthorized_portal` | Maschinenkey / `users:register` |
 | 403 | `https_required` | HTTPS, Proxy-Quell-IP, Forwarded-Proto |
 | 409 | `avatar_name_taken`, `email_registered` | Bereits registriert |
@@ -292,7 +364,7 @@ kontrollieren und ggf. das unvollständige Provisioning reparieren. Der
 Prozess ist derzeit **keine** atomare Multi-Service-Transaktion.
 
 **Produktionsabnahme:** Registrieren → Viewer-Login → korrektes
-Benjamin-/Luna-Outfit → Inventar → Magdeburg/116/120/22 → Home/Last →
+Benjamin-/Luna-Outfit → Inventar → Magdeburg/134/111/23 → Home/Last →
 erneuter Login; anschließend Fehler- und Missbrauchsprüfungen.
 
 ## 8. Quellen im selben Repository
