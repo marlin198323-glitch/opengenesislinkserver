@@ -8,6 +8,7 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="../../../addons/OGLSeasons/OpenGenesisLINK.Addons.OGLSeasons.csproj" />
+    <Reference Include="OpenMetaverse.StructuredData"><HintPath>../../../bin/OpenMetaverse.StructuredData.dll</HintPath><Private>false</Private></Reference>
     <Reference Include="OpenMetaverse"><HintPath>../../../bin/OpenMetaverse.dll</HintPath></Reference>
     <Reference Include="OpenMetaverseTypes"><HintPath>../../../bin/OpenMetaverseTypes.dll</HintPath></Reference>
   </ItemGroup>
