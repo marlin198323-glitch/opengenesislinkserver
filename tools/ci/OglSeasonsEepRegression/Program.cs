@@ -17,8 +17,44 @@ internal static class Program
         return (OSDMap)((OSDMap)root["day_cycle"])["frames"];
     }
 
+    private static void VerifyAddinRegistrationMetadata()
+    {
+        // Verify compiled attributes, not only the source code text: Mono.Addins
+        // resolves extension points using the declaring root's add-in identity.
+        bool foundSeasonsAddin = false;
+        bool foundFrameworkDependency = false;
+        foreach (var attribute in typeof(OglSeasonsRegionModule).Assembly.GetCustomAttributesData())
+        {
+            if (attribute.AttributeType.FullName == "Mono.Addins.AddinAttribute" &&
+                attribute.ConstructorArguments.Count > 0 &&
+                (string)attribute.ConstructorArguments[0].Value == "OGLSeasons")
+            {
+                foreach (var named in attribute.NamedArguments)
+                    if (named.MemberName == "Namespace" &&
+                        (string)named.TypedValue.Value == "OpenGenesisLINK")
+                        foundSeasonsAddin = true;
+            }
+            if (attribute.AttributeType.FullName == "Mono.Addins.AddinDependencyAttribute" &&
+                attribute.ConstructorArguments.Count > 0 &&
+                (string)attribute.ConstructorArguments[0].Value == "OpenSim.Region.Framework")
+                foundFrameworkDependency = true;
+        }
+        Require(foundSeasonsAddin, "canonical OpenGenesisLINK.OGLSeasons add-in identity");
+        Require(foundFrameworkDependency, "dependency on /OpenSim/RegionModules provider");
+
+        bool foundRoot = false;
+        foreach (var attribute in typeof(OpenSim.Region.Framework.Interfaces.IRegionModuleBase)
+                     .Assembly.GetCustomAttributesData())
+            if (attribute.AttributeType.FullName == "Mono.Addins.AddinRootAttribute" &&
+                attribute.ConstructorArguments.Count > 0 &&
+                (string)attribute.ConstructorArguments[0].Value == "OpenSim.Region.Framework")
+                foundRoot = true;
+        Require(foundRoot, "region framework root add-in exists");
+    }
+
     public static void Main()
     {
+        VerifyAddinRegistrationMetadata();
         // This fixture exercises the genuine OpenSim EEP serializer, not
         // a mock or a file-based substitute. FromLightShare provides a
         // valid sky+water daycycle with deterministic test data.
