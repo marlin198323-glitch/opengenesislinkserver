@@ -44,9 +44,20 @@ updateParticles()
         startColor = <0.80, 0.95, 1.0>;
         startScale = <0.08, 0.08, 0.0>;
     }
-    integer count = 2 + (m_intensity / 13);
-    if (count > 10) count = 10;
-    float rate = 0.08;
+    // Keep per-emitter particles bounded even with many nearby prims.
+    // Max 5 / 0.15s ~33 particles/s instead of 125 particles/s.
+    if (m_weather == "sturm")
+    {
+        startColor = <0.83, 0.88, 0.90>;
+        startScale = <0.28, 0.03, 0.0>;
+        endScale = <0.40, 0.02, 0.0>;
+        accel = <2.5, 0.0, -0.1>;
+        minSpeed = 1.5;
+        maxSpeed = 4.0;
+    }
+    integer count = 1 + (m_intensity / 25);
+    if (count > 5) count = 5;
+    float rate = 0.15;
     llParticleSystem([
         PSYS_PART_FLAGS, PSYS_PART_INTERP_COLOR_MASK | PSYS_PART_INTERP_SCALE_MASK,
         PSYS_SRC_PATTERN, PSYS_SRC_PATTERN_EXPLODE,
@@ -79,7 +90,9 @@ default
 
     listen(integer channel, string name, key id, string message)
     {
-        if (channel != CHANNEL || name != SOURCE_NAME) return;
+        // Genuine simulator broadcasts originate from UUID.Zero. A normal
+        // in-world avatar/object cannot impersonate this sender UUID.
+        if (channel != CHANNEL || name != SOURCE_NAME || id != NULL_KEY) return;
         list fields = llParseStringKeepNulls(message, ["|"], []);
         if (llGetListLength(fields) != 9 ||
             llList2String(fields, 0) != "OGLSEASONS" ||
