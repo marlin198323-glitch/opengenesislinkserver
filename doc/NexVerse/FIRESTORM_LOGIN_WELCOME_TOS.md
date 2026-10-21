@@ -63,7 +63,7 @@ den neuen Build einspielen. Die UserAccounts-Migration läuft über den
 konfigurierten Datenbankprovider. Bei unerwarteten Loginproblemen den
 Wert auf `false` zurücksetzen und ROBUST neu starten; bereits
 gespeicherte Zustimmungen bleiben dabei erhalten.
-Prüfe die Erreichbarkeit mit `curl -IL https://stadt-nexverse.de/service/tos` und die Darstellung in Firestorm. Für direkte HTTPS-Links ist keine HTTP-Weiterleitung erforderlich.
+Pruefe den Firestorm-Einstieg mit `curl -IL http://stadt-nexverse.de/service/tos`: er muss sofort auf `https://stadt-nexverse.de/service/tos` weiterleiten. Danach die Browserdarstellung mit Firestorm pruefen.
 
 ### Verbindlicher Login-Ablauf
 
