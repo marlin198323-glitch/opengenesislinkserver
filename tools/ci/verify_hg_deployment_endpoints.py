@@ -36,6 +36,15 @@ assert login_source.index("StoreUserAccount(currentAccount)") < login_source.ind
 handler = Path("OpenSim/Server/Handlers/Login/LLLoginHandlers.cs").read_text(encoding="utf-8")
 assert 'requestData.ContainsKey("agree_to_tos")' in handler
 assert 'map.TryGetValue("agree_to_tos"' in handler
+# Firestorm's XML-RPC stack can send the LLSD acceptance flag as numeric 1
+# instead of the C# bool string. Never accept arbitrary nonempty values.
+assert 'private static bool TosAccepted(object value)' in handler
+assert 'value is bool accepted' in handler
+assert 'text == "1"' in handler
+assert 'string.Equals(text, "true", StringComparison.OrdinalIgnoreCase)' in handler
+assert 'TosAccepted(requestData["agree_to_tos"])' in handler
+assert 'TosAccepted(tosValue.AsString())' in handler
+
 account_handler = Path("OpenSim/Server/Handlers/UserAccounts/UserAccountServerPostHandler.cs").read_text(encoding="utf-8")
 account_interface = Path("OpenSim/Services/Interfaces/IUserAccountService.cs").read_text(encoding="utf-8")
 account_service = Path("OpenSim/Services/UserAccountService/UserAccountService.cs").read_text(encoding="utf-8")
