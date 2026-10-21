@@ -36,6 +36,7 @@ default
     }
     listen(integer channel, string speaker, key id, string message)
     {
+        if (channel != CHANNEL || speaker != "OGLSeasons" || id != NULL_KEY) return;
         list t = llParseStringKeepNulls(message, ["|"], []);
         if (llGetListLength(t) != 9 ||
             llList2String(t, 0) != "OGLSEASONS" ||
