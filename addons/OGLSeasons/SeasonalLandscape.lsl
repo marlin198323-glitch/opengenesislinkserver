@@ -95,8 +95,10 @@ default
         if (llDetectedKey(0) != llGetOwner()) return;
         ENABLED = !ENABLED;
         if (!ENABLED) setSeason(0);
-        llOwnerSay(ENABLED ? "OGLSeasons: Automatik aktiv." :
-            "OGLSeasons: Automatik aus, Fruehlingsansicht wiederhergestellt.");
+        if (ENABLED)
+            llOwnerSay("OGLSeasons: Automatik aktiv.");
+        else
+            llOwnerSay("OGLSeasons: Automatik aus, Fruehlingsansicht wiederhergestellt.");
     }
     changed(integer change)
     {
