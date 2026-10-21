@@ -557,6 +557,12 @@
     ; ClassifiedFee = 0
 
     WelcomeMessage = "Welcome, Avatar!"
+    ; Optional versioned Firestorm ToS. Enable only after database migration
+    ; and validation of the HTTP entrypoint redirect to HTTPS.
+    NexVerseTosEnabled = false
+    NexVerseTosVersion = "1.0"
+    NexVerseTosUrl = "http://stadt-nexverse.de/buergerverordnung"
+
     ; Optional: Show a randomly selected welcome message on every successful login.
     ; Entries are separated with |; <USERNAME> is replaced by the avatar name.
     ; WelcomeMessages overrides MessageUrl and WelcomeMessage when configured.
