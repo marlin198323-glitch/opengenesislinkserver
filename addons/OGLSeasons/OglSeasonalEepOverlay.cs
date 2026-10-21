@@ -1,11 +1,14 @@
 // SPDX-License-Identifier: MPL-2.0
 using System;
+using System.Runtime.CompilerServices;
 using log4net;
 using OpenMetaverse;
 using OpenMetaverse.StructuredData;
 using OpenSim.Framework;
 using OpenSim.Region.Framework.Interfaces;
 using OpenSim.Region.Framework.Scenes;
+
+[assembly: InternalsVisibleTo("OglSeasonsEepRegression")]
 
 namespace OpenGenesisLINK.Addons.OGLSeasons
 {
