@@ -43,7 +43,7 @@ namespace NexVerse.Server.Api
             NexApiAuthenticator authenticator, IUserAccountService accounts, bool enabled,
             string trustedProxyIps = "", string trustedHttpPeers = "",
             string defaultRegionName = "Magdeburg",
-            float defaultX = 116, float defaultY = 120, float defaultZ = 22)
+            float defaultX = 134, float defaultY = 111, float defaultZ = 23)
         {
             m_Authenticator = authenticator ?? throw new ArgumentNullException(nameof(authenticator));
             m_Accounts = accounts ?? throw new ArgumentNullException(nameof(accounts));
@@ -229,6 +229,12 @@ namespace NexVerse.Server.Api
                 string pass = Value(root, "password", trim: false);
                 string email = Value(root, "email");
                 string gender = Value(root, "gender");
+                // Older portal forms may send FirstName/LastName and a
+                // selected start avatar rather than the gender field.
+                // Accept only the two server-side allowlisted outfits.
+                string selectedModel = Value(root, "start_avatar") ??
+                    Value(root, "avatar_model") ??
+                    Value(root, "model");
 
                 if (string.IsNullOrWhiteSpace(last))
                     last = "Resident";
@@ -253,24 +259,29 @@ namespace NexVerse.Server.Api
                 }
 
                 string selected = gender?.Trim().ToLowerInvariant();
-                string modelAlias;
-                string modelName;
-                if (selected == "male" || selected == "maennlich" || selected == "männlich")
+                string selectedAvatar = selectedModel?.Trim().ToLowerInvariant();
+                bool selectedMale = selected == "male" || selected == "maennlich" ||
+                    selected == "männlich" || selected == "m";
+                bool selectedFemale = selected == "female" || selected == "weiblich" ||
+                    selected == "w" || selected == "f";
+                bool maleModel = selectedAvatar == "benjamin" ||
+                    selectedAvatar == "benjamin resident" || selectedAvatar == "ogl:benjamin";
+                bool femaleModel = selectedAvatar == "luna" ||
+                    selectedAvatar == "luna resident" || selectedAvatar == "ogl:luna";
+
+                if ((selectedModel != null && !maleModel && !femaleModel) ||
+                    (gender != null && !selectedMale && !selectedFemale) ||
+                    (selectedMale && femaleModel) || (selectedFemale && maleModel) ||
+                    (!selectedMale && !selectedFemale && !maleModel && !femaleModel))
                 {
-                    modelAlias = "ogl:benjamin";
-                    modelName = "Benjamin Resident";
-                }
-                else if (selected == "female" || selected == "weiblich")
-                {
-                    modelAlias = "ogl:luna";
-                    modelName = "Luna Resident";
-                }
-                else
-                {
-                    Reply(response, HttpStatusCode.BadRequest, "invalid_gender",
-                        "Bitte Maennlich oder Weiblich auswaehlen.");
+                    Reply(response, HttpStatusCode.BadRequest, "invalid_avatar_model",
+                        "Bitte Benjamin Resident oder Luna Resident auswaehlen.");
                     return;
                 }
+
+                string modelAlias = selectedMale || maleModel ? "ogl:benjamin" : "ogl:luna";
+                string modelName = modelAlias == "ogl:benjamin"
+                    ? "Benjamin Resident" : "Luna Resident";
 
                 if (m_Accounts.GetUserAccount(UUID.Zero, first, last) != null)
                 {
@@ -298,10 +309,20 @@ namespace NexVerse.Server.Api
                     homeRegionId, homeRegionName, homePosition);
                 if (newAccount == null)
                 {
+                    m_Log.ErrorFormat(
+                        "[OGL-REGISTRIERUNG] FEHLER: Anlegen von {0} {1} mit Modell {2} gescheitert; Region {3}/{4}; Vorgang={5}. Details im USER ACCOUNT/AVATAR TEMPLATE-Log.",
+                        first, last, modelName, homeRegionName, homePosition,
+                        NexApiRequestContext.Ensure(response));
                     Reply(response, HttpStatusCode.UnprocessableEntity, "registration_failed",
-                        "Registrierung fehlgeschlagen. Startervorlage, Berechtigungen oder Account-Service pruefen.");
+                        "Registrierung fehlgeschlagen. Modell/Outfit, Region und Home/Last im ROBUST-Log pruefen.");
                     return;
                 }
+
+                m_Log.InfoFormat(
+                    "[OGL-REGISTRIERUNG] ERFOLG: {0} {1} | UUID={2} | Vorlage={3} | Home/Last={4}/{5} | Vorgang={6}",
+                    newAccount.FirstName, newAccount.LastName, newAccount.PrincipalID,
+                    modelName, homeRegionName, homePosition,
+                    NexApiRequestContext.Ensure(response));
 
                 response.StatusCode = (int)HttpStatusCode.Created;
                 response.ContentType = "application/json; charset=utf-8";
@@ -383,10 +404,25 @@ namespace NexVerse.Server.Api
             return true;
         }
 
+        // Accept conventional Portal/Go JSON names (first_name,
+        // firstName, FirstName) without changing the canonical API contract.
+        // The name/sex/model whitelist and server-to-server auth remain strict.
         private static string Value(JsonElement root, string key, bool trim = true)
         {
-            if (!root.TryGetProperty(key, out JsonElement value) ||
-                value.ValueKind != JsonValueKind.String)
+            if (!root.TryGetProperty(key, out JsonElement value))
+            {
+                string normalized = key.Replace("_", "").Replace("-", "");
+                foreach (JsonProperty property in root.EnumerateObject())
+                {
+                    if (string.Equals(property.Name.Replace("_", "").Replace("-", ""),
+                        normalized, StringComparison.OrdinalIgnoreCase))
+                    {
+                        value = property.Value;
+                        break;
+                    }
+                }
+            }
+            if (value.ValueKind != JsonValueKind.String)
                 return null;
             string raw = value.GetString();
             return trim ? raw?.Trim() : raw;
