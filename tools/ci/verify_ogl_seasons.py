@@ -19,9 +19,17 @@ for marker in ("INonSharedRegionModule", "IWorldComm", "OnFrame += OnFrame",
     assert marker in module, marker
 assert "Enabled = false" in config
 assert "AllowedRegions" in config
+assert 'WeatherZone = ""' in config and "TemperatureOffsetC = 0" in config
+assert 'weatherZone.Trim().Normalize(NormalizationForm.FormKC)' in model
+assert 'new DateTimeOffset(localStart, local.Offset)' in model
+assert 'settings.GetString("WeatherZone", "")' in module
+assert 'settings.GetInt("TemperatureOffsetC", 0)' in module
 assert "llParticleSystem([])" in emitter
 assert "llListen(CHANNEL, SOURCE_NAME" in emitter
 assert "OGLSEASONS" in emitter
+assert "id != NULL_KEY" in emitter
+assert "if (count > 5) count = 5;" in emitter
+assert 'm_weather == "sturm"' in emitter
 assert "OGLSeasons.dll" in build
 assert "addon-modules/OGLSeasons/build.sh Release" in prebuild
 assert "tools/ci/OglSeasonsRegression/OglSeasonsRegression.csproj" in ci
