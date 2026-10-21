@@ -68,7 +68,14 @@ sind Folgephasen und **nicht in Phase 1 implementiert**.
    ./compile.sh
    # oder wenn die OpenSim-Bibliotheken bereits gebaut sind:
    bash addon-modules/OGLSeasons/build.sh Release
+   # WICHTIG: Erst dieser EXPLIZITE Simulator-Installationsschritt
+   # legt das Regionsmodul in /opt/developer/bin ab:
+   bash addon-modules/OGLSeasons/build.sh Release --sim-bin /opt/developer/bin
    ```
+   Ohne `--sim-bin` wird das Addon nur nach
+   `addons/OGLSeasons/bin/Release/net8.0/` kompiliert und **nicht**
+   in das allgemeine `bin/` kopiert. Damit laden ROBUST-Builds
+   das Regionsmodul nicht mehr versehentlich.
 3. `addons/OGLSeasons/OGLSeasons.ini.example` nach
    `bin/config-include/OGLSeasons.ini` kopieren und diese Datei
    **explizit** über die aktiven Simulator-INI-Includes einbinden.
@@ -91,6 +98,28 @@ sind Folgephasen und **nicht in Phase 1 implementiert**.
 
 Zur Korrektur die DLL im ROBUST-Bin zunächst an einen sicheren Backup-Ort außerhalb des Bin-Verzeichnisses verschieben und ROBUST neu starten. Auf den Simulatoren die DLL belassen, zusammen mit dem Framework aus dem exakt gleichen Build. Ein gemeinsames `bin` für ROBUST und Simulator erfordert eine saubere Trennung der Startartefakte.
 
+```bash
+mkdir -p /root/robust-disabled-addons
+if [ -f /opt/robust/bin/OpenGenesisLINK.Addons.OGLSeasons.dll ]; then
+    mv /opt/robust/bin/OpenGenesisLINK.Addons.OGLSeasons.dll /root/robust-disabled-addons/
+fi
+# ROBUST danach regulär neu starten
+```
+
+Der Build von `addons/OGLSeasons` kopiert ab dieser Änderung keine
+DLL mehr ungefragt in das allgemeine `bin/`. Auf Simulatoren
+nach einem frischen Build die DLL explizit installieren:
+
+```bash
+cd /opt/developer
+bash addon-modules/OGLSeasons/build.sh Release --sim-bin /opt/developer/bin
+```
+
+Für die Installation muss im gewählten Simulatorverzeichnis die passende
+`OpenSim.Region.Framework.dll` vorhanden sein; das Skript lehnt
+`/opt/robust/bin` ausdrücklich ab. Eine bereits auf ROBUST vorhandene
+alte DLL entfernt ein Git-Update nicht automatisch.
+
 ### Mono.Addins-Registrierung auf dem Simulator prüfen
 
 OGL Seasons ist ein **Regionen-Addon**, kein ROBUST-Service. Die Datei
@@ -110,7 +139,7 @@ Auf dem **Developer-Simulator** nach Build und regulärem Neustart:
 
 ```bash
 cd /opt/developer
-bash addon-modules/OGLSeasons/build.sh Release
+bash addon-modules/OGLSeasons/build.sh Release --sim-bin /opt/developer/bin
 # Simulator neu starten; danach:
 grep -Ei 'OGLSeasons|OGL-JAHRESZEITEN|Plugin Error' bin/OpenSim.log | tail -n 50
 ```
