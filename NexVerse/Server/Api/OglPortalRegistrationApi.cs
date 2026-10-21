@@ -79,6 +79,21 @@ namespace NexVerse.Server.Api
             return allowed.Contains(value);
         }
 
+        // Trust the HTTPS scheme only if every hop reports HTTPS and the
+        // direct TCP peer is the configured TLS termination proxy.
+        // An absent/mixed HTTP header is not proof of an encrypted client.
+        private static bool IsForwardedHttps(string header)
+        {
+            if (string.IsNullOrWhiteSpace(header))
+                return false;
+            foreach (string value in header.Split(','))
+            {
+                if (!string.Equals(value.Trim(), "https", StringComparison.OrdinalIgnoreCase))
+                    return false;
+            }
+            return true;
+        }
+
         // Both signup and live name lookup must share identical
         // transport, enablement and machine-key security requirements.
         private bool AuthorizePortal(IOSHttpRequest request, IOSHttpResponse response)
@@ -96,15 +111,26 @@ namespace NexVerse.Server.Api
             IPAddress peer = request.RemoteIPEndPoint?.Address;
             bool isLoopback = peer != null && IPAddress.IsLoopback(peer);
             bool trustedProxy = isLoopback || TrustedPeer(request, m_TrustedProxyIps);
-            bool forwardedHttps = trustedProxy &&
-                string.Equals(request.Headers?["X-Forwarded-Proto"], "https",
-                    StringComparison.OrdinalIgnoreCase);
+            string forwardedProto = request.Headers?["X-Forwarded-Proto"];
+            bool forwardedHttps = trustedProxy && IsForwardedHttps(forwardedProto);
             // Backend HTTP is a separate, explicit per-IP opt-in. Use
             // loopback or a private/VPN link to protect passwords/API keys.
             bool trustedBackendHttp = TrustedPeer(request, m_TrustedHttpPeers);
             bool secured = request.IsSecured || forwardedHttps || trustedBackendHttp;
             if (!secured)
             {
+                // Diagnostic metadata only: never log the API key, credentials,
+                // registration payload, or arbitrary untrusted header contents.
+                string peerAddress = peer == null ? "(unbekannt)" :
+                    (peer.IsIPv4MappedToIPv6 ? peer.MapToIPv4().ToString() : peer.ToString());
+                m_Log.WarnFormat(
+                    "[OGL-REGISTRIERUNG] HTTPS-Proxy-Pruefung verweigert: peer={0} " +
+                    "tls={1} trustedProxy={2} xfpPresent={3} xfpHttps={4} trustedHttpPeer={5}. " +
+                    "Proxy-Quell-IP in PortalRegistrationTrustedProxyIPs konfigurieren und " +
+                    "am TLS-Proxy X-Forwarded-Proto=https setzen.",
+                    peerAddress, request.IsSecured, trustedProxy,
+                    !string.IsNullOrWhiteSpace(forwardedProto), IsForwardedHttps(forwardedProto),
+                    trustedBackendHttp);
                 Reply(response, HttpStatusCode.Forbidden,
                     "https_required", "Eine verschluesselte Verbindung ist erforderlich.");
                 return false;
