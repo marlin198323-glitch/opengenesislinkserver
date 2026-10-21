@@ -103,6 +103,8 @@ namespace OpenSim.Services.Interfaces
         public string NexVerseScopes = string.Empty;
         public string NexVerseTosAcceptedVersion = string.Empty;
         public int NexVerseTosAcceptedAtUtc;
+        public string NexVerseTosAcceptedVersion = string.Empty;
+        public int NexVerseTosAcceptedAtUtc;
 
         public bool LoginAllowed =>
             Active &&
@@ -207,6 +209,10 @@ namespace OpenSim.Services.Interfaces
                 NexVerseTosAcceptedVersion = kvp["NexVerseTosAcceptedVersion"]?.ToString() ?? string.Empty;
             if (kvp.ContainsKey("NexVerseTosAcceptedAtUtc"))
                 Int32.TryParse(kvp["NexVerseTosAcceptedAtUtc"]?.ToString(), out NexVerseTosAcceptedAtUtc);
+            if (kvp.ContainsKey("NexVerseTosAcceptedVersion"))
+                NexVerseTosAcceptedVersion = kvp["NexVerseTosAcceptedVersion"]?.ToString() ?? string.Empty;
+            if (kvp.ContainsKey("NexVerseTosAcceptedAtUtc"))
+                Int32.TryParse(kvp["NexVerseTosAcceptedAtUtc"]?.ToString(), out NexVerseTosAcceptedAtUtc);
 
             if (kvp.ContainsKey("Created"))
                 Created = Convert.ToInt32(kvp["Created"].ToString());
@@ -250,6 +256,8 @@ namespace OpenSim.Services.Interfaces
             result["NexVerseStateChanged"] = NexVerseStateChanged.ToString();
             result["NexVerseRoles"] = NexVerseRoles ?? "resident";
             result["NexVerseScopes"] = NexVerseScopes ?? string.Empty;
+            result["NexVerseTosAcceptedVersion"] = NexVerseTosAcceptedVersion ?? string.Empty;
+            result["NexVerseTosAcceptedAtUtc"] = NexVerseTosAcceptedAtUtc.ToString();
             result["NexVerseTosAcceptedVersion"] = NexVerseTosAcceptedVersion ?? string.Empty;
             result["NexVerseTosAcceptedAtUtc"] = NexVerseTosAcceptedAtUtc.ToString();
 
