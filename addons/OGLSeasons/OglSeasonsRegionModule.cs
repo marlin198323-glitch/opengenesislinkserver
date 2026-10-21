@@ -30,6 +30,8 @@ namespace OpenGenesisLINK.Addons.OGLSeasons
         private int m_BroadcastSeconds = 180;
         private int m_Channel = -835011;
         private string m_AllowedRegions = "";
+        private string m_WeatherZone = "";
+        private int m_TemperatureOffsetC;
         private DateTime m_NextCheckUtc = DateTime.MinValue;
         private DateTime m_NextBroadcastUtc = DateTime.MinValue;
         private OglWeatherState m_Current;
@@ -58,6 +60,15 @@ namespace OpenGenesisLINK.Addons.OGLSeasons
             m_Seed = settings.GetInt("Seed", 2026);
             m_Channel = settings.GetInt("LSLChannel", -835011);
             m_AllowedRegions = settings.GetString("AllowedRegions", "") ?? "";
+            m_WeatherZone = (settings.GetString("WeatherZone", "") ?? "").Trim();
+            m_TemperatureOffsetC = settings.GetInt("TemperatureOffsetC", 0);
+            if (m_WeatherZone.Length > 80 ||
+                m_TemperatureOffsetC < -15 || m_TemperatureOffsetC > 15)
+            {
+                Log.Warn("[OGL-JAHRESZEITEN]: Wetterzone oder Temperaturkorrektur ungültig; Modul deaktiviert.");
+                m_Enabled = false;
+                return;
+            }
             if (m_Channel >= 0)
             {
                 Log.Warn("[OGL-JAHRESZEITEN]: LSLChannel muss negativ sein; Modul deaktiviert.");
@@ -114,7 +125,8 @@ namespace OpenGenesisLINK.Addons.OGLSeasons
                 {
                     OglWeatherState next = SeasonWeatherModel.Calculate(
                         new DateTimeOffset(now, TimeSpan.Zero),
-                        scene.RegionInfo.RegionID.Guid, m_IntervalMinutes, m_Seed);
+                        scene.RegionInfo.RegionID.Guid, m_IntervalMinutes, m_Seed,
+                        m_WeatherZone, m_TemperatureOffsetC);
                     OglWeatherState old = m_Current;
                     m_Current = next;
                     if (old == null || old.ValidFromUtc != next.ValidFromUtc ||
