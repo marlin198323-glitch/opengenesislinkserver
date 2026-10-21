@@ -334,7 +334,7 @@ namespace NexVerse.Server.Api
                 return false;
 
             string candidate = address.Substring(0, at);
-            if (!candidate.StartsWith("r-", StringComparison.Ordinal))
+            if (!candidate.StartsWith("r2-", StringComparison.Ordinal))
                 return false;
 
             localPart = candidate;
