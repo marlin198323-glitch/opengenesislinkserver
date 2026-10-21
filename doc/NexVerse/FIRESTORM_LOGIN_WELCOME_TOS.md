@@ -41,14 +41,7 @@ Die aktuelle verbindliche Seite ist
 `https://stadt-nexverse.de/service/tos`. ROBUST verwendet diese HTTPS-Adresse als die verbindliche Portal-Seite.
 Die Seite muss dort die vollständige freigegebene Bürgerordnung anzeigen.
 
-**Kompatibilitätshinweis:** Einige ältere OpenSim-Firestorm-Builds erkennen
-nur `http://` als Anlass, im ToS-Fenster einen eingebetteten Browser zu
-öffnen. Mit der vom Betreiber verlangten direkten HTTPS-Adresse kann die
-Anzeige deshalb je nach Viewer-Version auf reinen URL-Text zurückfallen.
-Die serverseitige Zustimmungsspeicherung bleibt davon unabhängig; im
-Firestorm 7.2.4.80712 den echten Anzeige- und Bestätigungsablauf prüfen.
-Zurück zu HTTP wechseln oder die TLS-Sicherheit herabsetzen ist hier
-**keine** automatische Lösung.
+**Kompatibilitätshinweis:** Die Firestorm-OpenSim-Ausgabe 7.2.4 erkennt fuer die eingebettete TOS-Webseite nur einen HTTP-Einstieg. ROBUST verwendet deshalb bei Firestorm einen HTTP-Redirect-Einstieg zu `/service/tos`, waehrend die verbindliche Seite und die Konfiguration HTTPS verwenden. Voraussetzung ist eine funktionierende direkte Weiterleitung des HTTP-Pfads auf die HTTPS-Seite.
 
 ### Konfiguration
 
