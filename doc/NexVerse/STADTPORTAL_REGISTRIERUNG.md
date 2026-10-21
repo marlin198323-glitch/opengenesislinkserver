@@ -404,9 +404,11 @@ TCP-Quelladresse des Proxys in der **lokalen** `bin/Robust.HG.ini`
 unter `[NexVerseWorldApi]` eintragen:
 
 ```ini
-PortalRegistrationTrustedProxyIPs = "<EXAKTE_IP_AUS_LOG>"
+PortalRegistrationTrustedProxyIPs = "109.91.20.9"
 PortalRegistrationTrustedHttpPeers = ""
 ```
+
+Die Quell-IP `109.91.20.9` wurde vom Betreiber für den KeyHelp-Proxy angegeben. Der Wert muss bei `peer=` im ROBUST-Log mit der echten Quelladresse übereinstimmen. Bei anderer `peer`-Adresse ist die reale TCP-Quell-IP zu verwenden, nicht die Client-IP.
 
 Am HTTPS-VHost des Reverse Proxys muss `X-Forwarded-Proto: https`
 **vom Proxy gesetzt/überschrieben** werden (nicht vom Browser übernommen).
