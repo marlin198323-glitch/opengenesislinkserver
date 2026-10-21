@@ -53,15 +53,25 @@ bereitstellen und Firestorm 7.2.4 unter Linux und Windows testen.
 
 ```ini
 [LoginService]
-NexVerseTosEnabled = false
+NexVerseTosEnabled = true
 NexVerseTosVersion = "1.0"
 NexVerseTosUrl = "http://stadt-nexverse.de/buergerverordnung"
 ```
 
-**WICHTIG:** Die Funktion ist aus Sicherheitsgründen standardmäßig
-**deaktiviert**, bis die DB-Migration, TOS-Seite und Firestorm-Abnahme
-funktionieren. Erst dann die produktive ROBUST-Konfiguration auf
-`NexVerseTosEnabled = true` stellen und ROBUST neu starten.
+**Aktiv in der mitgelieferten `bin/Robust.HG.ini`** für Stadt NexVerse.
+Andere Beispielkonfigurationen bleiben standardmäßig deaktiviert und werden
+nicht automatisch für fremde Grids umgestellt. Bei bereits laufenden Servern
+kann eine lokale `Robust.HG.ini` abweichen: die drei Schlüssel dort gezielt
+eintragen bzw. den Enabled-Wert auf `true` setzen und ROBUST neu starten.
+
+**Deployment:** Zunächst Datenbank und `Robust.HG.ini` sichern, dann
+den neuen Build einspielen. Die UserAccounts-Migration läuft über den
+konfigurierten Datenbankprovider. Bei unerwarteten Loginproblemen den
+Wert auf `false` zurücksetzen und ROBUST neu starten; bereits
+gespeicherte Zustimmungen bleiben dabei erhalten.
+Prüfe den Link per `curl -IL http://stadt-nexverse.de/buergerverordnung`,
+denn die native OpenSim-TOS-Ansicht benötigt die funktionierende Weiterleitung
+auf die volle HTTPS-Bürgerordnung.
 
 ### Verbindlicher Login-Ablauf
 
