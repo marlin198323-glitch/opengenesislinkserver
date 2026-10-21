@@ -29,6 +29,18 @@ den bereits geprueften Bewohner-Token der angemeldeten Session besitzen.
 Nicht auf Basis von Browser-Formularfeldern eine UUID nachtragen oder den
 Maschinenschluessel fuer Avatar-Registrierung verwenden.
 
+Falls das bestehende Stadtportal **keinen** World-API-Bearer-Token
+fuer den angemeldeten Bewohner in der serverseitigen Session besitzt,
+kann sein Backend unmittelbar vor der Loeschung ueber
+`POST /api/v1/auth/session` mit dem aus der *bereits geprueften*
+Portal-Sitzung stammenden Benutzernamen und dem **erneut eingegebenen**
+Passwort einen kurzlebigen Bewohner-Bearer beziehen.
+Das Backend muss dessen Identitaet mit der eigenen Portal-Session
+vergleichen und die Session vor einem Identitaetswechsel verwerfen.
+Alternativ einen vorhandenen, sicher gespeicherten und noch gueltigen
+Resident-Bearer verwenden. Keine Zugangstokens in LocalStorage
+oder im sichtbaren JavaScript ablegen.
+
 Vor der Loeschung werden eine vertrauenswuerdige HTTPS-Verbindung
 (direkt oder TLS-Proxy mit erlaubter Quell-IP), die Passwort-Neupruefung
 und die exakte Bestaetigung `KONTO LÖSCHEN` erzwungen.
