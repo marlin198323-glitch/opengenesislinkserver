@@ -40,7 +40,7 @@ internal static class Program
         var resultFrames = GetFrames(overlay);
         Require(sourceFrames.Count == resultFrames.Count, "frame count preserved");
         int skyCount = 0;
-        foreach (var frame in sourceFrames)
+        foreach (System.Collections.Generic.KeyValuePair<string, OSD> frame in sourceFrames)
         {
             var before = (OSDMap)frame.Value;
             var after = (OSDMap)resultFrames[frame.Key];
