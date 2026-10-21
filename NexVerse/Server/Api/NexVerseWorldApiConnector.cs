@@ -646,9 +646,9 @@ namespace NexVerse.Server.Api
                     apiConfig.GetString("PortalRegistrationTrustedProxyIPs", ""),
                     apiConfig.GetString("PortalRegistrationTrustedHttpPeers", ""),
                     apiConfig.GetString("PortalRegistrationDefaultRegionName", "Magdeburg"),
-                    apiConfig.GetFloat("PortalRegistrationDefaultX", 116f),
-                    apiConfig.GetFloat("PortalRegistrationDefaultY", 120f),
-                    apiConfig.GetFloat("PortalRegistrationDefaultZ", 22f));
+                    apiConfig.GetFloat("PortalRegistrationDefaultX", 134f),
+                    apiConfig.GetFloat("PortalRegistrationDefaultY", 111f),
+                    apiConfig.GetFloat("PortalRegistrationDefaultZ", 23f));
                 server.AddSimpleStreamHandler(new SimpleStreamHandler(
                     "/api/v1/portal/avatars/register",
                     apiGate.Wrap(portalRegistration.Handle),
