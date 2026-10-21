@@ -214,48 +214,7 @@ namespace OpenSim.Framework
             //suppress_console_output_(true);
             AddinManager.Initialize(dir);
             AddinManager.Registry.Update(null);
-            TryRecoverOglSeasonsAddin(dir);
             //suppress_console_output_(false);
-        }
-
-        // The optional Seasons DLL can be present while a stale Mono.Addins registry
-        // silently omits its region extension after a subsequent simulator restart.
-        // Do not rebuild registries unless this exact addon is installed and missing.
-        // Never enable an intentionally disabled addin or load a DLL by hand.
-        private static void TryRecoverOglSeasonsAddin(string dir)
-        {
-            string seasonsDll = Path.Combine(dir, "OpenGenesisLINK.Addons.OGLSeasons.dll");
-            if (!File.Exists(seasonsDll))
-                return;
-
-            try
-            {
-                if (HasOglSeasonsExtension())
-                    return;
-
-                log.Warn("[OGL-JAHRESZEITEN]: Addon-DLL vorhanden, aber Regionsmodul "
-                    + "nicht in Mono.Addins registriert. Erstelle Addin-Registry einmal neu.");
-                AddinManager.Registry.Rebuild(null);
-                AddinManager.Registry.Update(null);
-                if (HasOglSeasonsExtension())
-                    log.Info("[OGL-JAHRESZEITEN]: Regionsmodul nach Registry-Neuaufbau erkannt.");
-                else
-                    log.Error("[OGL-JAHRESZEITEN]: Regionsmodul weiterhin nicht erkannt. "
-                        + "Pruefe Addin-Aktivierung, DLL-Abhaengigkeiten und Plugin-Fehler.");
-            }
-            catch (Exception e)
-            {
-                // Never stop the simulator or other plugins because an optional addon fails.
-                log.Error("[OGL-JAHRESZEITEN]: Addin-Registry-Diagnose fehlgeschlagen.", e);
-            }
-        }
-
-        private static bool HasOglSeasonsExtension()
-        {
-            foreach (ExtensionNode node in AddinManager.GetExtensionNodes("/OpenSim/RegionModules"))
-                if (string.Equals(node.Id, "OGLSeasons", StringComparison.Ordinal))
-                    return true;
-            return false;
         }
 
         private void on_addinloaded_(object sender, AddinEventArgs args)
