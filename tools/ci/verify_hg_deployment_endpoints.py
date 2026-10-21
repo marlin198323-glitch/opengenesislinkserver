@@ -36,6 +36,20 @@ assert login_source.index("StoreUserAccount(currentAccount)") < login_source.ind
 handler = Path("OpenSim/Server/Handlers/Login/LLLoginHandlers.cs").read_text(encoding="utf-8")
 assert 'requestData.ContainsKey("agree_to_tos")' in handler
 assert 'map.TryGetValue("agree_to_tos"' in handler
+account_handler = Path("OpenSim/Server/Handlers/UserAccounts/UserAccountServerPostHandler.cs").read_text(encoding="utf-8")
+account_interface = Path("OpenSim/Services/Interfaces/IUserAccountService.cs").read_text(encoding="utf-8")
+account_service = Path("OpenSim/Services/UserAccountService/UserAccountService.cs").read_text(encoding="utf-8")
+remote_connector = Path("OpenSim/Services/Connectors/UserAccounts/UserAccountServicesConnector.cs").read_text(encoding="utf-8")
+# Regression guard: user-account consent values must survive local AND remote setaccount.
+# Previously the connector sent both keys, but the remote handler silently ignored them.
+for field in ("NexVerseTosAcceptedVersion", "NexVerseTosAcceptedAtUtc"):
+    assert f'if (request.TryGetValue("{field}"' in account_handler, f"Remote setaccount drops {field}"
+    assert f'kvp.ContainsKey("{field}")' in account_interface, f"Account hydration drops {field}"
+    assert f'result["{field}"]' in account_interface, f"Account serialization drops {field}"
+    assert f'd.Data["{field}"]' in account_service, f"Local DB storage drops {field}"
+assert 'Dictionary<string, object> structData = data.ToKeyValuePairs();' in remote_connector
+assert 'm_UserAccountService.StoreUserAccount(existingAccount)' in account_handler
+
 for dialect, version in (("SQLite", "7"), ("MySQL", "10"), ("PGSQL", "9")):
     migrations = Path(f"OpenSim/Data/{dialect}/Resources/UserAccount.migrations").read_text(encoding="utf-8")
     assert f":VERSION {version}" in migrations
