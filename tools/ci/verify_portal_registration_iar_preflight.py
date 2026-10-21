@@ -128,8 +128,9 @@ assert account_portal.index("SetLastPosition(") < account_portal.index("return a
 for path in ("bin/Robust.HG.ini", "bin/Robust.HG.ini.example",
              "bin/Robust.HG.OGLAsset.ini.example", "bin/Robust.ini.example"):
     config = Path(path).read_text()
-    for marker in ("PortalRegistrationTrustedProxyIPs = \"\"",
-                   "PortalRegistrationTrustedHttpPeers = \"\"",
+    if path != "bin/Robust.HG.ini":
+        assert 'PortalRegistrationTrustedProxyIPs = ""' in config, path
+    for marker in ("PortalRegistrationTrustedHttpPeers = \"\"",
                    'PortalRegistrationDefaultRegionName = "Magdeburg"',
                    "PortalRegistrationDefaultX = 134",
                    "PortalRegistrationDefaultY = 111",
