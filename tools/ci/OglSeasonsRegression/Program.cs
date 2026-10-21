@@ -23,6 +23,39 @@ static class Program
         Require(SeasonWeatherModel.ResolveSeason(Utc(2026, 8, 31, 22)) == OglSeason.Herbst, "autumn starts with CEST");
         Require(SeasonWeatherModel.ResolveSeason(Utc(2026, 11, 30, 23)) == OglSeason.Winter, "winter starts with CET");
         Require(SeasonWeatherModel.GermanZone.Id != null, "valid German timezone");
+        // The repeated local hour at the autumn DST rollback must not
+        // produce a bogus UTC future window boundary.
+        var fallFirst = Utc(2026, 10, 25, 0, 15);
+        var fallSecond = Utc(2026, 10, 25, 1, 15);
+        var firstHour = SeasonWeatherModel.Calculate(fallFirst, regionA);
+        var secondHour = SeasonWeatherModel.Calculate(fallSecond, regionA);
+        Require(firstHour.ValidFromUtc == Utc(2026, 10, 25, 0), "DST fallback first 02:xx valid-from");
+        Require(secondHour.ValidFromUtc == Utc(2026, 10, 25, 1), "DST fallback second 02:xx valid-from");
+        Require(firstHour.ValidFromUtc <= fallFirst && secondHour.ValidFromUtc <= fallSecond,
+            "no future weather period at DST rollback");
+        Require(SeasonWeatherModel.Calculate(Utc(2026, 3, 29, 1, 3), regionA).ValidFromUtc
+                <= Utc(2026, 3, 29, 1, 3), "spring DST forward valid-from");
+        // Same weather zone across independent region IDs and simulators
+        // guarantees a shared local weather pattern.
+        var alignedA = SeasonWeatherModel.Calculate(Utc(2026, 10, 21), regionA,
+            weatherZone: "Freiburg");
+        var alignedB = SeasonWeatherModel.Calculate(Utc(2026, 10, 21), regionB,
+            weatherZone: " freiburg ");
+        Require(alignedA.ToProtocol() == alignedB.ToProtocol(),
+            "shared zone weather must match across region IDs");
+        var cold = SeasonWeatherModel.Calculate(Utc(2026, 10, 21), regionA,
+            weatherZone: "Freiburg", temperatureOffsetC: -4);
+        Require(cold.TemperatureC == alignedA.TemperatureC - 4 ||
+                (alignedA.Weather == OglWeather.Hitzewelle && cold.Weather == OglWeather.Hitzewelle),
+            "negative microclimate temperature offset");
+        try { SeasonWeatherModel.Calculate(Utc(2026, 1, 1), regionA, temperatureOffsetC: 20);
+            throw new Exception("expected climate offset range exception"); }
+        catch (ArgumentOutOfRangeException) { }
+        try { SeasonWeatherModel.Calculate(Utc(2026, 1, 1), regionA,
+            weatherZone: new string('Z', 81));
+            throw new Exception("expected zone name length exception"); }
+        catch (ArgumentOutOfRangeException) { }
+
         OglWeatherState one = SeasonWeatherModel.Calculate(Utc(2026, 10, 21, 10, 0), regionA);
         OglWeatherState two = SeasonWeatherModel.Calculate(Utc(2026, 10, 21, 10, 9), regionA);
         Require(one.ToProtocol() == two.ToProtocol(), "stable state within 30-minute window");
