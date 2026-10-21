@@ -1,6 +1,6 @@
 # OGL Seasons – Jahreszeiten & Wetter für Stadt NexVerse (Deutschland)
 
-**Stand:** 21.10.2026 · Mergevorbereitung/optionaler Addon-Betrieb
+**Stand:** 21.10.2026 · Phase 2 (EEP/Objektsteuerung), sicher deaktivierbar
 `feature/ogl-seasons-germany-weather-addon-20261021` · Phase 1 / technisch
 testbar, **nicht** für unkontrollierten Produktiveinsatz freigeschaltet.
 
@@ -109,6 +109,89 @@ oder Chatkanal deaktivieren das Modul statt den Simulator abzubrechen.
 Die Simulationswerte ändern sich in Zeitfenstern; das Broadcastintervall
 ist nur ein Heartbeat für frisch hinzugefügte LSL-Skripte.
 
+## EEP-Himmel, Wolken, Nebel und saisonale Landschaft (Phase 2)
+
+Diese Erweiterung enthält eine **rein flüchtige, regionale EEP-Überlagerung**.
+Sie verändert die für Viewer angezeigten `SkyData`-Werte (Wolkenabdeckung,
+Wolkenfarbe, Dunst/Nebel, Himmelshelligkeit) und aktualisiert die Viewer per
+`IEnvironmentModule.WindlightRefresh(10)`. Im Gegensatz zum normalen
+`StoreOnRegion` wird **kein EEP in die Simulationsdatenbank geschrieben**.
+Der Tageszyklus inklusive Sonnen-/Mondposition und Wasserparameter bleibt
+erhalten. Nach einem Simulator-Neustart ist das ursprünglich persistierte
+EEP automatisch wiederhergestellt.
+
+Die neue Funktion ist zusätzlich zum Wetterkern standardmäßig **aus**:
+
+```ini
+[OGLSeasons]
+Enabled = true
+EnableEepOverlay = false
+AllowCustomRegionEep = false
+```
+
+Für eine explizit vorbereitete **Testregion ohne eigene
+Region-EEP-Einstellungen** ist `EnableEepOverlay = true` möglich.
+Falls bereits ein eigenes Region-EEP existiert, überspringt das Addon die
+Himmelsüberlagerung grundsätzlich. Nur wenn der Betreiber zusätzlich
+`AllowCustomRegionEep = true` setzt, darf es temporär über ein
+vorhandenes EEP legen. Diese zweite Option ist für Produktivregions
+mit Estate-/Designer-EEP normalerweise **nicht empfohlen**. Sie setzt
+voraus, dass der Betreiber die betroffenen Assets und Rechte kennt.
+
+**Eigentümer- und Editorschutz:** Das Modul merkt sich die ursprüngliche
+Region-Umgebungsreferenz. Wenn ein Administrator die EEP-Einstellungen
+während des Betriebs ersetzt, stoppt das Addon die Überlagerung und stellt
+sie beim späteren Modul-Stopp **nicht** über die neue Einstellung.
+Beim ordentlichen Modul-Stopp wird ausschließlich eine noch vom Modul
+verwaltete Überlagerung rückgängig gemacht. Parzellen-EEP, Estate-Daten,
+Boden, Wasserhöhe und Windphysik werden nicht geändert.
+
+**Grenze:** Firestorm-Parzellen können eigene EEP-Layer haben, die die
+Regionsebene verdecken. Außerdem zeigt das Modul auf sehr alten Viewern
+möglicherweise nur einen Teil der EEP-Felder. Es versendet keine
+Wettertexturen oder gerenderte Gewitterwolken; es modifiziert
+Himmelsparameter anhand des synthetischen Wettermodells.
+
+### Saisonale Landschaftsobjekte – nur mit Zustimmung des Eigentümers
+
+Die Datei `SeasonalLandscape.lsl` ist für gezielt vorbereitete eigene
+Bäume, Sträucher, Parkobjekte, Blätter oder Schneeskulpturen gedacht.
+Das Linkset enthält neben dem Rootprim vier Child-Objekte bzw. Meshvarianten:
+
+| Linknummer | Variante |
+| --- | --- |
+| 2 | Frühling (zarte Blätter / Blüten) |
+| 3 | Sommer (grüne Vegetation) |
+| 4 | Herbst (gelb/rot/orange) |
+| 5 | Winter (kahle Äste / Schnee) |
+
+Nur die jeweilige Variante wird sichtbar geschaltet – per
+`llSetLinkAlpha`, **ohne Texturen oder Materialien zu ersetzen**.
+Das Wetterprotokoll `OGLSEASONS/1` bestimmt die Jahreszeit; nach zehn
+Minuten ohne Signal kehrt das Skript zur vorbereiteten Frühlingsvariante
+zurück. Ein Klick durch den Eigentümer schaltet die Automatik ein/aus.
+Das Rootprim sowie fremde und nicht verlinkte Objekte bleiben unverändert.
+Bitte nicht in bereits texturierten Linksets ohne Prüfung verwenden:
+`llSetLinkAlpha(..., ALL_SIDES)` setzt die Transparenz jeder Seite
+der vier explizit konfigurierten Child-Prims.
+
+Diese Lösung ist absichtlich konservativ. Ein globales Überschreiben
+aller Bäume, Terrains oder Meshtexturen ist **nicht implementiert**:
+das wäre ohne Zustimmung und Snapshot-/Rollback-Funktionen für bestehende
+Stadtobjekte zu riskant.
+
+### Tests der neuen Funktionen
+
+- `python3 tools/ci/verify_ogl_seasons_eep.py`: Nichtpersistenz,
+  gesicherte Konfiguration, EEP-Besitzprüfung und LSL-Grenzen.
+- `dotnet run -c Release --project
+  tools/ci/OglSeasonsEepRegression/OglSeasonsEepRegression.csproj`:
+  EEP-Klonen/Cloud-Fog-Modifikation und Erhalt von Wasser-/Tageszyklus
+  gegen den echten OpenSim-ViewerEnvironment-Serializer.
+- Anschließend: Inworld-Abnahme mit Firestorm, beliebigen Alt-EEP-
+  Einstellungen, Parzellen-Ausnahmen, Administratoränderungen und
+  Neustart. Die CI allein ersetzt die visuelle Abnahme **nicht**.
+
 ## Nachrichtenprotokoll OGLSEASONS/1
 
 ```text
@@ -136,12 +219,12 @@ verwaiste Zustände zu vermeiden.
 
 ## Roadmap (separat zu entwickeln)
 
-1. **Phase 2 – Viewer-EEP:** freigegebene, versionierte Himmel-/Nebelpreset-
-   Assets; opt-in und sichere Wiederherstellung ursprünglicher EEP-Zustände,
-   Parzellenrechte respektieren; keine pauschale Überschreibung.
-2. **Phase 3 – Vegetation und Boden:** Jahreszeiten-Varianten für
-   ausgewiesene Objekte, Schnee-/Laubtexturen mit expliziter Besitzer-
-   Zustimmung, niemals fremde Contents überschreiben.
+1. **Phase 2 – Viewer-EEP (Basis umgesetzt):** flüchtiges EEP mit Wolken,
+   Dunst und Nebel. Optionale ausgefeilte Himmelspresets, Übergangsprofile
+   und Parzellenansichten später weiterentwickeln.
+2. **Phase 3 – Vegetation und Boden (Basis umgesetzt):** opt-in Linkset-
+   Varianten mit reversibler Sichtbarkeit. Schneedecken-Assets und
+   Eigentümer-Management ohne fremde Inhalte zu überschreiben folgen.
 3. **Phase 4 – Wetterphänomene:** synchronisierte Blitze/Donner,
    Nebelvolumen, Böen und sichere hydrologische Integration mit HydroEngine.
 4. **Phase 5 – Atlas/Portal-API:** regionale Wetterdaten, Wetterwarnstufen,
