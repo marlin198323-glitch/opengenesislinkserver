@@ -1,5 +1,13 @@
 # OpenGenesisLINK – Starter-Avatar-Vorlagen (Phase 1)
 
+> Stand 21.10.2026: Der geschützte Registrierungs-Endpunkt
+> `POST /api/v1/portal/avatars/register` ist implementiert.
+> In der versionierten `bin/Robust.HG.ini` sind die vorhandenen
+> Modellavatare `Benjamin Resident` und `Luna Resident` explizit
+> freigegeben; die anderen Beispiele bleiben aus Sicherheitsgründen
+> deaktiviert. Der produktive Betrieb setzt die Prüfung der
+> getragenen Itemrechte und einen echten Viewer-Erstlogin voraus.
+
 ## Ziel
 
 Das Stadtportal soll bei der Registrierung einen Starter-Avatar auswählen lassen:
@@ -39,8 +47,9 @@ LunaPublishedModel = ""
 Nach expliziter Freigabe kann `Enabled = true` gesetzt werden.
 Die Portal-Registrierung muss den Modellparameter `ogl:benjamin` oder
 `ogl:luna` über einen **authentifizierten serverseitigen**
-Registrierungs-Endpunkt an `CreateUser` übergeben. Ein öffentlicher
-Registrierungs-Endpunkt ist **noch nicht** implementiert.
+Registrierungs-Endpunkt an `CreateUser` übergeben. Eine direkte anonyme Registrierung wird weiterhin nicht angeboten:
+Der vorhandene Endpunkt akzeptiert ausschließlich einen serverseitigen
+`users:register`-API-Key nach der E-Mail-Bestätigung im Stadtportal.
 
 ## Versionierte Modellaccounts (vorbereiteter Publish-Workflow)
 
@@ -85,13 +94,16 @@ der Abnahme ist ein vollständiger, überprüfbarer Cleanup-Pfad erforderlich.
    Transfer-/Copy-Rechte, Objektinhalte und verlinkte Attachments geprüft
    und gegebenenfalls gehärtet werden. Die OGL-Alias-Funktion allein
    gewährleistet diese Prüfung noch nicht.
-3. Das Stadtportal ist noch nicht angeschlossen. Das Repository enthält
-   nur den serverseitigen Modellparameter-Integrationspunkt.
+3. Das Stadtportal muss den vorhandenen Registrierungs-POST serverseitig
+   **erst nach erfolgreicher E-Mail-Bestätigung** aufrufen; das eigentliche
+   Portal-Projekt wird nicht mit diesem Repository deployt.
 4. Unbekannte oder deaktivierte `ogl:`-IDs werden nun **vor der Kontoerstellung**
    abgelehnt. Ebenso werden fehlende Modellaccounts, Appearance oder
    benötigte Services abgewiesen. Die Portal-API muss diese Ablehnung
    korrekt als Registrierungsfehler behandeln.
-5. GitHub-CI und echte Avatar-Login-/Appearance-Tests stehen aus; ein Merge auf `main` ersetzt diese Tests nicht.
+5. GitHub-CI für den serverseitigen Registrierungsvertrag läuft; der
+   vollständige Browser→Portal→KeyHelp→ROBUST→Firestorm-Live-Test muss
+   beim Betreiber stattfinden und wird durch einen Merge nicht ersetzt.
 
 ## Zusätzliche Sicherheitsgrenze
 

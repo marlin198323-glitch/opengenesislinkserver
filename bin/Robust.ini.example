@@ -377,6 +377,17 @@
     ;; Default is false.
     ; AllowSetPassword = false
 
+ 
+[OglAvatarTemplates]
+    ; Vor der Aktivierung Copy/Transfer-Rechte der getragenen Items prüfen.
+    ; PublishedModel ist ein explizit freigegebener Avatar mit Outfit.
+    Enabled = false
+    BenjaminModel = "Benjamin Resident"
+    LunaModel = "Luna Resident"
+    RequirePublishedModels = true
+    BenjaminPublishedModel = "Benjamin Resident"
+    LunaPublishedModel = "Luna Resident"
+
 [UserAccountService]
     ; for the server connector
     LocalServiceModule = "OpenSim.Services.UserAccountService.dll:UserAccountService"
@@ -634,9 +645,9 @@
     ; World registration defaults; form may override home_region on the
     ; server-to-server call with users:register scope.
     PortalRegistrationDefaultRegionName = "Magdeburg"
-    PortalRegistrationDefaultX = 116
-    PortalRegistrationDefaultY = 120
-    PortalRegistrationDefaultZ = 22
+    PortalRegistrationDefaultX = 134
+    PortalRegistrationDefaultY = 111
+    PortalRegistrationDefaultZ = 23
     PublicBaseUrl = "http://world.stadt-nexverse.de"
 
     ; Keep privileged endpoints disabled while the public API is served over plain HTTP.
