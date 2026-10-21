@@ -5,6 +5,7 @@ opensim = Path("bin/OpenSim.ini").read_text(encoding="utf-8")
 opensim_example = Path("bin/OpenSim.ini.example").read_text(encoding="utf-8")
 robust_hg = Path("bin/Robust.HG.ini").read_text(encoding="utf-8")
 robust_hg_example = Path("bin/Robust.HG.ini.example").read_text(encoding="utf-8")
+login_source = Path("OpenSim/Services/LLLoginService/LLLoginService.cs").read_text(encoding="utf-8")
 
 expected_profile = 'ProfileServiceURL = ${Const|BaseURL}:${Const|PublicPort}'
 for name, text in (("bin/OpenSim.ini", opensim), ("bin/OpenSim.ini.example", opensim_example)):
@@ -15,6 +16,11 @@ assert 'BaseHostname = "hg.stadt-nexverse.de"' in robust_hg
 assert 'PublicPort = "80"' in robust_hg
 login_section = robust_hg.split("\n[LoginService]\n", 1)[1].split("\n[", 1)[0]
 assert 'Currency = "NV$"' in login_section, "Firestorm login currency must be NV$"
+assert 'WelcomeMessage = "Willkommen in der Stadt NexVerse! ...Beyond the Reality."' in login_section
+assert 'WelcomeMessages = "' in login_section, "NexVerse welcome rotation must be enabled"
+assert "<USERNAME>" in login_section, "NexVerse welcome rotation must support personalized greetings"
+assert 'Random.Shared.Next(m_WelcomeMessages.Length)' in login_source, "Welcome selection must happen per login"
+assert 'processedMessage = welcomeTemplate.Replace("<USERNAME>"' in login_source
 assert 'UserProfilesServiceConnector = "${Const|PublicPort}/OpenSim.Server.Handlers.dll:UserProfilesConnector"' in robust_hg
 
 profile_section = robust_hg.split("\n[UserProfilesService]\n", 1)[1].split("\n[", 1)[0]
