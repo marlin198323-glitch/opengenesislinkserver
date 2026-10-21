@@ -462,6 +462,8 @@ namespace NexVerse.Server.Api
                     ("post", "Papierkorb des ausgewählten Inventars endgültig leeren", "inventory:write", "200")),
                 ["/api/v1/users/me"] = AuthenticatedOperations(
                     ("get", "Authentifiziertes Einwohnerkonto lesen", null, "200")),
+                ["/api/v1/users/me/delete"] = AuthenticatedOperations(
+                    ("post", "Eigenes Avatar-Kernkonto nach Passwort-Neupruefung und ausdruecklicher Bestaetigung loeschen; danach Portal-Session beenden", "resident bearer only", "200")),
                 ["/api/v1/users"] = AuthenticatedOperations(
                     ("get", "Benutzerkonten durchsuchen", "admin:*", "200"),
                     ("post", "Benutzerkonto erstellen und provisionieren", "admin:*", "201")),
@@ -825,6 +827,13 @@ namespace NexVerse.Server.Api
                 "get",
                 null,
                 "User",
+                "200");
+            ApplyJsonContract(
+                paths,
+                "/api/v1/users/me/delete",
+                "post",
+                "AccountSelfDeleteRequest",
+                "AccountSelfDeleteResponse",
                 "200");
             ApplyJsonContract(
                 paths,
@@ -5322,6 +5331,30 @@ namespace NexVerse.Server.Api
                         ["account_state_reason"] = new { type = "string" },
                         ["account_state_changed"] = new { type = "integer" },
                         ["created"] = new { type = "integer" }
+                    }
+                },
+                ["AccountSelfDeleteRequest"] = new
+                {
+                    type = "object",
+                    required = new[] { "password", "confirmation" },
+                    additionalProperties = false,
+                    properties = new Dictionary<string, object>
+                    {
+                        ["password"] = new { type = "string", minLength = 1, maxLength = 256, writeOnly = true },
+                        ["confirmation"] = new { type = "string", example = "KONTO LÖSCHEN" }
+                    }
+                },
+                ["AccountSelfDeleteResponse"] = new
+                {
+                    type = "object",
+                    properties = new Dictionary<string, object>
+                    {
+                        ["success"] = new { type = "boolean" },
+                        ["account_deleted"] = new { type = "boolean" },
+                        ["deletion_scope"] = new { type = "string", example = "core_identity_only" },
+                        ["logout_required"] = new { type = "boolean" },
+                        ["remaining_external_data_may_exist"] = new { type = "boolean" },
+                        ["correlation_id"] = new { type = "string" }
                     }
                 },
                 ["UserCreateRequest"] = new

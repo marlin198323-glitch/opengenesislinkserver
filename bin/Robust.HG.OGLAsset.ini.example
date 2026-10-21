@@ -785,6 +785,9 @@
     ; Only the Stadtportal BACKEND with a dedicated users:register API key
     ; may register avatars. Enable after publishing Benjamin/Luna models.
     PortalAvatarRegistrationEnabled = false
+    ; Portal Account & Sicherheit: nur eigenstaendige Bearer-Session und Passwort.
+    ; Loescht zentralen Account, NICHT Grid-Land/NV$/Gruppen/Externdaten.
+    PortalAccountSelfDeleteEnabled = false
     ; KeyHelp HTTPS -> internal ROBUST HTTP: exact source IP of the proxy,
     ; not the original browser's X-Forwarded-For address. Reverse proxy MUST
     ; overwrite X-Forwarded-Proto: https and restrict origin port access.

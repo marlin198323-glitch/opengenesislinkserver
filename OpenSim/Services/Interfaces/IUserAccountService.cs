@@ -332,6 +332,16 @@ namespace OpenSim.Services.Interfaces
             string homeRegionId, string homeRegionName, Vector3 position);
     }
 
+    /// <summary>
+    /// Shared server-only purge boundary for local avatar core records.
+    /// Callers must independently authenticate, reverify credentials and
+    /// obtain informed confirmation. This is NOT a grid-wide GDPR purge.
+    /// </summary>
+    public interface IOglLocalAvatarDeletion
+    {
+        bool TryDeleteLocalAvatar(UUID avatarId, out string failureReason);
+    }
+
     public interface IUserAccountService
     {
         UserAccount GetUserAccount(UUID scopeID, UUID userID);
