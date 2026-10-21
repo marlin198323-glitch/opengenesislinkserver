@@ -557,6 +557,10 @@
     ; ClassifiedFee = 0
 
     WelcomeMessage = "Welcome, Avatar!"
+    ; Optional: Show a randomly selected welcome message on every successful login.
+    ; Entries are separated with |; <USERNAME> is replaced by the avatar name.
+    ; WelcomeMessages overrides MessageUrl and WelcomeMessage when configured.
+    ; WelcomeMessages = "Willkommen, <USERNAME>!|Viel Spass in deiner virtuellen Welt, <USERNAME>!"
     AllowRemoteSetLoginLevel = "false"
 
     ; For V2 map
