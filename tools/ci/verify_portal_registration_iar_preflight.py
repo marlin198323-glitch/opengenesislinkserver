@@ -173,6 +173,7 @@ assert "NexScopes.UsersRegister," in key_store
 # Production HG configuration now enables registration only for the
 # users:register machine key and explicitly trusted KeyHelp/HTTP backend.
 assert "PortalAvatarRegistrationEnabled = true" in Path("bin/Robust.HG.ini").read_text()
+assert 'PortalRegistrationTrustedProxyIPs = "109.91.20.9"' in Path("bin/Robust.HG.ini").read_text(), "Production HG proxy IP must be configured"
 for path in ("bin/Robust.HG.ini.example", "bin/Robust.ini.example",
              "bin/Robust.HG.OGLAsset.ini.example"):
     assert "PortalAvatarRegistrationEnabled = false" in Path(path).read_text(), path
