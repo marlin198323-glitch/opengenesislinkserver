@@ -645,6 +645,9 @@ namespace OpenSim.Services.UserAccountService
                 if (counts[8] != 1 || counts[6] != 0)
                     throw new InvalidOperationException("Account no longer unique or an active Presence session still exists. Nothing deleted.");
 
+                // Release read locks before prompting an administrator.
+                transaction.Commit();
+
                 if (cmdparams.Length == 5)
                 {
                     MainConsole.Instance.Output("Dry run only. To purge core avatar records: delete user {0} {1} {2} --confirm",
@@ -661,18 +664,34 @@ namespace OpenSim.Services.UserAccountService
                     return;
                 }
 
-                DeletionSql(connection, transaction,
-                    "DELETE FROM " + Quote("Friends") + " WHERE " + Quote("Friend") + " LIKE @userId",
+                using DbTransaction deletionTransaction = connection.BeginTransaction();
+                if (DeletionSql(connection, deletionTransaction,
+                        "SELECT COUNT(*) FROM " + TableName("UserAccounts") + " WHERE " +
+                            ColumnName("UserAccounts", "PrincipalID") + " = @userId",
+                        userId, postgres, false) != 1 ||
+                    DeletionSql(connection, deletionTransaction,
+                        "SELECT COUNT(*) FROM " + TableName("Presence") + " WHERE " +
+                            ColumnName("Presence", "UserID") + " = @userId",
+                        userId, false, false) != 0)
+                    throw new InvalidOperationException("Account or login state changed during confirmation.");
+
+                GridUserInfo currentState = m_GridUserService.GetGridUserInfo(userId.ToString());
+                if (currentState != null && currentState.Online)
+                    throw new InvalidOperationException("Avatar became online during confirmation.");
+
+                DeletionSql(connection, deletionTransaction,
+                    "DELETE FROM " + TableName("Friends") + " WHERE " + ColumnName("Friends", "Friend") + " LIKE @userId",
                     userId, false, true, true);
                 for (int i = 0; i < rows.Length; i++)
                 {
                     string[] row = rows[i];
-                    DeletionSql(connection, transaction,
-                        "DELETE FROM " + Quote(row[0]) + " WHERE " + Quote(row[1]) + " = @userId",
+                    DeletionSql(connection, deletionTransaction,
+                        "DELETE FROM " + TableName(row[0]) + " WHERE " + ColumnName(row[0], row[1]) + " = @userId",
                         userId, postgres && row[2] == "uuid", true);
                 }
 
-                transaction.Commit();
+                deletionTransaction.Commit();
+                m_log.WarnFormat("[USER ACCOUNT]: Administrative core avatar purge committed for {0} ({1})", account.Name, userId);
                 MainConsole.Instance.Output("Core avatar identity permanently deleted: {0} ({1})", account.Name, userId);
                 MainConsole.Instance.Output("External groups, parcels, rezzed objects, economy, profile and portal data need a separate audit.");
             }
