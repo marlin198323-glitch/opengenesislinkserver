@@ -85,6 +85,12 @@ sind Folgephasen und **nicht in Phase 1 implementiert**.
 9. Emitter-`CHANNEL` und Modul-`LSLChannel` müssen identisch sein.
    Bei deaktiviertem Modul bleibt der Emitter ohne Niederschlag.
 
+### ROBUST-Warnung: fehlendes OpenSim.Region.Framework
+
+`OpenGenesisLINK.Addons.OGLSeasons.dll` ist ein Regionsmodul und gehört ausschließlich in das Simulator-`bin` (etwa `/opt/developer/bin`). Steht die DLL auch in `/opt/robust/bin`, versucht ROBUST sie zu laden und meldet eine fehlende Abhängigkeit `OpenGenesisLINK.OpenSim.Region.Framework,0.9.3.12`. Das ist kein Fehler des Account- oder Gridservice.
+
+Zur Korrektur die DLL im ROBUST-Bin zunächst an einen sicheren Backup-Ort außerhalb des Bin-Verzeichnisses verschieben und ROBUST neu starten. Auf den Simulatoren die DLL belassen, zusammen mit dem Framework aus dem exakt gleichen Build. Ein gemeinsames `bin` für ROBUST und Simulator erfordert eine saubere Trennung der Startartefakte.
+
 ### Mono.Addins-Registrierung auf dem Simulator prüfen
 
 OGL Seasons ist ein **Regionen-Addon**, kein ROBUST-Service. Die Datei
