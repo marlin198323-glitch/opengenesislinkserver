@@ -145,8 +145,12 @@ namespace NexVerse.Server.Api
             if (!AuthorizePortal(request, response))
                 return;
 
-            string first = (request.QueryString?["first_name"] ?? string.Empty).Trim();
-            string last = (request.QueryString?["last_name"] ?? string.Empty).Trim();
+            string first = (request.QueryString?["first_name"] ??
+                request.QueryString?["FirstName"] ??
+                request.QueryString?["firstName"] ?? string.Empty).Trim();
+            string last = (request.QueryString?["last_name"] ??
+                request.QueryString?["LastName"] ??
+                request.QueryString?["lastName"] ?? string.Empty).Trim();
             if (string.IsNullOrWhiteSpace(last))
                 last = "Resident";
             if (!IsValidName(first) || !IsValidName(last))
