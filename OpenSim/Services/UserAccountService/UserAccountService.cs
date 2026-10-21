@@ -619,19 +619,26 @@ namespace OpenSim.Services.UserAccountService
                 };
                 string quote = postgres || provider.IndexOf("SQLite", StringComparison.OrdinalIgnoreCase) >= 0 ? "\"" : "`";
                 string Quote(string name) => quote + name + quote;
+                // PostgreSQL migration table identifiers are unquoted (folded
+                // to lowercase). Column names are generally case-preserving,
+                // except auth/tokens where uuid is an unquoted column.
+                string TableName(string name) => postgres ? name : Quote(name);
+                string ColumnName(string table, string column) =>
+                    postgres && (table == "auth" || table == "tokens") && column == "UUID"
+                        ? "uuid" : Quote(column);
 
                 // Preflight all required tables before mutating anything.
                 int[] counts = new int[rows.Length];
                 for (int i = 0; i < rows.Length; i++)
                 {
                     string[] row = rows[i];
-                    string sql = "SELECT COUNT(*) FROM " + Quote(row[0]) + " WHERE " + Quote(row[1]) + " = @userId";
+                    string sql = "SELECT COUNT(*) FROM " + TableName(row[0]) + " WHERE " + ColumnName(row[0], row[1]) + " = @userId";
                     counts[i] = DeletionSql(connection, transaction, sql, userId, postgres && row[2] == "uuid", false);
                     MainConsole.Instance.Output("  {0}: {1} rows", row[0], counts[i]);
                 }
 
                 int reverseFriends = DeletionSql(connection, transaction,
-                    "SELECT COUNT(*) FROM " + Quote("Friends") + " WHERE " + Quote("Friend") + " LIKE @userId",
+                    "SELECT COUNT(*) FROM " + TableName("Friends") + " WHERE " + ColumnName("Friends", "Friend") + " LIKE @userId",
                     userId, false, false, true);
                 MainConsole.Instance.Output("  Friends (reverse): {0} rows", reverseFriends);
 
