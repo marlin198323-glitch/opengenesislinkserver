@@ -78,9 +78,9 @@ for marker in (
     "PortalRegistrationTrustedProxyIPs",
     "PortalRegistrationTrustedHttpPeers",
     'PortalRegistrationDefaultRegionName", "Magdeburg"',
-    'PortalRegistrationDefaultX", 116f',
-    'PortalRegistrationDefaultY", 120f',
-    'PortalRegistrationDefaultZ", 22f',
+    'PortalRegistrationDefaultX", 134f',
+    'PortalRegistrationDefaultY", 111f',
+    'PortalRegistrationDefaultZ", 23f',
 ):
     assert marker in connector, "Missing proxy/spawn config binding: " + marker
 for marker in (
@@ -129,13 +129,50 @@ for path in ("bin/Robust.HG.ini", "bin/Robust.HG.ini.example",
     for marker in ("PortalRegistrationTrustedProxyIPs = \"\"",
                    "PortalRegistrationTrustedHttpPeers = \"\"",
                    'PortalRegistrationDefaultRegionName = "Magdeburg"',
-                   "PortalRegistrationDefaultX = 116",
-                   "PortalRegistrationDefaultY = 120",
-                   "PortalRegistrationDefaultZ = 22"):
+                   "PortalRegistrationDefaultX = 134",
+                   "PortalRegistrationDefaultY = 111",
+                   "PortalRegistrationDefaultZ = 23"):
         assert marker in config, path + ": " + marker
+# Production models are existing, worn users, not empty template aliases.
+# The signed backend may select them only by the two whitelisted model IDs.
+for path in ("bin/Robust.HG.ini", "bin/Robust.HG.ini.example",
+             "bin/Robust.HG.OGLAsset.ini.example", "bin/Robust.ini.example"):
+    config = Path(path).read_text()
+    section = config.split("\n[OglAvatarTemplates]\n", 1)[1].split("\n[", 1)[0]
+    for marker in (
+        'BenjaminModel = "Benjamin Resident"',
+        'LunaModel = "Luna Resident"',
+        "RequirePublishedModels = true",
+        'BenjaminPublishedModel = "Benjamin Resident"',
+        'LunaPublishedModel = "Luna Resident"',
+    ):
+        assert marker in section, path + ": " + marker
+assert "Enabled = true" in Path("bin/Robust.HG.ini").read_text().split(
+    "\n[OglAvatarTemplates]\n", 1)[1].split("\n[", 1)[0]
+for marker in (
+    'Value(root, "start_avatar")',
+    'Value(root, "avatar_model")',
+    'Value(root, "model")',
+    'selectedAvatar == "benjamin resident"',
+    'selectedAvatar == "luna resident"',
+    'modelAlias = selectedMale || maleModel',
+    "root.EnumerateObject()",
+    'string.Equals(property.Name.Replace("_", "").Replace("-", "")',
+    'request.QueryString?["FirstName"]',
+    'request.QueryString?["LastName"]',
+    "[OGL-REGISTRIERUNG] FEHLER: HTTP",
+    "[OGL-REGISTRIERUNG] ERFOLG:",
+):
+    assert marker in api, "Portal input compatibility / diagnostics: " + marker
+assert 'return null;\n                }\n            }\n            else\n            {\n                m_log.ErrorFormat("[USER ACCOUNT SERVICE]: A user' in account, (
+    "Persisted user failure must not be reported as a newly-created account")
 assert 'public const string UsersRegister = "users:register"' in security
 assert "NexScopes.UsersRegister," in key_store
-for path in ("bin/Robust.HG.ini", "bin/Robust.HG.ini.example", "bin/Robust.ini.example"):
+# Production HG configuration now enables registration only for the
+# users:register machine key and explicitly trusted KeyHelp/HTTP backend.
+assert "PortalAvatarRegistrationEnabled = true" in Path("bin/Robust.HG.ini").read_text()
+for path in ("bin/Robust.HG.ini.example", "bin/Robust.ini.example",
+             "bin/Robust.HG.OGLAsset.ini.example"):
     assert "PortalAvatarRegistrationEnabled = false" in Path(path).read_text(), path
 
 for marker in (
