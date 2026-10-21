@@ -21,6 +21,7 @@ namespace OpenGenesisLINK.Addons.OGLSeasons
         private readonly IEnvironmentModule m_Environment;
         private readonly bool m_AllowCustomEnvironment;
         private ViewerEnvironment m_Previous;
+        private ViewerEnvironment m_Template;
         private ViewerEnvironment m_Applied;
         private bool m_Suspended;
         private string m_LastKey;
@@ -51,6 +52,7 @@ namespace OpenGenesisLINK.Addons.OGLSeasons
                     return false;
                 }
                 m_Previous = current;
+                m_Template = (current ?? m_Environment.GetRegionEnvironment())?.Clone();
             }
             else if (!ReferenceEquals(current, m_Applied))
             {
@@ -68,7 +70,7 @@ namespace OpenGenesisLINK.Addons.OGLSeasons
 
             try
             {
-                ViewerEnvironment template = m_Previous ?? m_Environment.GetRegionEnvironment();
+                ViewerEnvironment template = m_Template;
                 if (template == null)
                     return false;
                 ViewerEnvironment overlay = template.Clone();
@@ -115,6 +117,7 @@ namespace OpenGenesisLINK.Addons.OGLSeasons
             {
                 m_Applied = null;
                 m_Previous = null;
+                m_Template = null;
                 m_LastKey = null;
                 m_Suspended = true;
             }
