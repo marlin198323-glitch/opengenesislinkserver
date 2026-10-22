@@ -1,11 +1,13 @@
 # OpenGenesisLINK ↔ NexVerse Stadtportal – Server-Gegenprüfung R409
 
 **Stand:** 23.10.2026 (Quellcode-Abgleich; keine produktiven Mutationen)  
-**Auslöser:** NEXVERSE_STADTPORTAL_WORLD_API_ABGLEICH_R409_2026-10-22.md, Stadtportal-R397–R408  
+**Auslöser:** NEXVERSE_STADTPORTAL_WORLD_API_ABGLEICH_R409_2026-10-22.md, Stadtportal-R397–R408; **präzisierte Architekturentscheidung 23.10.2026**  
 **Zielrepository:** https://github.com/opengenesislink/opengenesislinkserver  
 **World-main vor Erstellung dieses Berichts:** 9fd04acaad55d7d7eae2bbdc4c95c9b4c7df19d8 (PR #278, OGLSeasons-Mono.Addins-Fix)  
 **Reproduzierbare technische Vergleichsbasis:** 7396897d3d24ab8fac238ded1e2760d7b4544f13 (PR #275, Gruppenland-Key). **Dies ist kein verifiziertes letztes produktives Release.**  
 **Stadtportal-Quellstand laut Übergabe:** marlin198323-glitch/nexverse, Branch home-r8-footer-cookie, 6604d9008db28ec441cf40e71dc2cc2fad90b0ba. Der angegebene Portal-Branch ließ sich mit der hier verfügbaren GitHub-Verbindung nicht öffnen; Portalimplementierungen sind deshalb Quellenangaben der Übergabe, keine eigenständigen Codebefunde.
+
+**Verbindliche Scope-Korrektur vom 23.10.2026 (Betreiberentscheidung):** **Bugreports sind vollständig allein Sache des Stadtportals.** Es wird **keinerlei** World-API-/Simulator-Integration hierfür entwickelt oder betrieben. Insbesondere entfallen ein World-REST-Endpunkt, Eventhook, RegionModule, HTTPS-Forwarder, Relay, World-Token/-Secret, World-Datenbank und World-E2E-Test. Die entgegenstehenden R403–R408-Aufträge der Portalübergabe gelten für den World-Server ausdrücklich als **nicht gewünscht**, nicht als offene technische Lücken. Dies ist eine dokumentierte Scope-Änderung, keine Aussage über die Implementierung des Stadtportals.
 
 **Evidenzklassen:** Q = tatsächlicher World-GitHub-Quellcode inklusive Datei/Zeile am obigen World-HEAD; C = GitHub-Commit-Diff/Actions; P = vom Stadtportal am 22.10. gemeldeter Snapshot; L = in dieser Sitzung live geprüft. **Es liegt keine Evidenzklasse L vor**: Abruf von world.stadt-nexverse.de/api/v1/openapi.json, /health und /deutschland war aus der Prüfungsumgebung nicht möglich. Ein Quellcodepfad ist kein Beweis, dass der Endpoint auf dem produktiven ROBUST aktiv oder von außen erreichbar ist. CI-Status ist nicht gleich produktiver E2E-Test.
 
@@ -43,12 +45,12 @@ Neu in dieser technischen Spanne, aber **keine neuen öffentlichen World-Routen*
 | **R401** | PORTAL_ONLY | Portal darf unabhängig vom World-Health verfügbar bleiben. World /health bleibt getrennte Statusquelle; aktuelle Stabilität/Latenz nicht gemessen. |
 | **R402 – Orte** | VORHANDEN_UNVERAENDERT mit ABWEICHUNG | World DELETE /api/v1/places/{placeId} verlangt discovery:manage und führt eine **Kaskadenlöschung** durch. Keine World-seitige Bestätigung des Ortsnamens; dies ist Portal-UI-Logik. Bei unbekannter UUID kann **HTTP 200, deleted:false** statt 404 auftreten. Keine echten Orte gelöscht. |
 | **R402 – Kartendaten** | VORHANDEN_UNVERAENDERT mit ABWEICHUNG | Welt-Viewport maximal 16×16, Ergebnis begrenzt durch Take(256); Suche auf 32 begrenzt. **Keine** truncated/reported_regions-Metadaten im aktuellen Handler. 44 Regionen/50 belegte Zellen nicht per echter Laufzeit-Fikstur nachgewiesen. |
-| **R403** | WELTSEITIG_NEU_ERFORDERLICH | Portal-eigenes Bug-Ticket-System; World benötigt ausschließlich einen vertrauenswürdig ausgelösten, authentifizierten POST an die **Portal-Domain**. Keine World-/api/v1/bug-reports-Route nachgewiesen oder erwünscht. |
+| **R403** | PORTAL_ONLY / NICHT_GEWÜNSCHT | Bugreports (Eingang, Persistenz, Administration, Zustellung) werden ausschließlich durch das Stadtportal verantwortet. **Kein World-seitiger Integrationsbedarf.** |
 | **R404** | PORTAL_ONLY | CSS-/Kartenhintergrund-Anpassung, keine World-Änderung. |
-| **R405** | NICHT_VERIFIZIERBAR / P0-Integrationslücke | Laut Portal korrigiertes LSL-Terminal mit llDetectedPos; **Client-/LSL-Positionsdaten allein sind keine serverseitig verifizierten Avatarpositionsbelege**. Kein World-eigener bestätigender Hook gefunden. |
-| **R406** | NICHT_VERIFIZIERBAR / P0-Integrationslücke | JSON-/IM-Fallback laut Portal; World-Verifikation und geschützter Bearer-Versand fehlen als belegter Call-Flow. |
-| **R407** | NICHT_VERIFIZIERBAR / P0-Integrationslücke | source_event_id und Relay-Alternative laut Portal; kein nachgewiesenes World-Idempotenz-/Forwarder-Modul hierfür. |
-| **R408** | WELTSEITIG_NEU_ERFORDERLICH | Go-Einzelsender ist laut Übergabe optional. **Bevorzugt .NET HttpClient im Simulator-Serverprozess** mit nur serverseitig gespeicherten Secrets; der im Portal genannte Go-Branch konnte hier nicht gelesen werden. |
+| **R405** | PORTAL_ONLY / NICHT_GEWÜNSCHT | Portal/LSL-spezifische Bugterminal-Logik ist kein World-API-Arbeitsauftrag. Keine Eventhooks/Avatarverifikation im World-Code hierfür. |
+| **R406** | PORTAL_ONLY / NICHT_GEWÜNSCHT | Portal/LSL-JSON und eventueller IM-Fallback bleiben außerhalb des World-API-Projektumfangs. |
+| **R407** | PORTAL_ONLY / NICHT_GEWÜNSCHT | Report-ID/Relay sind Portal-Entscheidungen; keine World-seitige Sender-/Idempotenz-Integration. |
+| **R408** | PORTAL_ONLY / NICHT_GEWÜNSCHT | Der im Portalquellstand beschriebene CLI-Sender ist **nicht** in OpenGenesisLINK einzubinden; keine World-eigene Übertragung an das Stadtportal. |
 
 **Hinweis zur Klassifikation:** VORHANDEN_UNVERAENDERT bezieht sich auf den nachweisbaren Git-Compare 7396897→9fd04ac, **nicht** auf die unbekannte letzte produktive Release-Basis.
 
@@ -58,7 +60,7 @@ In der folgenden Matrix beziehen sich alle Q-Dateizeilen auf World-HEAD **9fd04a
 
 | ID | Ausgangspunkt | World-Pfad / Modul | Befundstatus | Vorher → Jetzt | Codebeleg Datei:Zeile + SHA | Test/HTTP-Beleg | World-Änderung? | Verantwortlich | Priorität |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| **W-01** | R403/R408 | Simulator Eventhook → Portal POST /api/v1/bug-reports | WELTSEITIG_NEU_ERFORDERLICH | kein belegter sicherer Sender → weiterhin keiner; Portal-Empfänger vorhanden laut P | OpenSim/Region/Framework/Scenes/EventManager.cs:260,843; NexVerse/Server/Api/NexVerseWorldApiConnector.cs:~840–905; 9fd04aca | World-GitHub-Suche keine BugReport-Routen; **kein E2E-201** | Ja, minimaler geschützter Adapter; **keine** World-Ticketroute/DB | World-Simulator + Portal-Backend | **P0** |
+| **W-01** | R403–R408 | **Kein** World-Bugreport-Endpunkt/Modul | PORTAL_ONLY / NICHT_GEWÜNSCHT | in Portalübergabe vorgeschlagen → durch Betreiber verworfen | Scope-Entscheidung 23.10.2026; World-API-Router NexVerse/Server/Api/NexVerseWorldApiConnector.cs (nur zur Abgrenzung), geprüfter Quellstand 9fd04aca | **World-E2E ausdrücklich nicht vorgesehen** | **Nein. Weder Code noch Tests, Token oder DB.** | Ausschließlich Stadtportal | **entfällt** |
 | **W-02** | R397/R402 | GET /api/v1/deutschland; /tiles, /xyz | VORHANDEN_UNVERAENDERT + ABWEICHEND | 16×16/256-limitiert, fehlende Truncation-Signale | NexVerse/Server/Api/NexCitizenWorldMapApi.cs:29,90–198,257–315; 9fd04aca | tools/ci/verify_citizen_world_map.py (Quellcode-Gate); 44/50-Laufzeittest fehlt | P1: Vollständigkeit/Signale + synthetischer Fixture-Test | World-API | **P1** |
 | **W-03** | R402 | DELETE /api/v1/places/{placeId} | VORHANDEN_UNVERAENDERT + ABWEICHEND | discovery:manage vorhanden; HTTP 200/deleted:false möglich, kaskadierende Entfernung | NexVerse/Server/Api/NexDiscoveryApi.cs:238–297; NexVerse/Core/Discovery/NexDiscoveryStore.cs:216–230; 9fd04aca | tools/ci/NexDiscoveryRegression/Program.cs; keine produktiven Deletes | Dokumentation und ggf. 404-/Idempotenz-Vertragsabstimmung | World/Portal | **P1** |
 | **W-04** | R286/R294/R388 | GET /api/v1/profiles/{principalId}/image | VORHANDEN_UNVERAENDERT; Live NICHT_VERIFIZIERBAR | Route/Owner-/Privatsphäre-/JPEG2000-Transcode vorhanden | NexVerse/Server/Api/NexVerseWorldApiConnector.cs:1118–1136; NexWebProfileV3Api.cs:59–104,178–330; 9fd04aca | tools/ci/verify_r287_portal_api.py; echter autorisierter 200/404-Test offen | Konfiguration/Assetservice/E2E, nicht blind neue Route | World-API/ROBUST-Betreiber | **P1** |
@@ -72,25 +74,15 @@ In der folgenden Matrix beziehen sich alle Q-Dateizeilen auf World-HEAD **9fd04a
 | **W-12** | R368–R401 | GET /api/v1/health | VORHANDEN_UNVERAENDERT; Live NICHT_VERIFIZIERBAR | Portal bleibt unabhängig, Health nur getrennte Diagnose | NexVerseWorldApiHandlers.cs:~80–110,132–145; 9fd04aca | P meldet 200 am 22.10.; in dieser Umgebung kein Liveabruf | Kein Portal-Gate auf Health koppeln | Portal/Betreiber | P2 |
 | **W-13** | R397–R402 | Map-Suchquery / Truncation | ABWEICHEND | Portal q=3–80; World q=2–80, bei mehr als 32 Treffern Abschneidung ohne Signal | NexCitizenWorldMapApi.cs:94–121; 9fd04aca | source assertion; kein >32-Fall in CI | P1: Schema/Ergebnis-Metadaten präzisieren | World/Portal | P1 |
 
-## F. Bug-Report-E2E: Inworld-Ereignis → vertrauenswürdiger World-Prozess → Portal-POST
+## F. Bugreports: verbindliche Systemgrenze (ausschließlich Stadtportal)
 
-### Istzustand
+**Architekturentscheidung des Betreibers vom 23.10.2026:** Das gesamte Bugreport-System wird allein im **Stadt-NexVerse-Stadtportal** betrieben. Für OpenGenesisLINK bzw. den OpenSim-Simulator ist **keinerlei Verbindung zu diesem System vorgesehen**. R403, R405, R406, R407 und R408 sind für die World-API daher **PORTAL_ONLY / NICHT_GEWÜNSCHT** und keine P0-Mängel.
 
-**Kein nachweisbarer, World-eigener vollständiger Call-Flow.** Die Portalquelle beschreibt LSL-Reporter v1.3, JSON-Vertrag und optionalen Go-CLI-Sender, aber **World-Quellcode und World-OpenAPI definieren gegenwärtig keinen vertrauenswürdigen Bugreport-Ingest-/Forwarding-Adapter**. Die im Repository vorhandene NexPortalIM-Integration ist für opt-in **private Freundes-IMs**, nicht für Bugtickets.
+Nicht implementieren, nicht planen, nicht konfigurieren: World-Bugreport-Routen, LSL-/Touch-/Chat-Eventadapter, Avatarpositionsverifikation speziell für Reports, RegionModule, HTTP-Post-/CLI-Sender, Proxy/Relay, World-spezifische Bearer-Schlüssel, Datenspeicher, Migrationsskripte, Monitoring oder Integrationstests für Portal-Bugreports. Auch der in der Übergabe erwähnte `NEXVERSE_BUG_REPORT_API_TOKEN` ist **kein** einzurichtendes World-Secret.
 
-Ein sichtbares LSL-Skript ist nicht geeignet, einen geheimen Service-Bearer zu enthalten. Auch von LSL gesendete UUID/Avatarname/Position dürfen nicht als bestätigte serverseitige Identität protokolliert werden.
+Die Portal-Route `POST https://stadt-nexverse.de/api/v1/bug-reports` und die Verwaltungsrouten `/api/admin/bug-reports` bleiben ausschließlich Verträge des **Stadtportals**, nicht der World-API. Wie das Stadtportal seine eigenen Meldungen empfängt und verarbeitet, ist Gegenstand seiner eigenen Entwicklung und Prüfungen. Keine vorhandene NexPortalIM-Funktion dafür umwidmen.
 
-### Zielablauf mit klarer Sicherheitsgrenze
-
-1. **Inworld-Terminal:** fest konfigurierte/allowgelistete Objekt-ID, Region und Eigentümer als Standort eines optionalen Region-Addons. Ein Touch entsteht serverseitig über das Event-Subsystem, z. B. OpenSim/Region/Framework/Scenes/EventManager.cs:260 (OnObjectGrab). Textantworten benötigen eine getrennte, zeitlich begrenzte und dem **gleichen** Avatar zugeordnete Quelle, z. B. die echte Chat-Identität an EventManager.cs:843 (OnChatFromClient). Vor Implementierung Event-Signaturen, Touch-Delegates, Chat-Kanal/Spamming/Manipulationsgefahr und Vertraulichkeit in einem technischen Spike konkret verifizieren. Dies sind **Anknüpfungspunkte**, noch kein implementierter Hook.
-2. **Bindung:** tatsächlicher ScenePresence-/Agent-ID und seine serverseitig ermittelte lokale X/Y/Z-Position zum **Zeitpunkt der verifizierten Eingabe**; RegionInfo.RegionName aus der Scene. Terminal und Avatar auf derselben Region, kein angegebener Client-Wert als Identitätsbeweis. Kein NPC/Objekt/Hypergrid-Fremdavatar ohne definierte Betreiberpolicy. Per-Agent-Rate-Limit und max. Body/Textlänge; Opt-in/Datenschutzhinweis am Terminal.
-3. **Serverseitiger Absender:** im geschützten Simulatorprozess mit bestehendem .NET-HttpClient/HTTP-Transport. Niemals Bearer in LSL, Browser, World-OpenAPI, ROBUST-Datei oder öffentlichem Script-API exponieren. Geheimnis **NEXVERSE_BUG_REPORT_API_TOKEN** ausschließlich aus prozessgeschütztem Environment, kein autoerzeugter öffentlicher Schlüssel.
-4. **Exaktes Portalziel:** HTTPS POST https://stadt-nexverse.de/api/v1/bug-reports mit Authorization: Bearer [serverseitiges Geheimnis], Content-Type: application/json, maximal **12 KiB**, **nur** avatar_name (max. 120), avatar_uuid (UUID), region (max. 160), position (endliche numerische x/y/z), text (10–4000 Unicodezeichen) und source_event_id (stabile UUID). Unbekannte Felder nicht mitsenden.
-5. **Verifizierter Erfolg:** ausschließlich **HTTP 201** und JSON ok:true, gültige UUID id, akzeptierter status (open, in_progress, resolved, closed). Fehler 400/401/503 separat erfassen; Retry ausschließlich begrenzt mit **derselben source_event_id**. Keine Nachricht im öffentlichen Log; kein stiller Doppelversand. IM-Fallback ist **nur separater Kanal**, nicht die Bestätigung eines Datenbankeintrags.
-6. **Testbarer Adapter:** zuerst Fake-Portal-HTTP-Server und synthetische Agent-/Positionsfixtures (falsches Terminal, gefälschte UUID, unberechtigte LSL-Nachricht, Replay, ungültiges JSON, Timeout, 201/400/401/503), anschließend explizit freigegebener Staging-E2E-Test.
-7. **Kein zweites World-Ticketsystem**, keine zweite World-PostgreSQL-Verbindung, keine öffentliche World-Bugreportroute. Portal ist alleiniger Ticket-Owner und betreibt bereits laut P /api/admin/bug-reports und /api/v1/bug-reports.
-
-**Entscheidung:** W-01 bleibt **P0 offen**. Ein bloßes Copy/Paste des geheimen Tokens in das LSL-Skript oder eine anonyme World-Route würde die Sicherheitsanforderung verletzen und ist **nicht** als Hotfix akzeptabel. Der Go-CLI-Sender aus R408 ist **optional**, da .NET im Simulator bereits HTTP kann; ohne verifizierten World-Eventhook bringt er keine Vertrauensbindung.
+**Fazit W-01:** Kein World-Blocker, keine World-Priorität, keine World-Änderung erforderlich. Die frühere Integrationsforderung der R409-Übergabe ist durch die spätere Betreiberentscheidung überholt.
 
 ## G. Deutschland-Gridkarte, JPEG-Kacheln, vollständige Regionen und Öffentlichkeit
 
@@ -131,7 +123,7 @@ Ein sichtbares LSL-Skript ist nicht geeignet, einen geheimen Service-Bearer zu e
 
 - Karten-Frontend: CSS, Zoom, Marker, Fullscreen, Touch-Pinch, eigener Go-JPEG-Proxy und CSP (R398–R400, R404).
 - Portal-Health-Degradierung / keine globale „Licht aus“-Seite (R401).
-- Portal-PostgreSQL-Bug-Ticketschema, Admin-Bug-Queue, Supportnotizen, Bearbeitungshistorie (R403). **Keine World-Ticket-DB**.
+- **Sämtliche** Bugreport-Funktionen einschließlich Portal-Eingang, Portal-Speicher, Admin-Queue, LSL-/Terminal-Verhalten und möglichem Portal-Sender (R403–R408). **Keine World-Anbindung, keine World-Ticket-DB und kein World-Secret.**
 - Go-Portal-Registrierungsoberfläche, E-Mail-Bestätigung, PostgreSQL-Namensblacklist und UI-Beschriftung; World-Name-/Register-Vertrag nur über bestehende Maschine-Schnittstellen.
 - Portal-News-CMS, Banner-/Layout-/Cookie-/Datenschutzseiten (R369–R396).
 - Portal-eigene Debounce-/Race-Suppression und Archivierung eigener Suchergebnisse.
@@ -149,7 +141,7 @@ Ein sichtbares LSL-Skript ist nicht geeignet, einen geheimen Service-Bearer zu e
 | Registrierung | tools/ci/verify_portal_registration_iar_preflight.py; tools/ci/NexResidentNameRegression/Program.cs | echte Namens-Normalisierung, Source-Gates; kein echter Avatar angelegt |
 | UserLevel/Bearer | tools/ci/verify_user_authorization.py; tools/ci/NexTokenRegression/Program.cs | Rollen-/Revocation-Sicherung im CI, Level=50 Portal-Policy nicht live geprüft |
 | Gruppen/Banking | Actions #39859081180; tools/ci/NexGroupsSqlAuthorizationRegression und NexLedgerSqlMatrixRegression | reale **CI-Test-DB** MariaDB/SQL, keine produktiven Finanzbewegungen |
-| Bugterminal → Portal | **KEIN World-seitiger E2E-Test** | P0 OFFEN; Bedarf an synthetischem Fake-Portal, bestätigter Agentbindung und HMAC/Bearer-Vertrauensgrenze |
+| Bugreports | **Kein World-Test vorgesehen** | Vollständig Portal-only; keine Simulator-/World-API-Integration und kein World-HTTP-E2E-Test. |
 | Live OpenAPI / Proxy / HTTP | **NICHT DURCHFÜHRBAR aus dieser Sitzung** | Online-Snapshot/Proxy-Zugriffe müssen in autorisierter Netzumgebung wiederholt werden |
 
 **Neue E2E-Fixtures vor Freigabe (nur Staging/Synthese):**
@@ -157,14 +149,13 @@ Ein sichtbares LSL-Skript ist nicht geeignet, einen geheimen Service-Bearer zu e
 2. Images: öffentlich 200 image/png oder image/jpeg bei veröffentlichtem Profil; 401 bei privatem ohne Token, 404 bei fremdem Token/falscher UUID/nicht gesetztem Bild; 503 bei bewusst fehlendem AssetService; 405 auf POST.
 3. Registration: 200 name-availability, 401 falscher Maschinen-Key, 400 Name/Home, 409 eindeutiger Namenskonflikt, 201 synthetisches Staging-Konto; keine realen Avatare registrieren.
 4. Place DELETE: 401/403 bei nicht berechtigtem Actor, 200/deleted:false bei nicht existierendem Place wie derzeit implementiert, 200/deleted:true bei synthetischem Place, danach abhängige Events/Destinations/Classifieds entfernt; 429 falls Gateway-Limiter aktiv. **Nie echte Orte löschen.**
-5. Bug: 201 plus ok:true/gültige id/Status, 400 für falsches Schema, 401 falscher Bearer, 503 bei isoliertem Portal-Store, Timeout, Retry mit gleicher source_event_id; 403 bei ungeprüftem Touch/Avatar oder Untrusted-Quelle auf der **internen Eventseite**, keine unnötige World-REST-Route.
-6. Banking/Inventory/Groups/Land: 401, 403, 404, 405, 409, 422, 429 entsprechend tatsächlich vorhandenen Handlern; nicht alle Codes sind universelle Fachantworten. Keine Live-Transfers, Inventar- oder Listings-Mutationen.
+5. Banking/Inventory/Groups/Land: 401, 403, 404, 405, 409, 422, 429 entsprechend tatsächlich vorhandenen Handlern; nicht alle Codes sind universelle Fachantworten. Keine Live-Transfers, Inventar- oder Listings-Mutationen.
 
 ## L. Erforderliche World-Änderungen (Entscheidung und Risiken)
 
 | ID | Maßnahme und Dateien | Test / OpenAPI / Migration | Priorität | Risiko |
 | --- | --- | --- | --- | --- |
-| W-01 | **NEU:** gekapseltes optionales, standardmäßig deaktiviertes Simulator-RegionModule unter NexVerse/RegionModules/... oder addons/...; bestätigter Touch/Agent und vertraulicher Nachrichteneingang; .NET-HTTPS-Forwarder zum Portal mit NEXVERSE_BUG_REPORT_API_TOKEN aus privater Environment-Datei. **Keinen** öffentlichen World-Endpoint implementieren. | Neues synthetisches Event-/HTTP-Fake-Portal-Testprojekt + CI; **keine** Änderung der World-OpenAPI nötig; **keine** World-DB-Migration | **P0** | Spoofing, Geheimnisleak, personenbezogene Texte/Position, Spam, unklare Terminal-Freigabe |
+| W-01 | **ENTFÄLLT:** Keine World-Bugreport-Integration. Keine RegionModule, Eventhooks, HTTP-Forwarder, Bearer, World-Routen, Datenbank oder Migration. | **Keine World-Tests oder OpenAPI-Änderungen**; allein Stadtportal-Verantwortung. | **entfällt** | unnötige Kopplung zweier Systeme vermeiden |
 | W-02 | **PRÜFEN/ggf. ändern:** NexCitizenWorldMapApi.cs: Truncation-/reported_regions für begrenzte Suche/Viewport, einheitliche has_default_region-Semantik; OpenAPI CitizenWorldMapResponse ergänzen, **nach** Portal-Abstimmung. | FakeGrid/MockMapService-Test mit 44 Regionen/50 JPEG-Zellen, >32 Treffern, 16/17-Bounds und VarRegion-Overlaps; kein SQL-Schemawechsel | P1 | API-Rückwärtskompatibilität, verborgen abgeschnittene Regionen |
 | W-03 | **ABSTIMMEN:** Discovery Place DELETE: huidige HTTP 200/deleted:false vs Portal-404-Erwartung, dokumentierte kaskadierende Delete-Auswirkung. Nur nach Vertragstest ändern. | NexDiscoveryRegression erweitern, OpenAPI-Statuscodes abgleichen; kein SQL-Schemawechsel | P1 | unbeabsichtigtes Entfernen abhängiger Publikationen |
 | W-04 | **E2E/OPERATOR:** Profile AssetService und öffentlicher/privater Bildtransport, HTTP-MIME/Cache. Keine neue Route ohne echten 404-Beleg. | Staging-HTTP-Test; keine Migration | P1 | Datenschutz, falsches AssetService-Routing |
@@ -172,7 +163,7 @@ Ein sichtbares LSL-Skript ist nicht geeignet, einen geheimen Service-Bearer zu e
 | W-06 | **DOKU/SCHEMA:** DiscoveryObjectResponse und Chapter11ObjectResponse enger typisieren, Banking-/Land-Nested-Owner-Felder gezielt prüfen; keine pauschale Schema-Neuschreibung. | OpenAPI-Contract-Regression und differenzbasierte Portal-Anpassung | P1/P2 | inkompatible Clients, scheinbar typisierte unbekannte Daten |
 | PORTAL_ONLY | Go/CSS/Admin-Bug-Queue/CSP/News/Supportticket-Views bleiben im Portal. | Nur Portal-CI | Keine World-Änderung | unnötige Verdoppelung vermeiden |
 
-Die P0-Implementierung ist **nicht Bestandteil dieses Audit-Commits**. Das ist eine bewusste Sicherheitsgrenze: Ohne verifizierten vertrauenswürdigen Touch-/Texteingang und die tatsächliche Server-Secret-Versorgung wäre eine schnelle „Lösung“ unsicher. R409 dokumentiert die erforderliche minimale Implementierung präzise.
+**Es gibt keinen World-P0-Bugreport-Auftrag.** W-01 ist ausdrücklich geschlossen als **PORTAL_ONLY / NICHT_GEWÜNSCHT**. Die verbleibenden World-Verbesserungen betreffen ausschließlich bestehende World-API-Funktionen.
 
 ## M. World-Commits, Betreiberfreigaben und nächster Integrationsschritt
 
@@ -183,16 +174,16 @@ Die P0-Implementierung ist **nicht Bestandteil dieses Audit-Commits**. Das ist e
 - 9fd04acaad55d7d7eae2bbdc4c95c9b4c7df19d8 – PR #278, korrigierte OGLSeasons-Framework-Abhängigkeit
 - **Audit-PR/Commit:** nach Veröffentlichung dieses Dokuments in GitHub anhand des PRs ermitteln; kein vorab erfundener SHA.
 
-**Ausstehende Betreiberfreigaben:** tatsächlicher World-Deployment-SHA; sicherer Abruf von Live-OpenAPI und früherem Snapshot; Simulatorregion/Terminal-Objekt-Allowlist für Bugreport-Spike; Portal-Bearer-Versorgung und Secret-Rotation; Proxy/TLS-Regeln; Datenschutz/Consent-Aufbewahrung; Staging-Freigabe für synthetische E2E-Tests. Keine produktive Migration oder User-/Finanz-/Orte-Änderungen durchgeführt.
+**Ausstehende Betreiberfreigaben:** tatsächlicher World-Deployment-SHA; sicherer Abruf von Live-OpenAPI und früherem Snapshot; Proxy/TLS-Regeln für die bestehenden World-Routen; Staging-Freigabe für synthetische World-API-E2E-Tests. **Keine** Freigabe für Bugreport-Integration erforderlich oder erwünscht. Keine produktive Migration oder User-/Finanz-/Orte-Änderungen durchgeführt.
 
 **Konkret an den Stadtportal-Chat zurückgeben:**
 1. World-Karte, Profile, Registrierung, Place-DELETE und Fach-APIs **existieren im World-Code**, produktive Einzelaufrufe noch nicht nachgewiesen.
-2. **Bug-Reporter P0 weiterhin offen auf World-Simulatorseite:** Portal POST ist **stadt-nexverse.de/api/v1/bug-reports**, nicht World; keine geheimen Tokens im LSL, keine parallele Bug-Tabelle.
+2. **Bugreports ausschließlich Stadtportal:** Für den World-/OpenSim-Server existiert **kein** Integrationsauftrag und **kein** P0-Blocker. Bitte R403–R408 beim Stadtportal belassen.
 3. **Place DELETE kaskadiert** über Destinations, Events und Classifieds; mögliche Antwort 200/deleted:false statt 404. Portal bitte explizit anzeigen/bestätigen.
 4. World-Karte liefert **16×16**-Bounds, bis 256 Regionen pro Viewport, **32** Suchtreffer, kein truncated/reported_regions; 44/50-VarRegion-Abnahme offen. Portal darf 32/48-Bildkappung nicht neu einführen.
 5. Avatarbild mit PublishProfile-/Owner-Prüfung und JPEG2000→PNG vorhanden; Live-404 bei falsch konfiguriertem AssetService möglich.
 6. Level 50 darf niemals automatisch admin:* werden. Explizite World-Rolle Support und Portal-Ticketpolicy unterscheiden.
 7. Portal-/World-OpenAPI-Live-Diff aus dem **echten vorherigen Snapshot** bleibt offen. Die aus GitHub geprüften PRs #276–#278 führten keine neuen OpenAPI-Operationsdefinitionen ein.
-8. **Priorität:** W-01 vertrauenswürdigen Simulator-Bug-Eventadapter designen + mit Testportal prüfen; parallel W-02 Karten-Fullness-Fixtures und W-03 Delete-Vertrag koordinieren.
+8. **Priorität:** W-02 Karten-Vollständigkeits-Fixtures und W-03 Place-DELETE-Vertrag koordinieren; W-01 ausdrücklich **nicht** bearbeiten.
 
 **Datensicherheit:** Dieser Bericht enthält weder private Benutzer-, Finanz- oder Bugreport-Daten noch Tokens/Passwörter. Alle UUIDs in fachlichen Beispielen der Übergabe waren synthetisch; dieser Report führt keine Live-POST-/DELETE-Aufrufe aus.
