@@ -618,9 +618,11 @@ Archivprüfungen bleiben auch für freigegebene Importe aktiv.</div>
 <div class="row" style="margin-top:14px;flex-wrap:wrap">
 <button class="action" id="secretGenerateRegistration">Nur Registrierungs-API-Key erstellen</button>
 <button class="action" id="secretGenerateGroupLand">Nur Gruppenland-API-Key erstellen</button>
+<button class="action" id="secretGeneratePortalIm">NexPortalIM-HMAC-Schlüssel erstellen</button>
 </div>
 <p class="authnote">Für die Stadtportal-Registrierung genügt dieser einzelne Schlüssel. Der Button ignoriert die Vorauswahl für Experiences und NexBus und verlangt keine NexBus-URLs. <code>NEXVERSE_REGISTER_API_KEY</code> gehört ausschließlich in die geschützte Umgebung des Stadtportal-Backends, niemals in Browser-JavaScript oder auf öffentliche Seiten.</p>
 <p class="authnote">Der Gruppenland-Button erstellt ausschließlich <code>groups:read</code>, unabhängig von den anderen Häkchen und ohne NexBus-URLs. <code>NEXVERSE_GROUP_LAND_API_KEY</code> gehört nur in die geschützte Environment-Datei der Simulatoren. Bereits aktive Schlüssel werden vor einer Neuausstellung geprüft.</p>
+<p class="authnote"><strong>NexPortalIM:</strong> Dieser HMAC-Schlüssel ist kein Maschinen-API-Key. Der separate Button erzeugt nach Admin-Prüfung einen kryptografisch zufälligen 48-Byte-Schlüssel direkt im Browser. Speichere <code>NEX_PORTAL_IM_SECRET</code> auf ROBUST und allen beteiligten Simulatoren mit identischem Wert. Er wird weder im Browser dauerhaft gespeichert noch an die World API übertragen; verlorene Werte lassen sich nicht wiederherstellen. Bei Rotation alle Hosts koordiniert umstellen.</p>
 <p class="authnote">Der NexBus-SharedKey ist kein World-API-Key. Er wird lokal im Browser per kryptografisch sicherem Zufall erzeugt und muss auf allen beteiligten Nodes identisch sein.</p>
 <div class="grid2">
 <div><label class="label2" for="secretPeerUrl">Simulator → Robust (NexBus-URL)</label><input id="secretPeerUrl" autocomplete="off" spellcheck="false" placeholder="https://intern.example/internal/nexbus/v1/events"></div>
@@ -1694,7 +1696,7 @@ function secretBuildLines(values) {
     'NEXVERSE_GROUP_LAND_API_KEY','NEXVERSE_EXPERIENCES_API_KEY',
     'NEXVERSE_EXPERIENCES_VIEWER_PERMISSIONS_API_KEY',
     'NEXVERSE_EXPERIENCES_VIEWER_MANAGE_API_KEY',
-    'NEXVERSE_NEXBUS_SHARED_KEY','NEXVERSE_NEXBUS_PEER_URL','NEXVERSE_NEXBUS_PEERS'];
+    'NEX_PORTAL_IM_SECRET','NEXVERSE_NEXBUS_SHARED_KEY','NEXVERSE_NEXBUS_PEER_URL','NEXVERSE_NEXBUS_PEERS'];
   $('secretOutput').value=names.filter(name=>Object.hasOwn(values,name)).map(name=>name+'='+values[name]).join('\n')+'\n';
   $('secretCopy').disabled=!Object.keys(values).length;
 }
@@ -1789,6 +1791,28 @@ async function secretAdminToken() {
   const token=adminAuthToken();
   if(!token)throw new Error('Eine aktive Admin-Sitzung mit UserLevel 200 ist erforderlich.');
   return token;
+}
+async function secretGeneratePortalIm() {
+  if(secretIssuePending)return;
+  if(!window.isSecureContext) {
+    secretStatus('HMAC-Schlüssel dürfen ausschließlich unter HTTPS generiert werden.',false);
+    return;
+  }
+  secretIssuePending=true;
+  $('secretGeneratePortalIm').disabled=true;
+  try {
+    const token=await secretAdminToken();
+    await secretJson('/api/v1/auth/admin/session',{
+      headers:{'Authorization':'Bearer '+token}});
+    if(!window.confirm('Neuen NexPortalIM-Schlüssel erstellen? Ein bestehender Schlüssel wird NICHT automatisch auf ROBUST oder Simulatoren umgestellt.'))return;
+    secretBuildLines({NEX_PORTAL_IM_SECRET:secretRandomHmac()});
+    secretStatus('Neuen NexPortalIM-HMAC-Schlüssel erzeugt. Jetzt sicher auf ROBUST und allen Simulatoren mit identischem Wert eintragen.',true);
+  }catch(error) {
+    secretStatus('NexPortalIM-Schlüssel nicht erzeugt: '+String(error.message||error),false);
+  }finally {
+    secretIssuePending=false;
+    $('secretGeneratePortalIm').disabled=false;
+  }
 }
 let secretIssuePending=false;
 async function secretGenerate(onlyRegistration=false, onlyGroupLand=false) {
@@ -1979,6 +2003,7 @@ $('adminLoginTotp').addEventListener('keydown',event=>{if(event.key==='Enter'){e
 $('secretGenerate').addEventListener('click',()=>secretGenerate());
 $('secretGenerateRegistration').addEventListener('click',()=>secretGenerate(true));
 $('secretGenerateGroupLand').addEventListener('click',()=>secretGenerate(false,true));
+$('secretGeneratePortalIm').addEventListener('click',secretGeneratePortalIm);
 $('secretCopy').addEventListener('click',secretCopy);
 $('secretClear').addEventListener('click',secretClear);
 $('secretLoadKeys').addEventListener('click',secretLoadKeys);
