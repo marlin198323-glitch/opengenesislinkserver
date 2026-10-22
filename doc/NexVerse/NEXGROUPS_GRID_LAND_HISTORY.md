@@ -88,8 +88,11 @@ Avatars und überträgt die Buchungszeilen anschließend in die nativen
 `GroupAccountDetailsReply`- und `GroupAccountTransactionsReply`-Pakete.
 
 **Konfiguration:** Der Simulator-Key unter `[NexEconomyViewer] ApiKey`
-muss für diese neue Funktion zusätzlich zu `economy:read` auch
-`groups:read` enthalten. Die World API akzeptiert für den
+muss für diese Funktion zusätzlich zu `economy:read` auch
+`groups:read` enthalten. **Der aktualisierte World-API-Schlüsselgenerator**
+für Economy stellt neue Schlüssel mit `economy:read`,
+`economy:transfer` und `groups:read` aus. Bestehende Economy-Schlüssel
+bleiben unverändert und müssen bei Bedarf explizit rotiert werden. Die World API akzeptiert für den
 Gruppenverlauf nur einen ausdrücklich doppelt berechtigten Maschinen-Key
 oder einen tatsächlich berechtigten Bewohner-Token. Ohne die zusätzliche
 Berechtigung bleibt der Kontostand funktionsfähig, der Verlauf kann jedoch
