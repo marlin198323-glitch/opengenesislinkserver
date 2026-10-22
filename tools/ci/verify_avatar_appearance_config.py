@@ -53,4 +53,12 @@ assert "Vector3.DistanceSquared(origin, grp.AbsolutePosition)" in presence
 assert "nearby.AddRange(distant);" in presence
 assert "if (cacheEmpty || !grp.IsViewerCachable)" in presence, "viewer-cache probe handling must survive"
 
-print("OpenGenesisLINK FastRez (avatar and near-world) configuration: OK")
+# The login banner is a single local chat packet, never a region broadcast.
+# A real login and enabled FastRez must both be present; crossings/TPs stay silent.
+assert "OpenGenesisLINK FastRez 2.0 aktiviert" in presence
+assert "m_scene.FastRezNearbyFirst && IsRealLogin(m_teleportFlags)" in presence
+assert "Interlocked.CompareExchange(ref m_fastRezLoginNoticeSent, 1, 0) == 0" in presence
+assert "(byte)ChatTypeEnum.Owner" in presence
+assert "ControllingClient.SendChatMessage(" in presence
+
+print("OpenGenesisLINK FastRez (avatar, near-world and private login chat) configuration: OK")
