@@ -27,6 +27,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Reflection;
 using Nini.Config;
 using NUnit.Framework;
 using OpenMetaverse;
@@ -193,5 +194,36 @@ namespace OpenSim.Region.CoreModules.Avatar.AvatarFactory
             Assert.That(eyesBake.Temporary, Is.False);
             Assert.That(eyesBake.Local, Is.False);
         }
+        [TestCase(500, 500)]
+        [TestCase(1000, 1000)]
+        [TestCase(4000, 4000)]
+        [TestCase(100, 4000)]
+        [TestCase(4001, 4000)]
+        public void TestWearablesRequestDelayBounds(int configuredDelay, int expectedDelay)
+        {
+            IniConfigSource config = new IniConfigSource();
+            config.AddConfig("Appearance").Set("WearablesRequestDelayMs", configuredDelay);
+
+            AvatarFactoryModule module = new AvatarFactoryModule();
+            module.Initialise(config);
+
+            FieldInfo delayField = typeof(AvatarFactoryModule).GetField(
+                "m_wearablesRequestDelayMs", BindingFlags.Instance | BindingFlags.NonPublic);
+            Assert.That(delayField, Is.Not.Null);
+            Assert.That((int)delayField.GetValue(module), Is.EqualTo(expectedDelay));
+        }
+
+        [Test]
+        public void TestWearablesRequestDelayLegacyDefault()
+        {
+            AvatarFactoryModule module = new AvatarFactoryModule();
+            module.Initialise(new IniConfigSource());
+
+            FieldInfo delayField = typeof(AvatarFactoryModule).GetField(
+                "m_wearablesRequestDelayMs", BindingFlags.Instance | BindingFlags.NonPublic);
+            Assert.That(delayField, Is.Not.Null);
+            Assert.That((int)delayField.GetValue(module), Is.EqualTo(4000));
+        }
+
     }
 }
