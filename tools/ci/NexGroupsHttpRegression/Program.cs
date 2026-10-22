@@ -187,6 +187,26 @@ internal static class Program
                 RegionSizeX = 256, RegionSizeY = 256
             };
             m_TestConnection = connection;
+            var handler = Route(groups, users, tokens, () => activeEconomy);
+            int port = FindPort();
+            server = new BaseHttpServer((uint)port) { ListenIPAddress = IPAddress.Loopback };
+            server.AddSimpleStreamHandler(
+                new SimpleStreamHandler("/api/v1/groups", handler, "Groups HTTP CI"), true);
+            server.Start();
+            using var http = new HttpClient { BaseAddress =
+                new Uri("http://127.0.0.1:" + port + "/"),
+                Timeout = TimeSpan.FromSeconds(12) };
+
+            UUID group = groups.CreateGroup(owner.PrincipalID.ToString(),
+                "HTTP-CI-" + Guid.NewGuid().ToString("N"), "HTTP fixture",
+                false, UUID.Zero, 0, false, false, false,
+                owner.PrincipalID, out string reason);
+            Check(!group.IsZero(), "fixture group creation failed: " + reason);
+            UUID otherGroup = groups.CreateGroup(owner.PrincipalID.ToString(),
+                "HTTP-CI-OTHER-" + Guid.NewGuid().ToString("N"), "URL mismatch",
+                false, UUID.Zero, 0, false, false, false,
+                owner.PrincipalID, out reason);
+            Check(!otherGroup.IsZero(), "second group creation failed: " + reason);
             using (var landDb = NexLedgerSqlRuntime.Resolve(
                     "OpenSim.Data.MySQL.dll", connection).CreateConnection())
             {
@@ -224,26 +244,6 @@ internal static class Program
                 Check(insert.ExecuteNonQuery() == 1,
                     "failed seeding remote land fixture");
             }
-            var handler = Route(groups, users, tokens, () => activeEconomy);
-            int port = FindPort();
-            server = new BaseHttpServer((uint)port) { ListenIPAddress = IPAddress.Loopback };
-            server.AddSimpleStreamHandler(
-                new SimpleStreamHandler("/api/v1/groups", handler, "Groups HTTP CI"), true);
-            server.Start();
-            using var http = new HttpClient { BaseAddress =
-                new Uri("http://127.0.0.1:" + port + "/"),
-                Timeout = TimeSpan.FromSeconds(12) };
-
-            UUID group = groups.CreateGroup(owner.PrincipalID.ToString(),
-                "HTTP-CI-" + Guid.NewGuid().ToString("N"), "HTTP fixture",
-                false, UUID.Zero, 0, false, false, false,
-                owner.PrincipalID, out string reason);
-            Check(!group.IsZero(), "fixture group creation failed: " + reason);
-            UUID otherGroup = groups.CreateGroup(owner.PrincipalID.ToString(),
-                "HTTP-CI-OTHER-" + Guid.NewGuid().ToString("N"), "URL mismatch",
-                false, UUID.Zero, 0, false, false, false,
-                owner.PrincipalID, out reason);
-            Check(!otherGroup.IsZero(), "second group creation failed: " + reason);
             string accounting = "/api/v1/groups/" + group + "/accounting";
 
             Check(groups.AddAgentToGroup(owner.PrincipalID.ToString(),
