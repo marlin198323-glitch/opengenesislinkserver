@@ -679,13 +679,13 @@ namespace NexVerse.Server.Api
                     {
                         try
                         {
-                            string requester = Requester(authPrincipal, request);
+                            string inviteRequester = Requester(authPrincipal, request);
                             GroupInviteInfo invite =
-                                m_Groups.GetAgentToGroupInvite(requester, inviteId);
+                                m_Groups.GetAgentToGroupInvite(inviteRequester, inviteId);
                             if (invite == null || invite.GroupID != groupId)
                                 throw new KeyNotFoundException("Group invitation was not found.");
 
-                            m_Groups.RemoveAgentToGroupInvite(requester, inviteId);
+                            m_Groups.RemoveAgentToGroupInvite(inviteRequester, inviteId);
                             Audit(authPrincipal, "group.invite.deleted", groupId, response);
                             WriteJson(response, new { deleted = true, correlation_id = Correlation(response) });
                         }
