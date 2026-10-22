@@ -72,7 +72,7 @@ namespace NexVerse.Server.Api
         private static void Add(SqliteCommand cmd, string name, object value)
             => cmd.Parameters.AddWithValue(name, value);
 
-        internal bool IsEnabled(Guid owner)
+        public bool IsEnabled(Guid owner)
         {
             lock (m_Sync)
             {
@@ -84,7 +84,7 @@ namespace NexVerse.Server.Api
             }
         }
 
-        internal void SetEnabled(Guid owner, bool enabled)
+        public void SetEnabled(Guid owner, bool enabled)
         {
             lock (m_Sync)
             {
@@ -116,7 +116,7 @@ namespace NexVerse.Server.Api
             cmd.ExecuteNonQuery();
         }
 
-        internal void DeleteHistory(Guid owner)
+        public void DeleteHistory(Guid owner)
         {
             lock (m_Sync)
             {
@@ -127,7 +127,7 @@ namespace NexVerse.Server.Api
             }
         }
 
-        internal bool Append(
+        public bool Append(
             Guid eventId, Guid sender, Guid receiver, string senderName,
             string message, string source)
         {
@@ -186,7 +186,7 @@ namespace NexVerse.Server.Api
             }
         }
 
-        internal List<NexCitizenImEntry> Read(Guid owner, long after, int limit, Guid? peer = null)
+        public List<NexCitizenImEntry> Read(Guid owner, long after, int limit, Guid? peer = null)
         {
             List<NexCitizenImEntry> entries = new List<NexCitizenImEntry>();
             lock (m_Sync)
@@ -219,7 +219,7 @@ namespace NexVerse.Server.Api
             return entries;
         }
 
-        internal List<object> Conversations(Guid owner, int limit)
+        public List<object> Conversations(Guid owner, int limit)
         {
             List<object> entries = new List<object>();
             lock (m_Sync)
