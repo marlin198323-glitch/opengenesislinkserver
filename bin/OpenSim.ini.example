@@ -197,7 +197,8 @@
 
 [NexPortalIM]
     Enabled = false
-    IngestUrl = "http://127.0.0.1/internal/nexportal/im/v1"
+    ; When ROBUST and Simulator are separate hosts use the protected HTTPS proxy path.
+    IngestUrl = "https://world.stadt-nexverse.de/internal/nexportal/im/v1"
     SharedSecret = "${Environment|NEX_PORTAL_IM_SECRET}"
 
 [OSSL]
