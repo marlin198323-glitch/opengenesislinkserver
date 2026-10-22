@@ -10,6 +10,7 @@
       <HintPath>../../../bin/Mono.Data.Sqlite.dll</HintPath>
       <Private>True</Private>
     </Reference>
+    <Compile Include="../../../NexVerse/Server/Api/INexCitizenImStore.cs" Link="INexCitizenImStore.cs" />
     <Compile Include="../../../NexVerse/Server/Api/NexCitizenImStore.cs" Link="NexCitizenImStore.cs" />
   </ItemGroup>
 </Project>
