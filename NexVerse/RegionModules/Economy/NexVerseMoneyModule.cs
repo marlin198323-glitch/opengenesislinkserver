@@ -1265,7 +1265,7 @@ namespace NexVerse.RegionModules.Economy
                 return;
             }
 
-            if (!TryGetGroupBalance(groupId, out int balance))
+            if (!TryGetGroupBalance(groupId, out uint balance))
             {
                 client.SendAgentAlertMessage(
                     "Gruppen-NV$ sind derzeit nicht erreichbar. Bitte erneut versuchen.", false);
@@ -1274,7 +1274,7 @@ namespace NexVerse.RegionModules.Economy
             }
 
             client.SendGroupAccountingSummary(client, groupId, requestID,
-                balance < 0 ? 0u : (uint)balance, 0, 0);
+                balance, 0, 0);
         }
 
         private void HandleGroupAccountDetailsRequest(
@@ -1313,7 +1313,7 @@ namespace NexVerse.RegionModules.Economy
         // supplied name or balance. Only authenticated group accountants
         // reach this helper. Provisioning the group wallet is idempotent and
         // does not create any NV$ or ledger postings.
-        private bool TryGetGroupBalance(UUID groupId, out int balance)
+        private bool TryGetGroupBalance(UUID groupId, out uint balance)
         {
             balance = 0;
             try
@@ -1359,8 +1359,17 @@ namespace NexVerse.RegionModules.Economy
                     !money.TryGetInt64(out long ledgerBalance))
                     return false;
 
-                balance = ledgerBalance > int.MaxValue ? int.MaxValue :
-                    ledgerBalance < int.MinValue ? int.MinValue : (int)ledgerBalance;
+                // The viewer packet uses uint, while the ledger is signed
+                // 64-bit. Do not silently saturate or replace a negative
+                // balance with an apparently valid amount.
+                if (ledgerBalance < 0 || ledgerBalance > uint.MaxValue)
+                {
+                    m_Log.WarnFormat(
+                        "[NEX-ECONOMY-VIEWER]: Group balance outside viewer range for {0}",
+                        groupId);
+                    return false;
+                }
+                balance = (uint)ledgerBalance;
                 return true;
             }
             catch (Exception e)
