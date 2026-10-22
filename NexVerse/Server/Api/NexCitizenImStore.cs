@@ -10,7 +10,7 @@ namespace NexVerse.Server.Api
     /// Separate, opt-in portal transcript store. This is NOT the OpenSim offline-IM
     /// database. Each message is recorded only for opted-in local participants.
     /// </summary>
-    internal sealed class NexCitizenImStore
+    internal sealed class NexCitizenImStore : INexCitizenImStore
     {
         private readonly object m_Sync = new object();
         private readonly string m_ConnectionString;
