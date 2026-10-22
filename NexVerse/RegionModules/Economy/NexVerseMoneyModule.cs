@@ -1254,14 +1254,14 @@ namespace NexVerse.RegionModules.Economy
         }
 
         private void HandleGroupAccountSummaryRequest(
-            IClientAPI client, UUID agentId, UUID groupId)
+            IClientAPI client, UUID agentId, UUID groupId, UUID requestID)
         {
             if (!CanReadGroupAccount(client, agentId, groupId))
             {
                 m_Log.DebugFormat("[NEX-ECONOMY-VIEWER]: Denied group accounting summary: avatar={0}, group={1}", agentId, groupId);
                 // Send a non-sensitive reply so the viewer can terminate its
                 // loading state, without revealing an unauthorized balance.
-                client?.SendGroupAccountingSummary(client, groupId, 0, 0, 0);
+                client?.SendGroupAccountingSummary(client, groupId, requestID, 0, 0, 0);
                 return;
             }
 
@@ -1269,11 +1269,11 @@ namespace NexVerse.RegionModules.Economy
             {
                 client.SendAgentAlertMessage(
                     "Gruppen-NV$ sind derzeit nicht erreichbar. Bitte erneut versuchen.", false);
-                client.SendGroupAccountingSummary(client, groupId, 0, 0, 0);
+                client.SendGroupAccountingSummary(client, groupId, requestID, 0, 0, 0);
                 return;
             }
 
-            client.SendGroupAccountingSummary(client, groupId,
+            client.SendGroupAccountingSummary(client, groupId, requestID,
                 balance < 0 ? 0u : (uint)balance, 0, 0);
         }
 
