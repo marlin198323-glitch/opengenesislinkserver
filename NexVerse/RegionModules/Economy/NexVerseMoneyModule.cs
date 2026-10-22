@@ -1290,10 +1290,23 @@ namespace NexVerse.RegionModules.Economy
             // details; unauthorized viewers get a harmless empty response.
             if (!CanReadGroupAccount(client, agentId, groupId))
                 m_Log.DebugFormat("[NEX-ECONOMY-VIEWER]: Denied group accounting details for {0}", groupId);
-            // There is currently no mapped billing-period breakdown in the
-            // legacy viewer protocol. Never fabricate transactions or tax.
+            if (!CanReadGroupAccount(client, agentId, groupId))
+            {
+                client.SendGroupAccountingDetails(client, groupId, transactionId,
+                    sessionId, 0);
+                return;
+            }
+            if (!TryGetGroupHistory(groupId, false,
+                    out IReadOnlyList<GroupAccountHistoryEntry> entries))
+            {
+                client.SendAgentAlertMessage(
+                    "Gruppen-NV$-Historie ist derzeit nicht erreichbar.", false);
+                client.SendGroupAccountingDetails(client, groupId, transactionId,
+                    sessionId, 0);
+                return;
+            }
             client.SendGroupAccountingDetails(client, groupId, transactionId,
-                sessionId, 0);
+                sessionId, 0, entries);
         }
 
         private void HandleGroupAccountTransactionsRequest(
@@ -1304,9 +1317,110 @@ namespace NexVerse.RegionModules.Economy
                 client.AgentId != agentId)
                 return;
             if (!CanReadGroupAccount(client, agentId, groupId))
+            {
                 m_Log.DebugFormat("[NEX-ECONOMY-VIEWER]: Denied group sales detail for {0}", groupId);
+                client.SendGroupTransactionsSummaryDetails(client, groupId,
+                    transactionId, sessionId, 0);
+                return;
+            }
+            if (!TryGetGroupHistory(groupId, true,
+                    out IReadOnlyList<GroupAccountHistoryEntry> sales))
+            {
+                client.SendAgentAlertMessage(
+                    "Gruppen-NV$-Verkaeufe sind derzeit nicht erreichbar.", false);
+                client.SendGroupTransactionsSummaryDetails(client, groupId,
+                    transactionId, sessionId, 0);
+                return;
+            }
             client.SendGroupTransactionsSummaryDetails(client, groupId,
-                transactionId, sessionId, 0);
+                transactionId, sessionId, 0, sales);
+        }
+
+        // The simulator authenticates as a narrowly scoped backend and
+        // verifies the connected avatar's Accountable power first. The
+        // World API independently checks both groups:read and economy:read.
+        private bool TryGetGroupHistory(UUID groupId, bool salesOnly,
+            out IReadOnlyList<GroupAccountHistoryEntry> entries)
+        {
+            entries = Array.Empty<GroupAccountHistoryEntry>();
+            try
+            {
+                using HttpRequestMessage request = CreateRequest(
+                    HttpMethod.Get, "/api/v1/groups/" +
+                    Uri.EscapeDataString(groupId.ToString()) + "/transactions");
+                using HttpResponseMessage response = m_Http.Send(request);
+                if (!response.IsSuccessStatusCode)
+                {
+                    m_Log.WarnFormat(
+                        "[NEX-ECONOMY-VIEWER]: Group history HTTP {0} for {1}",
+                        (int)response.StatusCode, groupId);
+                    return false;
+                }
+                using JsonDocument data = JsonDocument.Parse(
+                    response.Content.ReadAsStringAsync().GetAwaiter().GetResult());
+                if (!data.RootElement.TryGetProperty(
+                        "transactions", out JsonElement items) ||
+                    items.ValueKind != JsonValueKind.Array)
+                    return false;
+
+                List<GroupAccountHistoryEntry> rows =
+                    new List<GroupAccountHistoryEntry>();
+                foreach (JsonElement item in items.EnumerateArray())
+                {
+                    if (!item.TryGetProperty("amount", out JsonElement rawAmount) ||
+                        !rawAmount.TryGetInt64(out long signed) ||
+                        signed < int.MinValue || signed > int.MaxValue)
+                        return false;
+
+                    string kind = item.TryGetProperty("kind", out JsonElement k) &&
+                        k.ValueKind == JsonValueKind.String ?
+                        k.GetString() ?? string.Empty : string.Empty;
+                    // The legacy Sales tab must never label ordinary
+                    // transfers or refunds as a sale.
+                    bool isSale = signed > 0 &&
+                        (kind.Contains("sale", StringComparison.OrdinalIgnoreCase) ||
+                         kind.Contains("commerce", StringComparison.OrdinalIgnoreCase) ||
+                         kind.Contains("purchase", StringComparison.OrdinalIgnoreCase));
+                    if (salesOnly && !isSale)
+                        continue;
+
+                    string note = item.TryGetProperty("description", out JsonElement d) &&
+                        d.ValueKind == JsonValueKind.String ?
+                        d.GetString() ?? string.Empty : string.Empty;
+                    string reference = item.TryGetProperty("reference", out JsonElement r) &&
+                        r.ValueKind == JsonValueKind.String ?
+                        r.GetString() ?? string.Empty : string.Empty;
+                    string timestamp = item.TryGetProperty("occurred_at", out JsonElement t) &&
+                        t.ValueKind == JsonValueKind.String ?
+                        t.GetString() ?? string.Empty : string.Empty;
+                    if (DateTimeOffset.TryParse(timestamp,
+                            out DateTimeOffset occurred))
+                        timestamp = occurred.UtcDateTime.ToString("yyyy-MM-dd HH:mm");
+
+                    rows.Add(new GroupAccountHistoryEntry
+                    {
+                        Description = (string.IsNullOrWhiteSpace(note) ? kind : note),
+                        Time = timestamp,
+                        // The ledger has no authenticated buyer display
+                        // name; never guess a resident or counterparty.
+                        User = "NV$ Ledger",
+                        Item = string.IsNullOrWhiteSpace(reference) ? kind : reference,
+                        Amount = (int)signed,
+                        Type = 0
+                    });
+                    if (rows.Count >= 200)
+                        break;
+                }
+                entries = rows;
+                return true;
+            }
+            catch (Exception e)
+            {
+                m_Log.WarnFormat(
+                    "[NEX-ECONOMY-VIEWER]: Group history lookup failed for {0}: {1}",
+                    groupId, e.Message);
+                return false;
+            }
         }
 
         // Ledger API always uses the account UUID; it never trusts a viewer

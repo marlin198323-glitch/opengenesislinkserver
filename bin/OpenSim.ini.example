@@ -151,6 +151,9 @@
     Enabled = true
     LegacyFirestormCompatibility = true
     WorldApiBaseUrl = "${Const|BaseURL}:${Const|PublicPort}"
+    ; Dedicated backend-only groups:read machine key, created in the World API.
+    ; Without it, the Firestorm group land tab sees local simulator regions only.
+    GroupLandApiKey = "${Environment|NEXVERSE_GROUP_LAND_API_KEY}"
     RequestTimeoutMilliseconds = 3000
 
 [NexExperiencesViewer]

@@ -283,6 +283,8 @@
 [NexGroups]
     ; OpenGenesisLINK NexGroups management/parity facade.
     Enabled = true
+    ; Read shared RegionStore land + GridService to locate remote group parcels.
+    EnableGridWideLand = true
 
 [NexExperiences]
     ; Persistent store: only one local Robust writer is supported.

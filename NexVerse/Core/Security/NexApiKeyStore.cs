@@ -101,6 +101,9 @@ namespace NexVerse.Core.Security
                     NexScopes.EstatesManage,
                     NexScopes.EconomyRead,
                     NexScopes.EconomyTransfer,
+                    // Viewer simulator backend may read group-owned land
+                    // only via an explicitly granted groups:read machine key.
+                    NexScopes.GroupsRead,
                     NexScopes.ExperiencesScript,
                     // Separate trusted simulator CAP transport. This is
                     // deliberately NOT experiences:manage or admin:*.

@@ -756,6 +756,21 @@ namespace NexVerse.Server.Api
                                     ? NexEconomyConnector.Current.Economy
                                     : null);
 
+                    // Group-owned land may be hosted on another simulator.
+                    // Query the shared RegionStore database read-only and
+                    // resolve region coordinates through the grid service.
+                    if (nexGroupsConfig.GetBoolean("EnableGridWideLand", true) &&
+                        grid != null &&
+                        !string.IsNullOrWhiteSpace(databaseStorageProvider) &&
+                        !string.IsNullOrWhiteSpace(databaseConnectionString))
+                    {
+                        nexGroupsApi.ConfigureLandDirectory(
+                            new NexGroupLandDirectory(
+                                databaseStorageProvider,
+                                databaseConnectionString,
+                                grid));
+                    }
+
                     server.AddSimpleStreamHandler(
                         new SimpleStreamHandler(
                             "/api/v1/groups",

@@ -21,10 +21,14 @@ using OpenSim.Framework.Console;
 using OpenSim.Framework.Servers.HttpServer;
 using OpenSim.Groups;
 using OpenSim.Services.Interfaces;
+using GridRegion = OpenSim.Services.Interfaces.GridRegion;
 using OpenSim.Services.UserAccountService;
 
 internal static class Program
 {
+    private static IGridService m_TestGrid;
+    private static string m_TestConnection;
+
     private static void Check(bool ok, string what)
     {
         if (!ok) throw new InvalidOperationException("Groups HTTP integration: " + what);
@@ -66,14 +70,28 @@ internal static class Program
 
     private static SimpleStreamMethod Route(GroupsService groups,
         UserAccountService users, HmacNexAccessTokenService tokens,
-        Func<NexEconomyService> economy)
+        Func<NexEconomyService> economy, INexApiKeyStore keys)
     {
         Assembly assembly = Assembly.Load("NexVerse.Server.Api");
         Type authType = assembly.GetType("NexVerse.Server.Api.NexApiAuthenticator", true);
         Type groupsType = assembly.GetType("NexVerse.Server.Api.NexGroupsApi", true);
         var auth = Construct(authType, users, new NexAuthorizationService(),
-            tokens, null, null, 200);
+            tokens, null, keys, 200);
         var api = Construct(groupsType, auth, null, groups, economy);
+        // A second simulator's group parcels are projected by the central
+        // directory. Configure it through the same optional production hook.
+        // Tests use an isolated SQL table and a fake grid registry.
+        if (m_TestGrid != null)
+        {
+            Type directoryType = assembly.GetType(
+                "NexVerse.Server.Api.NexGroupLandDirectory", true);
+            object directory = Construct(directoryType,
+                "OpenSim.Data.MySQL.dll", m_TestConnection, m_TestGrid);
+            groupsType.GetMethod("ConfigureLandDirectory",
+                BindingFlags.Public | BindingFlags.Instance)!
+                .Invoke(api, new[] { directory });
+        }
+
         MethodInfo handle = groupsType.GetMethod("Handle",
             BindingFlags.Instance | BindingFlags.Public);
         Check(handle != null, "NexGroupsApi.Handle missing");
@@ -155,10 +173,29 @@ internal static class Program
 
             var runtime = NexLedgerSqlRuntime.Resolve("OpenSim.Data.MySQL.dll", connection);
             NexLedgerSqlStore store = runtime.CreateStore();
-            var economy = new NexEconomyService(new NexDoubleEntryLedger(store), store);
+            var ledger = new NexDoubleEntryLedger(store);
+            var economy = new NexEconomyService(ledger, store);
             NexEconomyService activeEconomy = economy;
 
-            var handler = Route(groups, users, tokens, () => activeEconomy);
+            // One remote group parcel in the same authoritative RegionStore.
+            // Its region is not hosted by this HTTP process.
+            UUID remoteRegion = UUID.Random();
+            UUID parcel = UUID.Random();
+            m_TestGrid = DispatchProxy.Create<IGridService, GroupGridProxy>();
+            ((GroupGridProxy)m_TestGrid).Region = new GridRegion
+            {
+                RegionID = remoteRegion, RegionName = "Remote CI Region",
+                RegionLocX = 256000, RegionLocY = 258560,
+                RegionSizeX = 256, RegionSizeY = 256
+            };
+            m_TestConnection = connection;
+            var keyStore = new PersistentNexApiKeyStore(
+                Path.Combine(scratch, "keys.json"));
+            var machineKey = keyStore.Create("Groups Viewer Service",
+                new[] { NexScopes.GroupsRead, NexScopes.EconomyRead });
+            var groupsOnlyKey = keyStore.Create("Group Land Service",
+                new[] { NexScopes.GroupsRead });
+            var handler = Route(groups, users, tokens, () => activeEconomy, keyStore);
             int port = FindPort();
             server = new BaseHttpServer((uint)port) { ListenIPAddress = IPAddress.Loopback };
             server.AddSimpleStreamHandler(
@@ -178,6 +215,43 @@ internal static class Program
                 false, UUID.Zero, 0, false, false, false,
                 owner.PrincipalID, out reason);
             Check(!otherGroup.IsZero(), "second group creation failed: " + reason);
+            using (var landDb = NexLedgerSqlRuntime.Resolve(
+                    "OpenSim.Data.MySQL.dll", connection).CreateConnection())
+            {
+                landDb.Open();
+                using var schema = landDb.CreateCommand();
+                schema.CommandText =
+                    "CREATE TABLE IF NOT EXISTS land (" +
+                    "UUID varchar(255) PRIMARY KEY, RegionUUID varchar(255), " +
+                    "OwnerUUID varchar(255), GroupUUID varchar(255), " +
+                    "Name varchar(255), Description varchar(255), " +
+                    "IsGroupOwned int, Area int, SalePrice int, " +
+                    "SnapshotUUID varchar(255), UserLocationX float, " +
+                    "UserLocationY float, UserLocationZ float)";
+                schema.ExecuteNonQuery();
+                using var insert = landDb.CreateCommand();
+                insert.CommandText =
+                    "INSERT INTO land (UUID, RegionUUID, OwnerUUID, GroupUUID, " +
+                    "Name, Description, IsGroupOwned, Area, SalePrice, " +
+                    "SnapshotUUID, UserLocationX, UserLocationY, UserLocationZ) " +
+                    "VALUES (@parcel, @region, @owner, @group, " +
+                    "'Remote parcel', 'Other simulator', 1, 512, 0, " +
+                    "@snapshot, 12, 24, 30)";
+                foreach ((string paramName, string value) in new[] {
+                    ("@parcel", parcel.ToString()),
+                    ("@region", remoteRegion.ToString()),
+                    ("@owner", owner.PrincipalID.ToString()),
+                    ("@group", group.ToString()),
+                    ("@snapshot", UUID.Random().ToString()) })
+                {
+                    var param = insert.CreateParameter();
+                    param.ParameterName = paramName;
+                    param.Value = value;
+                    insert.Parameters.Add(param);
+                }
+                Check(insert.ExecuteNonQuery() == 1,
+                    "failed seeding remote land fixture");
+            }
             string accounting = "/api/v1/groups/" + group + "/accounting";
 
             Check(groups.AddAgentToGroup(owner.PrincipalID.ToString(),
@@ -200,6 +274,77 @@ internal static class Program
             await Verify(http, accounting + "?requester_id=" + owner.PrincipalID,
                 strangerToken, HttpStatusCode.Forbidden, "error");
             await Verify(http, accounting, ownerToken, HttpStatusCode.OK, "nvban");
+            // Ensure the API returns real signed ledger postings, not a
+            // fabricated empty/history placeholder.
+            var system = new NexLedgerAccount(
+                Guid.NewGuid(), NexLedgerAccountClass.System,
+                NexLedgerSide.Debit, "system:groups-ci:" +
+                Guid.NewGuid().ToString("N"), "NexGroups CI System");
+            Check(ledger.TryCreateAccount(system), "test system wallet create failed");
+            economy.AdministrativeAdjustment(group.Guid, system.AccountId,
+                73, owner.PrincipalID.ToString(), "Group history SQL proof");
+            string historyUrl = "/api/v1/groups/" + group + "/transactions";
+            using (var req = new HttpRequestMessage(HttpMethod.Get, historyUrl))
+            {
+                req.Headers.Authorization =
+                    new AuthenticationHeaderValue("Bearer", ownerToken);
+                using var resp = await http.SendAsync(req);
+                Check(resp.StatusCode == HttpStatusCode.OK,
+                    "owner transaction read failed");
+                using var result = JsonDocument.Parse(
+                    await resp.Content.ReadAsStringAsync());
+                var lines = result.RootElement.GetProperty("transactions");
+                Check(lines.GetArrayLength() == 1 &&
+                    lines[0].GetProperty("amount").GetInt64() == 73,
+                    "group transaction history omitted real credit or signed it incorrectly");
+            }
+            using (var req = new HttpRequestMessage(HttpMethod.Get, historyUrl))
+            {
+                req.Headers.TryAddWithoutValidation("X-NexVerse-Api-Key", machineKey.ApiKey);
+                using var resp = await http.SendAsync(req);
+                Check(resp.StatusCode == HttpStatusCode.OK,
+                    "trusted dual-scoped simulator history request was denied");
+            }
+            using (var req = new HttpRequestMessage(HttpMethod.Get, historyUrl))
+            {
+                req.Headers.TryAddWithoutValidation("X-NexVerse-Api-Key", groupsOnlyKey.ApiKey);
+                using var resp = await http.SendAsync(req);
+                Check(resp.StatusCode == HttpStatusCode.Forbidden,
+                    "groups:read key without economy:read gained finance history");
+            }
+            string land = "/api/v1/groups/" + group + "/land";
+            await Verify(http, land, ownerToken, HttpStatusCode.OK, "parcels");
+            using (var req = new HttpRequestMessage(HttpMethod.Get, land))
+            {
+                req.Headers.TryAddWithoutValidation("X-NexVerse-Api-Key", groupsOnlyKey.ApiKey);
+                using var resp = await http.SendAsync(req);
+                Check(resp.StatusCode == HttpStatusCode.OK,
+                    "trusted group land machine key failed");
+            }
+            await Verify(http, land, strangerToken, HttpStatusCode.Forbidden, "error");
+            await Verify(http, land + "?requester_id=" + owner.PrincipalID,
+                strangerToken, HttpStatusCode.Forbidden, "error");
+            await Verify(http, "/api/v1/groups/" + group + "/transactions",
+                ownerToken, HttpStatusCode.OK, "transactions");
+            await Verify(http, "/api/v1/groups/" + group + "/transactions",
+                strangerToken, HttpStatusCode.Forbidden, "error");
+            await Verify(http, "/api/v1/groups/" + group + "/transactions",
+                memberToken, HttpStatusCode.Forbidden, "error");
+            using (var request = new HttpRequestMessage(HttpMethod.Get, land))
+            {
+                request.Headers.Authorization =
+                    new AuthenticationHeaderValue("Bearer", ownerToken);
+                using var response = await http.SendAsync(request);
+                using var result = JsonDocument.Parse(
+                    await response.Content.ReadAsStringAsync());
+                var items = result.RootElement.GetProperty("parcels");
+                Check(items.GetArrayLength() == 1 &&
+                    items[0].GetProperty("parcel_id").GetString() == parcel.ToString() &&
+                    items[0].GetProperty("region_name").GetString() == "Remote CI Region" &&
+                    items[0].GetProperty("global_x").GetUInt32() == 256012u,
+                    "grid-wide land omitted remote region or incorrect coordinates");
+            }
+
 
             UUID accountingRole = UUID.Random();
             Check(groups.AddGroupRole(owner.PrincipalID.ToString(), group,
@@ -264,6 +409,18 @@ internal static class Program
                     "pending wallet fixture group cleanup failed: " + reason);
             }
 
+            using (var landDb = NexLedgerSqlRuntime.Resolve(
+                    "OpenSim.Data.MySQL.dll", connection).CreateConnection())
+            {
+                landDb.Open();
+                using var clean = landDb.CreateCommand();
+                clean.CommandText = "DELETE FROM land WHERE UUID = @id";
+                var param = clean.CreateParameter();
+                param.ParameterName = "@id";
+                param.Value = parcel.ToString();
+                clean.Parameters.Add(param);
+                clean.ExecuteNonQuery();
+            }
             Check(groups.DeleteGroup(owner.PrincipalID.ToString(), group, out reason),
                 "first fixture cleanup failed: " + reason);
             Check(groups.DeleteGroup(owner.PrincipalID.ToString(), otherGroup, out reason),
@@ -275,5 +432,17 @@ internal static class Program
             server?.Stop(true);
             try { Directory.Delete(scratch, true); } catch (IOException) {}
         }
+    }
+}
+
+internal class GroupGridProxy : DispatchProxy
+{
+    public GridRegion Region { get; set; }
+
+    protected override object Invoke(MethodInfo method, object[] args)
+    {
+        if (method.Name == "GetRegionByUUID")
+            return (UUID)args[1] == Region?.RegionID ? Region : null;
+        throw new NotSupportedException(method.Name);
     }
 }
