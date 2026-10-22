@@ -209,7 +209,11 @@ namespace OpenSim.Region.ClientStack.Linden
                 for (int i = 0; i < numberMeshs; i++)
                 {
                     ameshCostParam curCost = new ameshCostParam();
-                    OSD meshData = resources.mesh_list.Array[i];
+                    if (resources.mesh_list.Array[i] is not OSD meshData)
+                    {
+                        error = "Invalid mesh list entry at index " + i;
+                        return false;
+                    }
                     if (meshData == null || meshData.Type != OSDType.Binary)
                     {
                         error = "Invalid mesh binary data at index " + i;
@@ -249,8 +253,9 @@ namespace OpenSim.Region.ClientStack.Linden
             int skipedSmall = 0;
             for (int i = 0; i < numberInstances; i++)
             {
-                if (!TryParseModelInstance(resources.instance_list.Array[i],
-                    numberMeshs, out Vector3 scale, out int mesh, out error))
+                if (resources.instance_list.Array[i] is not OSD rawInstance ||
+                    !TryParseModelInstance(rawInstance, numberMeshs,
+                        out Vector3 scale, out int mesh, out error))
                 {
                     error = "Invalid model instance " + i + ": " + error;
                     return false;
