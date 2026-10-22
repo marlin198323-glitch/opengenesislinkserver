@@ -25,11 +25,11 @@ Live-Datenbankzustand.
 - Der Viewer schickt `PlacesQuery` mit `DFQ_GROUP_OWNED=0x100`,
   Gruppen-UUID im `QueryID` und eigener `TransactionID`. Der
   bisherige NexDiscoveryViewerModule bediente nur `DirPlacesQuery`,
-  nicht `PlacesQuery`. Jetzt liefert er eine erste
-  Gruppenland-Antwort für Parzellen auf **den in diesem
-  Simulatorprozess laufenden Regionen**. Die Daten werden aus den
-  echten `LandChannel.AllParcels()` geladen und die Gruppenmitgliedschaft
-  autoritativ geprüft.
+  nicht `PlacesQuery`. Mit konfiguriertem `GroupLandApiKey` wird
+  jetzt die gridweite Gruppenlandliste aus dem zentralen SQL-RegionStore
+  abgefragt. Ohne diesen Schlüssel bleibt die Abfrage auf lokale
+  Simulatorregionen beschränkt. Die Gruppenmitgliedschaft wird
+  vor der Anfrage geprüft.
 - Für Gruppen-NV$ existierten bereits `GroupAccountSummaryRequest`,
   `DetailsRequest`, `TransactionsRequest` im UDP-Layer. Das
   NexVerseMoneyModule antwortete nicht. Jetzt werden die Events
@@ -40,11 +40,10 @@ Live-Datenbankzustand.
   dem Viewer übernehmen; zuvor nutzte der LLClientView-Sendeweg
   irrtümlich die Avatar-UUID. Deshalb konnte Firestorm eine
   Abrechnungsantwort nicht der geöffneten Registerkarte zuordnen.
-- Leere Gruppenabrechnungsdetails/Verkäufe werden ohne erfundene
-  Ledger-Transaktionen als leere Ergebnisliste zurückgegeben.
-  Eine vollständige 7-Tage-Umsatzhistorie wird in dieser Iteration
-  **noch nicht** aus dem Ledger auf die Firestorm-Detailansicht
-  abgebildet.
+- Seit PR #274 werden autorisierte NV$-Ledgerbuchungen der letzten
+  sieben Tage über `/api/v1/groups/{id}/transactions` gelesen und
+  auf Firestorm-Gruppenabrechnungs-/Verkaufspakete abgebildet.
+  Gegenkonten und erfundene Verkäufe werden nicht offengelegt.
 
 ## Nach Deployment prüfen
 
@@ -57,12 +56,15 @@ Live-Datenbankzustand.
    Wenn nicht, Berechtigungsanzeige und zentrale
    `os_groups_membership`-Zeile sowie Viewer-Gruppen-Updates
    prüfen. Kein Rechtebypass per SQL einführen.
-3. „Land und NV$“ erneut öffnen: bei Mitgliedschaft sollte der
-   Gruppenland-Reiter nicht mehr auf eine fehlende Paketantwort
-   warten. Für Land auf **anderen Simulatorprozessen** wird noch
-   eine zentrale oder delegierte Gruppenlandabfrage benötigt.
+3. „Land und NV$“ erneut öffnen: bei Mitgliedschaft sollte die
+   zentrale Gruppenland-Abfrage Parzellen aus anderen Simulatorprozessen
+   ebenfalls anzeigen. Voraussetzung: gemeinsamer SQL-RegionStore,
+   `[NexGroups] EnableGridWideLand = true` und gültiger
+   `[NexDiscoveryViewer] GroupLandApiKey` mit `groups:read`.
+   Ohne Backend-Schlüssel gilt weiterhin die lokale Fallback-Liste.
 4. Für Gruppen-NV$ benötigt der Simulator-API-Key
-   `economy:read`. Zum erstmaligen Anlegen fehlender
+   `economy:read` und für den Firestorm-Gruppenverlauf zusätzlich
+   `groups:read`. Zum erstmaligen Anlegen fehlender
    Gruppen-Wallets (ohne Startguthaben) zusätzlich
    `economy:transfer`. Das Geld-/Gruppenkonto darf nicht
    anhand eines ungeprüften Avatar-/Gruppennamens identifiziert
