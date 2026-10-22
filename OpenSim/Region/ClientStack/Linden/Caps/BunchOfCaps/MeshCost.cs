@@ -209,7 +209,18 @@ namespace OpenSim.Region.ClientStack.Linden
                 for (int i = 0; i < numberMeshs; i++)
                 {
                     ameshCostParam curCost = new ameshCostParam();
-                    byte[] data = (byte[])resources.mesh_list.Array[i];
+                    OSD meshData = resources.mesh_list.Array[i];
+                    if (meshData == null || meshData.Type != OSDType.Binary)
+                    {
+                        error = "Invalid mesh binary data at index " + i;
+                        return false;
+                    }
+                    byte[] data = meshData.AsBinary();
+                    if (data == null || data.Length == 0)
+                    {
+                        error = "Missing mesh binary data at index " + i;
+                        return false;
+                    }
 
                     if (!MeshCost(data, curCost, out curskeleton, out curAvatarPhys, out error))
                     {
@@ -235,21 +246,15 @@ namespace OpenSim.Region.ClientStack.Linden
             // instances (prims) cost
 
 
-            int mesh;
             int skipedSmall = 0;
             for (int i = 0; i < numberInstances; i++)
             {
-                Hashtable inst = (Hashtable)resources.instance_list.Array[i];
-
-                ArrayList ascale = (ArrayList)inst["scale"];
-                Vector3 scale;
-                double tmp;
-                tmp = (double)ascale[0];
-                scale.X = (float)tmp;
-                tmp = (double)ascale[1];
-                scale.Y = (float)tmp;
-                tmp = (double)ascale[2];
-                scale.Z = (float)tmp;
+                if (!TryParseModelInstance(resources.instance_list.Array[i],
+                    numberMeshs, out Vector3 scale, out int mesh, out error))
+                {
+                    error = "Invalid model instance " + i + ": " + error;
+                    return false;
+                }
 
                 if (scale.X < PrimScaleMin || scale.Y < PrimScaleMin || scale.Z < PrimScaleMin)
                 {
@@ -263,15 +268,8 @@ namespace OpenSim.Region.ClientStack.Linden
                     return false;
                 }
 
-                if (haveMeshs && inst.ContainsKey("mesh"))
+                if (haveMeshs && mesh >= 0)
                 {
-                    mesh = (int)inst["mesh"];
-
-                    if (mesh >= numberMeshs)
-                    {
-                        error = "Incoerent model information.";
-                        return false;
-                    }
 
                     // streamming cost
 
@@ -335,6 +333,56 @@ namespace OpenSim.Region.ClientStack.Linden
 
             // breakdown prices
             // don't seem to be in use so removed code for now
+
+            return true;
+        }
+
+        /// <summary>
+        /// Decode a viewer's model instance from LLSD. The capability's
+        /// instance_list contains OSDMap/OSDArray values, not Hashtable
+        /// and ArrayList; invalid casts used to reject otherwise valid models.
+        /// </summary>
+        public static bool TryParseModelInstance(OSD instance, int meshCount,
+            out Vector3 scale, out int meshIndex, out string error)
+        {
+            scale = Vector3.Zero;
+            meshIndex = -1;
+            error = string.Empty;
+
+            if (instance is not OSDMap map ||
+                !map.TryGetValue("scale", out OSD rawScale) ||
+                rawScale is not OSDArray values || values.Count != 3)
+            {
+                error = "missing or invalid scale array";
+                return false;
+            }
+
+            double x = values[0].AsReal();
+            double y = values[1].AsReal();
+            double z = values[2].AsReal();
+            if (!double.IsFinite(x) || !double.IsFinite(y) || !double.IsFinite(z) ||
+                x <= 0 || y <= 0 || z <= 0 ||
+                x > float.MaxValue || y > float.MaxValue || z > float.MaxValue)
+            {
+                error = "scale components must be finite positive numbers";
+                return false;
+            }
+
+            scale = new Vector3((float)x, (float)y, (float)z);
+            if (map.TryGetValue("mesh", out OSD rawIndex))
+            {
+                if (rawIndex.Type != OSDType.Integer)
+                {
+                    error = "mesh index is not an integer";
+                    return false;
+                }
+                meshIndex = rawIndex.AsInteger();
+                if (meshIndex < 0 || meshIndex >= meshCount)
+                {
+                    error = "mesh index out of bounds";
+                    return false;
+                }
+            }
 
             return true;
         }
