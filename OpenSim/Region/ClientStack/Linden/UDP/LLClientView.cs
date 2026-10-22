@@ -1489,7 +1489,7 @@ namespace OpenSim.Region.ClientStack.LindenUDP
             OutPacket(GADRP, ThrottleOutPacketType.Task);
         }
 
-        public void SendGroupAccountingSummary(IClientAPI sender,UUID groupID, uint moneyAmt, int totalTier, int usedTier)
+        public void SendGroupAccountingSummary(IClientAPI sender, UUID groupID, UUID requestID, uint moneyAmt, int totalTier, int usedTier)
         {
             GroupAccountSummaryReplyPacket GASRP =
                     (GroupAccountSummaryReplyPacket)PacketPool.Instance.GetPacket(
@@ -1511,7 +1511,7 @@ namespace OpenSim.Region.ClientStack.LindenUDP
             GASRP.MoneyData.LastTaxDate = new byte[1];
             GASRP.MoneyData.LightTaxCurrent = 0;
             GASRP.MoneyData.TaxDate = new byte[1];
-            GASRP.MoneyData.RequestID = sender.AgentId;
+            GASRP.MoneyData.RequestID = requestID;
             GASRP.MoneyData.ParcelDirFeeEstimate = 0;
             GASRP.MoneyData.ParcelDirFeeCurrent = 0;
             GASRP.MoneyData.ObjectTaxEstimate = 0;
@@ -11543,7 +11543,7 @@ namespace OpenSim.Region.ClientStack.LindenUDP
         private static void HandleGroupAccountSummaryRequest(LLClientView c, Packet packet)
         {
             GroupAccountSummaryRequestPacket GroupAccountSummaryRequest = (GroupAccountSummaryRequestPacket)packet;
-            c.OnGroupAccountSummaryRequest?.Invoke(c, c.m_agentId, GroupAccountSummaryRequest.AgentData.GroupID);
+            c.OnGroupAccountSummaryRequest?.Invoke(c, c.m_agentId, GroupAccountSummaryRequest.AgentData.GroupID, GroupAccountSummaryRequest.MoneyData.RequestID);
         }
 
         private static void HandleGroupTransactionsDetailsRequest(LLClientView c, Packet packet)
