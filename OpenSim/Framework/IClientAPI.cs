@@ -1464,10 +1464,24 @@ namespace OpenSim.Framework
         void SendAvatarInterestsReply(UUID avatarID, uint wantMask, string wantText, uint skillsMask, string skillsText, string languages);
 
         void SendGroupAccountingDetails(IClientAPI sender,UUID groupID, UUID transactionID, UUID sessionID, int amt);
+        // Default compatibility keeps older test clients and legacy viewers
+        // operational; Linden UDP implements real history data blocks.
+        void SendGroupAccountingDetails(IClientAPI sender, UUID groupID,
+            UUID transactionID, UUID sessionID, int amt,
+            IReadOnlyList<GroupAccountHistoryEntry> history)
+        {
+            SendGroupAccountingDetails(sender, groupID, transactionID, sessionID, amt);
+        }
 
         void SendGroupAccountingSummary(IClientAPI sender, UUID groupID, UUID requestID, uint moneyAmt, int totalTier, int usedTier);
 
         void SendGroupTransactionsSummaryDetails(IClientAPI sender,UUID groupID, UUID transactionID, UUID sessionID,int amt);
+        void SendGroupTransactionsSummaryDetails(IClientAPI sender, UUID groupID,
+            UUID transactionID, UUID sessionID, int amt,
+            IReadOnlyList<GroupAccountHistoryEntry> history)
+        {
+            SendGroupTransactionsSummaryDetails(sender, groupID, transactionID, sessionID, amt);
+        }
 
         void SendChangeUserRights(UUID agentID, UUID friendID, int rights);
         void SendTextBoxRequest(string message, int chatChannel, string objectname, UUID ownerID, string ownerFirstName, string ownerLastName, UUID objectId);
