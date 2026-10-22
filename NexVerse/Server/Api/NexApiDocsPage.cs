@@ -607,7 +607,7 @@ Archivprüfungen bleiben auch für freigegebene Importe aktiv.</div>
 <h2>2. Erforderliche Schlüssel auswählen</h2>
 <p class="sectionlead">Bereits eingerichtete Schlüssel nicht unnötig neu erzeugen. Neue API-Schlüssel bleiben zusätzlich zu bestehenden registriert, bis sie ausdrücklich deaktiviert werden.</p>
 <div class="changegrid">
-<label class="change"><input type="checkbox" id="secretEconomy" style="width:auto" /> <strong>Economy / NV$</strong><p><code>economy:read</code> und <code>economy:transfer</code>. Nur auswählen, wenn noch kein gültiger Economy-Key existiert.</p></label>
+<label class="change"><input type="checkbox" id="secretEconomy" style="width:auto" /> <strong>Economy / NV$ inkl. Gruppenhistorie</strong><p><code>economy:read</code>, <code>economy:transfer</code> und <code>groups:read</code>. Für neue Simulator-Schlüssel; bestehende Schlüssel für die Firestorm-Gruppenhistorie gezielt rotieren und erst nach dem Umstellen deaktivieren.</p></label>
 <label class="change"><input type="checkbox" id="secretGroupLand" style="width:auto" /> <strong>NexGroups / Gridweite Landabfrage</strong><p><code>groups:read</code>. Eigener Simulator-Dienstschlüssel ausschließlich für die gruppeneigene Parzellensuche über die World API.</p></label>
 <label class="change"><input type="checkbox" id="secretExperiences" checked style="width:auto" /> <strong>Experiences / Script</strong><p><code>experiences:script</code>. Eigener Schlüssel für die Simulator-LSL-Funktionen.</p></label>
 <label class="change"><input type="checkbox" id="secretExperiencePermissions" style="width:auto" /> <strong>Experiences / Firestorm-Rechte</strong><p><code>experiences:viewer:permissions</code>. Separater Service-Schlüssel für Firestorm Allow/Block/Forget; nur für kontrolliert aktivierte Permission-CAPS.</p></label>
@@ -1825,7 +1825,7 @@ async function secretGenerate(onlyRegistration=false, onlyGroupLand=false) {
       {wanted:wantGroupLand,name:'OGL Simulator Group Land',
        scopes:['groups:read'],env:'NEXVERSE_GROUP_LAND_API_KEY'},
       {wanted:wantEconomy,name:'OGL Simulator Economy',
-       scopes:['economy:read','economy:transfer'],env:'NEXVERSE_ECONOMY_API_KEY'},
+       scopes:['economy:read','economy:transfer','groups:read'],env:'NEXVERSE_ECONOMY_API_KEY'},
       {wanted:wantExperiences,name:'OGL Simulator Experiences',
        scopes:['experiences:script'],env:'NEXVERSE_EXPERIENCES_API_KEY'},
       {wanted:wantPermissions,name:'OGL Simulator Experience Permissions',

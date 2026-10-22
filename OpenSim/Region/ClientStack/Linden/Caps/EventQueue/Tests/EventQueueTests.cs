@@ -160,6 +160,23 @@ namespace OpenSim.Region.ClientStack.Linden.Tests
         /// Test an attempt to put a message on the queue of a user that is not in the region.
         /// </summary>
         [Test]
+        public void TestEmptyQueueReturnsExpectedEventQueueProtocolStatus()
+        {
+            TestHelpers.InMethod();
+            UUID agentId = TestHelpers.ParseTail(0x1);
+            SceneHelpers.AddScenePresence(m_scene, agentId);
+
+            // EventQueueGet long polling intentionally returns 502 when a
+            // valid agent has no queued events (not a failed mesh upload).
+            Hashtable empty = m_eqgMod.NoEvents(UUID.Zero, agentId);
+            Assert.That((int)empty["int_response_code"],
+                Is.EqualTo((int)HttpStatusCode.BadGateway));
+            Hashtable missing = m_eqgMod.NoEvents(UUID.Zero, UUID.Random());
+            Assert.That((int)missing["int_response_code"],
+                Is.EqualTo((int)HttpStatusCode.NotFound));
+        }
+
+        [Test]
         public void TestEnqueueMessageNoUser()
         {
             TestHelpers.InMethod();
