@@ -59,6 +59,32 @@ Wetterdaten. Flächendeckende EEP-Wetterstimmungen, dynamische
 Lichtblitze, Boden-Schneedecken oder physische Sturmeinflüsse
 sind Folgephasen und **nicht in Phase 1 implementiert**.
 
+## Mono.Addins-Abhängigkeitsfix (22.10.2026)
+
+Der Simulatorstart konnte mit `Mono.Addins.MissingDependencyException`
+für `OpenGenesisLINK.OpenSim.Region.Framework,0.9.3.12` abbrechen.
+Ursache war eine **relative** `AddinDependency("OpenSim.Region.Framework", ...)`
+im Namespaced-Addon `OpenGenesisLINK.OGLSeasons`. Mono.Addins stellte
+dadurch irrtümlich `OpenGenesisLINK.` vor den Framework-Namen.
+
+Die Abhängigkeit ist nun mit `::OpenSim.Region.Framework` global
+qualifiziert. Dies ist das Addin-Root aus
+`OpenSim.Region.Framework.dll`; die Versionsnummer bleibt synchron zum
+Serverbuild (`OpenSim.VersionInfo.VersionNumber`).
+
+Nach dem Update muss die **neue Addon-DLL** ausdrücklich in das
+Simulator-`bin/` installiert werden:
+
+```bash
+cd /opt/developer
+bash addon-modules/OGLSeasons/build.sh Release --sim-bin /opt/developer/bin
+```
+
+ROBUST benötigt dieses Simulator-Addon nicht. Bei fortbestehendem
+Addin-Fehler sicherstellen, dass `OpenSim.Region.Framework.dll` und
+`OpenGenesisLINK.Addons.OGLSeasons.dll` aus zueinander passenden Builds
+stammen. Simulator vor DLL-Austausch stoppen.
+
 ## Installation auf Test-Simulator
 
 1. Branch auschecken und mit aktuellem `main` abgleichen.
