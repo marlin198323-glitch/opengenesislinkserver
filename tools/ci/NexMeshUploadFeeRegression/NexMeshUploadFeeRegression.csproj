@@ -8,6 +8,7 @@
   <ItemGroup>
     <ProjectReference Include="../../../OpenSim/Region/ClientStack/Linden/Caps/OpenSim.Region.ClientStack.LindenCaps.csproj" />
     <Reference Include="OpenMetaverse"><HintPath>../../../bin/OpenMetaverse.dll</HintPath><Private>True</Private></Reference>
+    <Reference Include="OpenMetaverse.StructuredData"><HintPath>../../../bin/OpenMetaverse.StructuredData.dll</HintPath><Private>True</Private></Reference>
     <Reference Include="OpenMetaverseTypes"><HintPath>../../../bin/OpenMetaverseTypes.dll</HintPath><Private>True</Private></Reference>
   </ItemGroup>
 </Project>
