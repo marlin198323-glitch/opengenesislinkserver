@@ -36,11 +36,11 @@ internal static class Program
             }
             if (attribute.AttributeType.FullName == "Mono.Addins.AddinDependencyAttribute" &&
                 attribute.ConstructorArguments.Count > 0 &&
-                (string)attribute.ConstructorArguments[0].Value == "OpenSim.Region.Framework")
+                (string)attribute.ConstructorArguments[0].Value == "::OpenSim.Region.Framework")
                 foundFrameworkDependency = true;
         }
         Require(foundSeasonsAddin, "canonical OpenGenesisLINK.OGLSeasons add-in identity");
-        Require(foundFrameworkDependency, "dependency on /OpenSim/RegionModules provider");
+        Require(foundFrameworkDependency, "globally qualified dependency on /OpenSim/RegionModules provider");
 
         bool foundRoot = false;
         foreach (var attribute in typeof(OpenSim.Region.Framework.Interfaces.IRegionModuleBase)

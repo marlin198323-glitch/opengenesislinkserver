@@ -33,7 +33,8 @@ assert 'm_weather == "sturm"' in emitter
 # Region modules must explicitly depend on the add-in root defining
 # /OpenSim/RegionModules. Otherwise Mono.Addins silently skips discovery.
 assert '[assembly: Addin("OGLSeasons", Namespace = "OpenGenesisLINK", Version = "0.1.1")]' in module
-assert '[assembly: AddinDependency("OpenSim.Region.Framework", OpenSim.VersionInfo.VersionNumber)]' in module
+assert '[assembly: AddinDependency("::OpenSim.Region.Framework", OpenSim.VersionInfo.VersionNumber)]' in module, "framework dependency must be globally qualified, not OpenGenesisLINK.OpenSim.Region.Framework"
+assert 'AddinDependency("OpenSim.Region.Framework"' not in module, "relative dependency breaks Mono.Addins region module startup"
 assert 'Addin("OpenGenesisLINK.OGLSeasons", Namespace = "OpenGenesisLINK"' not in module
 assert "OGLSeasons.dll" in build
 # Plain ROBUST/CI builds must not load a simulator-only Mono.Addins plugin.
