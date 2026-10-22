@@ -59,12 +59,26 @@ Parzellen auf separaten, unabhängigen SQL-Instanzen sind nicht enthalten.
 
 ## Firestorm-Gruppenabrechnung
 
-Die API bietet jetzt **echte** Finanzbuchungen unter
-`/api/v1/groups/{id}/transactions`. Das historische Firestorm-UDP-
-Details-/Sales-Protokoll bildet noch keine vollständigen Ledger-Buchungen
-ab: Die vorhandenen Paketantworten bleiben leer statt erfundene
-Einträge zu senden. Der Kontostand im Viewer kommt weiterhin aus
-dem NV$-Ledger.
+Die API liefert echte Finanzbuchungen der letzten sieben Tage unter
+`/api/v1/groups/{id}/transactions`. Der Simulator prüft vor dem Abruf
+die tatsächliche `GroupPowers.Accountable`-Berechtigung des verbundenen
+Avatars und überträgt die Buchungszeilen anschließend in die nativen
+`GroupAccountDetailsReply`- und `GroupAccountTransactionsReply`-Pakete.
+
+**Konfiguration:** Der Simulator-Key unter `[NexEconomyViewer] ApiKey`
+muss für diese neue Funktion zusätzlich zu `economy:read` auch
+`groups:read` enthalten. Die World API akzeptiert für den
+Gruppenverlauf nur einen ausdrücklich doppelt berechtigten Maschinen-Key
+oder einen tatsächlich berechtigten Bewohner-Token. Ohne die zusätzliche
+Berechtigung bleibt der Kontostand funktionsfähig, der Verlauf kann jedoch
+nicht geladen werden.
+
+Die Buchungsdaten sind Ledger-Daten. Gegenkonten und nicht verifizierte
+Käufernamen werden nicht angezeigt. Der Firestorm-Verkaufsreiter filtert
+echte positive `sale`-/`commerce`-/`purchase`-Buchungen, während die
+Detailansicht sämtliche Gruppenbuchungen innerhalb der Periode enthält.
+Negative, zu große oder nicht lesbare Buchungen werden nicht stillschweigend
+als gültige Werte dargestellt.
 
 Das neue HTTP-Regressionstestpaket kontrolliert die Rechte- und
 Landabfrage samt SQL-Daten einer Region auf einem anderen Simulator.
