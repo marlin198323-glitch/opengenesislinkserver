@@ -7,6 +7,7 @@ EXPECTED = {
     "DelayBeforeAppearanceSend": "1",
     "DelayBeforeAppearanceSave": "3",
     "ResendAppearanceUpdates": "false",
+    "WearablesRequestDelayMs": "1000",
 }
 
 for path in ("bin/OpenSim.ini", "bin/OpenSim.ini.example"):
