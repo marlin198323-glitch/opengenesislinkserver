@@ -70,13 +70,13 @@ internal static class Program
 
     private static SimpleStreamMethod Route(GroupsService groups,
         UserAccountService users, HmacNexAccessTokenService tokens,
-        Func<NexEconomyService> economy)
+        Func<NexEconomyService> economy, INexApiKeyStore keys)
     {
         Assembly assembly = Assembly.Load("NexVerse.Server.Api");
         Type authType = assembly.GetType("NexVerse.Server.Api.NexApiAuthenticator", true);
         Type groupsType = assembly.GetType("NexVerse.Server.Api.NexGroupsApi", true);
         var auth = Construct(authType, users, new NexAuthorizationService(),
-            tokens, null, null, 200);
+            tokens, null, keys, 200);
         var api = Construct(groupsType, auth, null, groups, economy);
         // A second simulator's group parcels are projected by the central
         // directory. Configure it through the same optional production hook.
@@ -173,7 +173,8 @@ internal static class Program
 
             var runtime = NexLedgerSqlRuntime.Resolve("OpenSim.Data.MySQL.dll", connection);
             NexLedgerSqlStore store = runtime.CreateStore();
-            var economy = new NexEconomyService(new NexDoubleEntryLedger(store), store);
+            var ledger = new NexDoubleEntryLedger(store);
+            var economy = new NexEconomyService(ledger, store);
             NexEconomyService activeEconomy = economy;
 
             // One remote group parcel in the same authoritative RegionStore.
@@ -188,7 +189,13 @@ internal static class Program
                 RegionSizeX = 256, RegionSizeY = 256
             };
             m_TestConnection = connection;
-            var handler = Route(groups, users, tokens, () => activeEconomy);
+            var keyStore = new PersistentNexApiKeyStore(
+                Path.Combine(scratch, "keys.json"));
+            var machineKey = keyStore.Create("Groups Viewer Service",
+                new[] { NexScopes.GroupsRead, NexScopes.EconomyRead });
+            var groupsOnlyKey = keyStore.Create("Group Land Service",
+                new[] { NexScopes.GroupsRead });
+            var handler = Route(groups, users, tokens, () => activeEconomy, keyStore);
             int port = FindPort();
             server = new BaseHttpServer((uint)port) { ListenIPAddress = IPAddress.Loopback };
             server.AddSimpleStreamHandler(
@@ -267,8 +274,53 @@ internal static class Program
             await Verify(http, accounting + "?requester_id=" + owner.PrincipalID,
                 strangerToken, HttpStatusCode.Forbidden, "error");
             await Verify(http, accounting, ownerToken, HttpStatusCode.OK, "nvban");
+            // Ensure the API returns real signed ledger postings, not a
+            // fabricated empty/history placeholder.
+            var system = new NexLedgerAccount(
+                Guid.NewGuid(), NexLedgerAccountClass.System,
+                NexLedgerSide.Debit, "system:groups-ci:" +
+                Guid.NewGuid().ToString("N"), "NexGroups CI System");
+            Check(ledger.TryCreateAccount(system), "test system wallet create failed");
+            economy.AdministrativeAdjustment(group.Guid, system.AccountId,
+                73, owner.PrincipalID.ToString(), "Group history SQL proof");
+            string historyUrl = "/api/v1/groups/" + group + "/transactions";
+            using (var req = new HttpRequestMessage(HttpMethod.Get, historyUrl))
+            {
+                req.Headers.Authorization =
+                    new AuthenticationHeaderValue("Bearer", ownerToken);
+                using var resp = await http.SendAsync(req);
+                Check(resp.StatusCode == HttpStatusCode.OK,
+                    "owner transaction read failed");
+                using var result = JsonDocument.Parse(
+                    await resp.Content.ReadAsStringAsync());
+                var lines = result.RootElement.GetProperty("transactions");
+                Check(lines.GetArrayLength() == 1 &&
+                    lines[0].GetProperty("amount").GetInt64() == 73,
+                    "group transaction history omitted real credit or signed it incorrectly");
+            }
+            using (var req = new HttpRequestMessage(HttpMethod.Get, historyUrl))
+            {
+                req.Headers.TryAddWithoutValidation("X-NexVerse-Api-Key", machineKey.ApiKey);
+                using var resp = await http.SendAsync(req);
+                Check(resp.StatusCode == HttpStatusCode.OK,
+                    "trusted dual-scoped simulator history request was denied");
+            }
+            using (var req = new HttpRequestMessage(HttpMethod.Get, historyUrl))
+            {
+                req.Headers.TryAddWithoutValidation("X-NexVerse-Api-Key", groupsOnlyKey.ApiKey);
+                using var resp = await http.SendAsync(req);
+                Check(resp.StatusCode == HttpStatusCode.Forbidden,
+                    "groups:read key without economy:read gained finance history");
+            }
             string land = "/api/v1/groups/" + group + "/land";
             await Verify(http, land, ownerToken, HttpStatusCode.OK, "parcels");
+            using (var req = new HttpRequestMessage(HttpMethod.Get, land))
+            {
+                req.Headers.TryAddWithoutValidation("X-NexVerse-Api-Key", groupsOnlyKey.ApiKey);
+                using var resp = await http.SendAsync(req);
+                Check(resp.StatusCode == HttpStatusCode.OK,
+                    "trusted group land machine key failed");
+            }
             await Verify(http, land, strangerToken, HttpStatusCode.Forbidden, "error");
             await Verify(http, land + "?requester_id=" + owner.PrincipalID,
                 strangerToken, HttpStatusCode.Forbidden, "error");
