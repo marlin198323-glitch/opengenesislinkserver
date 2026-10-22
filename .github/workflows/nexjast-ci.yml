@@ -1329,3 +1329,9 @@ jobs:
           chmod +x runprebuild.sh
           ./runprebuild.sh
           dotnet run --configuration Release --project tools/ci/NexGroupsSqlAuthorizationRegression/NexGroupsSqlAuthorizationRegression.csproj
+
+      - name: Run signed bearer HTTP NexGroups authorization regression
+        shell: bash
+        env:
+          NEX_GROUPS_MARIADB: "Data Source=127.0.0.1;Port=33306;Database=ogl_ledger_ci;User ID=ledger;Password=ledgerpass;Old Guids=true;SslMode=None;"
+        run: dotnet run --configuration Release --project tools/ci/NexGroupsHttpRegression/NexGroupsHttpRegression.csproj
