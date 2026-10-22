@@ -251,7 +251,7 @@ namespace OpenSim.Groups
             // prove Firestorm has received its AgentGroupDataUpdate packet.
             // Missing viewer-side membership incorrectly disables the entire
             // Groups > Land & NV$ tab even if os_groups_membership is correct.
-            if (sp.ControllingClient != null && sp.ControllingClient.IsActive)
+            if (sp.ControllingClient != null)
                 SendAgentGroupDataUpdate(sp.ControllingClient, false);
         }
 
