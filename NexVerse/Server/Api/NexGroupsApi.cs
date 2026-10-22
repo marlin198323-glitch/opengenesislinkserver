@@ -26,6 +26,7 @@ namespace NexVerse.Server.Api
         private readonly INexAuditSink m_Audit;
         private readonly GroupsService m_Groups;
         private readonly Func<NexEconomyService> m_Economy;
+        private NexGroupLandDirectory m_LandDirectory;
 
         public NexGroupsApi(
             NexApiAuthenticator authenticator,
@@ -37,6 +38,11 @@ namespace NexVerse.Server.Api
             m_Audit = audit ?? NullNexAuditSink.Instance;
             m_Groups = groups ?? throw new ArgumentNullException(nameof(groups));
             m_Economy = economy ?? throw new ArgumentNullException(nameof(economy));
+        }
+
+        public void ConfigureLandDirectory(NexGroupLandDirectory directory)
+        {
+            m_LandDirectory = directory;
         }
 
         public void Handle(
@@ -887,6 +893,134 @@ namespace NexVerse.Server.Api
                         currency = NexLedgerCurrency.Code,
                         balance = economy.GetBalance(groupId.Guid),
                         nvban = bank.Identifier,
+                        correlation_id = Correlation(response)
+                    });
+                }
+                catch (Exception e)
+                {
+                    WriteFailure(response, e);
+                }
+                return;
+            }
+
+            if (parts[1].Equals("transactions", StringComparison.OrdinalIgnoreCase) &&
+                parts.Length == 2)
+            {
+                if (!RequireMethod(method, "GET", response))
+                    return;
+                if (!Authenticate(request, response, NexScopes.GroupsRead,
+                        out authPrincipal, out authAccount))
+                    return;
+
+                try
+                {
+                    ExtendedGroupRecord group = RequireGroup(authPrincipal, request, groupId);
+                    if (!CanReadGroupAccounting(authPrincipal, authAccount, groupId))
+                        throw new UnauthorizedAccessException(
+                            "Group transaction history requires membership and Accountable power.");
+
+                    NexEconomyService economy = m_Economy() ??
+                        throw new InvalidOperationException("NV$ economy is unavailable.");
+
+                    // Transaction history is read-only. Do NOT silently create
+                    // wallet accounts or reveal other users' ledger postings.
+                    if (economy.GetAccount(groupId.Guid) == null)
+                    {
+                        WriteJson(response, new
+                        {
+                            group_id = groupId.ToString(),
+                            currency = NexLedgerCurrency.Code,
+                            period_days = 7,
+                            transactions = Array.Empty<object>(),
+                            correlation_id = Correlation(response)
+                        });
+                        return;
+                    }
+
+                    DateTimeOffset from = DateTimeOffset.UtcNow.AddDays(-7);
+                    var history = economy.ListTransactions(
+                        groupId.Guid, from, DateTimeOffset.UtcNow, 0, 200);
+                    WriteJson(response, new
+                    {
+                        group_id = groupId.ToString(),
+                        currency = NexLedgerCurrency.Code,
+                        period_days = 7,
+                        transactions = history.Select(t => new
+                        {
+                            transaction_id = t.TransactionId.ToString("D"),
+                            occurred_at = t.OccurredAt,
+                            kind = t.Kind,
+                            reference = t.Reference,
+                            amount = t.Postings
+                                .Where(p => p.AccountId == groupId.Guid)
+                                .Sum(p => p.Side == NexLedgerSide.Credit
+                                    ? p.AmountMinor : -p.AmountMinor),
+                            description = t.Postings
+                                .Where(p => p.AccountId == groupId.Guid)
+                                .Select(p => p.Memo)
+                                .FirstOrDefault() ?? string.Empty
+                        }).ToArray(),
+                        correlation_id = Correlation(response)
+                    });
+                }
+                catch (Exception e)
+                {
+                    WriteFailure(response, e);
+                }
+                return;
+            }
+
+            if (parts[1].Equals("land", StringComparison.OrdinalIgnoreCase) &&
+                parts.Length == 2)
+            {
+                if (!RequireMethod(method, "GET", response))
+                    return;
+                if (!Authenticate(request, response, NexScopes.GroupsRead,
+                        out authPrincipal, out authAccount))
+                    return;
+
+                try
+                {
+                    RequireGroup(authPrincipal, request, groupId);
+                    // Real residents must have an actual group membership.
+                    // Explicit groups:read machine credentials represent the
+                    // trusted simulator's already-authorized viewer request.
+                    bool machine = authAccount == null &&
+                        authPrincipal.Subject.StartsWith(
+                            "api-key:", StringComparison.OrdinalIgnoreCase);
+                    if (!authPrincipal.HasScope(NexScopes.AdminAll) &&
+                        !machine &&
+                        (authAccount == null ||
+                         m_Groups.GetAgentGroupMembership(
+                             authAccount.PrincipalID.ToString(),
+                             authAccount.PrincipalID.ToString(), groupId) == null))
+                        throw new UnauthorizedAccessException(
+                            "Group-owned land requires group membership.");
+
+                    if (m_LandDirectory == null)
+                        throw new InvalidOperationException(
+                            "The grid-wide group land directory is not configured.");
+
+                    var parcels = m_LandDirectory.List(groupId);
+                    WriteJson(response, new
+                    {
+                        group_id = groupId.ToString(),
+                        total = parcels.Count,
+                        parcels = parcels.Select(p => new
+                        {
+                            parcel_id = p.ParcelId.ToString(),
+                            region_id = p.RegionId.ToString(),
+                            owner_id = p.OwnerId.ToString(),
+                            snapshot_id = p.SnapshotId.ToString(),
+                            name = p.Name,
+                            description = p.Description,
+                            region_name = p.RegionName,
+                            area = p.Area,
+                            price = p.SalePrice,
+                            global_x = p.GlobalX,
+                            global_y = p.GlobalY,
+                            global_z = p.GlobalZ
+                        }).ToArray(),
                         correlation_id = Correlation(response)
                     });
                 }
