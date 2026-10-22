@@ -49,6 +49,16 @@ assert 'text == "1"' in handler
 assert 'string.Equals(text, "true", StringComparison.OrdinalIgnoreCase)' in handler
 assert 'TosAccepted(requestData["agree_to_tos"])' in handler
 assert 'TosAccepted(tosValue.AsString())' in handler
+# Firestorm's default OpenSim login panel uses an "account" identifier for
+# a single-word username and sends "username"/"passwd" instead of first/last.
+# The XML-RPC handler must pass it to the Resident name resolver in LoginService.
+assert 'requestData.ContainsKey("username")' in handler
+assert 'bool hasAccountIdentity' in handler
+assert 'bool hasLegacyIdentity' in handler
+assert ': requestData["username"].ToString();' in handler
+assert 'string last = hasLegacyIdentity' in handler
+assert ': string.Empty;' in handler
+assert 'm_LocalService.Login(first, last, passwd,' in handler
 
 account_handler = Path("OpenSim/Server/Handlers/UserAccounts/UserAccountServerPostHandler.cs").read_text(encoding="utf-8")
 account_interface = Path("OpenSim/Services/Interfaces/IUserAccountService.cs").read_text(encoding="utf-8")
