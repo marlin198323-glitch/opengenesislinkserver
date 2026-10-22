@@ -40,8 +40,8 @@ assert 'Thread.Sleep(4000);' not in factory, "legacy hard-coded 4000ms sleep rem
 
 for path in ("bin/OpenSim.ini", "bin/OpenSim.ini.example"):
     content = Path(path).read_text(encoding="utf-8")
-    assert "\\n[InterestManagement]\\n" in content, f"{path}: missing interest-management section"
-    section = content.split("\\n[InterestManagement]\\n", 1)[1].split("\\n[", 1)[0]
+    assert "\n[InterestManagement]\n" in content, f"{path}: missing interest-management section"
+    section = content.split("\n[InterestManagement]\n", 1)[1].split("\n[", 1)[0]
     assert "FastRezNearbyFirst = true" in section, f"{path}: FastRez world-rez opt-in missing"
 
 scene = Path("OpenSim/Region/Framework/Scenes/Scene.cs").read_text(encoding="utf-8")
