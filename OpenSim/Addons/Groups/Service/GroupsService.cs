@@ -495,11 +495,24 @@ namespace OpenSim.Groups
             return m_Database.StoreInvitation(invite);
         }
 
+        // Both group invitation operations are accessible only to the
+        // invitee or to a member with permission to issue invitations.
+        // Never trust the caller-supplied invite UUID as authorization.
+        private bool CanAccessInvitation(string requestingAgentId, InvitationData invite)
+        {
+            return invite != null &&
+                !string.IsNullOrWhiteSpace(requestingAgentId) &&
+                (string.Equals(requestingAgentId, invite.PrincipalID,
+                    StringComparison.OrdinalIgnoreCase) ||
+                 HasPower(requestingAgentId, invite.GroupID, GroupPowers.Invite) ||
+                 IsOwner(requestingAgentId, invite.GroupID));
+        }
+
         public GroupInviteInfo GetAgentToGroupInvite(string RequestingAgentID, UUID inviteID)
         {
             InvitationData data = m_Database.RetrieveInvitation(inviteID);
 
-            if (data == null)
+            if (!CanAccessInvitation(RequestingAgentID, data))
                 return null;
 
             GroupInviteInfo inviteInfo = new GroupInviteInfo();
@@ -513,6 +526,10 @@ namespace OpenSim.Groups
 
         public void RemoveAgentToGroupInvite(string RequestingAgentID, UUID inviteID)
         {
+            InvitationData invite = m_Database.RetrieveInvitation(inviteID);
+            if (!CanAccessInvitation(RequestingAgentID, invite))
+                return;
+
             m_Database.DeleteInvite(inviteID);
         }
 
@@ -1252,6 +1269,23 @@ namespace OpenSim.Groups
         }
 
         #region permissions
+        /// <summary>
+        /// Authorize an authenticated group's accounting view from persisted
+        /// group membership and the union of all assigned role powers.
+        /// Authentication of the caller must happen at the transport boundary.
+        /// </summary>
+        public bool CanReadGroupAccounting(string agentId, UUID groupId)
+        {
+            if (string.IsNullOrWhiteSpace(agentId) || groupId.IsZero())
+                return false;
+
+            if (m_Database.RetrieveGroup(groupId) == null ||
+                m_Database.RetrieveMember(groupId, agentId) == null)
+                return false;
+
+            return HasPower(agentId, groupId, GroupPowers.Accountable);
+        }
+
         private bool HasPower(string agentID, UUID groupID, GroupPowers power)
         {
             RoleMembershipData[] rmembership = m_Database.RetrieveMemberRoles(groupID, agentID);

@@ -353,6 +353,12 @@ main:before {content:"";position:fixed;inset:0;pointer-events:none;opacity:.17;z
 <span class="legenditem"><span class="legendswatch" style="background:#5a461c"></span>Reserviert</span>
 <span class="legenditem"><span class="legendswatch" style="background:#6a2323"></span>Konflikt</span>
 </div>
+<div class="planner-actions">
+<label class="legenditem"><input id="gridShowWarp3d" type="checkbox" checked> Warp3D-Kartenbilder über belegten Zellen anzeigen</label>
+<a class="action actionlink" href="/api/v1/deutschland/view" target="_blank" rel="noopener noreferrer">Deutschland-Karte öffnen ↗</a>
+<a class="action actionlink" href="/api/v1/deutschland" target="_blank" rel="noopener noreferrer">Öffentliche Karten-API ↗</a>
+</div>
+<p class="sectionlead" id="gridMapTileStatus">Kartenkacheln werden bei Bedarf aus der öffentlichen Deutschland-API nachgeladen.</p>
 <div class="gridboardwrap"><div class="gridboard" id="gridBoard"><div class="empty">Noch keine Grid-Daten geladen.</div></div></div>
 </div>
 <div class="section">
@@ -601,12 +607,22 @@ Archivprüfungen bleiben auch für freigegebene Importe aktiv.</div>
 <h2>2. Erforderliche Schlüssel auswählen</h2>
 <p class="sectionlead">Bereits eingerichtete Schlüssel nicht unnötig neu erzeugen. Neue API-Schlüssel bleiben zusätzlich zu bestehenden registriert, bis sie ausdrücklich deaktiviert werden.</p>
 <div class="changegrid">
-<label class="change"><input type="checkbox" id="secretEconomy" style="width:auto" /> <strong>Economy / NV$</strong><p><code>economy:read</code> und <code>economy:transfer</code>. Nur auswählen, wenn noch kein gültiger Economy-Key existiert.</p></label>
+<label class="change"><input type="checkbox" id="secretEconomy" style="width:auto" /> <strong>Economy / NV$ inkl. Gruppenhistorie</strong><p><code>economy:read</code>, <code>economy:transfer</code> und <code>groups:read</code>. Für neue Simulator-Schlüssel; bestehende Schlüssel für die Firestorm-Gruppenhistorie gezielt rotieren und erst nach dem Umstellen deaktivieren.</p></label>
+<label class="change"><input type="checkbox" id="secretGroupLand" style="width:auto" /> <strong>NexGroups / Gridweite Landabfrage</strong><p><code>groups:read</code>. Eigener Simulator-Dienstschlüssel ausschließlich für die gruppeneigene Parzellensuche über die World API.</p></label>
 <label class="change"><input type="checkbox" id="secretExperiences" checked style="width:auto" /> <strong>Experiences / Script</strong><p><code>experiences:script</code>. Eigener Schlüssel für die Simulator-LSL-Funktionen.</p></label>
 <label class="change"><input type="checkbox" id="secretExperiencePermissions" style="width:auto" /> <strong>Experiences / Firestorm-Rechte</strong><p><code>experiences:viewer:permissions</code>. Separater Service-Schlüssel für Firestorm Allow/Block/Forget; nur für kontrolliert aktivierte Permission-CAPS.</p></label>
 <label class="change"><input type="checkbox" id="secretExperienceManage" style="width:auto" /> <strong>Experiences / Firestorm-Erwerb und Editor</strong><p><code>experiences:viewer:manage</code>. Eigenständiger privilegierter Simulator-Service-Schlüssel für „Erlebnis erwerben“ und die Bearbeitung eigener Experiences; nicht mit anderen Scopes kombinieren.</p></label>
+<label class="change"><input type="checkbox" id="secretRegister" style="width:auto" /> <strong>Stadtportal / Avatarregistrierung</strong><p><code>users:register</code>. Dedizierter Schlüssel ausschließlich für die sichere Server-zu-Server-Registrierung durch das Stadtportal-Backend.</p></label>
 <label class="change"><input type="checkbox" id="secretNexBus" checked style="width:auto" /> <strong>NexBus / NodeAgent</strong><p>Gemeinsamer zufälliger HMAC-Signaturschlüssel für Robust und alle Simulator-Nodes.</p></label>
 </div>
+<div class="row" style="margin-top:14px;flex-wrap:wrap">
+<button class="action" id="secretGenerateRegistration">Nur Registrierungs-API-Key erstellen</button>
+<button class="action" id="secretGenerateGroupLand">Nur Gruppenland-API-Key erstellen</button>
+<button class="action" id="secretGeneratePortalIm">NexPortalIM-HMAC-Schlüssel erstellen</button>
+</div>
+<p class="authnote">Für die Stadtportal-Registrierung genügt dieser einzelne Schlüssel. Der Button ignoriert die Vorauswahl für Experiences und NexBus und verlangt keine NexBus-URLs. <code>NEXVERSE_REGISTER_API_KEY</code> gehört ausschließlich in die geschützte Umgebung des Stadtportal-Backends, niemals in Browser-JavaScript oder auf öffentliche Seiten.</p>
+<p class="authnote">Der Gruppenland-Button erstellt ausschließlich <code>groups:read</code>, unabhängig von den anderen Häkchen und ohne NexBus-URLs. <code>NEXVERSE_GROUP_LAND_API_KEY</code> gehört nur in die geschützte Environment-Datei der Simulatoren. Bereits aktive Schlüssel werden vor einer Neuausstellung geprüft.</p>
+<p class="authnote"><strong>NexPortalIM:</strong> Dieser HMAC-Schlüssel ist kein Maschinen-API-Key. Der separate Button erzeugt nach Admin-Prüfung einen kryptografisch zufälligen 48-Byte-Schlüssel direkt im Browser. Speichere <code>NEX_PORTAL_IM_SECRET</code> auf ROBUST und allen beteiligten Simulatoren mit identischem Wert. Er wird weder im Browser dauerhaft gespeichert noch an die World API übertragen; verlorene Werte lassen sich nicht wiederherstellen. Bei Rotation alle Hosts koordiniert umstellen.</p>
 <p class="authnote">Der NexBus-SharedKey ist kein World-API-Key. Er wird lokal im Browser per kryptografisch sicherem Zufall erzeugt und muss auf allen beteiligten Nodes identisch sein.</p>
 <div class="grid2">
 <div><label class="label2" for="secretPeerUrl">Simulator → Robust (NexBus-URL)</label><input id="secretPeerUrl" autocomplete="off" spellcheck="false" placeholder="https://intern.example/internal/nexbus/v1/events"></div>
@@ -622,7 +638,7 @@ Archivprüfungen bleiben auch für freigegebene Importe aktiv.</div>
 </div>
 <div class="section">
 <h2>3. In Secret-Datei übernehmen</h2>
-<p class="sectionlead">Die Secret-Datei verwendet <code>NAME=WERT</code>, keine INI-Sektionen. Die bisherige Standarddatei heißt <code>/etc/nexverse/nexverse.env</code> (nicht <code>.ini</code>). Bestehende Einträge, insbesondere dein Economy-Key, müssen erhalten bleiben.</p>
+<p class="sectionlead">Die Secret-Datei verwendet <code>NAME=WERT</code>, keine INI-Sektionen. Die OGL-Serverdatei heißt üblicherweise <code>/etc/nexverse/nexverse.env</code> (nicht <code>.ini</code>). Bestehende Einträge, insbesondere dein Economy-Key, müssen erhalten bleiben. <strong>Wichtig:</strong> <code>NEXVERSE_REGISTER_API_KEY</code> ausschließlich in die <code>.env</code> des Stadtportal-Backends eintragen – nicht auf ROBUST oder den Simulatoren erforderlich.</p>
 <textarea id="secretOutput" readonly autocomplete="off" spellcheck="false" style="min-height:210px" placeholder="Die einmalig angezeigten Schlüssel erscheinen nach erfolgreicher Erzeugung hier."></textarea>
 <p class="authnote">Die vollständigen API-Keys zeigt die World API nur beim Erstellen an. Eine Seite oder den Browser erst verlassen, wenn du die neuen Werte sicher übernommen hast. Sie werden weder dauerhaft im Browserspeicher noch in Cookies oder URLs abgelegt.</p>
 <p class="authnote">Setze für die Secret-Datei <code>chmod 600 /etc/nexverse/nexverse.env</code>. Starte zunächst Robust mit dem neuen NexBus-Key und dem PR-#104-Code neu, danach die Simulatoren. Bereits vorhandene Prozessvariablen haben Vorrang vor der Datei.</p>
@@ -977,7 +993,15 @@ function renderStatistics(data){
   (data.hypergrid_home_grids||[]).forEach(item=>appendStatsRow('statsHgBody',[
     item.home_grid,item.known_visitors,item.online_now,item.last_7_days,item.last_30_days
   ]));
-  if(!(data.hypergrid_home_grids||[]).length)appendStatsRow('statsHgBody',[protectedDetails?'Keine Hypergrid-Daten':'Geschützte Details – statistics:read erforderlich','','','','']);
+  if(!(data.hypergrid_home_grids||[]).length){
+    const originStatus=(data.data_quality||{}).hypergrid_origin_status;
+    const originLabel=!protectedDetails?'Geschützte Details – statistics:read erforderlich':
+      originStatus==='unavailable'?'GridUser-Datenquelle nicht verfügbar':
+      originStatus==='incomplete_home_uri'?'Gespeicherte HG-Besucher ohne zuordenbare HomeURI':
+      originStatus==='no_recorded_visitors'?'Noch keine HG-Besucher in GridUser erfasst':
+      'Keine auswertbaren Hypergrid-Herkunftszeilen';
+    appendStatsRow('statsHgBody',[originLabel,'','','','']);
+  }
   $('statsRegionBody').replaceChildren();
   (data.regions||[]).forEach(item=>appendStatsRow('statsRegionBody',[
     item.region_name||item.region_id,item.online_total,item.residents,item.hypergrid
@@ -1000,6 +1024,9 @@ function renderStatistics(data){
     datenqualitaet:{
       vollstaendig:quality.complete,
       griduser_datenquelle:quality.griduser_source,
+      hg_herkunftsstatus:quality.hypergrid_origin_status,
+      hg_herkunftszeilen:quality.hypergrid_origin_rows,
+      hg_ohne_heimat_uri:quality.hypergrid_identities_without_home_uri,
       fehlende_kennzahlen:quality.missing_metrics||[],
       registrierungsquelle:qv(quality.registered_source),
       online_quelle:qv(quality.online_source),
@@ -1203,6 +1230,24 @@ function gridViewport(){
   return {minX,minY,maxX:minX+width-1,maxY:minY+height-1,width,height};
 }
 function gridCellKey(x,y){return x+':'+y}
+// Tile images are decorative; the authoritative occupancy/placement data
+// remains the authenticated Grid Control API. Cap requests for large viewports.
+function applyGridImagery(){
+  const enabled=$('gridShowWarp3d').checked;
+  let loaded=0, skipped=0;
+  document.querySelectorAll('#gridBoard .gridcell').forEach(cell=>{
+    if(enabled&&cell.classList.contains('occupied')){
+      if(loaded<200){
+        const x=Number(cell.dataset.x),y=Number(cell.dataset.y);
+        cell.style.backgroundImage='linear-gradient(rgba(6,18,32,.22),rgba(6,18,32,.22)),url("/api/v1/deutschland/tiles/1/'+x+'/'+y+'.jpg")';
+        cell.style.backgroundSize='cover';
+        loaded++;
+      }else{cell.style.backgroundImage='';skipped++;}
+    }else cell.style.backgroundImage='';
+  });
+  $('gridMapTileStatus').textContent=!enabled?'Kartenbilder ausgeblendet.'
+    :loaded+' Warp3D-Kacheln eingeblendet.'+(skipped?' Für große Ausschnitte sind maximal 200 Bilder gleichzeitig aktiv.':'');
+}
 function applyGridFilter(){
   const filter=$('gridFilter').value;
   document.querySelectorAll('#gridBoard .gridcell').forEach(cell=>{
@@ -1296,6 +1341,7 @@ function renderGridLayout(data){
     }
   }
   applyGridFilter();
+  applyGridImagery();
   const counts=data.counts||{};
   setGridStatus('Live · '+(counts.regions||0)+' Regionen · '+(counts.free||0)+' frei · '+(counts.occupied||0)+' belegt','good');
 }
@@ -1646,10 +1692,11 @@ function secretValidateEndpoint(text) {
   return url.href;
 }
 function secretBuildLines(values) {
-  const names=['NEXVERSE_ECONOMY_API_KEY','NEXVERSE_EXPERIENCES_API_KEY',
+  const names=['NEXVERSE_REGISTER_API_KEY','NEXVERSE_ECONOMY_API_KEY',
+    'NEXVERSE_GROUP_LAND_API_KEY','NEXVERSE_EXPERIENCES_API_KEY',
     'NEXVERSE_EXPERIENCES_VIEWER_PERMISSIONS_API_KEY',
     'NEXVERSE_EXPERIENCES_VIEWER_MANAGE_API_KEY',
-    'NEXVERSE_NEXBUS_SHARED_KEY','NEXVERSE_NEXBUS_PEER_URL','NEXVERSE_NEXBUS_PEERS'];
+    'NEX_PORTAL_IM_SECRET','NEXVERSE_NEXBUS_SHARED_KEY','NEXVERSE_NEXBUS_PEER_URL','NEXVERSE_NEXBUS_PEERS'];
   $('secretOutput').value=names.filter(name=>Object.hasOwn(values,name)).map(name=>name+'='+values[name]).join('\n')+'\n';
   $('secretCopy').disabled=!Object.keys(values).length;
 }
@@ -1745,15 +1792,46 @@ async function secretAdminToken() {
   if(!token)throw new Error('Eine aktive Admin-Sitzung mit UserLevel 200 ist erforderlich.');
   return token;
 }
-async function secretGenerate() {
-  const wantEconomy=$('secretEconomy').checked;
-  const wantExperiences=$('secretExperiences').checked;
-  const wantPermissions=$('secretExperiencePermissions').checked;
-  const wantManage=$('secretExperienceManage').checked;
-  const wantBus=$('secretNexBus').checked;
-  if(!wantEconomy&&!wantExperiences&&!wantPermissions&&!wantManage&&!wantBus){
+async function secretGeneratePortalIm() {
+  if(secretIssuePending)return;
+  if(!window.isSecureContext) {
+    secretStatus('HMAC-Schlüssel dürfen ausschließlich unter HTTPS generiert werden.',false);
+    return;
+  }
+  secretIssuePending=true;
+  $('secretGeneratePortalIm').disabled=true;
+  try {
+    const token=await secretAdminToken();
+    await secretJson('/api/v1/auth/admin/session',{
+      headers:{'Authorization':'Bearer '+token}});
+    if(!window.confirm('Neuen NexPortalIM-Schlüssel erstellen? Ein bestehender Schlüssel wird NICHT automatisch auf ROBUST oder Simulatoren umgestellt.'))return;
+    secretBuildLines({NEX_PORTAL_IM_SECRET:secretRandomHmac()});
+    secretStatus('Neuen NexPortalIM-HMAC-Schlüssel erzeugt. Jetzt sicher auf ROBUST und allen Simulatoren mit identischem Wert eintragen.',true);
+  }catch(error) {
+    secretStatus('NexPortalIM-Schlüssel nicht erzeugt: '+String(error.message||error),false);
+  }finally {
+    secretIssuePending=false;
+    $('secretGeneratePortalIm').disabled=false;
+  }
+}
+let secretIssuePending=false;
+async function secretGenerate(onlyRegistration=false, onlyGroupLand=false) {
+  if(secretIssuePending)return;
+  const onlyOne=onlyRegistration||onlyGroupLand;
+  const wantRegister=onlyRegistration||(!onlyOne&&$('secretRegister').checked);
+  const wantGroupLand=onlyGroupLand||(!onlyOne&&$('secretGroupLand').checked);
+  const wantEconomy=!onlyOne&&$('secretEconomy').checked;
+  const wantExperiences=!onlyOne&&$('secretExperiences').checked;
+  const wantPermissions=!onlyOne&&$('secretExperiencePermissions').checked;
+  const wantManage=!onlyOne&&$('secretExperienceManage').checked;
+  const wantBus=!onlyOne&&$('secretNexBus').checked;
+  if(!wantRegister&&!wantGroupLand&&!wantEconomy&&!wantExperiences&&!wantPermissions&&!wantManage&&!wantBus){
     secretStatus('Bitte mindestens einen Schlüssel auswählen.',false);return;
   }
+  secretIssuePending=true;
+  $('secretGenerate').disabled=true;
+  $('secretGenerateRegistration').disabled=true;
+  $('secretGenerateGroupLand').disabled=true;
   const values={};
   let peers=[];
   let peerUrl='';
@@ -1766,8 +1844,12 @@ async function secretGenerate() {
     if(!window.isSecureContext)throw new Error('Schlüssel nur über HTTPS generieren.');
     const token=await secretAdminToken();
     const plan=[
+      {wanted:wantRegister,name:'OGL Stadtportal Registrierung',
+       scopes:['users:register'],env:'NEXVERSE_REGISTER_API_KEY'},
+      {wanted:wantGroupLand,name:'OGL Simulator Group Land',
+       scopes:['groups:read'],env:'NEXVERSE_GROUP_LAND_API_KEY'},
       {wanted:wantEconomy,name:'OGL Simulator Economy',
-       scopes:['economy:read','economy:transfer'],env:'NEXVERSE_ECONOMY_API_KEY'},
+       scopes:['economy:read','economy:transfer','groups:read'],env:'NEXVERSE_ECONOMY_API_KEY'},
       {wanted:wantExperiences,name:'OGL Simulator Experiences',
        scopes:['experiences:script'],env:'NEXVERSE_EXPERIENCES_API_KEY'},
       {wanted:wantPermissions,name:'OGL Simulator Experience Permissions',
@@ -1788,8 +1870,11 @@ async function secretGenerate() {
       if(match)throw new Error('Ein aktiver Schlüssel für '+match.name+
         ' existiert bereits. Unter Abschnitt 4 prüfen und bei nötiger Rotation gezielt deaktivieren.');
     }
-    if(!window.confirm('Neue Maschinen-API-Schlüssel werden sofort serverseitig registriert. Erstellung starten?'))return;
-    $('secretGenerate').disabled=true;
+    if(!window.confirm(onlyRegistration?
+      'Neuen dedizierten Registrierungs-API-Key (nur users:register) für das Stadtportal-Backend erstellen?':
+      onlyGroupLand?
+      'Neuen dedizierten Gruppenland-API-Key (nur groups:read) für die Simulatoren erstellen?':
+      'Neue Maschinen-API-Schlüssel werden sofort serverseitig registriert. Erstellung starten?'))return;
     $('secretCopy').disabled=true;
     $('secretOutput').value='';
     secretStatus('Schlüssel werden registriert…',null);
@@ -1812,14 +1897,21 @@ async function secretGenerate() {
         secretBuildLines(values);
       }
     }
-    secretStatus('Alle ausgewählten Schlüssel erstellt. Konfigurationsblock jetzt sicher kopieren.',true);
+    secretStatus(onlyRegistration?
+      'Registrierungs-API-Key erstellt. NEXVERSE_REGISTER_API_KEY jetzt ausschließlich ins Stadtportal-Backend kopieren.':
+      onlyGroupLand?
+      'Gruppenland-API-Key erstellt. NEXVERSE_GROUP_LAND_API_KEY jetzt in die geschützte Simulator-Environment-Datei kopieren.':
+      'Alle ausgewählten Schlüssel erstellt. Konfigurationsblock jetzt sicher kopieren.',true);
     if(plan.length)await secretLoadKeys();
   }catch(err){
     secretBuildLines(values);
     secretStatus('Einrichtung nicht vollständig: '+String(err.message||err)+
       '. Bereits erstellte Schlüssel stehen im Ausgabefeld; kopieren, bevor du erneut startest.',false);
   }finally{
+    secretIssuePending=false;
     $('secretGenerate').disabled=false;
+    $('secretGenerateRegistration').disabled=false;
+    $('secretGenerateGroupLand').disabled=false;
   }
 }
 async function secretCopy() {
@@ -1908,7 +2000,10 @@ $('adminLoginSubmit').addEventListener('click',adminLogin);
 $('adminLoginLogout').addEventListener('click',adminLogout);
 $('adminLoginPassword').addEventListener('keydown',event=>{if(event.key==='Enter'){event.preventDefault();adminLogin()}});
 $('adminLoginTotp').addEventListener('keydown',event=>{if(event.key==='Enter'){event.preventDefault();adminLogin()}});
-$('secretGenerate').addEventListener('click',secretGenerate);
+$('secretGenerate').addEventListener('click',()=>secretGenerate());
+$('secretGenerateRegistration').addEventListener('click',()=>secretGenerate(true));
+$('secretGenerateGroupLand').addEventListener('click',()=>secretGenerate(false,true));
+$('secretGeneratePortalIm').addEventListener('click',secretGeneratePortalIm);
 $('secretCopy').addEventListener('click',secretCopy);
 $('secretClear').addEventListener('click',secretClear);
 $('secretLoadKeys').addEventListener('click',secretLoadKeys);
@@ -1926,7 +2021,7 @@ $('revokeFeatureLicense').addEventListener('click',()=>saveFeatureLicense(true))
 $('loadNodes').addEventListener('click',loadNodes);$('clearNodesCredentials').addEventListener('click',()=>{$('nodesBearer').value='';$('nodesApiKey').value=''});
 $('gridWest').addEventListener('click',()=>panGrid(-1,0));$('gridEast').addEventListener('click',()=>panGrid(1,0));$('gridSouth').addEventListener('click',()=>panGrid(0,-1));$('gridNorth').addEventListener('click',()=>panGrid(0,1));
 $('validateGridPlacement').addEventListener('click',validateGridPlacement);$('gridRegionSizeX').addEventListener('change',()=>{if(gridSelected)validateGridPlacement()});$('gridRegionSizeY').addEventListener('change',()=>{if(gridSelected)validateGridPlacement()});
-$('gridCellPixels').addEventListener('input',()=>{$('gridBoard').style.setProperty('--cell',$('gridCellPixels').value+'px')});$('gridFilter').addEventListener('change',applyGridFilter);
+$('gridCellPixels').addEventListener('input',()=>{$('gridBoard').style.setProperty('--cell',$('gridCellPixels').value+'px')});$('gridFilter').addEventListener('change',applyGridFilter);$('gridShowWarp3d').addEventListener('change',applyGridImagery);
 
 window.addEventListener('message',event=>{
   if(event.origin!==window.parent.location.origin || event.source!==window.parent ||

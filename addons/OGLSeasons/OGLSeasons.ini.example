@@ -1,0 +1,23 @@
+; OpenGenesisLINK OGL Seasons – Muster für bin/config-include/
+; bewusst deaktiviert, keine Terrain-/Estate-/EEP-Änderungen.
+[OGLSeasons]
+Enabled = false
+; Leer: alle Regionen dieses Simulatorprozesses, oder kommagetrennte Regionsnamen
+AllowedRegions = ""
+; Nur Faktoren von 1440 im Bereich 5–1440
+WeatherIntervalMinutes = 30
+; Gleiche Zone = gleiches Wetter für benachbarte Regionen, auch auf anderen Simulatoren.
+; Leer = jede Region bekommt ihren eigenen, reproduzierbaren Wetterverlauf.
+WeatherZone = ""
+; Ephemere Himmels-/Wolken-/Nebelüberlagerung. Nie persistent speichern!
+EnableEepOverlay = false
+; Bereits vorhandene Estate-/Region-EEP grundsätzlich schützen.
+AllowCustomRegionEep = false
+; Höhe/Mikroklima: -15 bis +15 °C gegenüber dem Basismodell.
+TemperatureOffsetC = 0
+; Nur Status, kein echter DWD-Wetterabruf
+Seed = 2026
+CheckSeconds = 60
+BroadcastSeconds = 180
+; Muss negativ sein. Der LSL-Wetter-Emitter nutzt denselben Kanal.
+LSLChannel = -835011

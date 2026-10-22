@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="System.Security.Permissions" Version="8.0.0" />
+    <PackageReference Include="System.Configuration.ConfigurationManager" Version="8.0.0" />
+    <Reference Include="MySql.Data">
+      <HintPath>../../../bin/MySql.Data.dll</HintPath>
+      <Private>True</Private>
+    </Reference>
+    <Compile Include="../../../NexVerse/Server/Api/INexCitizenImStore.cs" Link="INexCitizenImStore.cs"/>
+    <Compile Include="../../../NexVerse/Server/Api/NexCitizenImMySqlStore.cs" Link="NexCitizenImMySqlStore.cs"/>
+  </ItemGroup>
+</Project>

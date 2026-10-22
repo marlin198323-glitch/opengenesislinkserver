@@ -98,11 +98,11 @@ namespace OpenSim.Services.GridService
             if(!m_ThisGridInfo.HasHGConfig)
                 throw new Exception("missing HyperGrid configuration");
 
-            m_log.DebugFormat("[HYPERGRID LINKER]: Local Gatekeeper: {0}", m_ThisGridInfo.GateKeeperURL);
+            m_log.DebugFormat("[HYPERGRID]: Lokaler Gatekeeper: {0}", m_ThisGridInfo.GateKeeperURL);
 
             m_GatekeeperConnector = new GatekeeperServiceConnector(m_AssetService);
 
-            m_log.Debug("[HYPERGRID LINKER]: Loaded all services...");
+            m_log.Debug("[HYPERGRID]: Alle erforderlichen Dienste geladen.");
 
             if (!string.IsNullOrEmpty(m_MapTileDirectory))
             {

@@ -789,6 +789,9 @@ namespace NexVerse.Server.Api
         private readonly int m_IdempotencyTtlSeconds;
         private readonly int m_AdminMinimumLevel;
         private readonly INexSecurityStore m_Security;
+        private readonly IOglLocalAvatarDeletion m_LocalDeletion;
+        private readonly bool m_SelfDeletionEnabled;
+        private readonly HashSet<string> m_TrustedSelfDeletionProxyIps;
 
         public NexUserApiRouter(
             INexUserService users,
@@ -808,7 +811,9 @@ namespace NexVerse.Server.Api
             NexRegionOperationRegistry regionOperationRegistry,
             bool distributedNexBusEnabled,
             int adminMinimumLevel,
-            INexSecurityStore securityStore = null)
+            INexSecurityStore securityStore = null,
+            bool selfDeletionEnabled = false,
+            string trustedSelfDeletionProxyIps = "")
         {
             m_Users = users ?? throw new ArgumentNullException(nameof(users));
             m_Authenticator = authenticator ?? throw new ArgumentNullException(nameof(authenticator));
@@ -849,6 +854,15 @@ namespace NexVerse.Server.Api
                 m_Audit);
             m_AdminMinimumLevel = adminMinimumLevel;
             m_Security = securityStore;
+            m_LocalDeletion = userAccounts as IOglLocalAvatarDeletion;
+            m_SelfDeletionEnabled = selfDeletionEnabled;
+            m_TrustedSelfDeletionProxyIps = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (string raw in (trustedSelfDeletionProxyIps ?? string.Empty).Split(','))
+            {
+                if (IPAddress.TryParse(raw.Trim(), out IPAddress ip))
+                    m_TrustedSelfDeletionProxyIps.Add(ip.IsIPv4MappedToIPv6
+                        ? ip.MapToIPv4().ToString() : ip.ToString());
+            }
         }
 
         public void Handle(IOSHttpRequest request, IOSHttpResponse response)
@@ -984,6 +998,12 @@ namespace NexVerse.Server.Api
                     region = RegionPayload(region),
                     correlation_id = NexApiRequestContext.Ensure(response)
                 });
+                return;
+            }
+
+            if (string.Equals(path, "/api/v1/users/me/delete", StringComparison.OrdinalIgnoreCase))
+            {
+                HandleDeleteOwnAccount(request, response);
                 return;
             }
 
@@ -2010,6 +2030,155 @@ namespace NexVerse.Server.Api
                     regions.Length,
                     hasMore)
             });
+        }
+
+        // The account identity is derived exclusively from the native
+        // resident bearer token. Client-supplied first/last/UUID are ignored,
+        // and API-key/service-principal authentication is never sufficient.
+        private void HandleDeleteOwnAccount(IOSHttpRequest request, IOSHttpResponse response)
+        {
+            response.AddHeader("Cache-Control", "no-store");
+            if (!RequireMethod(request, response, "POST"))
+                return;
+
+            if (!m_SelfDeletionEnabled || m_LocalDeletion == null)
+            {
+                WriteError(response, HttpStatusCode.ServiceUnavailable,
+                    "self_deletion_unavailable", "Self-deletion is not enabled on this grid.");
+                return;
+            }
+
+            IPAddress peer = request.RemoteIPEndPoint?.Address;
+            string peerIp = peer == null ? string.Empty :
+                (peer.IsIPv4MappedToIPv6 ? peer.MapToIPv4().ToString() : peer.ToString());
+            string forwarded = request.Headers?["X-Forwarded-Proto"];
+            bool trustedProxy = (peer != null && IPAddress.IsLoopback(peer)) ||
+                m_TrustedSelfDeletionProxyIps.Contains(peerIp);
+            bool forwardedTls = trustedProxy && !string.IsNullOrWhiteSpace(forwarded) &&
+                forwarded.Split(',').All(x => string.Equals(x.Trim(), "https", StringComparison.OrdinalIgnoreCase));
+            if (!request.IsSecured && !forwardedTls)
+            {
+                WriteError(response, HttpStatusCode.Forbidden, "https_required",
+                    "Use HTTPS or the configured TLS-terminating trusted proxy.");
+                return;
+            }
+
+            // Do not allow an API key to substitute for the resident's login
+            // session, even when the key has broad admin privileges.
+            if (!string.IsNullOrWhiteSpace(request.Headers?["X-NexVerse-Api-Key"]))
+            {
+                WriteError(response, HttpStatusCode.Forbidden, "resident_session_required",
+                    "Authenticate as the owner with a resident Bearer session.");
+                return;
+            }
+
+            if (!Authenticate(request, response, null,
+                    out NexPrincipal principal, out UserAccount owner))
+                return;
+            if (owner == null || owner.PrincipalID.IsZero() ||
+                !string.Equals(principal.Subject, owner.PrincipalID.ToString(), StringComparison.OrdinalIgnoreCase))
+            {
+                WriteError(response, HttpStatusCode.Forbidden, "resident_session_required",
+                    "A verified resident session is required.");
+                return;
+            }
+            if (!owner.LocalToGrid || owner.UserLevel >= m_AdminMinimumLevel ||
+                owner.PrincipalID == OpenSim.Framework.Constants.servicesGodAgentID)
+            {
+                WriteError(response, HttpStatusCode.Forbidden, "protected_account",
+                    "This account cannot be self-deleted through the portal.");
+                return;
+            }
+
+            if (!TryReadJson(request, response, out JsonDocument document))
+                return;
+
+            using (document)
+            {
+                JsonElement root = document.RootElement;
+                // No arbitrary principal ID, name, email or cross-account
+                // selection is accepted; they already come from the session.
+                if (root.TryGetProperty("avatar_id", out _) ||
+                    root.TryGetProperty("principal_id", out _) ||
+                    root.TryGetProperty("first_name", out _) ||
+                    root.TryGetProperty("last_name", out _))
+                {
+                    WriteError(response, HttpStatusCode.BadRequest,
+                        "identity_not_accepted", "Do not send avatar identity fields.");
+                    return;
+                }
+
+                string password = GetOptionalString(root, "password");
+                string confirmation = GetOptionalString(root, "confirmation");
+                if (string.IsNullOrEmpty(password) || password.Length > 256 ||
+                    !string.Equals(confirmation, "KONTO LÖSCHEN", StringComparison.Ordinal))
+                {
+                    WriteError(response, HttpStatusCode.BadRequest, "confirmation_required",
+                        "A password and the exact confirmation phrase KONTO LÖSCHEN are required.");
+                    return;
+                }
+
+                // Reauthentication immediately before the irreversible step.
+                if (!m_Users.VerifyPassword(owner.PrincipalID.ToString(), password))
+                {
+                    WriteError(response, HttpStatusCode.Forbidden, "reauthentication_failed",
+                        "Current password verification failed.");
+                    return;
+                }
+
+                string deletedSubject = owner.PrincipalID.ToString();
+                if (!m_LocalDeletion.TryDeleteLocalAvatar(owner.PrincipalID, out string failed))
+                {
+                    string code = string.IsNullOrWhiteSpace(failed) ?
+                        "account_deletion_failed" : failed;
+                    WriteError(response, code == "avatar_online" ?
+                        HttpStatusCode.Conflict : HttpStatusCode.ServiceUnavailable,
+                        code, "Account could not be safely deleted. No successful deletion was reported.");
+                    return;
+                }
+
+                // Access tokens are rejected after deletion because the
+                // authoritative UserAccount no longer exists. Refresh tokens
+                // are separately revoked for the deleted subject.
+                string correlationId = AddCorrelation(response);
+                // The DB purge has COMMITTED: no external event or refresh-token
+                // storage exception may turn the successful delete into an
+                // ambiguous 500 that prevents the portal logout.
+                try
+                {
+                    m_OAuthStore?.RevokeSubjectRefreshTokens(deletedSubject);
+                }
+                catch (Exception revokeError)
+                {
+                    Trace.TraceWarning("[NEX-WORLD-API]: Self-delete refresh revocation failed: " +
+                        revokeError.GetType().Name);
+                }
+                try
+                {
+                    m_Audit.Record(new NexAuditEvent(
+                        deletedSubject, "users.self_delete", deletedSubject,
+                        correlationId, new Dictionary<string, string> {
+                            ["scope"] = "core_identity_only"
+                        }));
+                    m_EventBus.Publish(new NexEvent(
+                        "user.deleted", "nexverse.world-api",
+                        new Dictionary<string, string> { ["principal_id"] = deletedSubject },
+                        correlationId));
+                }
+                catch (Exception auditError)
+                {
+                    Trace.TraceWarning("[NEX-WORLD-API]: Self-delete postcommit notification failed: " +
+                        auditError.GetType().Name);
+                }
+                WriteJson(response, new {
+                    success = true,
+                    account_deleted = true,
+                    deletion_scope = "core_identity_only",
+                    logout_required = true,
+                    remaining_external_data_may_exist = true,
+                    correlation_id = correlationId
+                });
+            }
         }
 
         private void HandleMe(IOSHttpRequest request, IOSHttpResponse response)

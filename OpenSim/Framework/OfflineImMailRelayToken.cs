@@ -30,6 +30,80 @@ namespace OpenSim.Framework
             return string.Join("-", Prefix, target, expiry, nonce, signature);
         }
 
+        // Identity-bound reply tokens: a shared contact mailbox must not
+        // cause a reply to be attributed to an arbitrary first account.
+        public static string Create(
+            UUID targetAgentId,
+            UUID replyingAgentId,
+            string authorizedEmail,
+            DateTimeOffset expiresAt,
+            string signingKey)
+        {
+            ValidateSigningKey(signingKey);
+            if (targetAgentId.IsZero() || replyingAgentId.IsZero())
+                throw new ArgumentException("Reply token identities must not be zero.");
+
+            string target = Base64Url(targetAgentId.Guid.ToByteArray());
+            string replying = Base64Url(replyingAgentId.Guid.ToByteArray());
+            string expiry = ToBase36(expiresAt.ToUnixTimeSeconds());
+            string nonce = Base64Url(RandomNumberGenerator.GetBytes(NonceBytes));
+            string signature = Sign(
+                "r2|" + target + "|" + replying, expiry, nonce,
+                NormalizeEmail(authorizedEmail), signingKey);
+            return string.Join("-", "r2", target, replying, expiry, nonce, signature);
+        }
+
+        // Deliberately refuses legacy unbound r1 tokens. Their sender identity
+        // cannot be uniquely determined once more than one avatar uses an email.
+        public static bool TryValidateReply(
+            string localPart,
+            string authorizedEmail,
+            string signingKey,
+            DateTimeOffset now,
+            TimeSpan maximumFutureLifetime,
+            out UUID targetAgentId,
+            out UUID replyingAgentId)
+        {
+            targetAgentId = UUID.Zero;
+            replyingAgentId = UUID.Zero;
+            if (string.IsNullOrWhiteSpace(localPart) ||
+                string.IsNullOrWhiteSpace(authorizedEmail) ||
+                string.IsNullOrWhiteSpace(signingKey))
+                return false;
+
+            string[] parts = localPart.Split('-');
+            if (parts.Length != 6 || parts[0] != "r2" ||
+                !TryBase64UrlDecode(parts[1], out byte[] targetBytes) ||
+                !TryBase64UrlDecode(parts[2], out byte[] replyingBytes) ||
+                targetBytes.Length != 16 || replyingBytes.Length != 16 ||
+                !TryFromBase36(parts[3], out long expiryUnix))
+                return false;
+
+            try
+            {
+                DateTimeOffset expiry = DateTimeOffset.FromUnixTimeSeconds(expiryUnix);
+                if (expiry <= now || expiry > now.Add(maximumFutureLifetime))
+                    return false;
+                string expected = Sign(
+                    "r2|" + parts[1] + "|" + parts[2], parts[3], parts[4],
+                    NormalizeEmail(authorizedEmail), signingKey);
+                if (!FixedTimeEquals(parts[5], expected))
+                    return false;
+
+                targetAgentId = new UUID(new Guid(targetBytes));
+                replyingAgentId = new UUID(new Guid(replyingBytes));
+                return !targetAgentId.IsZero() && !replyingAgentId.IsZero();
+            }
+            catch (ArgumentOutOfRangeException)
+            {
+                return false;
+            }
+            catch (ArgumentException)
+            {
+                return false;
+            }
+        }
+
         public static bool TryValidate(
             string localPart,
             string authorizedEmail,

@@ -473,6 +473,7 @@ namespace OpenSim.OfflineIM
                 {
                     string replyLocalPart = OfflineImMailRelayToken.Create(
                         senderID,
+                        recipientID,
                         recipientAddress.Address,
                         DateTimeOffset.UtcNow.AddDays(m_EmailReplyLifetimeDays),
                         m_EmailRelaySigningKey);

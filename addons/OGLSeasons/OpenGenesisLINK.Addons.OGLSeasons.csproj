@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <OutputType>Library</OutputType>
+    <AssemblyName>OpenGenesisLINK.Addons.OGLSeasons</AssemblyName>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <Nullable>disable</Nullable>
+    <CopyLocalLockFileAssemblies>false</CopyLocalLockFileAssemblies>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../OpenSim/Region/Framework/OpenSim.Region.Framework.csproj" />
+    <ProjectReference Include="../../OpenSim/Framework/OpenSim.Framework.csproj" />
+    <Reference Include="Nini"><HintPath>../../bin/Nini.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="Mono.Addins"><HintPath>../../bin/Mono.Addins.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="OpenMetaverse.StructuredData"><HintPath>../../bin/OpenMetaverse.StructuredData.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="OpenMetaverse"><HintPath>../../bin/OpenMetaverse.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="OpenMetaverseTypes"><HintPath>../../bin/OpenMetaverseTypes.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="log4net"><HintPath>../../bin/log4net.dll</HintPath><Private>false</Private></Reference>
+  </ItemGroup>
+</Project>

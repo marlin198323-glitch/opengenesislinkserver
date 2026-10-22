@@ -12,6 +12,18 @@ Current development deployment base (confirm against the active `[NexVerseWorldA
 
 The endpoint above reflects the historically documented direct HTTP/port-80 deployment, **not a guarantee of live reachability, HTTPS or TLS protection**. Secure authenticated API traffic using an HTTPS reverse proxy or a comparably protected trusted network. Do not transmit bearer tokens, passwords or service API keys across plain public HTTP. The World API uses its own `/api/v1` namespace, whereas OAuth/OIDC endpoints include `/oauth/...` and `/.well-known/openid-configuration`. Paths in OpenAPI may depend on `EnablePrivilegedEndpoints`, configured services and simulator-side CAPS.
 
+## R409: verifizierter Portal-/World-Vertragsabgleich (23.10.2026)
+
+Der vollständige, quellenbelegte Gegenbericht steht in [OPEN_GENESISLINK_WORLD_API_GEGENPRUEFUNG_R409.md](OPEN_GENESISLINK_WORLD_API_GEGENPRUEFUNG_R409.md). Er hält technische Git-Baseline, echte Router-/Handlerbelege, differenzierte R397–R408-Einordnung und offene P0-/P1-Abnahmen fest. Der letzte produktiv installierte World-Commit ist damit nicht automatisch nachgewiesen.
+
+**Sicherheitsgrenze Bugreports:** POST an https://stadt-nexverse.de/api/v1/bug-reports ist eine **Stadtportal-API**, keine World-Route. Ein authentifizierter, serverseitig an den tatsächlichen Avatar und seine Region/Position gebundener Simulator-Ereignisadapter ist derzeit **P0 offen**. Keine Secrets in LSL/Browser, keine öffentliche World-Bug-Route, keine redundante Ticketspeicherung.
+
+**Kartenvertrag:** GET /api/v1/deutschland hat 16×16 Zellgrenze (256 m/Zelle), Viewport-Antwort derzeit maximal 256 Regionen und Suchantwort maximal 32. Die Quellimplementierung enthält kein truncated/reported_regions-Feld und braucht einen 44-Regionen-/50-Kachel-E2E-Fixture-Test. Ein leeres Standard-Viewport ist kein Beleg für ein leeres Grid.
+
+**Discovery:** DELETE /api/v1/places/{placeId} erfordert discovery:manage und löscht mit dem Place auch zugehörige Events, Destinations und Classifieds. Nicht vorhandene PlaceId kann HTTP 200 mit deleted:false liefern; das Portal muss dies behandeln und vor Löschung transparent bestätigen.
+
+**Verifikationsstatus:** Nur statischer Server-Quellcode, belegter GitHub-Commit-Diff und bereits vorhandene GitHub-CI. Den am 22.10. vom Portal gemeldeten OpenAPI-Fingerprint (151/203/168) und die Produktivverfügbarkeit konnten wir in dieser Sitzung nicht erneut prüfen. Eine E2E-Abnahme gegen Staging bleibt Pflicht.
+
 ## Aktueller Dokumentationsvertrag (0.9.3.10 Stable, 12.10.2026)
 
 Die **drei dynamisch generierten ChatGPT-MD-Anweisungen** und die **OpenAPI 3.1** werden vom Robust-Prozess geliefert. Verwende fuer einen konkreten Grid-Betrieb die Antworten derselben laufenden Version und nicht eine alte aus Git ausgecheckte Datei. Dieser Repository-Stand dokumentiert den **Quellcode**, nicht das automatische Deployment von /opt/robust und /opt/developer.
@@ -92,10 +104,78 @@ If **both** GridUser history and account enumeration fail, a controlled
 `503 statistics_unavailable` remains correct. The route itself must not
 disappear as a 404 merely because privileged endpoints are disabled.
 
+### Hypergrid-Herkunft und `statistics:read`
+
+`GET /api/v1/statistics/summary` liefert mit einem gueltigen
+`statistics:read`-Bearer-Token oder `X-NexVerse-Api-Key`:
+
+- `protected_details: true`: Die Anmeldedaten wurden autorisiert.
+- `hypergrid_home_grids`: Heimat-Grid-Zeilen mit `home_grid`,
+  `known_visitors`, `online_now`, `last_7_days` und
+  `last_30_days`. Diese Liste ist **nur** bei autorisiertem Abruf
+  freigegeben. Ohne Token bleibt sie absichtlich leer.
+- `data_quality.hypergrid_origin_status`:
+  `available`, `no_recorded_visitors`, `incomplete_home_uri`
+  oder `unavailable`.
+- `data_quality.hypergrid_origin_rows` und
+  `data_quality.hypergrid_identities_without_home_uri`:
+  ausschliesslich autorisierte Diagnosedaten. Bei anonymem Zugriff
+  sind diese Felder `null`.
+
+Die Datenbasis ist die Tabelle `GridUser` im konfigurierten
+`GridUserService`-Datastore. Hypergrid-Besucher werden ueber die
+vollstaendige UUI `avatarUUID;HomeURI;Name` gezaehlt. Der
+`GridUserService` muss diese Identitaet bei neuen Anmeldungen,
+Abmeldungen und Positionsaktualisierungen als **exakten**
+Datensatz fuehren, damit Besucher mit gleicher Avatar-UUID aus
+unterschiedlichen Grids nicht gegenseitig ihre Herkunftszeilen
+ueberschreiben.
+
+**Wichtig bei Altdaten:** Bereits zusammengefallene
+`GridUser`-Zeilen koennen die urspruengliche `HomeURI` unwiederbringlich
+verloren haben. Ohne nachgewiesene Herkunft kann die World API die
+historische Aufteilung nicht rueckwirkend berechnen; neue
+authentifizierte HG-Anmeldungen erzeugen kuenftig separat zuordenbare
+Datensaetze. Es gibt **keine** automatische Migration und keine
+erratene Herkunft aus Avatar-Namen, IP-Adressen oder Landobjekten.
+
+**Diagnose:** Zuerst `protected_details` und
+`data_quality.griduser_source` auswerten. Ist
+`protected_details=false`, fehlt eine akzeptierte
+`statistics:read`-Autorisierung fuer die Abfrage. Ist
+`griduser_source=unavailable`, den konfigurierten
+`[GridUserService]`-Provider und dessen Speicherverbindung
+auf ROBUST untersuchen. Liefert die Antwort trotz
+`protected_details=true` eine leere `hypergrid_home_grids`-Liste,
+gibt `hypergrid_origin_status` an, ob keine HG-Besucher
+aufgezeichnet sind oder die Herkunfts-URI fehlt.
+
 The response reports its effective privacy level through:
 
 - `detail_level=aggregate|authenticated|partial`
 - `protected_details=false|true`
+
+## Deutschland-Warp3D-Karte und Gridplaner
+
+Die öffentliche **Stadt NexVerse Deutschland-Karte** ist unter
+`GET /api/v1/deutschland` erreichbar. Sie liefert Regionsmetadaten für ein
+begrenztes Fenster mit bis zu 16 × 16 Basiszellen. Die vollständige Welt wird
+über wiederholte, begrenzte Viewport-Anfragen erschlossen, nicht als
+unbeschränkt großes, speicherintensives Gesamtbild.
+
+- `GET /api/v1/deutschland/view`: responsive Pan-/Zoom-Karte mit Suche und Teleport.
+- `GET /api/v1/deutschland?q=Freiburg`: aktive veröffentlichte Regionen suchen.
+- `GET /api/v1/deutschland?min_x=995&max_x=1010&min_y=1000&max_y=1015`: Ausschnitt laden.
+- `GET /api/v1/deutschland/tiles/1/1000/1010.jpg`: eine originale Warp3D-Kachel.
+- `GET /api/v1/deutschland/tiles/{zoom}/{x}/{y}.jpg`: bereits vorhandene
+  MapImageService-Mehrfachauflösungen von 1 bis 8; Level 1 ist 256 × 256 Meter.
+
+Die Tiles liegen im eigenen OpenSim-Koordinatensystem. Google-Mercator- oder
+Google-Satellitenkarten sind **kein** unmittelbarer Ersatz. Der privilegierte
+Gridplaner nutzt optional die gleichen Bilder über dem gesicherten
+Belegungsraster. Die bisherige `/api/v1/world-map` bleibt unverändert verfügbar.
+
+Details und Rollout: [DEUTSCHLAND_GRID_MAP.md](DEUTSCHLAND_GRID_MAP.md).
 
 ## LunaTexture diagnostics projection
 
@@ -561,6 +641,70 @@ Default runtime path:
 `data/nexverse-audit.jsonl`
 
 The path can be changed with `AuditStorePath` in `[NexVerseWorldApi]`. Runtime audit data is excluded from Git.
+
+
+### ROBUST-Auditkonsole: lesbar und ohne Healthcheck-Spam
+
+Der Endpunkt `/api/v1/health` wird bei Monitoring-Systemen haeufig
+(z. B. alle 15 Sekunden) abgerufen. Solche anonymen, oeffentlichen
+Lesezugriffe muessen nicht als langformatierte
+`[NEX-AUDIT]`-Zeile die ROBUST-Konsole fuellen. Der Healthcheck
+selbst, dessen HTTP-Antwort, die Request-Metriken und das
+`api.request`-Event bleiben unveraendert.
+
+Die **Konsolenausgabe** wird ausschliesslich durch diese Einstellungen
+gesteuert (in der aktiven `[NexVerseWorldApi]`-Sektion):
+
+```ini
+[NexVerseWorldApi]
+AuditConsoleMode = "important"
+AuditConsolePublicReads = false
+AuditConsoleShowIds = false
+AuditStorePath = "data/nexverse-audit.jsonl"
+```
+
+- `AuditConsoleMode = "important"` (**Standard**): zeigt Aktionen
+  mit Aenderungscharakter und andere nicht-routinemaessige Ereignisse.
+  Regelmaessige `*.read`-, `*.list`-, `*.search`-,
+  `*.query`-, `*.status`-, `*.view`- und `*.check`-Ereignisse
+  werden in der Konsole ausgeblendet.
+- `AuditConsoleMode = "all"`: schreibt alle Audit-Ereignisse in
+  die Konsole, **ausser** oeffentlichen World-API-Lesezugriffen,
+  solange `AuditConsolePublicReads = false` ist.
+- `AuditConsoleMode = "off"`: keine Konsoleneintraege mit
+  `[NEX-AUDIT]`, unabhaengig von den anderen Einstellungen.
+- `AuditConsolePublicReads = true` schaltet bei `all` auch
+  die oeffentlichen `worldapi.*.read`-Ereignisse wieder ein,
+  einschliesslich `worldapi.health.read`. Bei `important`
+  bleiben reine Lesevorgaenge unterdrueckt.
+- `AuditConsoleShowIds = true`: zeigt zusaetzlich die
+  vollstaendige `correlation_id` und `event_id` bei
+  den noch ausgegebenen Ereignissen an.
+
+Die Darstellung ist kompakt, auf Deutsch beschriftet und nach
+Funktionsbereich gruppiert, beispielsweise:
+
+```text
+[NEX-AUDIT] Benutzer | Aktion: users.update | Akteur: admin | Ziel: user:...
+```
+
+**Sicherheit und Nachvollziehbarkeit:** Diese Schalter beeinflussen
+nur `LogNexAuditSink` und **nicht**
+`PersistentNexAuditStore`. Auch wenn die Konsolenausgabe
+komplett abgeschaltet ist, werden privilegierte
+World-API-, OAuth- und Verwaltungsereignisse weiter in
+`data/nexverse-audit.jsonl` gespeichert und koennen per
+`GET /api/v1/audit` mit `admin:*` abgefragt werden.
+Ausserdem bleiben unabhaengige `WARN`-/`ERROR`-Meldungen
+anderer Module und die bestehenden HTTP-Sicherheitskontrollen
+aktiv. Oeffentliche, anonyme Healthchecks wurden bislang
+nur an den Konsolen-Sink uebergeben; ihre Unterdrueckung
+erzeugt daher keinen Verlust privilegierter Audit-Historie.
+
+Nach einer Aenderung der INI ist ROBUST neu zu starten.
+`AuditConsoleMode` ist ein Konsolenfilter, kein Schalter
+zum Loeschen, Deaktivieren oder Rueckgaengigmachen der
+persistenten Audit-Historie.
 
 Administrative query endpoints:
 

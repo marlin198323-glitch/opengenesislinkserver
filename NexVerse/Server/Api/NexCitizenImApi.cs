@@ -27,20 +27,24 @@ namespace NexVerse.Server.Api
         private readonly IUserAccountService m_Accounts;
         private readonly IFriendsService m_Friends;
         private readonly NexApiAuthenticator m_Auth;
-        private readonly IInstantMessage m_IM;
+        private IInstantMessage m_IM;
+        private readonly Func<IInstantMessage> m_InstantMessageResolver;
+        private readonly object m_InstantMessageSync = new object();
         private readonly INexAuditSink m_Audit;
-        private readonly NexCitizenImStore m_Store;
+        private readonly INexCitizenImStore m_Store;
         private readonly ConcurrentDictionary<Guid, Queue<long>> m_SendWindows =
             new ConcurrentDictionary<Guid, Queue<long>>();
 
         public NexCitizenImApi(IUserAccountService accounts, IFriendsService friends,
             NexApiAuthenticator auth, IInstantMessage instantMessages,
-            INexAuditSink audit, NexCitizenImStore store = null)
+            INexAuditSink audit, INexCitizenImStore store = null,
+            Func<IInstantMessage> instantMessageResolver = null)
         {
             m_Accounts = accounts ?? throw new ArgumentNullException(nameof(accounts));
             m_Friends = friends ?? throw new ArgumentNullException(nameof(friends));
             m_Auth = auth ?? throw new ArgumentNullException(nameof(auth));
             m_IM = instantMessages;
+            m_InstantMessageResolver = instantMessageResolver;
             m_Audit = audit ?? NullNexAuditSink.Instance;
             m_Store = store;
         }
@@ -217,13 +221,49 @@ namespace NexVerse.Server.Api
             }
         }
 
+        // The optional HG transport can register after the World API.
+        // Late resolve once and reuse the instance; failures never count as sends.
+        private IInstantMessage ResolveInstantMessageService()
+        {
+            if (m_IM != null || m_InstantMessageResolver == null)
+                return m_IM;
+            lock (m_InstantMessageSync)
+            {
+                if (m_IM == null)
+                {
+                    try { m_IM = m_InstantMessageResolver(); }
+                    catch (Exception e)
+                    {
+                        m_Log.Error("[NEX-CITIZEN-IM]: IM transport initialization failed.", e);
+                    }
+                }
+                return m_IM;
+            }
+        }
+
+        private static void Unavailable(IOSHttpResponse response, string error,
+            string stage, UUID sender, UUID recipient, Exception cause = null)
+        {
+            string correlation = NexApiRequestContext.Ensure(response);
+            string description = "[NEX-CITIZEN-IM]: " + stage +
+                " sender=" + sender + " recipient=" + recipient +
+                " correlation_id=" + correlation;
+            if (cause == null)
+                m_Log.Warn(description);
+            else
+                m_Log.Error(description, cause);
+            Write(response, HttpStatusCode.ServiceUnavailable,
+                new { error, correlation_id = correlation });
+        }
+
         private void Send(IOSHttpRequest request, IOSHttpResponse response,
             NexPrincipal principal, UserAccount sender)
         {
-            if (m_IM == null)
+            if (ResolveInstantMessageService() == null)
             {
-                Write(response, HttpStatusCode.ServiceUnavailable,
-                    new { error = "instant_message_service_unavailable" });
+                Unavailable(response, "instant_message_service_unavailable",
+                    "HGInstantMessageService could not be loaded",
+                    sender.PrincipalID, UUID.Zero);
                 return;
             }
 
@@ -259,14 +299,31 @@ namespace NexVerse.Server.Api
                 return;
             }
 
-            UserAccount receiver = m_Accounts.GetUserAccount(UUID.Zero, target);
+            UserAccount receiver;
+            try { receiver = m_Accounts.GetUserAccount(UUID.Zero, target); }
+            catch (Exception e)
+            {
+                Unavailable(response, "recipient_lookup_unavailable",
+                    "UserAccountService recipient lookup failed", sender.PrincipalID, target, e);
+                return;
+            }
             if (receiver == null || !receiver.Active || !receiver.LocalToGrid)
             {
                 Write(response, HttpStatusCode.NotFound, new { error = "recipient_not_found" });
                 return;
             }
-            FriendInfo friend = (m_Friends.GetFriends(sender.PrincipalID) ??
-                Array.Empty<FriendInfo>()).FirstOrDefault(x => x.Friend == target.ToString());
+            FriendInfo friend;
+            try
+            {
+                friend = (m_Friends.GetFriends(sender.PrincipalID) ??
+                    Array.Empty<FriendInfo>()).FirstOrDefault(x => x.Friend == target.ToString());
+            }
+            catch (Exception e)
+            {
+                Unavailable(response, "friendship_lookup_unavailable",
+                    "FriendsService lookup failed", sender.PrincipalID, target, e);
+                return;
+            }
             if (friend == null || friend.MyFlags < 0 || friend.TheirFlags < 0)
             {
                 Write(response, HttpStatusCode.Forbidden, new { error = "confirmed_friendship_required" });
@@ -288,14 +345,18 @@ namespace NexVerse.Server.Api
 
             bool accepted;
             try { accepted = m_IM.IncomingInstantMessage(im); }
-            catch
+            catch (Exception e)
             {
-                Write(response, HttpStatusCode.ServiceUnavailable, new { error = "message_delivery_unavailable" });
+                Unavailable(response, "message_delivery_unavailable",
+                    "HGInstantMessageService raised a delivery exception",
+                    sender.PrincipalID, target, e);
                 return;
             }
             if (!accepted)
             {
-                Write(response, HttpStatusCode.ServiceUnavailable, new { error = "message_not_delivered" });
+                Unavailable(response, "message_not_delivered",
+                    "HGInstantMessageService rejected delivery and offline storage",
+                    sender.PrincipalID, target);
                 return;
             }
 
@@ -313,12 +374,22 @@ namespace NexVerse.Server.Api
                 // the optional archive failed (that would duplicate IMs).
             }
 
-            m_Audit.Record(new NexAuditEvent(principal.Subject, "portal.im.sent",
-                "message:" + target, details: new Dictionary<string, string>
-                {
-                    ["to_agent_id"] = target.ToString(),
-                    ["bytes"] = Encoding.UTF8.GetByteCount(body).ToString()
-                }));
+            try
+            {
+                m_Audit.Record(new NexAuditEvent(principal.Subject, "portal.im.sent",
+                    "message:" + target, details: new Dictionary<string, string>
+                    {
+                        ["to_agent_id"] = target.ToString(),
+                        ["bytes"] = Encoding.UTF8.GetByteCount(body).ToString()
+                    }));
+            }
+            catch (Exception e)
+            {
+                // Delivery already succeeded: retrying after a 503 would
+                // produce duplicate messages. Log the audit failure only.
+                m_Log.Error("[NEX-CITIZEN-IM]: Post-delivery audit failed; IM accepted." +
+                    " correlation_id=" + NexApiRequestContext.Ensure(response), e);
+            }
             Write(response, HttpStatusCode.Accepted, new
             {
                 status = "accepted",

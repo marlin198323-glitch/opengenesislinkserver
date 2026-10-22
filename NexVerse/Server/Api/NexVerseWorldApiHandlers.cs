@@ -209,8 +209,16 @@ namespace NexVerse.Server.Api
                     ("post", "NV$-Konto sperren, freigeben oder schließen", "admin:*", "200")),
                 ["/api/v1/economy/accounts/ensure"] = AuthenticatedOperations(
                     ("post", "Vertrauenswürdiges Gruppen-, Business-, Estate- oder Objekt-Wallet provisionieren", "economy:transfer (service/admin)", "200")),
+                ["/api/v1/portal/avatars/register"] = AuthenticatedOperations(
+                    ("post", "Stadtportal-Avatar mit users:register-Maschinenkey anlegen (Home und Last setzen)", "users:register", "201")),
+                ["/api/v1/portal/avatars/name-availability"] = AuthenticatedOperations(
+                    ("get", "Live-Namenspruefung (leerer last_name wird Resident); nur Stadtportal-Backend und users:register-Maschinenkey", "users:register", "200")),
                 ["/api/v1/world-map"] = GetOperation("Oeffentliche Weltkarte: Regionen und Kartenkachel-Koordinaten in begrenztem Rasterfenster"),
                 ["/api/v1/world-map/view"] = GetOperation("Interaktive, einbettbare Weltkarte fuer das NexVerse Buergerportal"),
+                ["/api/v1/deutschland"] = GetOperation("Stadt NexVerse Deutschland: oeffentliche Warp3D-Kartenmetadaten und Regionssuche, begrenzte Viewports"),
+                ["/api/v1/deutschland/view"] = GetOperation("Interaktive Stadt NexVerse Deutschland-Karte mit Warp3D-Regionenkacheln"),
+                ["/api/v1/deutschland/tiles/{zoom}/{x}/{y}.jpg"] = GetOperation("Oeffentliche Original-Warp3D-Kartenkacheln von sichtbaren Regionen, Zoom 1 bis 8; 256 Pixel JPEG"),
+                ["/api/v1/deutschland/xyz/{z}/{x}/{y}.jpg"] = GetOperation("MapLibre-kompatible XYZ-Kartenbilder (synthetische Gridkoordinaten, z 17 bis 24)"),
                 ["/api/v1/search"] = GetOperation(
                     "NexSearch über Personen, Gruppen, Regionen, Parcels, Places, Events, Land, Classifieds, Experiences und Destinations"),
                 ["/api/v1/places"] = MergeOperations(
@@ -454,6 +462,8 @@ namespace NexVerse.Server.Api
                     ("post", "Papierkorb des ausgewählten Inventars endgültig leeren", "inventory:write", "200")),
                 ["/api/v1/users/me"] = AuthenticatedOperations(
                     ("get", "Authentifiziertes Einwohnerkonto lesen", null, "200")),
+                ["/api/v1/users/me/delete"] = AuthenticatedOperations(
+                    ("post", "Eigenes Avatar-Kernkonto nach Passwort-Neupruefung und ausdruecklicher Bestaetigung loeschen; danach Portal-Session beenden", "resident bearer only", "200")),
                 ["/api/v1/users"] = AuthenticatedOperations(
                     ("get", "Benutzerkonten durchsuchen", "admin:*", "200"),
                     ("post", "Benutzerkonto erstellen und provisionieren", "admin:*", "201")),
@@ -609,6 +619,7 @@ namespace NexVerse.Server.Api
                 "200");
             ApplyJsonContract(paths, "/api/v1/economy/accounts/ensure", "post", "EconomyWalletEnsureRequest", "EconomyBalanceResponse", "200");
             ApplyJsonContract(paths, "/api/v1/world-map", "get", null, "CitizenWorldMapResponse", "200");
+            ApplyJsonContract(paths, "/api/v1/deutschland", "get", null, "CitizenWorldMapResponse", "200");
             ApplyJsonContract(paths, "/api/v1/profiles/{principalId}", "get", null, "CitizenAvatarProfileResponse", "200");
             ApplyJsonContract(paths, "/api/v1/profiles/{principalId}", "patch", "CitizenAvatarProfilePatch", "CitizenAvatarProfileResponse", "200");
             ApplyJsonContract(paths, "/api/v1/relationships/{principalId}", "get", null, "CitizenFriendListResponse", "200");
@@ -816,6 +827,13 @@ namespace NexVerse.Server.Api
                 "get",
                 null,
                 "User",
+                "200");
+            ApplyJsonContract(
+                paths,
+                "/api/v1/users/me/delete",
+                "post",
+                "AccountSelfDeleteRequest",
+                "AccountSelfDeleteResponse",
                 "200");
             ApplyJsonContract(
                 paths,
@@ -5313,6 +5331,30 @@ namespace NexVerse.Server.Api
                         ["account_state_reason"] = new { type = "string" },
                         ["account_state_changed"] = new { type = "integer" },
                         ["created"] = new { type = "integer" }
+                    }
+                },
+                ["AccountSelfDeleteRequest"] = new
+                {
+                    type = "object",
+                    required = new[] { "password", "confirmation" },
+                    additionalProperties = false,
+                    properties = new Dictionary<string, object>
+                    {
+                        ["password"] = new { type = "string", minLength = 1, maxLength = 256, writeOnly = true },
+                        ["confirmation"] = new { type = "string", example = "KONTO LÖSCHEN" }
+                    }
+                },
+                ["AccountSelfDeleteResponse"] = new
+                {
+                    type = "object",
+                    properties = new Dictionary<string, object>
+                    {
+                        ["success"] = new { type = "boolean" },
+                        ["account_deleted"] = new { type = "boolean" },
+                        ["deletion_scope"] = new { type = "string", example = "core_identity_only" },
+                        ["logout_required"] = new { type = "boolean" },
+                        ["remaining_external_data_may_exist"] = new { type = "boolean" },
+                        ["correlation_id"] = new { type = "string" }
                     }
                 },
                 ["UserCreateRequest"] = new

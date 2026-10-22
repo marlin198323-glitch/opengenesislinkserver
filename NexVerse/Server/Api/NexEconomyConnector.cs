@@ -167,8 +167,16 @@ namespace NexVerse.Server.Api
                     "Zeigt den autoritativen NV$-Kontostand eines lokalen Avatars.",
                     HandleNvBalance);
 
+                MainConsole.Instance.Commands.AddCommand(
+                    "NexVerse",
+                    true,
+                    "nv sync accounts",
+                    "nv sync accounts [--apply]",
+                    "Prueft lokale Bewohner gegen NV$-Ledger und NVBAN-Zuordnungen. Erst --apply mit Bestaetigung legt fehlende Eintraege an.",
+                    HandleNvSyncAccounts);
+
                 m_Log.Info(
-                    "[NEX-ECONOMY]: Konsolenbefehle 'nv give' und 'nv balance' sind aktiv.");
+                    "[NEX-ECONOMY]: Konsolenbefehle 'nv give', 'nv balance' und 'nv sync accounts' sind aktiv.");
             }
             catch (Exception e)
             {
@@ -354,6 +362,162 @@ namespace NexVerse.Server.Api
                     "[NV$] Kontostand konnte nicht gelesen werden: {0}",
                     e.Message);
             }
+        }
+
+        // Reconcile *all* local, non-system avatar identities against the
+        // existing economy stores. This is not a credit/grant operation.
+        // The standard NVBAN generator is UUID-derived and idempotent; it
+        // deliberately does not invent a new identifier on every run.
+        private void HandleNvSyncAccounts(string module, string[] args)
+        {
+            if (args == null || (args.Length != 3 && args.Length != 4) ||
+                (args.Length == 4 && args[3] != "--apply"))
+            {
+                MainConsole.Instance.Output("[NV$] Syntax: nv sync accounts [--apply]");
+                return;
+            }
+
+            bool apply = args.Length == 4;
+            if (!Enabled || Economy == null || m_UserAccounts == null)
+            {
+                MainConsole.Instance.Output(
+                    "[NV$] Abgleich abgebrochen: NV$-Ledger oder lokaler UserAccountService nicht verfuegbar.");
+                return;
+            }
+
+            List<UserAccount> snapshot;
+            try
+            {
+                // The regular GetUserAccounts(scope, query) API requires a
+                // search term and omits names that do not match. This
+                // trusted, fixed SQL predicate requests the entire user set;
+                // never pass any console-supplied SQL expression.
+                snapshot = m_UserAccounts.GetUserAccountsWhere(UUID.Zero, "1=1");
+                if (snapshot == null)
+                    throw new InvalidOperationException("Leere Antwort des Benutzerkontendienstes.");
+            }
+            catch (Exception e)
+            {
+                MainConsole.Instance.Output(
+                    "[NV$] Abgleich abgebrochen: Benutzerkonten konnten nicht geladen werden: {0}", e.Message);
+                return;
+            }
+
+            List<UserAccount> locals = snapshot
+                .Where(a => a != null && a.LocalToGrid &&
+                    !a.PrincipalID.IsZero() && a.UserLevel < 200 &&
+                    a.PrincipalID != Constants.servicesGodAgentID)
+                .GroupBy(a => a.PrincipalID)
+                .Select(group => group.First())
+                .OrderBy(a => a.PrincipalID.ToString(), StringComparer.Ordinal)
+                .ToList();
+
+            int missingLedger = 0;
+            int missingNvban = 0;
+            int complete = 0;
+            int conflicts = 0;
+            foreach (UserAccount account in locals)
+            {
+                try
+                {
+                    Guid id = account.PrincipalID.Guid;
+                    NexLedgerAccount wallet = Economy.GetAccount(id);
+                    if (wallet != null &&
+                        (wallet.AccountClass != NexLedgerAccountClass.Resident ||
+                         wallet.NormalSide != NexLedgerSide.Credit ||
+                         !string.Equals(wallet.CurrencyCode, NexLedgerCurrency.Code, StringComparison.Ordinal)))
+                    {
+                        ++conflicts;
+                        MainConsole.Instance.Output(
+                            "[NV$] KONFLIKT {0}: Bestehender Ledger-Eintrag ist kein kompatibles Bewohnerkonto.",
+                            account.PrincipalID);
+                        continue;
+                    }
+
+                    NexVirtualBankAccount virtualAccount = Economy.GetVirtualBankAccount(id);
+                    if (wallet == null)
+                        ++missingLedger;
+                    if (virtualAccount == null)
+                        ++missingNvban;
+                    if (wallet != null && virtualAccount != null)
+                        ++complete;
+                }
+                catch (Exception e)
+                {
+                    ++conflicts;
+                    MainConsole.Instance.Output(
+                        "[NV$] KONFLIKT {0}: {1}", account.PrincipalID, e.Message);
+                }
+            }
+
+            MainConsole.Instance.Output(
+                "[NV$] Pruefung: UserAccounts={0}; lokale Bewohner={1}; vollstaendig={2}; " +
+                "fehlende Ledger-Konten={3}; fehlende NVBAN={4}; Konflikte={5}; uebersprungen={6}.",
+                snapshot.Count, locals.Count, complete, missingLedger,
+                missingNvban, conflicts, snapshot.Count - locals.Count);
+
+            if (!apply)
+            {
+                MainConsole.Instance.Output(
+                    "[NV$] Nur Vorschau, keine Aenderungen. Zum Anlegen: nv sync accounts --apply");
+                return;
+            }
+
+            string confirmation = MainConsole.Instance.Prompt(
+                "Zum Anlegen fehlender Ledger- und NVBAN-Konten genau 'SYNC NVBAN' eingeben", "ABBRECHEN");
+            if (!string.Equals(confirmation, "SYNC NVBAN", StringComparison.Ordinal))
+            {
+                MainConsole.Instance.Output("[NV$] Abbruch: keine neuen Konten angelegt.");
+                return;
+            }
+
+            int ledgerCreated = 0;
+            int nvbanCreated = 0;
+            int unchanged = 0;
+            int failed = 0;
+            foreach (UserAccount account in locals)
+            {
+                try
+                {
+                    Guid id = account.PrincipalID.Guid;
+                    NexLedgerAccount beforeWallet = Economy.GetAccount(id);
+                    NexVirtualBankAccount beforeNvban = Economy.GetVirtualBankAccount(id);
+
+                    // EnsureResidentAccount refuses incompatible account
+                    // classes and never changes a resident's balance.
+                    string name = account.EffectiveDisplayName;
+                    if (string.IsNullOrWhiteSpace(name))
+                        name = account.Name;
+                    Economy.EnsureResidentAccount(id, name);
+                    NexVirtualBankAccount assigned = Economy.EnsureVirtualBankAccount(id);
+
+                    if (beforeWallet == null)
+                        ++ledgerCreated;
+                    if (beforeNvban == null)
+                    {
+                        ++nvbanCreated;
+                        MainConsole.Instance.Output(
+                            "[NV$] NVBAN angelegt: {0} ({1}) -> {2}",
+                            account.Name, account.PrincipalID, assigned.Identifier);
+                    }
+                    if (beforeWallet != null && beforeNvban != null)
+                        ++unchanged;
+                }
+                catch (Exception e)
+                {
+                    ++failed;
+                    MainConsole.Instance.Output(
+                        "[NV$] FEHLER {0}: {1}", account.PrincipalID, e.Message);
+                    m_Log.WarnFormat(
+                        "[NEX-ECONOMY]: NVBAN-Abgleich fehlgeschlagen fuer {0}: {1}",
+                        account.PrincipalID, e.Message);
+                }
+            }
+
+            MainConsole.Instance.Output(
+                "[NV$] Abgleich beendet: lokale Bewohner={0}; Ledger neu={1}; " +
+                "NVBAN neu={2}; unveraendert={3}; Fehler={4}. Guthaben wurden nicht veraendert.",
+                locals.Count, ledgerCreated, nvbanCreated, unchanged, failed);
         }
 
         private UserAccount ResolveLocalAccount(

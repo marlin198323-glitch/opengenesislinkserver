@@ -29,6 +29,7 @@ using System;
 using System.Linq;
 using System.Collections.Generic;
 using System.Reflection;
+using System.Data.Common;
 using log4net;
 using Nini.Config;
 using OpenMetaverse;
@@ -41,10 +42,11 @@ using PermissionMask = OpenSim.Framework.PermissionMask;
 
 namespace OpenSim.Services.UserAccountService
 {
-    public class UserAccountService : UserAccountServiceBase, IUserAccountService, IOglPortalAccountProvisioner
+    public class UserAccountService : UserAccountServiceBase, IUserAccountService, IOglPortalAccountProvisioner, IOglLocalAvatarDeletion
     {
         private static readonly ILog m_log = LogManager.GetLogger(MethodBase.GetCurrentMethod().DeclaringType);
         private static UserAccountService m_RootInstance;
+        private readonly IConfigSource m_DeletionConfig;
 
         /// <summary>
         /// Should we create default entries (minimum body parts/clothing, avatar wearable entries) for a new avatar?
@@ -66,6 +68,7 @@ namespace OpenSim.Services.UserAccountService
         public UserAccountService(IConfigSource config)
             : base(config)
         {
+            m_DeletionConfig = config;
             IConfig userConfig = config.Configs["UserAccountService"];
             if (userConfig == null)
                 throw new Exception("No UserAccountService configuration");
@@ -134,6 +137,12 @@ namespace OpenSim.Services.UserAccountService
                             "create user",
                             "create user [<first> [<last> [<pass> [<email> [<user id> [<model>]]]]]]",
                             "Create a new user", HandleCreateUser);
+
+                    MainConsole.Instance.Commands.AddCommand("Users", false,
+                            "delete user",
+                            "delete user <first> <last> <avatar-uuid> [--confirm]",
+                            "Preview deletion of an offline avatar or irreversibly purge core local account data with --confirm",
+                            HandleDeleteUser);
 
                     MainConsole.Instance.Commands.AddCommand("Users", false,
                             "reset user password",
@@ -250,6 +259,11 @@ namespace OpenSim.Services.UserAccountService
 
             if (d.Data.ContainsKey("NexVerseStateChanged") && d.Data["NexVerseStateChanged"] != null)
                 Int32.TryParse(d.Data["NexVerseStateChanged"], out u.NexVerseStateChanged);
+            if (d.Data.ContainsKey("NexVerseTosAcceptedVersion"))
+                u.NexVerseTosAcceptedVersion = d.Data["NexVerseTosAcceptedVersion"] ?? string.Empty;
+            if (d.Data.ContainsKey("NexVerseTosAcceptedAtUtc") &&
+                d.Data["NexVerseTosAcceptedAtUtc"] != null)
+                Int32.TryParse(d.Data["NexVerseTosAcceptedAtUtc"], out u.NexVerseTosAcceptedAtUtc);
 
             if (d.Data.ContainsKey("ServiceURLs") && d.Data["ServiceURLs"] != null)
             {
@@ -372,6 +386,8 @@ namespace OpenSim.Services.UserAccountService
             d.Data["NexVerseState"] = string.IsNullOrWhiteSpace(data.NexVerseState) ? "active" : data.NexVerseState;
             d.Data["NexVerseStateReason"] = data.NexVerseStateReason ?? string.Empty;
             d.Data["NexVerseStateChanged"] = data.NexVerseStateChanged.ToString();
+            d.Data["NexVerseTosAcceptedVersion"] = data.NexVerseTosAcceptedVersion ?? string.Empty;
+            d.Data["NexVerseTosAcceptedAtUtc"] = data.NexVerseTosAcceptedAtUtc.ToString();
             List<string> parts = new List<string>();
 
             foreach (KeyValuePair<string, object> kvp in data.ServiceURLs)
@@ -483,6 +499,375 @@ namespace OpenSim.Services.UserAccountService
                 throw new Exception(string.Format("ID {0} is not a valid UUID", rawPrincipalId));
 
             CreateUser(UUID.Zero, principalId, firstName, lastName, password, email, model);
+        }
+
+        // Deletes the standard OpenSim local avatar identity from a single
+        // authoritative DB, inside one transaction. Do not claim that this
+        // deletes third-party economy, groups, estates, inworld objects or
+        // shared asset blobs: operators must audit those integrations first.
+        // If any required store is on another database, refuse the action.
+        protected void HandleDeleteUser(string module, string[] cmdparams)
+        {
+            if (cmdparams.Length != 5 && cmdparams.Length != 6)
+            {
+                MainConsole.Instance.Output("Usage: delete user <first> <last> <avatar-uuid> [--confirm]");
+                return;
+            }
+
+            if (cmdparams.Length == 6 && cmdparams[5] != "--confirm")
+            {
+                MainConsole.Instance.Output("Only --confirm is supported for permanent deletion.");
+                return;
+            }
+
+            if (!UUID.TryParse(cmdparams[4], out UUID userId) || userId.IsZero())
+            {
+                MainConsole.Instance.Output("Specify the exact non-zero avatar UUID from 'show account'.");
+                return;
+            }
+
+            UserAccount account = GetUserAccount(UUID.Zero, cmdparams[2], cmdparams[3]);
+            if (account == null || account.PrincipalID != userId || !account.LocalToGrid)
+            {
+                MainConsole.Instance.Output("Deletion refused: avatar name/UUID mismatch or non-local account.");
+                return;
+            }
+
+            if (userId == Constants.servicesGodAgentID || account.UserLevel >= 200)
+            {
+                MainConsole.Instance.Output("Deletion refused: protected grid service or administrator account.");
+                return;
+            }
+
+            if (m_GridUserService == null)
+            {
+                MainConsole.Instance.Output("Deletion refused: authoritative GridUserService unavailable.");
+                return;
+            }
+
+            try
+            {
+                GridUserInfo loginState = m_GridUserService.GetGridUserInfo(userId.ToString());
+                if (loginState != null && loginState.Online)
+                {
+                    MainConsole.Instance.Output("Deletion refused: avatar is currently online. Log out and retry.");
+                    return;
+                }
+
+                string provider = DeletionStorageSetting("UserAccountService", "StorageProvider");
+                string connectionString = DeletionStorageSetting("UserAccountService", "ConnectionString");
+                if (string.IsNullOrWhiteSpace(provider) || string.IsNullOrWhiteSpace(connectionString))
+                    throw new InvalidOperationException("No authoritative UserAccountService database configured.");
+
+                foreach (string service in new[] {
+                    "AuthenticationService", "GridUserService", "InventoryService",
+                    "AvatarService", "PresenceService", "FriendsService" })
+                {
+                    if (!string.Equals(provider, DeletionStorageSetting(service, "StorageProvider"),
+                            StringComparison.OrdinalIgnoreCase) ||
+                        !string.Equals(connectionString, DeletionStorageSetting(service, "ConnectionString"),
+                            StringComparison.Ordinal))
+                        throw new InvalidOperationException(service + " uses a different data store. Cross-database purge is unsafe.");
+                }
+
+                // Only well-known migration realms are supported. No table or
+                // column names are ever supplied by a console argument.
+                foreach (string[] realm in new[] {
+                    new[] { "UserAccountService", "UserAccounts" },
+                    new[] { "AuthenticationService", "auth" },
+                    new[] { "GridUserService", "GridUser" },
+                    new[] { "AvatarService", "Avatars" },
+                    new[] { "FriendsService", "Friends" },
+                    new[] { "PresenceService", "Presence" } })
+                {
+                    IConfig section = m_DeletionConfig.Configs[realm[0]];
+                    string configuredRealm = section?.GetString("Realm", string.Empty);
+                    if (!string.IsNullOrWhiteSpace(configuredRealm) &&
+                        !string.Equals(configuredRealm, realm[1], StringComparison.Ordinal))
+                        throw new InvalidOperationException("Custom realm for " + realm[0] + " requires manual deletion audit.");
+                }
+
+                bool postgres = provider.IndexOf("PGSQL", StringComparison.OrdinalIgnoreCase) >= 0;
+                string providerType = provider.IndexOf("MySQL", StringComparison.OrdinalIgnoreCase) >= 0
+                    ? "MySql.Data.MySqlClient.MySqlConnection, MySql.Data"
+                    : postgres ? "Npgsql.NpgsqlConnection, Npgsql"
+                    : provider.IndexOf("SQLite", StringComparison.OrdinalIgnoreCase) >= 0
+                        ? "Mono.Data.Sqlite.SqliteConnection, Mono.Data.Sqlite" : null;
+                if (providerType == null)
+                    throw new InvalidOperationException("Unsupported database backend for console deletion: " + provider);
+
+                Type type = Type.GetType(providerType, throwOnError: false);
+                if (type == null || !typeof(DbConnection).IsAssignableFrom(type))
+                    throw new InvalidOperationException("Database driver unavailable: " + providerType);
+
+                using DbConnection connection = (DbConnection)Activator.CreateInstance(type, connectionString);
+                connection.Open();
+                using DbTransaction transaction = connection.BeginTransaction();
+
+                // PostgreSQL uses UUID-typed columns for these four records;
+                // MySQL and SQLite store GUIDs as text.
+                string[][] rows = new string[][] {
+                    new[] { "tokens", "UUID", "uuid" },
+                    new[] { "auth", "UUID", "uuid" },
+                    new[] { "inventoryitems", "avatarID", "text" },
+                    new[] { "inventoryfolders", "agentID", "text" },
+                    new[] { "Avatars", "PrincipalID", "uuid" },
+                    new[] { "GridUser", "UserID", "text" },
+                    new[] { "Presence", "UserID", "text" },
+                    new[] { "Friends", "PrincipalID", "text" },
+                    new[] { "UserAccounts", "PrincipalID", "uuid" }
+                };
+                string quote = postgres || provider.IndexOf("SQLite", StringComparison.OrdinalIgnoreCase) >= 0 ? "\"" : "`";
+                string Quote(string name) => quote + name + quote;
+                // PostgreSQL migration table identifiers are unquoted (folded
+                // to lowercase). Column names are generally case-preserving,
+                // except auth/tokens where uuid is an unquoted column.
+                string TableName(string name) => postgres ? name : Quote(name);
+                string ColumnName(string table, string column) =>
+                    postgres && (table == "auth" || table == "tokens") && column == "UUID"
+                        ? "uuid" : Quote(column);
+
+                // Preflight all required tables before mutating anything.
+                int[] counts = new int[rows.Length];
+                for (int i = 0; i < rows.Length; i++)
+                {
+                    string[] row = rows[i];
+                    string sql = "SELECT COUNT(*) FROM " + TableName(row[0]) + " WHERE " + ColumnName(row[0], row[1]) + " = @userId";
+                    counts[i] = DeletionSql(connection, transaction, sql, userId, postgres && row[2] == "uuid", false);
+                    MainConsole.Instance.Output("  {0}: {1} rows", row[0], counts[i]);
+                }
+
+                int reverseFriends = DeletionSql(connection, transaction,
+                    "SELECT COUNT(*) FROM " + TableName("Friends") + " WHERE " + ColumnName("Friends", "Friend") + " LIKE @userId",
+                    userId, false, false, true);
+                MainConsole.Instance.Output("  Friends (reverse): {0} rows", reverseFriends);
+
+                if (counts[8] != 1 || counts[6] != 0)
+                    throw new InvalidOperationException("Account no longer unique or an active Presence session still exists. Nothing deleted.");
+
+                // Release read locks before prompting an administrator.
+                transaction.Commit();
+
+                if (cmdparams.Length == 5)
+                {
+                    MainConsole.Instance.Output("Dry run only. To purge core avatar records: delete user {0} {1} {2} --confirm",
+                        cmdparams[2], cmdparams[3], userId);
+                    MainConsole.Instance.Output("WARNING: Land, rezzed objects, groups, NV$ and external addon/portal data are NOT covered.");
+                    return;
+                }
+
+                string phrase = "DELETE " + userId;
+                string confirmation = MainConsole.Instance.Prompt("Enter exactly '" + phrase + "' to irreversibly purge core avatar records", "CANCEL");
+                if (!string.Equals(confirmation, phrase, StringComparison.Ordinal))
+                {
+                    MainConsole.Instance.Output("Deletion cancelled, no records changed.");
+                    return;
+                }
+
+                using DbTransaction deletionTransaction = connection.BeginTransaction();
+                if (DeletionSql(connection, deletionTransaction,
+                        "SELECT COUNT(*) FROM " + TableName("UserAccounts") + " WHERE " +
+                            ColumnName("UserAccounts", "PrincipalID") + " = @userId",
+                        userId, postgres, false) != 1 ||
+                    DeletionSql(connection, deletionTransaction,
+                        "SELECT COUNT(*) FROM " + TableName("Presence") + " WHERE " +
+                            ColumnName("Presence", "UserID") + " = @userId",
+                        userId, false, false) != 0)
+                    throw new InvalidOperationException("Account or login state changed during confirmation.");
+
+                GridUserInfo currentState = m_GridUserService.GetGridUserInfo(userId.ToString());
+                if (currentState != null && currentState.Online)
+                    throw new InvalidOperationException("Avatar became online during confirmation.");
+
+                DeletionSql(connection, deletionTransaction,
+                    "DELETE FROM " + TableName("Friends") + " WHERE " + ColumnName("Friends", "Friend") + " LIKE @userId",
+                    userId, false, true, true);
+                for (int i = 0; i < rows.Length; i++)
+                {
+                    string[] row = rows[i];
+                    DeletionSql(connection, deletionTransaction,
+                        "DELETE FROM " + TableName(row[0]) + " WHERE " + ColumnName(row[0], row[1]) + " = @userId",
+                        userId, postgres && row[2] == "uuid", true);
+                }
+
+                deletionTransaction.Commit();
+                m_log.WarnFormat("[USER ACCOUNT]: Administrative core avatar purge committed for {0} ({1})", account.Name, userId);
+                MainConsole.Instance.Output("Core avatar identity permanently deleted: {0} ({1})", account.Name, userId);
+                MainConsole.Instance.Output("External groups, parcels, rezzed objects, economy, profile and portal data need a separate audit.");
+            }
+            catch (Exception ex)
+            {
+                m_log.ErrorFormat("[USER ACCOUNT]: delete user failed for {0}: {1}", userId, ex.Message);
+                MainConsole.Instance.Output("Deletion aborted / rolled back where supported: {0}", ex.Message);
+            }
+        }
+
+        /// <summary>
+        /// Core-only purge for an authenticated and password-reverified local
+        /// resident. This does NOT erase land, groups, money or external addons.
+        /// Never call directly from a client-supplied avatar identifier.
+        /// </summary>
+        public bool TryDeleteLocalAvatar(UUID avatarId, out string failureReason)
+        {
+            failureReason = "account_deletion_failed";
+            if (avatarId.IsZero() || avatarId == Constants.servicesGodAgentID)
+            {
+                failureReason = "protected_account";
+                return false;
+            }
+
+            UserAccount account = GetUserAccount(UUID.Zero, avatarId);
+            if (account == null || !account.LocalToGrid || account.UserLevel >= 200)
+            {
+                failureReason = "protected_account";
+                return false;
+            }
+
+            if (m_GridUserService == null)
+            {
+                failureReason = "grid_user_service_unavailable";
+                return false;
+            }
+            try
+            {
+                GridUserInfo state = m_GridUserService.GetGridUserInfo(avatarId.ToString());
+                if (state != null && state.Online)
+                {
+                    failureReason = "avatar_online";
+                    return false;
+                }
+
+                string provider = DeletionStorageSetting("UserAccountService", "StorageProvider");
+                string connectionString = DeletionStorageSetting("UserAccountService", "ConnectionString");
+                if (string.IsNullOrWhiteSpace(provider) || string.IsNullOrWhiteSpace(connectionString))
+                    throw new InvalidOperationException("Authoritative database not configured.");
+
+                foreach (string service in new[] {
+                    "AuthenticationService", "GridUserService", "InventoryService",
+                    "AvatarService", "PresenceService", "FriendsService" })
+                {
+                    if (!string.Equals(provider, DeletionStorageSetting(service, "StorageProvider"),
+                            StringComparison.OrdinalIgnoreCase) ||
+                        !string.Equals(connectionString, DeletionStorageSetting(service, "ConnectionString"),
+                            StringComparison.Ordinal))
+                        throw new InvalidOperationException("Differing " + service + " database configuration.");
+                }
+
+                foreach (string[] realm in new[] {
+                    new[] { "UserAccountService", "UserAccounts" },
+                    new[] { "AuthenticationService", "auth" },
+                    new[] { "GridUserService", "GridUser" },
+                    new[] { "AvatarService", "Avatars" },
+                    new[] { "FriendsService", "Friends" },
+                    new[] { "PresenceService", "Presence" } })
+                {
+                    string selected = m_DeletionConfig.Configs[realm[0]]?.GetString("Realm", string.Empty);
+                    if (!string.IsNullOrWhiteSpace(selected) &&
+                        !string.Equals(selected, realm[1], StringComparison.Ordinal))
+                        throw new InvalidOperationException("Custom realm not supported for " + realm[0]);
+                }
+
+                bool pg = provider.IndexOf("PGSQL", StringComparison.OrdinalIgnoreCase) >= 0;
+                bool mysql = provider.IndexOf("MySQL", StringComparison.OrdinalIgnoreCase) >= 0;
+                string typeName = mysql ? "MySql.Data.MySqlClient.MySqlConnection, MySql.Data" :
+                    pg ? "Npgsql.NpgsqlConnection, Npgsql" :
+                    provider.IndexOf("SQLite", StringComparison.OrdinalIgnoreCase) >= 0 ?
+                        "Mono.Data.Sqlite.SqliteConnection, Mono.Data.Sqlite" : null;
+                if (typeName == null)
+                    throw new InvalidOperationException("Unsupported deletion database.");
+                Type type = Type.GetType(typeName, false);
+                if (type == null || !typeof(DbConnection).IsAssignableFrom(type))
+                    throw new InvalidOperationException("Deletion database driver not available.");
+
+                using DbConnection db = (DbConnection)Activator.CreateInstance(type, connectionString);
+                db.Open();
+                using DbTransaction tx = db.BeginTransaction();
+                string quote = mysql ? "`" : "\"";
+                string Q(string value) => quote + value + quote;
+                string T(string table) => pg ? table : Q(table);
+                string C(string table, string column) =>
+                    pg && (table == "auth" || table == "tokens") && column == "UUID"
+                        ? "uuid" : Q(column);
+
+                int Count(string table, string column, bool guid)
+                {
+                    return DeletionSql(db, tx, "SELECT COUNT(*) FROM " + T(table) +
+                        " WHERE " + C(table, column) + " = @userId", avatarId, guid, false);
+                }
+
+                // Fail closed before any deletion when the record has changed,
+                // login is still in progress, or inventory/auth tables are missing.
+                if (Count("UserAccounts", "PrincipalID", pg) != 1 ||
+                    Count("Presence", "UserID", false) != 0)
+                {
+                    failureReason = "account_state_changed";
+                    return false;
+                }
+                GridUserInfo latest = m_GridUserService.GetGridUserInfo(avatarId.ToString());
+                if (latest != null && latest.Online)
+                {
+                    failureReason = "avatar_online";
+                    return false;
+                }
+
+                DeletionSql(db, tx,
+                    "DELETE FROM " + T("Friends") + " WHERE " + C("Friends", "Friend") + " LIKE @userId",
+                    avatarId, false, true, true);
+
+                string[][] records = {
+                    new[] { "tokens", "UUID", "uuid" },
+                    new[] { "auth", "UUID", "uuid" },
+                    new[] { "inventoryitems", "avatarID", "text" },
+                    new[] { "inventoryfolders", "agentID", "text" },
+                    new[] { "Avatars", "PrincipalID", "uuid" },
+                    new[] { "GridUser", "UserID", "text" },
+                    new[] { "Friends", "PrincipalID", "text" },
+                    new[] { "UserAccounts", "PrincipalID", "uuid" }
+                };
+                foreach (string[] record in records)
+                {
+                    int changed = DeletionSql(db, tx,
+                        "DELETE FROM " + T(record[0]) + " WHERE " + C(record[0], record[1]) + " = @userId",
+                        avatarId, pg && record[2] == "uuid", true);
+                    if (record[0] == "UserAccounts" && changed != 1)
+                        throw new InvalidOperationException("Account vanished before commit.");
+                }
+
+                tx.Commit();
+                InvalidateCache(avatarId);
+                m_log.WarnFormat("[USER ACCOUNT]: Authenticated self deletion committed for account {0}", avatarId);
+                failureReason = string.Empty;
+                return true;
+            }
+            catch (Exception e)
+            {
+                // No success or misleading 'complete deletion' result if the
+                // transaction failed. Never include connection strings in API.
+                m_log.ErrorFormat("[USER ACCOUNT]: Account self-deletion {0} failed: {1}", avatarId, e.Message);
+                failureReason = "deletion_backend_unavailable";
+                return false;
+            }
+        }
+
+        private string DeletionStorageSetting(string sectionName, string name)
+        {
+            string fallback = m_DeletionConfig.Configs["DatabaseService"]?.GetString(name, string.Empty) ?? string.Empty;
+            string sectionValue = m_DeletionConfig.Configs[sectionName]?.GetString(name, string.Empty);
+            return string.IsNullOrWhiteSpace(sectionValue) ? fallback : sectionValue;
+        }
+
+        private static int DeletionSql(DbConnection connection, DbTransaction transaction,
+            string sql, UUID userId, bool guidValue, bool mutate, bool prefix = false)
+        {
+            using DbCommand command = connection.CreateCommand();
+            command.Transaction = transaction;
+            command.CommandText = sql;
+            DbParameter parameter = command.CreateParameter();
+            parameter.ParameterName = "@userId";
+            parameter.Value = prefix ? userId.ToString() + "%" :
+                guidValue ? (object)userId.Guid : userId.ToString();
+            command.Parameters.Add(parameter);
+            return mutate ? command.ExecuteNonQuery() : Convert.ToInt32(command.ExecuteScalar());
         }
 
         protected void HandleShowAccount(string module, string[] cmdparams)
@@ -644,6 +1029,108 @@ namespace OpenSim.Services.UserAccountService
             if (modelAlias != "ogl:benjamin" && modelAlias != "ogl:luna")
                 return null;
             return CreateUser(UUID.Zero, UUID.Random(), firstName, lastName, password, email, modelAlias);
+        }
+
+        public UserAccount CreatePortalAvatar(string firstName, string lastName,
+            string password, string email, string modelAlias,
+            string homeRegionId, string homeRegionName, Vector3 position)
+        {
+            // For a portal signup the viewer's first spawn is not optional.
+            // Validate the authoritative destination *before* creating an
+            // avatar, inventory, password or starter outfit.
+            if ((modelAlias != "ogl:benjamin" && modelAlias != "ogl:luna") ||
+                m_GridService == null || m_GridUserService == null ||
+                !float.IsFinite(position.X) || !float.IsFinite(position.Y) ||
+                !float.IsFinite(position.Z))
+                return null;
+
+            GridRegion home = null;
+            if (!string.IsNullOrWhiteSpace(homeRegionId))
+            {
+                if (!UUID.TryParse(homeRegionId.Trim(), out UUID id) || id.IsZero())
+                    return null;
+                home = m_GridService.GetRegionByUUID(UUID.Zero, id);
+                if (home != null && !string.IsNullOrWhiteSpace(homeRegionName) &&
+                    !string.Equals(home.RegionName, homeRegionName.Trim(), StringComparison.OrdinalIgnoreCase))
+                    return null;
+            }
+            else if (!string.IsNullOrWhiteSpace(homeRegionName))
+                home = m_GridService.GetRegionByName(UUID.Zero, homeRegionName.Trim());
+
+            if (home == null || home.RegionID.IsZero() ||
+                home.RegionSizeX < 16 || home.RegionSizeY < 16 ||
+                position.X < 0 || position.Y < 0 ||
+                position.X >= home.RegionSizeX || position.Y >= home.RegionSizeY ||
+                position.Z < 1 || position.Z > 4096)
+            {
+                m_log.WarnFormat(
+                    "[OGL-REGISTRIERUNG] FEHLER: Startregion '{0}' (ID {1}) oder Position {2} ungültig/nicht im GridService registriert.",
+                    homeRegionName, homeRegionId, position);
+                return null;
+            }
+
+            UserAccount account = CreateUser(
+                UUID.Zero, UUID.Random(), firstName, lastName, password, email, modelAlias);
+            if (account == null)
+            {
+                m_log.WarnFormat(
+                    "[OGL-REGISTRIERUNG] FEHLER: Modellvorlage oder Accountanlage für {0} {1} fehlgeschlagen (Modell {2}).",
+                    firstName, lastName, modelAlias);
+                return null;
+            }
+
+            bool positioned = false;
+            try
+            {
+                string userId = account.PrincipalID.ToString();
+                Vector3 lookAt = new Vector3(0, 1, 0);
+                // Writing both values is essential. OpenSim login can pick
+                // Last even when Home has already been initialized.
+                bool homeOk = m_GridUserService.SetHome(
+                    userId, home.RegionID, position, lookAt);
+                bool lastOk = m_GridUserService.SetLastPosition(
+                    userId, UUID.Zero, home.RegionID, position, lookAt);
+                positioned = homeOk && lastOk;
+                if (!positioned)
+                    m_log.ErrorFormat(
+                        "[OGL-REGISTRIERUNG] FEHLER: Home={0}, Last={1} für Avatar {2} (UUID {3}) auf {4}/{5}.",
+                        homeOk ? "OK" : "FEHLER", lastOk ? "OK" : "FEHLER",
+                        firstName + " " + lastName, account.PrincipalID, home.RegionName, position);
+            }
+            catch (Exception e)
+            {
+                m_log.Error("[OGL PORTAL REGISTRATION]: Failed to seed Home/Last positions", e);
+            }
+
+            if (!positioned)
+            {
+                // Do not return a login-capable orphan on partial placement
+                // failure. Recovery is explicit: never silently claim 201.
+                account.Active = false;
+                account.NexVerseState = "provisioning_failed";
+                account.NexVerseStateReason = "Home/Last position initialization failed";
+                account.NexVerseStateChanged = Math.Max(
+                    OpenSim.Framework.Util.UnixTimeSinceEpoch(),
+                    account.NexVerseStateChanged + 1);
+                try
+                {
+                    if (!StoreUserAccount(account))
+                        m_log.ErrorFormat("[OGL PORTAL REGISTRATION]: Manual account lock required for {0}",
+                            account.PrincipalID);
+                    InvalidateCache(account.PrincipalID);
+                }
+                catch (Exception e)
+                {
+                    m_log.Error("[OGL PORTAL REGISTRATION]: Unable to lock incomplete account", e);
+                }
+                return null;
+            }
+
+            m_log.InfoFormat(
+                "[OGL-REGISTRIERUNG] ERFOLG: Avatar {0} {1} | UUID {2} | Vorlage {3} | Home+Last {4}/{5}",
+                account.FirstName, account.LastName, account.PrincipalID,
+                modelAlias, home.RegionName, position);
+            return account;
         }
 
         public UserAccount CreateUser(UUID scopeID, UUID principalID, string firstName, string lastName, string password, string email, string model = "")
@@ -820,6 +1307,11 @@ namespace OpenSim.Services.UserAccountService
                 else
                 {
                     m_log.ErrorFormat("[USER ACCOUNT SERVICE]: Account creation failed for account {0} {1}", firstName, lastName);
+                    // Never return a non-persisted UserAccount object as a
+                    // successfully provisioned portal avatar (HTTP 201).
+                    if (!string.IsNullOrEmpty(model) &&
+                        model.StartsWith("ogl:", StringComparison.OrdinalIgnoreCase))
+                        return null;
                 }
             }
             else
@@ -944,7 +1436,20 @@ namespace OpenSim.Services.UserAccountService
                 (item.CurrentPermissions & required) != required ||
                 (item.NextPermissions & required) != required)
             {
-                m_log.Warn("[OGL AVATAR TEMPLATES]: Starter item missing, owner mismatch or lacks copy/transfer permissions");
+                m_log.WarnFormat(
+                    "[OGL-REGISTRIERUNG] FEHLER: Getragenes Vorlagen-Item {0} (Name={1}, Asset={2}) " +
+                    "von Avatar {3} fehlt oder besitzt keine Copy+Transfer-Rechte. " +
+                    "Aktuell={4}, NächsterBesitzer={5}; CopyAktuell={6}, TransferAktuell={7}, " +
+                    "CopyNaechster={8}, TransferNaechster={9}. " +
+                    "Die Vorlage muss mit echten Copy+Transfer-Rechten neu bereitgestellt werden.",
+                    itemId, item != null ? item.Name : "nicht gefunden",
+                    item != null ? item.AssetID.ToString() : "nicht gefunden", owner,
+                    item != null ? item.CurrentPermissions.ToString("X") : "nicht gefunden",
+                    item != null ? item.NextPermissions.ToString("X") : "nicht gefunden",
+                    item != null && (item.CurrentPermissions & (uint)PermissionMask.Copy) != 0,
+                    item != null && (item.CurrentPermissions & (uint)PermissionMask.Transfer) != 0,
+                    item != null && (item.NextPermissions & (uint)PermissionMask.Copy) != 0,
+                    item != null && (item.NextPermissions & (uint)PermissionMask.Transfer) != 0);
                 return false;
             }
             return true;

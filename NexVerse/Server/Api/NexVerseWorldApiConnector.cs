@@ -269,7 +269,21 @@ namespace NexVerse.Server.Api
                     eventBus,
                     nodeStaleAfterSeconds);
 
-            INexAuditSink publicAuditSink = new LogNexAuditSink();
+            // Console verbosity is independent of the persistent audit
+            // store: suppress routine health checks without losing audited
+            // privileged actions in data/nexverse-audit.jsonl.
+            string auditConsoleMode = apiConfig.GetString("AuditConsoleMode", "important");
+            bool auditConsolePublicReads =
+                apiConfig.GetBoolean("AuditConsolePublicReads", false);
+            bool auditConsoleShowIds =
+                apiConfig.GetBoolean("AuditConsoleShowIds", false);
+            INexAuditSink publicAuditSink = new LogNexAuditSink(
+                auditConsoleMode,
+                auditConsolePublicReads,
+                auditConsoleShowIds);
+            m_Log.InfoFormat(
+                "[NEX-WORLD-API]: Auditkonsole={0}, öffentliche Lesezugriffe={1}, IDs={2}; persistentes Audit bleibt unabhängig.",
+                auditConsoleMode, auditConsolePublicReads, auditConsoleShowIds);
             INexAuthorizationService authorization = new NexAuthorizationService();
 
             NexApiRequestGate apiGate = new NexApiRequestGate(
@@ -304,7 +318,7 @@ namespace NexVerse.Server.Api
                 "/api/v1/statistics/summary",
                 apiGate.Wrap(statisticsRoute.Summary),
                 "NexVerse statistics summary"));
-            m_Log.Info("[NEX-WORLD-API]: Statistics summary route registered.");
+            m_Log.Info("[NEX-WORLD-API]: Endpunkt für Statistikübersicht registriert.");
 
             server.AddSimpleStreamHandler(new SimpleStreamHandler("/api/v1/version", apiGate.Wrap(handlers.Version), "NexVerse World API Version"));
             server.AddSimpleStreamHandler(new SimpleStreamHandler("/api/v1/capabilities", apiGate.Wrap(handlers.Capabilities), "NexVerse World API Capabilities"));
@@ -576,7 +590,7 @@ namespace NexVerse.Server.Api
                         oidcKeyPath,
                         oidcTokenLifetimeSeconds);
 
-                    m_Log.Info("[NEX-WORLD-API]: NexVerse native scoped access tokens and persistent OAuth/OIDC are enabled.");
+                    m_Log.Info("[NEX-WORLD-API]: Bereichsgebundene Zugriffstoken und dauerhaftes OAuth/OIDC sind aktiv.");
                 }
 
                 NexApiAuthenticator authenticator = new NexApiAuthenticator(
@@ -628,11 +642,24 @@ namespace NexVerse.Server.Api
                 OglPortalRegistrationApi portalRegistration = new OglPortalRegistrationApi(
                     authenticator,
                     userAccounts,
-                    apiConfig.GetBoolean("PortalAvatarRegistrationEnabled", false));
+                    apiConfig.GetBoolean("PortalAvatarRegistrationEnabled", false),
+                    apiConfig.GetString("PortalRegistrationTrustedProxyIPs", ""),
+                    apiConfig.GetString("PortalRegistrationTrustedHttpPeers", ""),
+                    apiConfig.GetString("PortalRegistrationDefaultRegionName", "Magdeburg"),
+                    apiConfig.GetFloat("PortalRegistrationDefaultX", 134f),
+                    apiConfig.GetFloat("PortalRegistrationDefaultY", 111f),
+                    apiConfig.GetFloat("PortalRegistrationDefaultZ", 23f));
                 server.AddSimpleStreamHandler(new SimpleStreamHandler(
                     "/api/v1/portal/avatars/register",
                     apiGate.Wrap(portalRegistration.Handle),
                     "OpenGenesisLINK Stadtportal avatar registration"));
+
+                // Name checks are backend-to-backend and use the same
+                // users:register machine key as the final POST.
+                server.AddSimpleStreamHandler(new SimpleStreamHandler(
+                    "/api/v1/portal/avatars/name-availability",
+                    apiGate.Wrap(portalRegistration.HandleNameAvailability),
+                    "OpenGenesisLINK Stadtportal live avatar name lookup"));
 
                 NexUserApiRouter userRouter = new NexUserApiRouter(
                     userService,
@@ -652,7 +679,9 @@ namespace NexVerse.Server.Api
                     regionOperationRegistry,
                     distributedNexBusEnabled,
                     adminMinimumLevel,
-                    new PersistentNexSecurityStore(apiConfig.GetString("SecurityStorePath", "data/nexverse-security.json")));
+                    new PersistentNexSecurityStore(apiConfig.GetString("SecurityStorePath", "data/nexverse-security.json")),
+                    apiConfig.GetBoolean("PortalAccountSelfDeleteEnabled", false),
+                    apiConfig.GetString("PortalRegistrationTrustedProxyIPs", ""));
 
                 // Admin login now POSTs to the exact same URL serving the
                 // login page, /api/v1/docs. This works even when a KeyHelp
@@ -727,6 +756,21 @@ namespace NexVerse.Server.Api
                                     ? NexEconomyConnector.Current.Economy
                                     : null);
 
+                    // Group-owned land may be hosted on another simulator.
+                    // Query the shared RegionStore database read-only and
+                    // resolve region coordinates through the grid service.
+                    if (nexGroupsConfig.GetBoolean("EnableGridWideLand", true) &&
+                        grid != null &&
+                        !string.IsNullOrWhiteSpace(databaseStorageProvider) &&
+                        !string.IsNullOrWhiteSpace(databaseConnectionString))
+                    {
+                        nexGroupsApi.ConfigureLandDirectory(
+                            new NexGroupLandDirectory(
+                                databaseStorageProvider,
+                                databaseConnectionString,
+                                grid));
+                    }
+
                     server.AddSimpleStreamHandler(
                         new SimpleStreamHandler(
                             "/api/v1/groups",
@@ -763,8 +807,8 @@ namespace NexVerse.Server.Api
                         experienceStorePath);
                 AppDomain.CurrentDomain.ProcessExit +=
                     (_, __) => experienceStore.Dispose();
-                m_Log.Info("[NEX-EXPERIENCES]: SingleWriterJson authority acquired. " +
-                    "One Robust writer only; no cross-host shared-file failover.");
+                m_Log.Info("[NEX-EXPERIENCES]: Exklusive Schreibberechtigung für den JSON-Datenspeicher übernommen. " +
+                    "Es darf nur einen schreibenden ROBUST-Knoten geben; kein dateibasierter Failover zwischen Hosts.");
 
                 NexExperiencesApi experiencesApi =
                     new NexExperiencesApi(
@@ -820,6 +864,17 @@ namespace NexVerse.Server.Api
                         "/api/v1/world-map",
                         apiGate.Wrap(citizenWorldMap.Handle),
                         "OpenGenesisLINK Citizen World Map"),
+                    true);
+
+                // Reuse the native MapImageService that receives Warp3D tiles
+                // from all region servers. Public read-only, bounded, no admin API keys.
+                citizenWorldMap.ConfigureTiles(LoadOptionalService<IMapImageService>(
+                    config, "MapImageService"));
+                server.AddSimpleStreamHandler(
+                    new SimpleStreamHandler(
+                        "/api/v1/deutschland",
+                        apiGate.Wrap(citizenWorldMap.Handle),
+                        "Stadt NexVerse Deutschland map and Warp3D tiles"),
                     true);
 
                 server.AddSimpleStreamHandler(
@@ -955,31 +1010,80 @@ namespace NexVerse.Server.Api
 
                 IInstantMessage citizenInstantMessages =
                     LoadOptionalService<IInstantMessage>(config, "HGInstantMessageService");
-                NexCitizenImStore citizenImStore = null;
+                INexCitizenImStore citizenImStore = null;
                 IConfig portalImConfig = config.Configs["NexPortalIM"];
                 if (portalImConfig != null && portalImConfig.GetBoolean("Enabled", false))
                 {
+                    // Archive transport credentials are NOT World API
+                    // machine tokens. Both ROBUST and simulators need the
+                    // identical 32+ byte HMAC secret in the process env.
                     string sharedImSecret =
                         Environment.GetEnvironmentVariable("NEX_PORTAL_IM_SECRET");
                     if (string.IsNullOrWhiteSpace(sharedImSecret))
                         sharedImSecret = portalImConfig.GetString("SharedSecret", "");
-                    if (System.Text.Encoding.UTF8.GetByteCount(sharedImSecret) < 32)
-                        throw new InvalidOperationException(
-                            "[NEX-PORTAL-IM]: Enabled archive requires a 32-byte shared secret.");
-                    citizenImStore = new NexCitizenImStore(
-                        portalImConfig.GetString("StorePath", "data/nexverse-portal-im.sqlite"),
-                        portalImConfig.GetInt("RetentionDays", 30));
-                    NexCitizenImIngress citizenImIngress = new NexCitizenImIngress(
-                        sharedImSecret, citizenImStore, userAccounts, friendsService);
-                    server.AddSimpleStreamHandler(
-                        new SimpleStreamHandler("/internal/nexportal/im/v1",
-                            citizenImIngress.Handle, "NexVerse Simulator Portal IM Ingest"),
-                        true);
-                    m_Log.Info("[NEX-PORTAL-IM]: Opt-in portal conversation archive enabled.");
+                    if (System.Text.Encoding.UTF8.GetByteCount(sharedImSecret ?? "") < 32 ||
+                        (sharedImSecret ?? "").Contains("${Environment|", StringComparison.Ordinal))
+                    {
+                        // A missing optional archive secret must never prevent
+                        // World API, login, or the rest of ROBUST from starting.
+                        m_Log.Error("[NEX-PORTAL-IM]: Archive requested but NEX_PORTAL_IM_SECRET " +
+                            "is missing or shorter than 32 UTF-8 bytes. Archive disabled until provisioned.");
+                    }
+                    else
+                    {
+                        try
+                        {
+                            string backend = portalImConfig.GetString(
+                                "StoreBackend", "SQLite").Trim();
+                            int retention = portalImConfig.GetInt("RetentionDays", 30);
+                            if (backend.Equals("MariaDB", StringComparison.OrdinalIgnoreCase) ||
+                                backend.Equals("MySQL", StringComparison.OrdinalIgnoreCase))
+                            {
+                                // Empty overrides inherit the authoritative
+                                // [DatabaseService] connection used by ROBUST.
+                                string provider = portalImConfig.GetString(
+                                    "StorageProvider", "").Trim();
+                                if (provider.Length == 0)
+                                    provider = databaseStorageProvider;
+                                string connection = portalImConfig.GetString(
+                                    "ConnectionString", "").Trim();
+                                if (connection.Length == 0)
+                                    connection = databaseConnectionString;
+                                citizenImStore = new NexCitizenImMySqlStore(
+                                    provider, connection, retention);
+                            }
+                            else if (backend.Equals("SQLite", StringComparison.OrdinalIgnoreCase))
+                            {
+                                citizenImStore = new NexCitizenImStore(
+                                    portalImConfig.GetString("StorePath",
+                                        "data/nexverse-portal-im.sqlite"), retention);
+                            }
+                            else
+                                throw new NotSupportedException(
+                                    "[NEX-PORTAL-IM]: Unsupported StoreBackend (MariaDB/MySQL or SQLite required).");
+
+                            NexCitizenImIngress citizenImIngress = new NexCitizenImIngress(
+                                sharedImSecret, citizenImStore, userAccounts, friendsService);
+                            server.AddSimpleStreamHandler(
+                                new SimpleStreamHandler("/internal/nexportal/im/v1",
+                                    citizenImIngress.Handle, "NexVerse Simulator Portal IM Ingest"),
+                                true);
+                            m_Log.InfoFormat(
+                                "[NEX-PORTAL-IM]: Opt-in conversation archive enabled using {0}.",
+                                backend);
+                        }
+                        catch (Exception e)
+                        {
+                            citizenImStore = null;
+                            m_Log.Error("[NEX-PORTAL-IM]: Archive initialization failed; " +
+                                "World API remains online and archive requests report unavailable.", e);
+                        }
+                    }
                 }
                 NexCitizenImApi citizenImApi =
                     new NexCitizenImApi(userAccounts, friendsService, authenticator,
-                        citizenInstantMessages, auditSink, citizenImStore);
+                        citizenInstantMessages, auditSink, citizenImStore,
+                        () => LoadOptionalService<IInstantMessage>(config, "HGInstantMessageService"));
                 server.AddSimpleStreamHandler(
                     new SimpleStreamHandler(
                         "/api/v1/messages",
@@ -1031,7 +1135,7 @@ namespace NexVerse.Server.Api
                             "NexVerse WebProfileV3"),
                         true);
 
-                    m_Log.Info("[NEX-WEBPROFILE-V3]: WebProfileV3 enabled using the authoritative UserProfilesService store.");
+                    m_Log.Info("[NEX-WEBPROFILE-V3]: Avatarprofile über den maßgeblichen UserProfilesService-Datenspeicher aktiviert.");
                 }
 
                 // Preserve authenticated statistics: the early route now delegates
@@ -1107,17 +1211,17 @@ namespace NexVerse.Server.Api
                     new SimpleStreamHandler("/api", apiGate.Wrap(userRouter.Handle), "NexVerse World API privileged router"),
                     true);
 
-                m_Log.Warn("[NEX-WORLD-API]: Privileged endpoints are enabled. Use only over a transport that protects bearer tokens.");
+                m_Log.Warn("[NEX-WORLD-API]: Sicherheitswarnung: Administrative API-Endpunkte sind aktiv. Zugriffstoken ausschließlich über geschützte Transportverbindungen übertragen.");
             }
             else
             {
                 // The already-registered route lazily loads the same public
                 // aggregate services; no duplicate handler or database plugin.
                 m_Log.Info(
-                    "[NEX-WORLD-API]: Privileged endpoints are disabled; privacy-safe aggregate statistics remain available.");
+                    "[NEX-WORLD-API]: Administrative API-Endpunkte deaktiviert; datenschutzgerechte aggregierte Statistiken bleiben verfügbar.");
             }
 
-            m_Log.InfoFormat("[NEX-WORLD-API]: World API {0} enabled at {1}/api/v1", Core.NexVersePlatform.ApiVersion, publicBaseUrl);
+            m_Log.InfoFormat("[NEX-WORLD-API]: World API {0} aktiviert unter {1}/api/v1", Core.NexVersePlatform.ApiVersion, publicBaseUrl);
         }
 
         private static INexEventBus CreateEventBus(IConfigSource config, IHttpServer server)
@@ -1167,7 +1271,7 @@ namespace NexVerse.Server.Api
                 new SimpleStreamHandler(inboundPath, endpoint.Handle, "NexBus peer transport"));
 
             m_Log.WarnFormat(
-                "[NEXBUS]: Distributed HTTP transport enabled for node {0} with {1} configured peer(s). Protect this transport with TLS/firewall policy.",
+                "[NEXBUS]: Verteilter HTTP-Transport für Knoten {0} mit {1} Gegenstelle(n) aktiv. Sicherheitswarnung: TLS und Firewall-Zugriffsregeln erforderlich.",
                 nodeId,
                 peers.Length);
 
@@ -1342,22 +1446,119 @@ namespace NexVerse.Server.Api
         }
     }
 
+    // Console-only filtering. Do NOT wrap/filter PersistentNexAuditStore:
+    // administrative accountability must survive quiet/off console modes.
     internal sealed class LogNexAuditSink : INexAuditSink
     {
         private static readonly ILog m_Log = LogManager.GetLogger(typeof(LogNexAuditSink));
 
+        private readonly string m_Mode;
+        private readonly bool m_PublicReads;
+        private readonly bool m_ShowIds;
+
+        public LogNexAuditSink(string mode = "important",
+            bool publicReads = false, bool showIds = false)
+        {
+            string normalized = (mode ?? string.Empty).Trim().ToLowerInvariant();
+            if (normalized != "important" && normalized != "all" && normalized != "off")
+            {
+                m_Log.WarnFormat(
+                    "[NEX-AUDIT]: Ungültiger AuditConsoleMode '{0}'; verwende 'important'.",
+                    mode);
+                normalized = "important";
+            }
+            m_Mode = normalized;
+            m_PublicReads = publicReads;
+            m_ShowIds = showIds;
+        }
+
+        // Public API reads, particularly /api/v1/health polling every
+        // 15 seconds, aren't security-relevant writes. Keep their metrics
+        // and events but stop spamming ROBUST's standard console.
+        private static bool IsPublicRoutine(NexAuditEvent auditEvent)
+        {
+            string action = auditEvent.Action ?? string.Empty;
+            return action.Equals("worldapi.root", StringComparison.OrdinalIgnoreCase) ||
+                action.StartsWith("worldapi.", StringComparison.OrdinalIgnoreCase) &&
+                (action.EndsWith(".read", StringComparison.OrdinalIgnoreCase) ||
+                 action.EndsWith(".list", StringComparison.OrdinalIgnoreCase));
+        }
+
+        private static bool IsRoutine(NexAuditEvent auditEvent)
+        {
+            if (IsPublicRoutine(auditEvent))
+                return true;
+            string action = auditEvent.Action ?? string.Empty;
+            foreach (string ending in new[] {
+                ".read", ".list", ".search", ".query", ".status", ".view", ".check"
+            })
+            {
+                if (action.EndsWith(ending, StringComparison.OrdinalIgnoreCase))
+                    return true;
+            }
+            return false;
+        }
+
+        private bool ShouldLog(NexAuditEvent auditEvent)
+        {
+            if (m_Mode == "off")
+                return false;
+            if (!m_PublicReads && IsPublicRoutine(auditEvent))
+                return false;
+            return m_Mode != "important" || !IsRoutine(auditEvent);
+        }
+
+        private static string Category(string action)
+        {
+            string area = (action ?? string.Empty).Split('.')[0].ToLowerInvariant();
+            switch (area)
+            {
+                case "worldapi": return "World API";
+                case "users": return "Benutzer";
+                case "auth":
+                case "oauth": return "Anmeldung";
+                case "security": return "Sicherheit";
+                case "economy":
+                case "ledger":
+                case "banking": return "NV$ / Finanzen";
+                case "inventory": return "Inventar";
+                case "regions":
+                case "region": return "Regionen";
+                case "estates":
+                case "estate": return "Grundstücke";
+                case "relationship":
+                case "relationships":
+                case "friends": return "Freundschaften";
+                case "portal": return "Stadtportal";
+                case "groups":
+                case "group": return "Gruppen";
+                default: return "System";
+            }
+        }
+
         public void Record(NexAuditEvent auditEvent)
         {
-            if (auditEvent == null)
+            if (auditEvent == null || !ShouldLog(auditEvent))
                 return;
 
-            m_Log.InfoFormat(
-                "[NEX-AUDIT]: id={0} actor={1} action={2} resource={3} correlation={4}",
-                auditEvent.EventId,
-                auditEvent.Actor,
-                auditEvent.Action,
-                auditEvent.Resource,
-                auditEvent.CorrelationId);
+            // Compact, consistent German-language console presentation.
+            // Correlation/event IDs remain fully available in JSONL and
+            // are optionally displayed for live incident investigation.
+            if (m_ShowIds)
+            {
+                m_Log.InfoFormat(
+                    "[NEX-AUDIT] {0} | Aktion: {1} | Akteur: {2} | Ziel: {3} | Vorgang: {4} | ID: {5}",
+                    Category(auditEvent.Action), auditEvent.Action,
+                    auditEvent.Actor, auditEvent.Resource,
+                    auditEvent.CorrelationId, auditEvent.EventId);
+            }
+            else
+            {
+                m_Log.InfoFormat(
+                    "[NEX-AUDIT] {0} | Aktion: {1} | Akteur: {2} | Ziel: {3}",
+                    Category(auditEvent.Action), auditEvent.Action,
+                    auditEvent.Actor, auditEvent.Resource);
+            }
         }
     }
 }

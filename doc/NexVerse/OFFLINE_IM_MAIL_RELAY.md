@@ -80,3 +80,17 @@ Change `IMAPHost` if the KeyHelp server uses another mail hostname.
 5. Robust polls `relay@im.stadt-nexverse.de`.
 6. If A is online, A receives the response immediately as an Inworld-IM.
 7. If A is offline, the Gatekeeper stores the reply as an offline IM for the next login.
+
+
+## Gemeinsame E-Mail-Adressen mehrerer Avatare
+
+Seit dem Mehrfachavatar-Registrierungsupdate darf dieselbe E-Mail-Adresse
+mehreren eigenstaendigen Avataren zugeordnet sein. Die bisherige Zuordnung
+`GetUserAccount(scope, senderEmail)` ist deshalb nicht mehr eindeutig.
+Neue Offline-IM-Antworten benutzen einen signierten `r2`-Reply-Token mit
+Empfaenger-/Antwortavatar-UUID. ROBUST loest die antwortende Identitaet
+anhand der signierten UUID auf und kontrolliert, dass die Absenderadresse
+noch dem aktiven Avatar gehoert. Alte, nicht identitaetsgebundene
+`r`-Tokens werden im aktualisierten Relay aus Sicherheitsgruenden
+abgewiesen. Fuer den Schnittstellenwechsel muessen Simulator (Sender)
+und ROBUST (Empfaenger) gemeinsam aktualisiert werden.

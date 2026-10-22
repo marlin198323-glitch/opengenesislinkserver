@@ -226,10 +226,12 @@ namespace NexVerse.Server.Api
             md.AppendLine("- GET /world-map/view zeigt eine eigenstaendige, im Stadtportal verlink- oder einbettbare Weltkarte.");
             md.AppendLine("- MapImageService stellt optionale Kartenkacheln unter /map/map-1-{x}-{y}-objects.jpg bereit.");
             md.AppendLine("- Das Stadtportal benoetigt einen eigenen Navigationspunkt Weltkarte; Simulator-Nodes und administrative /grid/layout-Daten nicht oeffentlich machen.");
+            md.AppendLine("- R409: /api/v1/deutschland und /deutschland/tiles/{zoom}/{x}/{y}.jpg liefern 256-Meter-Gridzellen (maximal 16x16 im Viewport). 32 Treffer bei Namenssuche bzw. 256 Regionen im Viewport sind Code-Grenzen; die aktuelle World-Antwort hat keine truncation-Metadaten. Keine Garantie fuer Vollstaendigkeit bei abgeschnittenen Ergebnissen behaupten.");
             md.AppendLine();
             md.AppendLine("### Suche, Land und Destinationen");
             md.AppendLine("- Oeffentlich: /search, /places, /events, /classifieds, /land-portal und /destinations.");
             md.AppendLine("- Destination-Einreichungen koennen mit discovery:submit angeboten werden; Moderation bleibt administrativ.");
+            md.AppendLine("- Bugreports werden vom Stadtportal unter https://stadt-nexverse.de/api/v1/bug-reports entgegengenommen; keine gleichnamige World-API-Route als vorhanden behaupten. Der vertrauenswuerdige Simulator-Eventadapter ist laut R409 weiterhin offen.");
             md.AppendLine();
             md.AppendLine("### Gruppen und Experiences");
             md.AppendLine("- Nur anzeigen und ausfuehren, wenn der angemeldete Einwohner die vom OpenAPI-Vertrag geforderten Scopes besitzt.");
@@ -284,6 +286,7 @@ namespace NexVerse.Server.Api
             md.AppendLine("- Place/Event/Classified-Verwaltung mit discovery:manage.");
             md.AppendLine("- Destination-Moderation ueber /destinations/{destinationId}/moderation.");
             md.AppendLine("- Administrative Landangebote unter /land-commerce/listings.");
+            md.AppendLine("- R409: DELETE /places/{placeId} mit discovery:manage loescht auch zugeordnete Destinations, Events und Classifieds. Bei unbekannter Place-UUID kann 200 mit deleted:false folgen; nicht pauschal 404 erwarten.");
         }
 
         private static void AppendServiceSection(StringBuilder md)
@@ -293,6 +296,7 @@ namespace NexVerse.Server.Api
             md.AppendLine();
             md.AppendLine("- Maschinenintegrationen verwenden eingeschraenkte API-Schluessel oder registrierte OAuth-Service-Clients.");
             md.AppendLine("- Kein admin:*-Schluessel fuer normale Simulator- oder Portalaufgaben.");
+            md.AppendLine("- R409 P0: Der Portal-Bugreport-Empfaenger ist POST https://stadt-nexverse.de/api/v1/bug-reports. Keine Service-Bearer in LSL, Browser oder World-OpenAPI platzieren; erst einen vertrauenswuerdigen Simulator-Eventhook mit serververifizierter Avatar-ID, Region und Position sowie geschuetztem HTTPS-Sender implementieren. Kein World-Ticketsystem und keine World-/api/v1/bug-reports-Route erfinden.");
             md.AppendLine("- Spezielle Experience-Schluessel: experiences:script fuer die LSL-/Metadaten-Bridge, experiences:viewer:permissions nur fuer Allow/Block/Forget/GetExperiences und Gruppenlisten, experiences:viewer:manage nur fuer authentifizierten Erwerb und Eigentuermer-Profiledits.");
             md.AppendLine("- FirestormManageCaps bleibt per Default false; fuer den Developer-Simulator benoetigt es die separaten Voraussetzungen FirestormReadCaps und FirestormPermissionCaps und einen nur fuer experiences:viewer:manage gueltigen Schluessel.");
             md.AppendLine("- Experience-Erwerb ist kostenlos (kein NV$-Debit) mit maximal zehn eigenen Experiences; nicht als unbegrenzte oder kostenpflichtige Marketplace-API darstellen.");

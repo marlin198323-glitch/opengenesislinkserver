@@ -30,6 +30,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Reflection;
 using System.Threading;
+using System.Threading.Tasks;
 using log4net;
 using Nini.Config;
 using Nwc.XmlRpc;
@@ -52,6 +53,12 @@ namespace OpenSim.Region.CoreModules.Avatar.Friends
         private static readonly ILog m_log = LogManager.GetLogger(MethodBase.GetCurrentMethod().DeclaringType);
 
         private int m_levelHGFriends = 0;
+        // If the foreign home grid was unreachable at viewer login,
+        // Firestorm otherwise never asks for that friend's status again.
+        // Delayed, bounded re-queries allow failed discovery to recover
+        // after UserManagementModule's BADURLEXPIRE backoff.
+        private int m_HGPresenceRetrySeconds = 135;
+        private int m_HGPresenceRetryAttempts = 3;
 
         IUserManagement m_uMan;
         public IUserManagement UserManagementModule
@@ -98,6 +105,10 @@ namespace OpenSim.Region.CoreModules.Avatar.Friends
             if (friendsConfig != null)
             {
                 m_levelHGFriends = friendsConfig.GetInt("LevelHGFriends", 0);
+                m_HGPresenceRetrySeconds = Math.Clamp(
+                    friendsConfig.GetInt("PresenceRetrySeconds", 135), 125, 1800);
+                m_HGPresenceRetryAttempts = Math.Clamp(
+                    friendsConfig.GetInt("PresenceRetryAttempts", 3), 0, 4);
 
                 // TODO: read in all config variables pertaining to
                 // HG friendship permissions
@@ -216,8 +227,82 @@ namespace OpenSim.Region.CoreModules.Avatar.Friends
                 }
             }
 
+            // A one-shot remote check at login may coincide with the HG
+            // home grid going offline, temporarily failing HomeURI discovery,
+            // or still processing its own login. Only unresolved foreign
+            // friends are rechecked later; keep local friends untouched.
+            // This doesn't need another viewer request or re-friending.
+            if (m_HGPresenceRetryAttempts > 0 &&
+                PendingForeignPresence(client.AgentId).Count > 0)
+                _ = RetryForeignPresenceAsync(client);
+
             //m_log.DebugFormat("[HGFRIENDS MODULE]: Exiting SendFriendsOnlineIfNeeded for {0}", client.Name);
             return false;
+        }
+
+        private List<string> PendingForeignPresence(UUID owner)
+        {
+            List<string> unresolved = new();
+            foreach (FriendInfo friend in GetFriendsFromCache(owner))
+            {
+                if (friend == null || friend.TheirFlags == -1 ||
+                    (friend.TheirFlags & (int)FriendRights.CanSeeOnline) == 0 ||
+                    !Util.ParseFullUniversalUserIdentifier(
+                        friend.Friend, out UUID friendId, out string homeURI,
+                        out string firstName, out string lastName) ||
+                    friendId.IsZero() || string.IsNullOrWhiteSpace(homeURI) ||
+                    IsFriendOnline(owner, friendId))
+                    continue;
+                unresolved.Add(friend.Friend);
+            }
+            return unresolved;
+        }
+
+        private async Task RetryForeignPresenceAsync(IClientAPI client)
+        {
+            UUID owner = client.AgentId;
+            for (int attempt = 0; attempt < m_HGPresenceRetryAttempts; attempt++)
+            {
+                // No blocked threadpool worker or permanent timer. Back off
+                // from the initial missed lookup, and stop after logoff.
+                int retrySeconds = m_HGPresenceRetrySeconds * (1 << attempt);
+                await Task.Delay(TimeSpan.FromSeconds(retrySeconds));
+                try
+                {
+                    if (LocateClientObject(owner) != client)
+                        return;
+
+                    List<string> pending = PendingForeignPresence(owner);
+                    if (pending.Count == 0)
+                        return;
+
+                    List<UUID> online = new();
+                    GetOnlineFriends(owner, pending, online);
+
+                    // The peer home-grid query uses the existing HG status
+                    // protocol and thus must verify every returned ID
+                    // against the originally requested friend list.
+                    if (online.Count > 0 && LocateClientObject(owner) == client)
+                    {
+                        client.SendAgentOnline(online.ToArray());
+                        m_log.InfoFormat(
+                            "[HGFRIENDS MODULE]: Restored {0} HG friend presence status(es) for {1} on retry {2}",
+                            online.Count, owner, attempt + 1);
+                    }
+                    else
+                        m_log.DebugFormat(
+                            "[HGFRIENDS MODULE]: HG presence retry {0} for {1}: no online foreign friends confirmed",
+                            attempt + 1, owner);
+                }
+                catch (Exception e)
+                {
+                    // Failure to query an external home grid must not break
+                    // the viewer or its local friends/presence state.
+                    m_log.WarnFormat(
+                        "[HGFRIENDS MODULE]: HG presence retry {0} for {1} failed: {2}",
+                        attempt + 1, owner, e.Message);
+                }
+            }
         }
 
         protected override void GetOnlineFriends(UUID userID, List<string> friendList, /*collector*/ List<UUID> online)
@@ -252,7 +337,14 @@ namespace OpenSim.Region.CoreModules.Avatar.Friends
                         "FriendsServerURI");
 
                 if (string.IsNullOrEmpty(friendsServerURI))
+                {
+                    // Never log the complete UUI: its final component may
+                    // contain the per-friend shared verification secret.
+                    m_log.WarnFormat(
+                        "[HGFRIENDS MODULE]: FriendsServerURI unavailable for HG friend {0} on local user {1}; the relog recovery will retry",
+                        foreignFriendID, userID);
                     continue;
+                }
 
                 if (!foreignFriendsPerServer.TryGetValue(
                         friendsServerURI,
@@ -292,6 +384,13 @@ namespace OpenSim.Region.CoreModules.Avatar.Friends
             // the subset of the supplied foreign friends that are online there.
             foreach (KeyValuePair<string, List<string>> remote in foreignFriendsPerServer)
             {
+                // An arbitrary response from a third-party home grid cannot
+                // claim that an unrelated UUID is online in our viewer.
+                HashSet<UUID> requested = new();
+                foreach (string uui in remote.Value)
+                    if (Util.ParseUniversalUserIdentifier(uui, out UUID requestedId))
+                        requested.Add(requestedId);
+
                 HGFriendsServicesConnector connector =
                     new HGFriendsServicesConnector(remote.Key);
 
@@ -303,6 +402,13 @@ namespace OpenSim.Region.CoreModules.Avatar.Friends
 
                 foreach (UUID friendID in remoteOnline)
                 {
+                    if (!requested.Contains(friendID))
+                    {
+                        m_log.WarnFormat(
+                            "[HGFRIENDS MODULE]: Ignored unrequested HG presence UUID {0} from {1}",
+                            friendID, remote.Key);
+                        continue;
+                    }
                     if (!online.Contains(friendID))
                         online.Add(friendID);
                     friends.Add(friendID);

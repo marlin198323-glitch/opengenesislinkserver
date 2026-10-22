@@ -189,6 +189,10 @@ jobs:
           python3 tools/ci/verify_portal_registration_iar_preflight.py
           dotnet run --configuration Release --project tools/ci/OglIarPreflightRegression/OglIarPreflightRegression.csproj
 
+      - name: Verify authenticated portal self-account deletion
+        shell: bash
+        run: python3 tools/ci/verify_portal_self_account_delete.py
+
       - name: Verify OpenGenesisLINK IAR management foundation
         shell: bash
         run: python3 tools/ci/verify_iar_management.py
@@ -264,6 +268,10 @@ jobs:
       - name: Verify persistent audit store
         shell: bash
         run: dotnet run --configuration Release --project tools/ci/NexAuditRegression/NexAuditRegression.csproj
+
+      - name: Verify quiet ROBUST audit console and durable audit separation
+        shell: bash
+        run: python3 tools/ci/verify_audit_console.py
 
       - name: Verify idempotency store
         shell: bash
@@ -353,6 +361,14 @@ jobs:
         shell: bash
         run: python3 tools/ci/verify_nexgroups_experiences.py
 
+      - name: Verify NexGroups authorization and wallet consistency
+        shell: bash
+        run: python3 tools/ci/verify_nexgroups_security.py
+
+      - name: Verify one-click World API group land key issuance
+        shell: bash
+        run: python3 tools/ci/verify_worldapi_group_land_key_setup.py
+
       - name: Verify Firestorm Experience acquire and editor security
         shell: bash
         run: python3 tools/ci/verify_experience_viewer_purchase.py
@@ -369,9 +385,29 @@ jobs:
         shell: bash
         run: python3 tools/ci/verify_nexdiscovery.py
 
+      - name: Verify Firestorm groups Land & NV$ packet compatibility
+        shell: bash
+        run: python3 tools/ci/verify_firestorm_group_land_money.py
+
       - name: Verify citizen world map integration
         shell: bash
         run: python3 tools/ci/verify_citizen_world_map.py
+
+      - name: Verify Stadtportal R409 World API counter-audit
+        shell: bash
+        run: python3 tools/ci/verify_r409_world_portal_contract.py
+
+      - name: Verify OGL Germany seasons addon
+        shell: bash
+        run: python3 tools/ci/verify_ogl_seasons.py
+
+      - name: Verify opt-in EEP and safe seasonal landscapes
+        shell: bash
+        run: python3 tools/ci/verify_ogl_seasons_eep.py
+
+      - name: Regression-test seasonal calendar and simulated weather
+        shell: bash
+        run: dotnet run --configuration Release --project tools/ci/OglSeasonsRegression/OglSeasonsRegression.csproj
 
       - name: Verify citizen social and profile integration
         shell: bash
@@ -512,9 +548,21 @@ jobs:
           chmod +x runprebuild.sh
           ./runprebuild.sh
 
+      - name: Regression-test LLSD mesh upload fee instances
+        shell: bash
+        run: dotnet run --configuration Release --project tools/ci/NexMeshUploadFeeRegression/NexMeshUploadFeeRegression.csproj
+
       - name: Build Release
         shell: bash
         run: dotnet build --configuration Release OpenSim.sln
+
+      - name: Build optional OGL Seasons addon
+        shell: bash
+        run: bash addon-modules/OGLSeasons/build.sh Release
+
+      - name: Runtime regression OGL Seasons EEP sky, clouds and fog
+        shell: bash
+        run: dotnet run --configuration Release --project tools/ci/OglSeasonsEepRegression/OglSeasonsEepRegression.csproj
 
       - name: Runtime regression cross-region llListen delivery (two scenes)
         shell: bash
@@ -1284,3 +1332,24 @@ jobs:
           NEX_LEDGER_MARIADB: "Data Source=127.0.0.1;Port=33306;Database=ogl_ledger_ci;User ID=ledger;Password=ledgerpass;Old Guids=true;SslMode=None;"
           NEX_LEDGER_POSTGRESQL: "Host=127.0.0.1;Port=35432;Database=ogl_ledger_ci;Username=ledger;Password=ledgerpass;SSL Mode=Disable;"
         run: dotnet run --configuration Release --project tools/ci/NexLedgerSqlMatrixRegression/NexLedgerSqlMatrixRegression.csproj
+
+      - name: Run real MariaDB NexPortalIM archive regression
+        shell: bash
+        env:
+          NEX_PORTAL_IM_MARIADB: "Data Source=127.0.0.1;Port=33306;Database=ogl_ledger_ci;User ID=ledger;Password=ledgerpass;Old Guids=true;SslMode=None;"
+        run: dotnet run --configuration Release --project tools/ci/NexPortalImMariaDbRegression/NexPortalImMariaDbRegression.csproj
+
+      - name: Run real MariaDB NexGroups authorization and invitation regression
+        shell: bash
+        env:
+          NEX_GROUPS_MARIADB: "Data Source=127.0.0.1;Port=33306;Database=ogl_ledger_ci;User ID=ledger;Password=ledgerpass;Old Guids=true;SslMode=None;"
+        run: |
+          chmod +x runprebuild.sh
+          ./runprebuild.sh
+          dotnet run --configuration Release --project tools/ci/NexGroupsSqlAuthorizationRegression/NexGroupsSqlAuthorizationRegression.csproj
+
+      - name: Run signed bearer HTTP NexGroups authorization regression
+        shell: bash
+        env:
+          NEX_GROUPS_MARIADB: "Data Source=127.0.0.1;Port=33306;Database=ogl_ledger_ci;User ID=ledger;Password=ledgerpass;Old Guids=true;SslMode=None;"
+        run: dotnet run --configuration Release --project tools/ci/NexGroupsHttpRegression/NexGroupsHttpRegression.csproj

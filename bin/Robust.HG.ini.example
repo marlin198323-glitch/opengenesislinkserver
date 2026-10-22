@@ -283,6 +283,8 @@
 [NexGroups]
     ; OpenGenesisLINK NexGroups management/parity facade.
     Enabled = true
+    ; Read shared RegionStore land + GridService to locate remote group parcels.
+    EnableGridWideLand = true
 
 [NexExperiences]
     ; Persistent store: only one local Robust writer is supported.
@@ -449,6 +451,17 @@
     ;; Default is false.
     ; AllowSetPassword = false
 
+ 
+[OglAvatarTemplates]
+    ; Vor der Aktivierung Copy/Transfer-Rechte der getragenen Items prüfen.
+    ; PublishedModel ist ein explizit freigegebener Avatar mit Outfit.
+    Enabled = false
+    BenjaminModel = "Benjamin Resident"
+    LunaModel = "Luna Resident"
+    RequirePublishedModels = true
+    BenjaminPublishedModel = "Benjamin Resident"
+    LunaPublishedModel = "Luna Resident"
+
 [UserAccountService]
     ; for the server connector
     LocalServiceModule = "OpenSim.Services.UserAccountService.dll:UserAccountService"
@@ -546,6 +559,16 @@
     ; ClassifiedFee = 0
 
     WelcomeMessage = "Welcome, Avatar!"
+    ; Optional versioned Firestorm ToS. Enable only after database migration
+    ; and validation of the HTTPS page in the target viewer.
+    NexVerseTosEnabled = false
+    NexVerseTosVersion = "1.0"
+    NexVerseTosUrl = "https://stadt-nexverse.de/service/tos"
+
+    ; Optional: Show a randomly selected welcome message on every successful login.
+    ; Entries are separated with |; <USERNAME> is replaced by the avatar name.
+    ; WelcomeMessages overrides MessageUrl and WelcomeMessage when configured.
+    ; WelcomeMessages = "Willkommen, <USERNAME>!|Viel Spass in deiner virtuellen Welt, <USERNAME>!"
     AllowRemoteSetLoginLevel = "false"
 
     ; For V2 map
@@ -707,7 +730,11 @@
     ; Opt-in web chat history and authenticated simulator -> Robust ingestion.
     ; The active Simulator must use the same NEX_PORTAL_IM_SECRET.
     Enabled = false
-    StorePath = "data/nexverse-portal-im.sqlite"
+    ; Set true after provisioning one shared 32+-byte HMAC secret.
+    ; MariaDB uses the existing [DatabaseService] connection.
+    StoreBackend = "MariaDB"
+    StorageProvider = ""
+    ConnectionString = ""
     RetentionDays = 30
     SharedSecret = "${Environment|NEX_PORTAL_IM_SECRET}"
 
@@ -716,6 +743,22 @@
     ; Only the Stadtportal BACKEND with a dedicated users:register API key
     ; may register avatars. Enable after publishing Benjamin/Luna models.
     PortalAvatarRegistrationEnabled = false
+    ; Portal Account & Sicherheit: nur eigenstaendige Bearer-Session und Passwort.
+    ; Loescht zentralen Account, NICHT Grid-Land/NV$/Gruppen/Externdaten.
+    PortalAccountSelfDeleteEnabled = false
+    ; KeyHelp HTTPS -> internal ROBUST HTTP: exact source IP of the proxy,
+    ; not the original browser's X-Forwarded-For address. Reverse proxy MUST
+    ; overwrite X-Forwarded-Proto: https and restrict origin port access.
+    PortalRegistrationTrustedProxyIPs = ""
+    ; Optional direct HTTP only from exact backend IP(s) over a VPN/private
+    ; network; NEVER expose plaintext passwords/API keys on the internet.
+    PortalRegistrationTrustedHttpPeers = ""
+    ; World registration defaults; form may override home_region on the
+    ; server-to-server call with users:register scope.
+    PortalRegistrationDefaultRegionName = "Magdeburg"
+    PortalRegistrationDefaultX = 134
+    PortalRegistrationDefaultY = 111
+    PortalRegistrationDefaultZ = 23
     PublicBaseUrl = "https://world.stadt-nexverse.de"
 
     ; Public access terminates TLS at the trusted reverse proxy for world.stadt-nexverse.de.
@@ -740,6 +783,15 @@
     RateLimitWindowSeconds = 60
     TrustForwardedFor = false
     AuditStorePath = "data/nexverse-audit.jsonl"
+    ; AuditConsoleMode = important (Standard), all oder off.
+    ; important = nur Aktionen mit Änderungen und wichtige Ereignisse,
+    ; all = auch reguläre Leseaufrufe, off = keine [NEX-AUDIT]-Konsolenzeilen.
+    ; Die persistente administrative Audit-Datei bleibt IMMER erhalten.
+    AuditConsoleMode = "important"
+    ; Öffentliche GETs wie /api/v1/health auch bei all standardmäßig ausblenden.
+    AuditConsolePublicReads = false
+    ; Lange Korrelations- und Ereignis-UUIDs nur bei Diagnose einblenden.
+    AuditConsoleShowIds = false
     ApiKeyStorePath = "data/nexverse-api-keys.json"
     IdempotencyStorePath = "data/nexverse-idempotency.json"
     IdempotencyTtlSeconds = 86400

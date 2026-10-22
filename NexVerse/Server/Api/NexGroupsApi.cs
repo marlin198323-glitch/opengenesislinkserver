@@ -26,6 +26,7 @@ namespace NexVerse.Server.Api
         private readonly INexAuditSink m_Audit;
         private readonly GroupsService m_Groups;
         private readonly Func<NexEconomyService> m_Economy;
+        private NexGroupLandDirectory m_LandDirectory;
 
         public NexGroupsApi(
             NexApiAuthenticator authenticator,
@@ -37,6 +38,11 @@ namespace NexVerse.Server.Api
             m_Audit = audit ?? NullNexAuditSink.Instance;
             m_Groups = groups ?? throw new ArgumentNullException(nameof(groups));
             m_Economy = economy ?? throw new ArgumentNullException(nameof(economy));
+        }
+
+        public void ConfigureLandDirectory(NexGroupLandDirectory directory)
+        {
+            m_LandDirectory = directory;
         }
 
         public void Handle(
@@ -111,13 +117,37 @@ namespace NexVerse.Server.Api
                         ExtendedGroupRecord group =
                             m_Groups.GetGroupRecord(founder.ToString(), createdGroupId);
 
-                        EnsureGroupWallet(group);
+                        // Group creation is already committed by GroupsService.
+                        // Wallet provisioning is a second storage authority and
+                        // must never turn a successful group create into a 500.
+                        bool walletReady = false;
+                        try
+                        {
+                            walletReady = EnsureGroupWallet(group);
+                        }
+                        catch (Exception walletError)
+                        {
+                            System.Diagnostics.Trace.TraceWarning(
+                                "[NEX-GROUPS]: Wallet provisioning pending for group {0}: {1}",
+                                createdGroupId, walletError.GetType().Name);
+                        }
 
-                        Audit(principal, "group.created", createdGroupId, response);
+                        try
+                        {
+                            Audit(principal, "group.created", createdGroupId, response);
+                        }
+                        catch (Exception auditError)
+                        {
+                            System.Diagnostics.Trace.TraceWarning(
+                                "[NEX-GROUPS]: Post-create audit failed for group {0}: {1}",
+                                createdGroupId, auditError.GetType().Name);
+                        }
 
                         WriteJson(response, new
                         {
-                            group = GroupPayload(group),
+                            group_id = createdGroupId.ToString(),
+                            group = group == null ? null : GroupPayload(group),
+                            wallet_status = walletReady ? "ready" : "pending",
                             correlation_id = Correlation(response)
                         }, HttpStatusCode.Created);
                     }
@@ -278,10 +308,7 @@ namespace NexVerse.Server.Api
 
                     try
                     {
-                        UUID actor =
-                            account != null
-                                ? account.PrincipalID
-                                : QueryUuid(request, "actor_id");
+                        UUID actor = ActorForMutationQuery(principal, account, request);
 
                         if (!m_Groups.DeleteGroup(
                                 actor.ToString(),
@@ -388,10 +415,7 @@ namespace NexVerse.Server.Api
                     {
                         try
                         {
-                            UUID actor =
-                                authAccount != null
-                                    ? authAccount.PrincipalID
-                                    : QueryUuid(request, "actor_id");
+                            UUID actor = ActorForMutationQuery(authPrincipal, authAccount, request);
 
                             if (!m_Groups.RemoveAgentFromGroup(
                                     actor.ToString(),
@@ -522,10 +546,7 @@ namespace NexVerse.Server.Api
                                 return;
                             }
 
-                            UUID deleteActor =
-                                authAccount != null
-                                    ? authAccount.PrincipalID
-                                    : QueryUuid(request, "actor_id");
+                            UUID deleteActor = ActorForMutationQuery(authPrincipal, authAccount, request);
 
                             m_Groups.RemoveGroupRole(
                                 deleteActor.ToString(),
@@ -553,10 +574,7 @@ namespace NexVerse.Server.Api
 
                         try
                         {
-                            UUID actor =
-                                authAccount != null
-                                    ? authAccount.PrincipalID
-                                    : QueryUuid(request, "actor_id");
+                            UUID actor = ActorForMutationQuery(authPrincipal, authAccount, request);
 
                             bool ok =
                                 method.Equals("POST", StringComparison.OrdinalIgnoreCase)
@@ -643,7 +661,11 @@ namespace NexVerse.Server.Api
                             GroupInviteInfo invite =
                                 m_Groups.GetAgentToGroupInvite(
                                     Requester(authPrincipal, request),
-                                    inviteId) ??
+                                    inviteId);
+                            // The group ID in the URL must belong to this invite.
+                            // The GroupsService additionally validates invitee or
+                            // group-invite permission against the authenticated actor.
+                            if (invite == null || invite.GroupID != groupId)
                                 throw new KeyNotFoundException("Group invitation was not found.");
 
                             WriteJson(response, new
@@ -661,11 +683,22 @@ namespace NexVerse.Server.Api
 
                     if (method.Equals("DELETE", StringComparison.OrdinalIgnoreCase))
                     {
-                        m_Groups.RemoveAgentToGroupInvite(
-                            Requester(authPrincipal, request),
-                            inviteId);
-                        Audit(authPrincipal, "group.invite.deleted", groupId, response);
-                        WriteJson(response, new { deleted = true, correlation_id = Correlation(response) });
+                        try
+                        {
+                            string inviteRequester = Requester(authPrincipal, request);
+                            GroupInviteInfo invite =
+                                m_Groups.GetAgentToGroupInvite(inviteRequester, inviteId);
+                            if (invite == null || invite.GroupID != groupId)
+                                throw new KeyNotFoundException("Group invitation was not found.");
+
+                            m_Groups.RemoveAgentToGroupInvite(inviteRequester, inviteId);
+                            Audit(authPrincipal, "group.invite.deleted", groupId, response);
+                            WriteJson(response, new { deleted = true, correlation_id = Correlation(response) });
+                        }
+                        catch (Exception e)
+                        {
+                            WriteFailure(response, e);
+                        }
                         return;
                     }
                 }
@@ -802,10 +835,7 @@ namespace NexVerse.Server.Api
                     {
                         try
                         {
-                            UUID actor =
-                                authAccount != null
-                                    ? authAccount.PrincipalID
-                                    : QueryUuid(request, "actor_id");
+                            UUID actor = ActorForMutationQuery(authPrincipal, authAccount, request);
 
                             bool removed =
                                 m_Groups.RemoveGroupBan(
@@ -841,6 +871,9 @@ namespace NexVerse.Server.Api
                 {
                     ExtendedGroupRecord group =
                         RequireGroup(authPrincipal, request, groupId);
+                    if (!CanReadGroupAccounting(authPrincipal, authAccount, groupId))
+                        throw new UnauthorizedAccessException(
+                            "Group accounting requires membership and Accountable power.");
                     NexEconomyService economy =
                         m_Economy() ??
                         throw new InvalidOperationException("NV$ economy is unavailable.");
@@ -860,6 +893,142 @@ namespace NexVerse.Server.Api
                         currency = NexLedgerCurrency.Code,
                         balance = economy.GetBalance(groupId.Guid),
                         nvban = bank.Identifier,
+                        correlation_id = Correlation(response)
+                    });
+                }
+                catch (Exception e)
+                {
+                    WriteFailure(response, e);
+                }
+                return;
+            }
+
+            if (parts[1].Equals("transactions", StringComparison.OrdinalIgnoreCase) &&
+                parts.Length == 2)
+            {
+                if (!RequireMethod(method, "GET", response))
+                    return;
+                if (!Authenticate(request, response, NexScopes.GroupsRead,
+                        out authPrincipal, out authAccount))
+                    return;
+
+                try
+                {
+                    ExtendedGroupRecord group = RequireGroup(authPrincipal, request, groupId);
+                    // Only the simulator backend can act on a prior viewer
+                    // Accountable check. Require BOTH explicit machine scopes.
+                    // Never permit resident bearer identity impersonation.
+                    bool trustedViewer = authAccount == null &&
+                        authPrincipal.Subject.StartsWith(
+                            "api-key:", StringComparison.OrdinalIgnoreCase) &&
+                        authPrincipal.HasScope(NexScopes.EconomyRead);
+                    if (!trustedViewer &&
+                        !CanReadGroupAccounting(authPrincipal, authAccount, groupId))
+                        throw new UnauthorizedAccessException(
+                            "Group transaction history requires membership and Accountable power.");
+
+                    NexEconomyService economy = m_Economy() ??
+                        throw new InvalidOperationException("NV$ economy is unavailable.");
+
+                    // Transaction history is read-only. Do NOT silently create
+                    // wallet accounts or reveal other users' ledger postings.
+                    if (economy.GetAccount(groupId.Guid) == null)
+                    {
+                        WriteJson(response, new
+                        {
+                            group_id = groupId.ToString(),
+                            currency = NexLedgerCurrency.Code,
+                            period_days = 7,
+                            transactions = Array.Empty<object>(),
+                            correlation_id = Correlation(response)
+                        });
+                        return;
+                    }
+
+                    DateTimeOffset from = DateTimeOffset.UtcNow.AddDays(-7);
+                    var history = economy.ListTransactions(
+                        groupId.Guid, from, DateTimeOffset.UtcNow, 0, 200);
+                    WriteJson(response, new
+                    {
+                        group_id = groupId.ToString(),
+                        currency = NexLedgerCurrency.Code,
+                        period_days = 7,
+                        transactions = history.Select(t => new
+                        {
+                            transaction_id = t.TransactionId.ToString("D"),
+                            occurred_at = t.OccurredAt,
+                            kind = t.Kind,
+                            reference = t.Reference,
+                            amount = t.Postings
+                                .Where(p => p.AccountId == groupId.Guid)
+                                .Sum(p => p.Side == NexLedgerSide.Credit
+                                    ? p.AmountMinor : -p.AmountMinor),
+                            description = t.Postings
+                                .Where(p => p.AccountId == groupId.Guid)
+                                .Select(p => p.Memo)
+                                .FirstOrDefault() ?? string.Empty
+                        }).ToArray(),
+                        correlation_id = Correlation(response)
+                    });
+                }
+                catch (Exception e)
+                {
+                    WriteFailure(response, e);
+                }
+                return;
+            }
+
+            if (parts[1].Equals("land", StringComparison.OrdinalIgnoreCase) &&
+                parts.Length == 2)
+            {
+                if (!RequireMethod(method, "GET", response))
+                    return;
+                if (!Authenticate(request, response, NexScopes.GroupsRead,
+                        out authPrincipal, out authAccount))
+                    return;
+
+                try
+                {
+                    RequireGroup(authPrincipal, request, groupId);
+                    // Real residents must have an actual group membership.
+                    // Explicit groups:read machine credentials represent the
+                    // trusted simulator's already-authorized viewer request.
+                    bool machine = authAccount == null &&
+                        authPrincipal.Subject.StartsWith(
+                            "api-key:", StringComparison.OrdinalIgnoreCase);
+                    if (!authPrincipal.HasScope(NexScopes.AdminAll) &&
+                        !machine &&
+                        (authAccount == null ||
+                         m_Groups.GetAgentGroupMembership(
+                             authAccount.PrincipalID.ToString(),
+                             authAccount.PrincipalID.ToString(), groupId) == null))
+                        throw new UnauthorizedAccessException(
+                            "Group-owned land requires group membership.");
+
+                    if (m_LandDirectory == null)
+                        throw new InvalidOperationException(
+                            "The grid-wide group land directory is not configured.");
+
+                    var parcels = m_LandDirectory.List(groupId);
+                    WriteJson(response, new
+                    {
+                        group_id = groupId.ToString(),
+                        total = parcels.Count,
+                        parcels = parcels.Select(p => new
+                        {
+                            parcel_id = p.ParcelId.ToString(),
+                            region_id = p.RegionId.ToString(),
+                            owner_id = p.OwnerId.ToString(),
+                            snapshot_id = p.SnapshotId.ToString(),
+                            name = p.Name,
+                            description = p.Description,
+                            region_name = p.RegionName,
+                            area = p.Area,
+                            price = p.SalePrice,
+                            global_x = p.GlobalX,
+                            global_y = p.GlobalY,
+                            global_z = p.GlobalZ
+                        }).ToArray(),
                         correlation_id = Correlation(response)
                     });
                 }
@@ -940,14 +1109,29 @@ namespace NexVerse.Server.Api
                 throw new KeyNotFoundException("Group was not found.");
         }
 
-        private void EnsureGroupWallet(
+        private bool CanReadGroupAccounting(
+            NexPrincipal principal,
+            UserAccount account,
+            UUID groupId)
+        {
+            // Scopes authorize the route; only the actual authenticated
+            // resident's persisted group powers authorize its account.
+            if (principal.HasScope(NexScopes.AdminAll))
+                return true;
+            if (account == null || !account.LocalToGrid ||
+                account.PrincipalID.IsZero())
+                return false;
+
+            return m_Groups.CanReadGroupAccounting(
+                account.PrincipalID.ToString(), groupId);
+        }
+
+        private bool EnsureGroupWallet(
             ExtendedGroupRecord group)
         {
-            NexEconomyService economy =
-                m_Economy();
-
+            NexEconomyService economy = m_Economy();
             if (economy == null || group == null)
-                return;
+                return false;
 
             economy.EnsureWalletAccount(
                 group.GroupID.Guid,
@@ -955,6 +1139,7 @@ namespace NexVerse.Server.Api
                 group.GroupName);
             economy.EnsureVirtualBankAccount(
                 group.GroupID.Guid);
+            return true;
         }
 
         private bool Authenticate(
@@ -988,10 +1173,28 @@ namespace NexVerse.Server.Api
             if (account != null)
                 return account.PrincipalID;
 
+            if (!principal.HasScope(NexScopes.AdminAll))
+                throw new UnauthorizedAccessException(
+                    "Delegated group mutations require admin:* authority.");
+
             UUID actor = BodyOptionalUuid(body, "actor_id");
-            if (actor.IsZero() && principal.HasScope(NexScopes.AdminAll))
-                throw new ArgumentException("actor_id is required for administrator/service group mutations.");
+            if (actor.IsZero())
+                throw new ArgumentException(
+                    "actor_id is required for administrator/service group mutations.");
             return actor;
+        }
+
+        private static UUID ActorForMutationQuery(
+            NexPrincipal principal,
+            UserAccount account,
+            IOSHttpRequest request)
+        {
+            if (account != null)
+                return account.PrincipalID;
+            if (!principal.HasScope(NexScopes.AdminAll))
+                throw new UnauthorizedAccessException(
+                    "Delegated group mutations require admin:* authority.");
+            return QueryUuid(request, "actor_id");
         }
 
         private static string ActorForRead(
@@ -1009,12 +1212,17 @@ namespace NexVerse.Server.Api
             string raw =
                 (request?.QueryString?["requester_id"] ?? string.Empty).Trim();
 
-            if (UUID.TryParse(raw, out UUID id) && !id.IsZero())
-                return id.ToString();
+            // requester_id allows privileged service impersonation only.
+            // Never let ordinary resident or scoped-service tokens spoof the
+            // requester identity used by the legacy GroupsService.
+            if (principal.HasScope(NexScopes.AdminAll))
+            {
+                if (UUID.TryParse(raw, out UUID id) && !id.IsZero())
+                    return id.ToString();
+                return UUID.Zero.ToString();
+            }
 
-            return principal.HasScope(NexScopes.AdminAll)
-                ? UUID.Zero.ToString()
-                : principal.Subject;
+            return principal.Subject;
         }
 
         private void Audit(

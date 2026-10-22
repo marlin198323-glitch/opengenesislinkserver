@@ -36,6 +36,8 @@ namespace NexVerse.RegionModules.Discovery
         private bool m_Enabled;
         private bool m_LegacyFirestormCompatibility;
         private string m_WorldApiBaseUrl = string.Empty;
+        // Backend-only group land credential; never exposed to viewers/CAPS.
+        private string m_GroupLandApiKey = string.Empty;
         private int m_RequestTimeoutMilliseconds = 3000;
         private HttpClient m_Http;
 
@@ -60,6 +62,9 @@ namespace NexVerse.RegionModules.Discovery
                         string.Empty)
                     .Trim()
                     .TrimEnd('/');
+
+            m_GroupLandApiKey = section.GetString(
+                "GroupLandApiKey", string.Empty).Trim();
 
             m_LegacyFirestormCompatibility =
                 section.GetBoolean(
@@ -179,6 +184,7 @@ namespace NexVerse.RegionModules.Discovery
             // Defensive detach first so a rootification retry cannot duplicate handlers.
             DetachLegacyHandlers(client);
             client.OnDirPlacesQuery += OnDirPlacesQuery;
+            client.OnPlacesQuery += OnPlacesQuery;
             client.OnDirLandQuery += OnDirLandQuery;
             client.OnDirClassifiedQuery += OnDirClassifiedQuery;
         }
@@ -193,8 +199,154 @@ namespace NexVerse.RegionModules.Discovery
         private void DetachLegacyHandlers(IClientAPI client)
         {
             client.OnDirPlacesQuery -= OnDirPlacesQuery;
+            client.OnPlacesQuery -= OnPlacesQuery;
             client.OnDirLandQuery -= OnDirLandQuery;
             client.OnDirClassifiedQuery -= OnDirClassifiedQuery;
+        }
+
+        // Firestorm's Groups > Land & NV$ tab does not use DirPlacesQuery.
+        // It uses PlacesQuery, QueryID=group UUID and DFQ_GROUP_OWNED (0x100).
+        // Query normal directory searches through the existing separate route.
+        // This adapter can enumerate parcels on regions hosted in this
+        // simulator process. Grid-wide land would require a separate trusted
+        // cross-simulator/central land directory.
+        private void OnPlacesQuery(
+            UUID queryID, UUID transactionID, string queryText,
+            uint queryFlags, byte category, string simName, IClientAPI client)
+        {
+            const uint GroupOwnedSearch = 1u << 8;
+            if ((queryFlags & GroupOwnedSearch) == 0 ||
+                queryID.IsZero() || client == null || !client.IsActive ||
+                client.Scene is not Scene current)
+                return;
+
+            // Firestorm sends the actual group UUID in QueryID. Check
+            // membership through the authoritative region groups module,
+            // never through name, supplied query flags or cached viewer state.
+            IGroupsModule groupModule = current.RequestModuleInterface<IGroupsModule>();
+            if (groupModule == null ||
+                groupModule.GetMembershipData(queryID, client.AgentId) == null)
+            {
+                // No disclosure of land to nonmembers.
+                client.SendPlacesReply(queryID, transactionID, new[] {
+                    new PlacesReplyData { OwnerID = UUID.Zero,
+                        Name = string.Empty, Desc = string.Empty,
+                        SimName = string.Empty }
+                });
+                return;
+            }
+
+            try
+            {
+                Scene[] scenes;
+                lock (m_Sync)
+                    scenes = m_Scenes.ToArray();
+
+                List<PlacesReplyData> rows = new List<PlacesReplyData>();
+                int contributed = 0;
+                List<GroupMembersData> members =
+                    groupModule.GroupMembersRequest(client, queryID);
+                if (members != null)
+                    foreach (GroupMembersData member in members)
+                        contributed = checked(contributed + Math.Max(0, member.Contribution));
+
+                // The first row is the Firestorm "total land contribution"
+                // special record. It must be present even for zero parcels.
+                rows.Add(new PlacesReplyData {
+                    OwnerID = UUID.Zero, Name = string.Empty,
+                    Desc = string.Empty, ActualArea = contributed,
+                    BillableArea = 0, SimName = string.Empty
+                });
+
+                // Prefer the authoritative grid-wide SQL directory, which
+                // includes other simulator processes. Only the trusted
+                // simulator may use the explicit groups:read machine key;
+                // the avatar's membership was checked above.
+                if (!string.IsNullOrEmpty(m_GroupLandApiKey))
+                {
+                    try
+                    {
+                        using JsonDocument remote = GetGroupLandJson(queryID);
+                        if (!remote.RootElement.TryGetProperty(
+                                "parcels", out JsonElement list) ||
+                            list.ValueKind != JsonValueKind.Array)
+                            throw new InvalidOperationException(
+                                "Group land response has no parcels list.");
+
+                        foreach (JsonElement parcel in list.EnumerateArray())
+                        {
+                            rows.Add(new PlacesReplyData {
+                                OwnerID = TryUuid(parcel, "owner_id", out UUID owner)
+                                    ? owner : UUID.Zero,
+                                Name = String(parcel, "name"),
+                                Desc = String(parcel, "description"),
+                                ActualArea = Int32(parcel, "area"),
+                                BillableArea = Int32(parcel, "area"),
+                                GlobalX = UInt32(parcel, "global_x"),
+                                GlobalY = UInt32(parcel, "global_y"),
+                                GlobalZ = UInt32(parcel, "global_z"),
+                                SimName = String(parcel, "region_name"),
+                                SnapshotID = TryUuid(parcel, "snapshot_id", out UUID snapshot)
+                                    ? snapshot : UUID.Zero,
+                                Price = Int32(parcel, "price"),
+                                Dwell = 0
+                            });
+                        }
+                        client.SendPlacesReply(queryID, transactionID, rows.ToArray());
+                        return;
+                    }
+                    catch (Exception e)
+                    {
+                        m_Log.WarnFormat(
+                            "[NEX-DISCOVERY]: Grid-wide group land lookup failed for {0}; falling back to this simulator only: {1}",
+                            queryID, e.Message);
+                    }
+                }
+
+                foreach (Scene scene in scenes)
+                {
+                    if (scene?.LandChannel == null)
+                        continue;
+                    List<ILandObject> parcels = scene.LandChannel.AllParcels();
+                    if (parcels == null)
+                        continue;
+                    foreach (ILandObject parcel in parcels)
+                    {
+                        LandData land = parcel?.LandData;
+                        if (land == null || !land.IsGroupOwned ||
+                            land.GroupID != queryID)
+                            continue;
+                        rows.Add(new PlacesReplyData {
+                            OwnerID = land.OwnerID,
+                            Name = land.Name ?? string.Empty,
+                            Desc = land.Description ?? string.Empty,
+                            ActualArea = land.Area,
+                            BillableArea = land.Area,
+                            GlobalX = scene.RegionInfo.WorldLocX +
+                                (uint)Math.Max(0, (int)land.UserLocation.X),
+                            GlobalY = scene.RegionInfo.WorldLocY +
+                                (uint)Math.Max(0, (int)land.UserLocation.Y),
+                            GlobalZ = (uint)Math.Max(0, (int)land.UserLocation.Z),
+                            SimName = scene.RegionInfo.RegionName,
+                            SnapshotID = land.SnapshotID,
+                            Dwell = 0, Price = land.SalePrice
+                        });
+                    }
+                }
+                client.SendPlacesReply(queryID, transactionID, rows.ToArray());
+            }
+            catch (Exception e)
+            {
+                m_Log.WarnFormat(
+                    "[NEX-DISCOVERY]: Firestorm group-owned land query {0} failed: {1}",
+                    queryID, e.Message);
+                // Always complete the request with the expected IDs.
+                client.SendPlacesReply(queryID, transactionID, new[] {
+                    new PlacesReplyData { OwnerID = UUID.Zero,
+                        Name = string.Empty, Desc = string.Empty,
+                        SimName = string.Empty }
+                });
+            }
         }
 
         private void OnDirPlacesQuery(
@@ -401,6 +553,28 @@ namespace NexVerse.RegionModules.Discovery
                     queryId,
                     Array.Empty<DirClassifiedReplyData>());
             }
+        }
+
+        private JsonDocument GetGroupLandJson(UUID groupId)
+        {
+            using HttpRequestMessage request = new HttpRequestMessage(
+                HttpMethod.Get,
+                m_WorldApiBaseUrl + "/api/v1/groups/" +
+                Uri.EscapeDataString(groupId.ToString()) + "/land");
+            request.Headers.TryAddWithoutValidation(
+                "X-NexVerse-Api-Key", m_GroupLandApiKey);
+            using HttpResponseMessage response = m_Http.Send(request);
+            response.EnsureSuccessStatusCode();
+            return JsonDocument.Parse(
+                response.Content.ReadAsStringAsync()
+                    .GetAwaiter().GetResult());
+        }
+
+        private static uint UInt32(JsonElement element, string name)
+        {
+            return element.TryGetProperty(name, out JsonElement value) &&
+                value.ValueKind == JsonValueKind.Number &&
+                value.TryGetUInt32(out uint result) ? result : 0;
         }
 
         private JsonDocument GetJson(string path)

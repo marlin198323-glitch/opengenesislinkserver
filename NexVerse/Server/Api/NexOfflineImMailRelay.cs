@@ -188,37 +188,38 @@ namespace NexVerse.Server.Api
             }
 
             string senderEmail = OfflineImMailRelayToken.NormalizeEmail(sender.Address);
-            UserAccount replyingAccount = m_UserAccounts.GetUserAccount(UUID.Zero, senderEmail);
-
-            if (replyingAccount == null ||
-                !replyingAccount.LocalToGrid ||
-                !replyingAccount.Active ||
-                replyingAccount.PrincipalID.IsZero())
-            {
-                m_Log.InfoFormat(
-                    "[NEX-IM-MAIL-RELAY]: Ignored catch-all mail from non-NexVerse sender: {0}.",
-                    senderEmail);
-                return RelayDisposition.Consumed;
-            }
-
             if (!TryFindReplyLocalPart(message, out string replyLocalPart))
             {
                 m_Log.Warn("[NEX-IM-MAIL-RELAY]: Rejected catch-all mail without a NexVerse reply token.");
                 return RelayDisposition.Consumed;
             }
 
-            if (!OfflineImMailRelayToken.TryValidate(
+            // A mailbox can belong to several avatars. The signed token must
+            // name the avatar that received this particular offline message.
+            // Never choose the first user account matching the From address.
+            if (!OfflineImMailRelayToken.TryValidateReply(
                     replyLocalPart,
                     senderEmail,
                     m_SigningKey,
                     DateTimeOffset.UtcNow,
                     m_MaximumTokenLifetime,
                     out UUID targetAgentId,
-                    out _))
+                    out UUID replyingAgentId))
             {
-                m_Log.WarnFormat(
-                    "[NEX-IM-MAIL-RELAY]: Rejected invalid or expired reply token from account {0}.",
-                    replyingAccount.PrincipalID);
+                m_Log.Warn("[NEX-IM-MAIL-RELAY]: Rejected invalid, legacy or expired identity-bound reply token.");
+                return RelayDisposition.Consumed;
+            }
+
+            UserAccount replyingAccount = m_UserAccounts.GetUserAccount(UUID.Zero, replyingAgentId);
+            if (replyingAccount == null ||
+                !replyingAccount.LocalToGrid ||
+                !replyingAccount.Active ||
+                replyingAccount.PrincipalID.IsZero() ||
+                !string.Equals(
+                    OfflineImMailRelayToken.NormalizeEmail(replyingAccount.Email),
+                    senderEmail, StringComparison.Ordinal))
+            {
+                m_Log.Info("[NEX-IM-MAIL-RELAY]: Rejected reply with absent, inactive or mismatched avatar identity.");
                 return RelayDisposition.Consumed;
             }
 
@@ -333,7 +334,7 @@ namespace NexVerse.Server.Api
                 return false;
 
             string candidate = address.Substring(0, at);
-            if (!candidate.StartsWith("r-", StringComparison.Ordinal))
+            if (!candidate.StartsWith("r2-", StringComparison.Ordinal))
                 return false;
 
             localPart = candidate;

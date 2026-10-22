@@ -245,11 +245,13 @@ namespace OpenSim.Groups
             // Used for Notices and Group Invites/Accept/Reject
             sp.ControllingClient.OnInstantMessage += OnInstantMessage;
 
-            // Send out group data update for compatibility.
-            // There might be some problem with the thread we're generating this on but not
-            //   doing the update at this time causes problems (Mantis #7920 and #7915)
-            // TODO: move sending this update to a later time in the rootification of the client.
-            if(!sp.m_haveGroupInformation)
+            // Always refresh the authoritative membership list when the
+            // avatar becomes a root agent. The m_haveGroupInformation flag
+            // only means the scene has cached a group update; it does not
+            // prove Firestorm has received its AgentGroupDataUpdate packet.
+            // Missing viewer-side membership incorrectly disables the entire
+            // Groups > Land & NV$ tab even if os_groups_membership is correct.
+            if (sp.ControllingClient != null)
                 SendAgentGroupDataUpdate(sp.ControllingClient, false);
         }
 

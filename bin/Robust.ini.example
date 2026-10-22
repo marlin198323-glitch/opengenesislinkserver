@@ -377,6 +377,17 @@
     ;; Default is false.
     ; AllowSetPassword = false
 
+ 
+[OglAvatarTemplates]
+    ; Vor der Aktivierung Copy/Transfer-Rechte der getragenen Items prüfen.
+    ; PublishedModel ist ein explizit freigegebener Avatar mit Outfit.
+    Enabled = false
+    BenjaminModel = "Benjamin Resident"
+    LunaModel = "Luna Resident"
+    RequirePublishedModels = true
+    BenjaminPublishedModel = "Benjamin Resident"
+    LunaPublishedModel = "Luna Resident"
+
 [UserAccountService]
     ; for the server connector
     LocalServiceModule = "OpenSim.Services.UserAccountService.dll:UserAccountService"
@@ -466,6 +477,11 @@
     ; ClassifiedFee = 0
 
     WelcomeMessage = "Welcome, Avatar!"
+    ; Optional versioned Firestorm ToS (enable after migration and live test).
+    NexVerseTosEnabled = false
+    NexVerseTosVersion = "1.0"
+    NexVerseTosUrl = "https://stadt-nexverse.de/service/tos"
+
     AllowRemoteSetLoginLevel = "false"
 
     ; For V2 map
@@ -624,6 +640,19 @@
     ; Only the Stadtportal BACKEND with a dedicated users:register API key
     ; may register avatars. Enable after publishing Benjamin/Luna models.
     PortalAvatarRegistrationEnabled = false
+    ; KeyHelp HTTPS -> internal ROBUST HTTP: exact source IP of the proxy,
+    ; not the original browser's X-Forwarded-For address. Reverse proxy MUST
+    ; overwrite X-Forwarded-Proto: https and restrict origin port access.
+    PortalRegistrationTrustedProxyIPs = ""
+    ; Optional direct HTTP only from exact backend IP(s) over a VPN/private
+    ; network; NEVER expose plaintext passwords/API keys on the internet.
+    PortalRegistrationTrustedHttpPeers = ""
+    ; World registration defaults; form may override home_region on the
+    ; server-to-server call with users:register scope.
+    PortalRegistrationDefaultRegionName = "Magdeburg"
+    PortalRegistrationDefaultX = 134
+    PortalRegistrationDefaultY = 111
+    PortalRegistrationDefaultZ = 23
     PublicBaseUrl = "http://world.stadt-nexverse.de"
 
     ; Keep privileged endpoints disabled while the public API is served over plain HTTP.
@@ -649,6 +678,15 @@
     RateLimitWindowSeconds = 60
     TrustForwardedFor = false
     AuditStorePath = "data/nexverse-audit.jsonl"
+    ; AuditConsoleMode = important (Standard), all oder off.
+    ; important = nur Aktionen mit Änderungen und wichtige Ereignisse,
+    ; all = auch reguläre Leseaufrufe, off = keine [NEX-AUDIT]-Konsolenzeilen.
+    ; Die persistente administrative Audit-Datei bleibt IMMER erhalten.
+    AuditConsoleMode = "important"
+    ; Öffentliche GETs wie /api/v1/health auch bei all standardmäßig ausblenden.
+    AuditConsolePublicReads = false
+    ; Lange Korrelations- und Ereignis-UUIDs nur bei Diagnose einblenden.
+    AuditConsoleShowIds = false
     ApiKeyStorePath = "data/nexverse-api-keys.json"
     IdempotencyStorePath = "data/nexverse-idempotency.json"
     IdempotencyTtlSeconds = 86400

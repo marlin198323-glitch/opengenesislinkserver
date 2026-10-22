@@ -61,6 +61,16 @@ namespace OpenSim.Server.Handlers.Login
             m_Proxy = hasProxy;
         }
 
+        // Firestorm/XML-RPC may encode LLSD true as boolean, 1, or "1".
+        // Never treat an arbitrary non-empty string as acceptance.
+        private static bool TosAccepted(object value)
+        {
+            if (value is bool accepted)
+                return accepted;
+            string text = Convert.ToString(value)?.Trim();
+            return string.Equals(text, "true", StringComparison.OrdinalIgnoreCase) || text == "1";
+        }
+
         public XmlRpcResponse HandleXMLRPCLogin(XmlRpcRequest request, IPEndPoint remoteClient)
         {
             Hashtable requestData = (Hashtable)request.Params[0];
@@ -88,14 +98,28 @@ namespace OpenSim.Server.Handlers.Login
                 //     }
                 // }
 
-                if (requestData.ContainsKey("first") && requestData["first"] != null &&
-                    requestData.ContainsKey("last") && requestData["last"] != null && (
+                // Firestorm 7.2.4 sends a single-name account as "username"
+                // instead of the legacy "first"/"last" XML-RPC parameters.
+                // Pass an empty last name to LLLoginService: the configured
+                // Resident name resolver performs the canonical normalization.
+                bool hasLegacyIdentity =
+                    requestData.ContainsKey("first") && requestData["first"] != null &&
+                    requestData.ContainsKey("last") && requestData["last"] != null;
+                bool hasAccountIdentity =
+                    requestData.ContainsKey("username") && requestData["username"] != null &&
+                    !string.IsNullOrWhiteSpace(requestData["username"].ToString());
+
+                if ((hasLegacyIdentity || hasAccountIdentity) && (
                         (requestData.ContainsKey("passwd") && requestData["passwd"] != null) ||
                         (!requestData.ContainsKey("passwd") && requestData.ContainsKey("web_login_key") && requestData["web_login_key"] != null && requestData["web_login_key"].ToString() != UUID.ZeroString)
                     ))
                 {
-                    string first = requestData["first"].ToString();
-                    string last = requestData["last"].ToString();
+                    string first = hasLegacyIdentity
+                        ? requestData["first"].ToString()
+                        : requestData["username"].ToString();
+                    string last = hasLegacyIdentity
+                        ? requestData["last"].ToString()
+                        : string.Empty;
                     string passwd = null;
                     if (requestData.ContainsKey("passwd"))
                     {
@@ -132,8 +156,13 @@ namespace OpenSim.Server.Handlers.Login
 
                     //m_log.InfoFormat("[LOGIN]: XMLRPC Login Requested for {0} {1}, starting in {2}, using {3}", first, last, startLocation, clientVersion);
 
+                    bool agreeToTos = requestData.ContainsKey("agree_to_tos") &&
+                        TosAccepted(requestData["agree_to_tos"]);
+                    if (agreeToTos)
+                        m_log.Info("[NEX-TOS]: XML-RPC Zustimmungsflag empfangen.");
+
                     LoginResponse reply = null;
-                    reply = m_LocalService.Login(first, last, passwd, startLocation, scopeID, clientVersion, channel, mac, id0, remoteClient);
+                    reply = m_LocalService.Login(first, last, passwd, startLocation, scopeID, clientVersion, channel, mac, id0, remoteClient, agreeToTos);
 
                     XmlRpcResponse response = new XmlRpcResponse();
                     response.Value = reply.ToHashtable();
@@ -218,10 +247,15 @@ namespace OpenSim.Server.Handlers.Login
 
                     m_log.Info("[LOGIN]: LLSD Login Requested for: '" + first + "' '" + last + "' / " + startLocation);
 
+                    bool agreeToTos = map.TryGetValue("agree_to_tos", out OSD tosValue) &&
+                        TosAccepted(tosValue.AsString());
+                    if (agreeToTos)
+                        m_log.Info("[NEX-TOS]: LLSD Zustimmungsflag empfangen.");
+
                     LoginResponse reply = null;
                     reply = m_LocalService.Login(first, last, passwd, startLocation, scopeID,
                         map["version"].AsString(), map["channel"].AsString(), map["mac"].AsString(),
-                        map["id0"].AsString(), remoteClient);
+                        map["id0"].AsString(), remoteClient, agreeToTos);
                     return reply.ToOSDMap();
                 }
             }

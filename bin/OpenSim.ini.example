@@ -101,8 +101,8 @@
     Cap_SetDisplayName = "localhost"
 
 [SimulatorFeatures]
-    SearchServerURI = "https://world.stadt-nexverse.de/search?q=[QUERY]&type=[TYPE]&maturity=[MATURITY]"
-    DestinationGuideURI = "https://world.stadt-nexverse.de/destinations"
+    SearchServerURI = "https://stadt-nexverse.de/service/search?q=[QUERY]&type=[TYPE]&maturity=[MATURITY]"
+    DestinationGuideURI = "https://stadt-nexverse.de/service/destination"
 
 [Chat]
 
@@ -151,6 +151,9 @@
     Enabled = true
     LegacyFirestormCompatibility = true
     WorldApiBaseUrl = "${Const|BaseURL}:${Const|PublicPort}"
+    ; Dedicated backend-only groups:read machine key, created in the World API.
+    ; Without it, the Firestorm group land tab sees local simulator regions only.
+    GroupLandApiKey = "${Environment|NEXVERSE_GROUP_LAND_API_KEY}"
     RequestTimeoutMilliseconds = 3000
 
 [NexExperiencesViewer]
@@ -194,7 +197,8 @@
 
 [NexPortalIM]
     Enabled = false
-    IngestUrl = "http://127.0.0.1/internal/nexportal/im/v1"
+    ; When ROBUST and Simulator are separate hosts use the protected HTTPS proxy path.
+    IngestUrl = "https://world.stadt-nexverse.de/internal/nexportal/im/v1"
     SharedSecret = "${Environment|NEX_PORTAL_IM_SECRET}"
 
 [OSSL]

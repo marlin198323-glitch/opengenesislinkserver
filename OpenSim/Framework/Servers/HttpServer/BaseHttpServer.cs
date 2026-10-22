@@ -2015,7 +2015,7 @@ namespace OpenSim.Framework.Servers.HttpServer
         /// </param>
         public void Start(bool performPollResponsesAsync, bool runPool)
         {
-            m_log.Info($"[BASE HTTP SERVER]: Starting HTTP{(UseSSL ? "S" : "")} server on port {Port}");
+            m_log.Info($"[HTTP-SERVER]: Starte HTTP{(UseSSL ? "S" : "")} auf Port {Port}");
 
             try
             {
