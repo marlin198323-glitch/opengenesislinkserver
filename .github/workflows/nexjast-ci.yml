@@ -393,6 +393,10 @@ jobs:
         shell: bash
         run: python3 tools/ci/verify_citizen_world_map.py
 
+      - name: Verify Stadtportal R409 World API counter-audit
+        shell: bash
+        run: python3 tools/ci/verify_r409_world_portal_contract.py
+
       - name: Verify OGL Germany seasons addon
         shell: bash
         run: python3 tools/ci/verify_ogl_seasons.py
