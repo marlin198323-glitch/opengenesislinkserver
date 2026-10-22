@@ -42,4 +42,8 @@ for needle in (
 ):
     assert needle in discovery, needle
 assert "OnDirPlacesQuery += OnDirPlacesQuery" in discovery
+groups = load("OpenSim/Addons/Groups/GroupsModule.cs")
+assert "if (sp.ControllingClient != null && sp.ControllingClient.IsActive)" in groups
+assert "SendAgentGroupDataUpdate(sp.ControllingClient, false);" in groups
+assert "if(!sp.m_haveGroupInformation)" not in groups
 print("Firestorm group account packet correlation and group land PlacesQuery: OK")
