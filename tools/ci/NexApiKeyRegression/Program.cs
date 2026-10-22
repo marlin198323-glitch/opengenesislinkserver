@@ -83,6 +83,26 @@ internal static class Program
                     out _),
                 "disabled API key remained valid");
 
+            // Dedicated groups:read-only simulator key must be accepted,
+            // persisted and must not accidentally obtain finance/admin scopes.
+            NexApiKeyRegistration groupLand = reloaded.Create(
+                "OGL Simulator Group Land",
+                new[] { NexScopes.GroupsRead });
+            Require(
+                reloaded.TryValidate(groupLand.ApiKey,
+                    out NexApiKeyRecord groupLandRecord) &&
+                groupLandRecord.Scopes.Length == 1 &&
+                string.Equals(groupLandRecord.Scopes[0],
+                    NexScopes.GroupsRead, StringComparison.OrdinalIgnoreCase),
+                "Group land API key did not retain exactly groups:read");
+            PersistentNexApiKeyStore groupsReloaded =
+                new PersistentNexApiKeyStore(path);
+            Require(groupsReloaded.TryValidate(groupLand.ApiKey,
+                    out NexApiKeyRecord persistedLand) &&
+                persistedLand.Scopes.Length == 1 &&
+                persistedLand.Scopes[0] == NexScopes.GroupsRead,
+                "Group land API key did not survive restart with least privilege");
+
             bool rejectedAdmin = false;
             try
             {
