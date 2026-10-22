@@ -495,11 +495,24 @@ namespace OpenSim.Groups
             return m_Database.StoreInvitation(invite);
         }
 
+        // Both group invitation operations are accessible only to the
+        // invitee or to a member with permission to issue invitations.
+        // Never trust the caller-supplied invite UUID as authorization.
+        private bool CanAccessInvitation(string requestingAgentId, InvitationData invite)
+        {
+            return invite != null &&
+                !string.IsNullOrWhiteSpace(requestingAgentId) &&
+                (string.Equals(requestingAgentId, invite.PrincipalID,
+                    StringComparison.OrdinalIgnoreCase) ||
+                 HasPower(requestingAgentId, invite.GroupID, GroupPowers.Invite) ||
+                 IsOwner(requestingAgentId, invite.GroupID));
+        }
+
         public GroupInviteInfo GetAgentToGroupInvite(string RequestingAgentID, UUID inviteID)
         {
             InvitationData data = m_Database.RetrieveInvitation(inviteID);
 
-            if (data == null)
+            if (!CanAccessInvitation(RequestingAgentID, data))
                 return null;
 
             GroupInviteInfo inviteInfo = new GroupInviteInfo();
@@ -513,6 +526,10 @@ namespace OpenSim.Groups
 
         public void RemoveAgentToGroupInvite(string RequestingAgentID, UUID inviteID)
         {
+            InvitationData invite = m_Database.RetrieveInvitation(inviteID);
+            if (!CanAccessInvitation(RequestingAgentID, invite))
+                return;
+
             m_Database.DeleteInvite(inviteID);
         }
 
