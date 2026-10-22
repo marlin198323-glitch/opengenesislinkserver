@@ -365,6 +365,10 @@ jobs:
         shell: bash
         run: python3 tools/ci/verify_nexgroups_security.py
 
+      - name: Verify one-click World API group land key issuance
+        shell: bash
+        run: python3 tools/ci/verify_worldapi_group_land_key_setup.py
+
       - name: Verify Firestorm Experience acquire and editor security
         shell: bash
         run: python3 tools/ci/verify_experience_viewer_purchase.py
