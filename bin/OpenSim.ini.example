@@ -236,6 +236,8 @@
     ReuseTextures = true
     DelayBeforeAppearanceSend = 1
     DelayBeforeAppearanceSave = 3
+    ; OGL FastRez pilot: revert to 4000 on viewer/HG login regressions.
+    WearablesRequestDelayMs = 1000
     ResendAppearanceUpdates = false
 
 [XBakes]
