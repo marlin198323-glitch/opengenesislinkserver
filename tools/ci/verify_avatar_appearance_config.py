@@ -38,4 +38,19 @@ for token in (
     assert token in factory, f"missing FastRez runtime guard: {token}"
 assert 'Thread.Sleep(4000);' not in factory, "legacy hard-coded 4000ms sleep remains"
 
-print("OpenGenesisLINK avatar appearance cache / FastRez wearables configuration: OK")
+for path in ("bin/OpenSim.ini", "bin/OpenSim.ini.example"):
+    content = Path(path).read_text(encoding="utf-8")
+    assert "\\n[InterestManagement]\\n" in content, f"{path}: missing interest-management section"
+    section = content.split("\\n[InterestManagement]\\n", 1)[1].split("\\n[", 1)[0]
+    assert "FastRezNearbyFirst = true" in section, f"{path}: FastRez world-rez opt-in missing"
+
+scene = Path("OpenSim/Region/Framework/Scenes/Scene.cs").read_text(encoding="utf-8")
+presence = Path("OpenSim/Region/Framework/Scenes/ScenePresence.cs").read_text(encoding="utf-8")
+assert "public bool FastRezNearbyFirst = false;" in scene, "fast-rez opt-in default must remain off"
+assert 'interestConfig.GetBoolean("FastRezNearbyFirst", FastRezNearbyFirst)' in scene
+assert "if (m_scene.FastRezNearbyFirst)" in presence
+assert "Vector3.DistanceSquared(origin, grp.AbsolutePosition)" in presence
+assert "nearby.AddRange(distant);" in presence
+assert "if (cacheEmpty || !grp.IsViewerCachable)" in presence, "viewer-cache probe handling must survive"
+
+print("OpenGenesisLINK FastRez (avatar and near-world) configuration: OK")
