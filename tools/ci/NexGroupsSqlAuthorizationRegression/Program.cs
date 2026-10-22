@@ -8,6 +8,7 @@ using OpenMetaverse;
 using OpenSim.Framework;
 using OpenSim.Framework.Console;
 using OpenSim.Groups;
+using OpenSim.Data.MySQL;
 
 internal static class Program
 {
@@ -47,6 +48,11 @@ internal static class Program
             gridUsers.Set("StorageProvider", provider);
             gridUsers.Set("ConnectionString", connection);
             gridUsers.Set("Realm", "GridUser");
+
+            // Surface storage/migration errors instead of letting the
+            // generic plugin loader swallow the original exception.
+            _ = new MySQLGroupsData(connection, "os_groups");
+            _ = new MySQLGridUserData(connection, "GridUser");
 
             var groups = new GroupsService(config, "Groups");
             UUID founder = UUID.Random();
