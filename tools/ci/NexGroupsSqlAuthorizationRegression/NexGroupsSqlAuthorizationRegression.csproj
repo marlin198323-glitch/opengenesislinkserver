@@ -12,6 +12,11 @@
     <Reference Include="log4net"><HintPath>../../../bin/log4net.dll</HintPath><Private>True</Private></Reference>
   </ItemGroup>
   <ItemGroup>
+    <!-- OpenSim's bundled legacy MySql.Data requests this strong-named
+         CAS compatibility assembly under .NET 8 at connection-open time. -->
+    <PackageReference Include="System.Security.Permissions" Version="8.0.0" />
+  </ItemGroup>
+  <ItemGroup>
     <ProjectReference Include="../../../OpenSim/Addons/Groups/OpenSim.Addons.Groups.csproj" />
     <ProjectReference Include="../../../OpenSim/Framework/OpenSim.Framework.csproj" />
     <ProjectReference Include="../../../OpenSim/Framework/Console/OpenSim.Framework.Console.csproj" />
