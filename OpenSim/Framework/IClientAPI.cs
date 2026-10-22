@@ -492,7 +492,7 @@ namespace OpenSim.Framework
 
     public delegate void SaveStateHandler(IClientAPI client,UUID agentID);
 
-    public delegate void GroupAccountSummaryRequest(IClientAPI client,UUID agentID, UUID groupID);
+    public delegate void GroupAccountSummaryRequest(IClientAPI client, UUID agentID, UUID groupID, UUID requestID);
 
     public delegate void GroupAccountDetailsRequest(IClientAPI client,UUID agentID, UUID groupID, UUID transactionID, UUID sessionID);
 
@@ -1465,7 +1465,7 @@ namespace OpenSim.Framework
 
         void SendGroupAccountingDetails(IClientAPI sender,UUID groupID, UUID transactionID, UUID sessionID, int amt);
 
-        void SendGroupAccountingSummary(IClientAPI sender,UUID groupID, uint moneyAmt, int totalTier, int usedTier);
+        void SendGroupAccountingSummary(IClientAPI sender, UUID groupID, UUID requestID, uint moneyAmt, int totalTier, int usedTier);
 
         void SendGroupTransactionsSummaryDetails(IClientAPI sender,UUID groupID, UUID transactionID, UUID sessionID,int amt);
 

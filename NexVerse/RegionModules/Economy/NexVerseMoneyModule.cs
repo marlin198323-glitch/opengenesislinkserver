@@ -1000,6 +1000,15 @@ namespace NexVerse.RegionModules.Economy
                 SendMoneyBalance;
             client.OnObjectBuy +=
                 ObjectBuy;
+            // Firestorm's Groups > Land & NV$ tab sends these legacy UDP
+            // requests. OpenSim declares them but the default region module
+            // leaves them without replies, causing an endless spinner.
+            client.OnGroupAccountSummaryRequest +=
+                HandleGroupAccountSummaryRequest;
+            client.OnGroupAccountDetailsRequest +=
+                HandleGroupAccountDetailsRequest;
+            client.OnGroupAccountTransactionsRequest +=
+                HandleGroupAccountTransactionsRequest;
 
             // Firestorm initializes the status bar with "?? <currency>" until a
             // MoneyBalanceReply arrives. The first viewer request can race the
@@ -1225,6 +1234,141 @@ namespace NexVerse.RegionModules.Economy
                       " NV$."
                     : "Object purchased.",
                 false);
+        }
+
+        private bool CanReadGroupAccount(IClientAPI client, UUID agentId, UUID groupId)
+        {
+            if (!m_Enabled || client == null || !client.IsActive ||
+                agentId.IsZero() || groupId.IsZero() ||
+                client.AgentId != agentId || client.Scene is not Scene scene)
+                return false;
+
+            IGroupsModule groups = scene.RequestModuleInterface<IGroupsModule>();
+            if (groups == null || groups.GetGroupRecord(groupId) == null)
+                return false;
+
+            // Never expose group balances on membership alone. In OpenSim the
+            // "Accountable" power is granted to the Owners role by default.
+            ulong permissions = groups.GetFullGroupPowers(agentId, groupId);
+            return (permissions & (ulong)GroupPowers.Accountable) != 0;
+        }
+
+        private void HandleGroupAccountSummaryRequest(
+            IClientAPI client, UUID agentId, UUID groupId, UUID requestID)
+        {
+            if (!CanReadGroupAccount(client, agentId, groupId))
+            {
+                m_Log.DebugFormat("[NEX-ECONOMY-VIEWER]: Denied group accounting summary: avatar={0}, group={1}", agentId, groupId);
+                // Send a non-sensitive reply so the viewer can terminate its
+                // loading state, without revealing an unauthorized balance.
+                client?.SendGroupAccountingSummary(client, groupId, requestID, 0, 0, 0);
+                return;
+            }
+
+            if (!TryGetGroupBalance(groupId, out int balance))
+            {
+                client.SendAgentAlertMessage(
+                    "Gruppen-NV$ sind derzeit nicht erreichbar. Bitte erneut versuchen.", false);
+                client.SendGroupAccountingSummary(client, groupId, requestID, 0, 0, 0);
+                return;
+            }
+
+            client.SendGroupAccountingSummary(client, groupId, requestID,
+                balance < 0 ? 0u : (uint)balance, 0, 0);
+        }
+
+        private void HandleGroupAccountDetailsRequest(
+            IClientAPI client, UUID agentId, UUID groupId,
+            UUID transactionId, UUID sessionId)
+        {
+            if (client == null || !client.IsActive || client.SessionId != sessionId ||
+                client.AgentId != agentId)
+                return;
+            // Do not expose any transaction detail without a genuine
+            // accounting power. An empty reply is safe for non-accountants.
+            // Even an authorized accountant must not be shown fabricated
+            // details; unauthorized viewers get a harmless empty response.
+            if (!CanReadGroupAccount(client, agentId, groupId))
+                m_Log.DebugFormat("[NEX-ECONOMY-VIEWER]: Denied group accounting details for {0}", groupId);
+            // There is currently no mapped billing-period breakdown in the
+            // legacy viewer protocol. Never fabricate transactions or tax.
+            client.SendGroupAccountingDetails(client, groupId, transactionId,
+                sessionId, 0);
+        }
+
+        private void HandleGroupAccountTransactionsRequest(
+            IClientAPI client, UUID agentId, UUID groupId,
+            UUID transactionId, UUID sessionId)
+        {
+            if (client == null || !client.IsActive || client.SessionId != sessionId ||
+                client.AgentId != agentId)
+                return;
+            if (!CanReadGroupAccount(client, agentId, groupId))
+                m_Log.DebugFormat("[NEX-ECONOMY-VIEWER]: Denied group sales detail for {0}", groupId);
+            client.SendGroupTransactionsSummaryDetails(client, groupId,
+                transactionId, sessionId, 0);
+        }
+
+        // Ledger API always uses the account UUID; it never trusts a viewer
+        // supplied name or balance. Only authenticated group accountants
+        // reach this helper. Provisioning the group wallet is idempotent and
+        // does not create any NV$ or ledger postings.
+        private bool TryGetGroupBalance(UUID groupId, out int balance)
+        {
+            balance = 0;
+            try
+            {
+                using HttpRequestMessage request = CreateRequest(
+                    HttpMethod.Get, "/api/v1/economy/balance?account_id=" +
+                    Uri.EscapeDataString(groupId.ToString()));
+                using HttpResponseMessage response = m_Http.Send(request);
+
+                if (response.StatusCode == HttpStatusCode.NotFound)
+                {
+                    using HttpRequestMessage create = CreateRequest(
+                        HttpMethod.Post, "/api/v1/economy/accounts/ensure");
+                    create.Content = new StringContent(JsonSerializer.Serialize(new
+                    {
+                        account_id = groupId.ToString(),
+                        account_class = "group",
+                        display_name = "Group " + groupId.ToString()
+                    }), Encoding.UTF8, "application/json");
+                    using HttpResponseMessage created = m_Http.Send(create);
+                    if (!created.IsSuccessStatusCode)
+                    {
+                        m_Log.WarnFormat("[NEX-ECONOMY-VIEWER]: Group wallet provision failed ({0}): HTTP {1}",
+                            groupId, (int)created.StatusCode);
+                        return false;
+                    }
+                    // A newly provisioned group wallet has no postings.
+                    balance = 0;
+                    return true;
+                }
+
+                if (!response.IsSuccessStatusCode)
+                {
+                    m_Log.WarnFormat("[NEX-ECONOMY-VIEWER]: Group balance HTTP {0} for group {1}",
+                        (int)response.StatusCode, groupId);
+                    return false;
+                }
+
+                using JsonDocument json = JsonDocument.Parse(
+                    response.Content.ReadAsStringAsync().GetAwaiter().GetResult());
+                if (!json.RootElement.TryGetProperty("account", out JsonElement wallet) ||
+                    !wallet.TryGetProperty("balance", out JsonElement money) ||
+                    !money.TryGetInt64(out long ledgerBalance))
+                    return false;
+
+                balance = ledgerBalance > int.MaxValue ? int.MaxValue :
+                    ledgerBalance < int.MinValue ? int.MinValue : (int)ledgerBalance;
+                return true;
+            }
+            catch (Exception e)
+            {
+                m_Log.WarnFormat("[NEX-ECONOMY-VIEWER]: Group balance failed for {0}: {1}",
+                    groupId, e.Message);
+                return false;
+            }
         }
 
         private void ClientClosed(

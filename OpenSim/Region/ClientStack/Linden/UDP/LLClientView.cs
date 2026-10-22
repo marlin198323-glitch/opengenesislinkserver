@@ -1476,20 +1476,15 @@ namespace OpenSim.Region.ClientStack.LindenUDP
             GADRP.MoneyData.CurrentInterval = 0;
             GADRP.MoneyData.IntervalDays = 7;
             GADRP.MoneyData.RequestID = transactionID;
-            GADRP.MoneyData.StartDate = Utils.StringToBytes(DateTime.Today.ToString());
+            GADRP.MoneyData.StartDate = Utils.StringToBytes(DateTime.UtcNow.ToString("yyyy-MM-dd"));
 
-            GADRP.HistoryData = new GroupAccountDetailsReplyPacket.HistoryDataBlock[]
-            {
-                new GroupAccountDetailsReplyPacket.HistoryDataBlock()
-                {
-                    Amount = amt,
-                    Description = Array.Empty<byte>()
-                }
-            };
+            // No legacy billing-period breakdown yet. Return zero real
+            // entries, never fabricate a transaction for the viewer.
+            GADRP.HistoryData = Array.Empty<GroupAccountDetailsReplyPacket.HistoryDataBlock>();
             OutPacket(GADRP, ThrottleOutPacketType.Task);
         }
 
-        public void SendGroupAccountingSummary(IClientAPI sender,UUID groupID, uint moneyAmt, int totalTier, int usedTier)
+        public void SendGroupAccountingSummary(IClientAPI sender, UUID groupID, UUID requestID, uint moneyAmt, int totalTier, int usedTier)
         {
             GroupAccountSummaryReplyPacket GASRP =
                     (GroupAccountSummaryReplyPacket)PacketPool.Instance.GetPacket(
@@ -1501,17 +1496,17 @@ namespace OpenSim.Region.ClientStack.LindenUDP
             GASRP.MoneyData.Balance = (int)moneyAmt;
             GASRP.MoneyData.TotalCredits = totalTier;
             GASRP.MoneyData.TotalDebits = usedTier;
-            GASRP.MoneyData.StartDate = new byte[1];
-            GASRP.MoneyData.CurrentInterval = 1;
+            GASRP.MoneyData.StartDate = Utils.StringToBytes(DateTime.UtcNow.ToString("yyyy-MM-dd"));
+            GASRP.MoneyData.CurrentInterval = 0;
             GASRP.MoneyData.GroupTaxCurrent = 0;
             GASRP.MoneyData.GroupTaxEstimate = 0;
-            GASRP.MoneyData.IntervalDays = 0;
+            GASRP.MoneyData.IntervalDays = 7;
             GASRP.MoneyData.LandTaxCurrent = 0;
             GASRP.MoneyData.LandTaxEstimate = 0;
-            GASRP.MoneyData.LastTaxDate = new byte[1];
+            GASRP.MoneyData.LastTaxDate = Utils.StringToBytes(DateTime.UtcNow.ToString("yyyy-MM-dd"));
             GASRP.MoneyData.LightTaxCurrent = 0;
-            GASRP.MoneyData.TaxDate = new byte[1];
-            GASRP.MoneyData.RequestID = sender.AgentId;
+            GASRP.MoneyData.TaxDate = Utils.StringToBytes(DateTime.UtcNow.AddDays(7).ToString("yyyy-MM-dd"));
+            GASRP.MoneyData.RequestID = requestID;
             GASRP.MoneyData.ParcelDirFeeEstimate = 0;
             GASRP.MoneyData.ParcelDirFeeCurrent = 0;
             GASRP.MoneyData.ObjectTaxEstimate = 0;
@@ -1535,19 +1530,11 @@ namespace OpenSim.Region.ClientStack.LindenUDP
             GATRP.MoneyData.CurrentInterval = 0;
             GATRP.MoneyData.IntervalDays = 7;
             GATRP.MoneyData.RequestID = transactionID;
-            GATRP.MoneyData.StartDate = Utils.StringToBytes(DateTime.Today.ToString());
+            GATRP.MoneyData.StartDate = Utils.StringToBytes(DateTime.UtcNow.ToString("yyyy-MM-dd"));
 
-            GATRP.HistoryData = new GroupAccountTransactionsReplyPacket.HistoryDataBlock[]
-            {
-                new GroupAccountTransactionsReplyPacket.HistoryDataBlock()
-                {
-                    Amount = amt,
-                    Item = Array.Empty<byte>(),
-                    Time = Array.Empty<byte>(),
-                    Type = 0,
-                    User = Array.Empty<byte>(),
-                }
-            };
+            // The group sales protocol is independent of ledger postings;
+            // until a proper breakdown exists, do not invent transaction data.
+            GATRP.HistoryData = Array.Empty<GroupAccountTransactionsReplyPacket.HistoryDataBlock>();
             OutPacket(GATRP, ThrottleOutPacketType.Task);
         }
 
@@ -11543,7 +11530,7 @@ namespace OpenSim.Region.ClientStack.LindenUDP
         private static void HandleGroupAccountSummaryRequest(LLClientView c, Packet packet)
         {
             GroupAccountSummaryRequestPacket GroupAccountSummaryRequest = (GroupAccountSummaryRequestPacket)packet;
-            c.OnGroupAccountSummaryRequest?.Invoke(c, c.m_agentId, GroupAccountSummaryRequest.AgentData.GroupID);
+            c.OnGroupAccountSummaryRequest?.Invoke(c, c.m_agentId, GroupAccountSummaryRequest.AgentData.GroupID, GroupAccountSummaryRequest.MoneyData.RequestID);
         }
 
         private static void HandleGroupTransactionsDetailsRequest(LLClientView c, Packet packet)

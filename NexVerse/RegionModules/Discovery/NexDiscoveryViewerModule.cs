@@ -179,6 +179,7 @@ namespace NexVerse.RegionModules.Discovery
             // Defensive detach first so a rootification retry cannot duplicate handlers.
             DetachLegacyHandlers(client);
             client.OnDirPlacesQuery += OnDirPlacesQuery;
+            client.OnPlacesQuery += OnPlacesQuery;
             client.OnDirLandQuery += OnDirLandQuery;
             client.OnDirClassifiedQuery += OnDirClassifiedQuery;
         }
@@ -193,8 +194,109 @@ namespace NexVerse.RegionModules.Discovery
         private void DetachLegacyHandlers(IClientAPI client)
         {
             client.OnDirPlacesQuery -= OnDirPlacesQuery;
+            client.OnPlacesQuery -= OnPlacesQuery;
             client.OnDirLandQuery -= OnDirLandQuery;
             client.OnDirClassifiedQuery -= OnDirClassifiedQuery;
+        }
+
+        // Firestorm's Groups > Land & NV$ tab does not use DirPlacesQuery.
+        // It uses PlacesQuery, QueryID=group UUID and DFQ_GROUP_OWNED (0x100).
+        // Query normal directory searches through the existing separate route.
+        // This adapter can enumerate parcels on regions hosted in this
+        // simulator process. Grid-wide land would require a separate trusted
+        // cross-simulator/central land directory.
+        private void OnPlacesQuery(
+            UUID queryID, UUID transactionID, string queryText,
+            uint queryFlags, byte category, string simName, IClientAPI client)
+        {
+            const uint GroupOwnedSearch = 1u << 8;
+            if ((queryFlags & GroupOwnedSearch) == 0 ||
+                queryID.IsZero() || client == null || !client.IsActive ||
+                client.Scene is not Scene current)
+                return;
+
+            // Firestorm sends the actual group UUID in QueryID. Check
+            // membership through the authoritative region groups module,
+            // never through name, supplied query flags or cached viewer state.
+            IGroupsModule groupModule = current.RequestModuleInterface<IGroupsModule>();
+            if (groupModule == null ||
+                groupModule.GetMembershipData(queryID, client.AgentId) == null)
+            {
+                // No disclosure of land to nonmembers.
+                client.SendPlacesReply(queryID, transactionID, new[] {
+                    new PlacesReplyData { OwnerID = UUID.Zero,
+                        Name = string.Empty, Desc = string.Empty,
+                        SimName = string.Empty }
+                });
+                return;
+            }
+
+            try
+            {
+                Scene[] scenes;
+                lock (m_Sync)
+                    scenes = m_Scenes.ToArray();
+
+                List<PlacesReplyData> rows = new List<PlacesReplyData>();
+                int contributed = 0;
+                List<GroupMembersData> members =
+                    groupModule.GroupMembersRequest(client, queryID);
+                if (members != null)
+                    foreach (GroupMembersData member in members)
+                        contributed = checked(contributed + Math.Max(0, member.Contribution));
+
+                // The first row is the Firestorm "total land contribution"
+                // special record. It must be present even for zero parcels.
+                rows.Add(new PlacesReplyData {
+                    OwnerID = UUID.Zero, Name = string.Empty,
+                    Desc = string.Empty, ActualArea = contributed,
+                    BillableArea = 0, SimName = string.Empty
+                });
+
+                foreach (Scene scene in scenes)
+                {
+                    if (scene?.LandChannel == null)
+                        continue;
+                    List<ILandObject> parcels = scene.LandChannel.AllParcels();
+                    if (parcels == null)
+                        continue;
+                    foreach (ILandObject parcel in parcels)
+                    {
+                        LandData land = parcel?.LandData;
+                        if (land == null || !land.IsGroupOwned ||
+                            land.GroupID != queryID)
+                            continue;
+                        rows.Add(new PlacesReplyData {
+                            OwnerID = land.OwnerID,
+                            Name = land.Name ?? string.Empty,
+                            Desc = land.Description ?? string.Empty,
+                            ActualArea = land.Area,
+                            BillableArea = land.Area,
+                            GlobalX = scene.RegionInfo.WorldLocX +
+                                (uint)Math.Max(0, (int)land.UserLocation.X),
+                            GlobalY = scene.RegionInfo.WorldLocY +
+                                (uint)Math.Max(0, (int)land.UserLocation.Y),
+                            GlobalZ = (uint)Math.Max(0, (int)land.UserLocation.Z),
+                            SimName = scene.RegionInfo.RegionName,
+                            SnapshotID = land.SnapshotID,
+                            Dwell = 0, Price = land.SalePrice
+                        });
+                    }
+                }
+                client.SendPlacesReply(queryID, transactionID, rows.ToArray());
+            }
+            catch (Exception e)
+            {
+                m_Log.WarnFormat(
+                    "[NEX-DISCOVERY]: Firestorm group-owned land query {0} failed: {1}",
+                    queryID, e.Message);
+                // Always complete the request with the expected IDs.
+                client.SendPlacesReply(queryID, transactionID, new[] {
+                    new PlacesReplyData { OwnerID = UUID.Zero,
+                        Name = string.Empty, Desc = string.Empty,
+                        SimName = string.Empty }
+                });
+            }
         }
 
         private void OnDirPlacesQuery(
