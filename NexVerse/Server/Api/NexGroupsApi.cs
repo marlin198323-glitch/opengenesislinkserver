@@ -972,23 +972,16 @@ namespace NexVerse.Server.Api
             UserAccount account,
             UUID groupId)
         {
-            // Privileged operators use admin:*; arbitrary service principals
-            // carrying only groups:read may not request another group's money.
+            // Scopes authorize the route; only the actual authenticated
+            // resident's persisted group powers authorize its account.
             if (principal.HasScope(NexScopes.AdminAll))
                 return true;
             if (account == null || !account.LocalToGrid ||
                 account.PrincipalID.IsZero())
                 return false;
 
-            string resident = account.PrincipalID.ToString();
-            if (m_Groups.GetAgentGroupMembership(resident, resident, groupId) == null)
-                return false;
-
-            // Combine all assigned roles, not only the active display title.
-            List<GroupRolesData> roles =
-                m_Groups.GetAgentGroupRoles(resident, resident, groupId);
-            return roles != null && roles.Any(
-                role => (role.Powers & (ulong)GroupPowers.Accountable) != 0);
+            return m_Groups.CanReadGroupAccounting(
+                account.PrincipalID.ToString(), groupId);
         }
 
         private bool EnsureGroupWallet(
