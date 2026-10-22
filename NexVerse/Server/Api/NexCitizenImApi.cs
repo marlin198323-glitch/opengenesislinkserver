@@ -31,13 +31,13 @@ namespace NexVerse.Server.Api
         private readonly Func<IInstantMessage> m_InstantMessageResolver;
         private readonly object m_InstantMessageSync = new object();
         private readonly INexAuditSink m_Audit;
-        private readonly NexCitizenImStore m_Store;
+        private readonly INexCitizenImStore m_Store;
         private readonly ConcurrentDictionary<Guid, Queue<long>> m_SendWindows =
             new ConcurrentDictionary<Guid, Queue<long>>();
 
         public NexCitizenImApi(IUserAccountService accounts, IFriendsService friends,
             NexApiAuthenticator auth, IInstantMessage instantMessages,
-            INexAuditSink audit, NexCitizenImStore store = null,
+            INexAuditSink audit, INexCitizenImStore store = null,
             Func<IInstantMessage> instantMessageResolver = null)
         {
             m_Accounts = accounts ?? throw new ArgumentNullException(nameof(accounts));
