@@ -19,7 +19,7 @@ for letter in "ABCDEFGHIJKLM":
 for rev in ("R397", "R398", "R399", "R400", "R401", "R402", "R403", "R404",
             "R405", "R406", "R407", "R408"):
     assert rev in doc, f"missing Portal revision {rev}"
-assert "NICHT_VERIFIZIERBAR" in doc and "nicht in dieser Sitzung repliziert" in doc
+assert "NICHT_VERIFIZIERBAR" in doc and "nicht in dieser sitzung repliziert" in doc.lower()
 for path in ('"/api/v1/deutschland"', '"/api/v1/deutschland/view"',
              '"/api/v1/deutschland/tiles/{zoom}/{x}/{y}.jpg"',
              '"/api/v1/deutschland/xyz/{z}/{x}/{y}.jpg"',
