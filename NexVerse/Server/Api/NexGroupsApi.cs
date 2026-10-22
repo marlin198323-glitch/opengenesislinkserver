@@ -915,7 +915,15 @@ namespace NexVerse.Server.Api
                 try
                 {
                     ExtendedGroupRecord group = RequireGroup(authPrincipal, request, groupId);
-                    if (!CanReadGroupAccounting(authPrincipal, authAccount, groupId))
+                    // Only the simulator backend can act on a prior viewer
+                    // Accountable check. Require BOTH explicit machine scopes.
+                    // Never permit resident bearer identity impersonation.
+                    bool trustedViewer = authAccount == null &&
+                        authPrincipal.Subject.StartsWith(
+                            "api-key:", StringComparison.OrdinalIgnoreCase) &&
+                        authPrincipal.HasScope(NexScopes.EconomyRead);
+                    if (!trustedViewer &&
+                        !CanReadGroupAccounting(authPrincipal, authAccount, groupId))
                         throw new UnauthorizedAccessException(
                             "Group transaction history requires membership and Accountable power.");
 
