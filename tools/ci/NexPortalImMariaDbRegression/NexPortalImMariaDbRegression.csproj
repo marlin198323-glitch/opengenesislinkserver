@@ -7,6 +7,7 @@
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="System.Security.Permissions" Version="8.0.0" />
+    <PackageReference Include="System.Configuration.ConfigurationManager" Version="8.0.0" />
     <Reference Include="MySql.Data">
       <HintPath>../../../bin/MySql.Data.dll</HintPath>
       <Private>True</Private>
