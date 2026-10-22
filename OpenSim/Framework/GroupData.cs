@@ -30,6 +30,18 @@ using OpenMetaverse;
 
 namespace OpenSim.Framework
 {
+    // Signed NV$ group posting projected into the Firestorm 7-day UDP
+    // accounting/sales panes. Never include counterparty ledger postings.
+    public sealed class GroupAccountHistoryEntry
+    {
+        public string Description = string.Empty;
+        public string Time = string.Empty;
+        public string User = string.Empty;
+        public string Item = string.Empty;
+        public int Amount;
+        public int Type;
+    }
+
     public class GroupRecord
     {
         public UUID GroupID;
