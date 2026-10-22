@@ -5,6 +5,7 @@ using System;
 using System.IO;
 using Nini.Config;
 using OpenMetaverse;
+using OpenSim.Framework;
 using OpenSim.Framework.Console;
 using OpenSim.Groups;
 
