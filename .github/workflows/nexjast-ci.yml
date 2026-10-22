@@ -361,6 +361,10 @@ jobs:
         shell: bash
         run: python3 tools/ci/verify_nexgroups_experiences.py
 
+      - name: Verify NexGroups authorization and wallet consistency
+        shell: bash
+        run: python3 tools/ci/verify_nexgroups_security.py
+
       - name: Verify Firestorm Experience acquire and editor security
         shell: bash
         run: python3 tools/ci/verify_experience_viewer_purchase.py
