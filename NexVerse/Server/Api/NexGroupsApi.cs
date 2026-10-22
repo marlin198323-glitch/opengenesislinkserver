@@ -302,10 +302,7 @@ namespace NexVerse.Server.Api
 
                     try
                     {
-                        UUID actor =
-                            account != null
-                                ? account.PrincipalID
-                                : QueryUuid(request, "actor_id");
+                        UUID actor = ActorForMutationQuery(principal, account, request);
 
                         if (!m_Groups.DeleteGroup(
                                 actor.ToString(),
@@ -412,10 +409,7 @@ namespace NexVerse.Server.Api
                     {
                         try
                         {
-                            UUID actor =
-                                authAccount != null
-                                    ? authAccount.PrincipalID
-                                    : QueryUuid(request, "actor_id");
+                            UUID actor = ActorForMutationQuery(authPrincipal, authAccount, request);
 
                             if (!m_Groups.RemoveAgentFromGroup(
                                     actor.ToString(),
@@ -546,10 +540,7 @@ namespace NexVerse.Server.Api
                                 return;
                             }
 
-                            UUID deleteActor =
-                                authAccount != null
-                                    ? authAccount.PrincipalID
-                                    : QueryUuid(request, "actor_id");
+                            UUID deleteActor = ActorForMutationQuery(authPrincipal, authAccount, request);
 
                             m_Groups.RemoveGroupRole(
                                 deleteActor.ToString(),
@@ -577,10 +568,7 @@ namespace NexVerse.Server.Api
 
                         try
                         {
-                            UUID actor =
-                                authAccount != null
-                                    ? authAccount.PrincipalID
-                                    : QueryUuid(request, "actor_id");
+                            UUID actor = ActorForMutationQuery(authPrincipal, authAccount, request);
 
                             bool ok =
                                 method.Equals("POST", StringComparison.OrdinalIgnoreCase)
@@ -841,10 +829,7 @@ namespace NexVerse.Server.Api
                     {
                         try
                         {
-                            UUID actor =
-                                authAccount != null
-                                    ? authAccount.PrincipalID
-                                    : QueryUuid(request, "actor_id");
+                            UUID actor = ActorForMutationQuery(authPrincipal, authAccount, request);
 
                             bool removed =
                                 m_Groups.RemoveGroupBan(
@@ -1053,10 +1038,28 @@ namespace NexVerse.Server.Api
             if (account != null)
                 return account.PrincipalID;
 
+            if (!principal.HasScope(NexScopes.AdminAll))
+                throw new UnauthorizedAccessException(
+                    "Delegated group mutations require admin:* authority.");
+
             UUID actor = BodyOptionalUuid(body, "actor_id");
-            if (actor.IsZero() && principal.HasScope(NexScopes.AdminAll))
-                throw new ArgumentException("actor_id is required for administrator/service group mutations.");
+            if (actor.IsZero())
+                throw new ArgumentException(
+                    "actor_id is required for administrator/service group mutations.");
             return actor;
+        }
+
+        private static UUID ActorForMutationQuery(
+            NexPrincipal principal,
+            UserAccount account,
+            IOSHttpRequest request)
+        {
+            if (account != null)
+                return account.PrincipalID;
+            if (!principal.HasScope(NexScopes.AdminAll))
+                throw new UnauthorizedAccessException(
+                    "Delegated group mutations require admin:* authority.");
+            return QueryUuid(request, "actor_id");
         }
 
         private static string ActorForRead(
