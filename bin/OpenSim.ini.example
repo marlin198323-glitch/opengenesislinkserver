@@ -216,6 +216,7 @@
     MessageOnlineUsersOnly = true
 
 [InterestManagement]
+    FastRezNearbyFirst = true
 
 [MediaOnAPrim]
 
