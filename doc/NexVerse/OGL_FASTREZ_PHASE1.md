@@ -21,6 +21,19 @@ Stand: 23.10.2026 | PR #281 | separater Simulator-Patch, **nicht** Teil von PR #
    nicht für den gesonderten Distanz-Culling-Pfad.
    Der OpenSim-Standard bleibt `false`.
 
+### Login-Chat (FastRez 2.0)
+Nach dem erfolgreichen normalen Grid-Login und nach Verarbeitung der Viewer-CAPS-Seeds
+sieht **nur der eingeloggte Avatar** genau einmal die lokale Meldung:
+
+`OpenGenesisLINK FastRez 2.0 aktiviert`
+
+Die Meldung wird ausschließlich bei aktiviertem `FastRezNearbyFirst` über
+`ChatTypeEnum.Owner` direkt an den Viewer geschickt. Keine Region-Broadcasts,
+keine Wiederholung bei Teleports oder Regionswechseln. Hypergrid-Ankünfte
+mit `ViaHGLogin` sind von dieser einmaligen Grid-Login-Meldung ausgeschlossen.
+Der Text ist eine Aktivierungsinformation, kein Versprechen über eine feste
+gemessene Beschleunigung.
+
 Kein neuer Dienst, keine Datenbank, keine Assets-Migration, kein Redis,
 keine Änderungen an Hypergrid-Autorisierung oder Avatar-Bake-Daten.
 Der noch offene OGL AssetService PR #237 ist unabhängig und unverändert.
