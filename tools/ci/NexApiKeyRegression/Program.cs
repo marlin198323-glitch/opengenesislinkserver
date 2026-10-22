@@ -103,6 +103,27 @@ internal static class Program
                 persistedLand.Scopes[0] == NexScopes.GroupsRead,
                 "Group land API key did not survive restart with least privilege");
 
+            // New simulator Economy keys may read NV$ group history only
+            // when groups:read is explicitly included. No admin scope.
+            NexApiKeyRegistration groupHistoryEconomy = reloaded.Create(
+                "OGL Simulator Economy",
+                new[] {
+                    NexScopes.EconomyRead,
+                    NexScopes.EconomyTransfer,
+                    NexScopes.GroupsRead
+                });
+            PersistentNexApiKeyStore economyReloaded =
+                new PersistentNexApiKeyStore(path);
+            Require(economyReloaded.TryValidate(
+                    groupHistoryEconomy.ApiKey,
+                    out NexApiKeyRecord economyScopes) &&
+                economyScopes.Scopes.Length == 3 &&
+                economyScopes.Scopes.Contains(NexScopes.EconomyRead) &&
+                economyScopes.Scopes.Contains(NexScopes.EconomyTransfer) &&
+                economyScopes.Scopes.Contains(NexScopes.GroupsRead) &&
+                !economyScopes.Scopes.Contains(NexScopes.AdminAll),
+                "Group-history Economy key lacks correct persistent scopes");
+
             bool rejectedAdmin = false;
             try
             {
@@ -231,7 +252,7 @@ internal static class Program
             }
             catch (InvalidOperationException) { rejectedDuplicate = true; }
             Require(rejectedDuplicate, "Duplicate enabled service key accepted");
-            Require(experiencesReloaded.List().Count == 5,
+            Require(experiencesReloaded.List().Count == 6,
                 "Duplicate rejection modified the persistent key inventory");
 
             // Deletion is an irreversible second step after explicit disable.
@@ -261,7 +282,7 @@ internal static class Program
                 "Last-used metadata lost when cloning records");
             PersistentNexApiKeyStore afterCleanup =
                 new PersistentNexApiKeyStore(path);
-            Require(afterCleanup.List().Count == 5 &&
+            Require(afterCleanup.List().Count == 6 &&
                     afterCleanup.TryValidate(replacement.ApiKey, out _),
                 "Key cleanup or replacement did not survive restart");
 
