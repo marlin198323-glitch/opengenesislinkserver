@@ -230,7 +230,7 @@ internal static class Program
                     "VALUES (@parcel, @region, @owner, @group, " +
                     "'Remote parcel', 'Other simulator', 1, 512, 0, " +
                     "@snapshot, 12, 24, 30)";
-                foreach ((string name, string value) in new[] {
+                foreach ((string paramName, string value) in new[] {
                     ("@parcel", parcel.ToString()),
                     ("@region", remoteRegion.ToString()),
                     ("@owner", owner.PrincipalID.ToString()),
@@ -238,7 +238,7 @@ internal static class Program
                     ("@snapshot", UUID.Random().ToString()) })
                 {
                     var param = insert.CreateParameter();
-                    param.ParameterName = name;
+                    param.ParameterName = paramName;
                     param.Value = value;
                     insert.Parameters.Add(param);
                 }
