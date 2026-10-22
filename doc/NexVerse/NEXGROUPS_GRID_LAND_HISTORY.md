@@ -36,6 +36,28 @@ expliziten Scope `groups:read` für die Simulator-Landverzeichnisse
 erstellen. Nicht das Admin-Token und keinen Avatar-Token verwenden.
 Dieser Schlüssel muss nur für den Simulator erreichbar sein.
 
+**Ein-Klick-Erstellung im World-API-Control-Center:**
+
+1. `https://world.stadt-nexverse.de/api/v1/docs` über HTTPS öffnen,
+   unter **Admin-Anmeldung** mit einem Administrator (UserLevel mindestens
+   200, `admin:*`) anmelden.
+2. Unter **Schlüssel & Einrichtung** auf **Nur Gruppenland-API-Key erstellen**
+   klicken. Die anderen Vorauswahlen für Experiences/NexBus werden
+   ignoriert; NexBus-URLs sind dafür nicht erforderlich.
+3. Den Hinweis bestätigen. Die World API erstellt nur einen Schlüssel
+   namens `OGL Simulator Group Land` mit exakt `groups:read` und zeigt
+   `NEXVERSE_GROUP_LAND_API_KEY=<generierter Schlüssel>` zum Kopieren.
+4. Die Zeile in `/etc/nexverse/nexverse.env` auf **jedem betroffenen
+   Simulator-Host** speichern, Dateiberechtigungen auf `600` setzen
+   und den Simulator neu starten.
+
+Alternativ die Checkbox **NexGroups / Gridweite Landabfrage** im
+Mehrfachgenerator auswählen. Bereits vorhandene aktive Schlüssel mit
+gleichem Namen und denselben Scopes werden erkannt und nicht
+überschrieben. Verlorene API-Secrets lassen sich nicht erneut anzeigen:
+für eine Rotation den bisherigen Schlüssel gezielt deaktivieren und einen
+neuen ausstellen. Keine Schlüssel ins Git-Repository committen.
+
 Im Simulator:
 
 ```ini
