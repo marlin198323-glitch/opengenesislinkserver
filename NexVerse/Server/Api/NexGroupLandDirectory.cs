@@ -9,6 +9,7 @@ using System.Globalization;
 using NexVerse.Core.Economy;
 using OpenMetaverse;
 using OpenSim.Services.Interfaces;
+using GridRegion = OpenSim.Services.Interfaces.GridRegion;
 
 namespace NexVerse.Server.Api
 {
