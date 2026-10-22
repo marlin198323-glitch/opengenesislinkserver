@@ -129,7 +129,7 @@ for marker in (
     "EnsureVirtualBankAccount(id)",
     'args[3] != "--apply"',
     '"SYNC NVBAN"',
-    '"Nur Vorschau, keine Aenderungen"',
+    "Nur Vorschau, keine Aenderungen",
     "AdministrativeAdjustment(",
     "EnsureSystemAccount(",
     "ResolveLocalAccount(",
