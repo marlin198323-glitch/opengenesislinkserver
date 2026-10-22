@@ -1014,23 +1014,70 @@ namespace NexVerse.Server.Api
                 IConfig portalImConfig = config.Configs["NexPortalIM"];
                 if (portalImConfig != null && portalImConfig.GetBoolean("Enabled", false))
                 {
+                    // Archive transport credentials are NOT World API
+                    // machine tokens. Both ROBUST and simulators need the
+                    // identical 32+ byte HMAC secret in the process env.
                     string sharedImSecret =
                         Environment.GetEnvironmentVariable("NEX_PORTAL_IM_SECRET");
                     if (string.IsNullOrWhiteSpace(sharedImSecret))
                         sharedImSecret = portalImConfig.GetString("SharedSecret", "");
-                    if (System.Text.Encoding.UTF8.GetByteCount(sharedImSecret) < 32)
-                        throw new InvalidOperationException(
-                            "[NEX-PORTAL-IM]: Enabled archive requires a 32-byte shared secret.");
-                    citizenImStore = new NexCitizenImStore(
-                        portalImConfig.GetString("StorePath", "data/nexverse-portal-im.sqlite"),
-                        portalImConfig.GetInt("RetentionDays", 30));
-                    NexCitizenImIngress citizenImIngress = new NexCitizenImIngress(
-                        sharedImSecret, citizenImStore, userAccounts, friendsService);
-                    server.AddSimpleStreamHandler(
-                        new SimpleStreamHandler("/internal/nexportal/im/v1",
-                            citizenImIngress.Handle, "NexVerse Simulator Portal IM Ingest"),
-                        true);
-                    m_Log.Info("[NEX-PORTAL-IM]: Opt-in portal conversation archive enabled.");
+                    if (System.Text.Encoding.UTF8.GetByteCount(sharedImSecret ?? "") < 32)
+                    {
+                        // A missing optional archive secret must never prevent
+                        // World API, login, or the rest of ROBUST from starting.
+                        m_Log.Error("[NEX-PORTAL-IM]: Archive requested but NEX_PORTAL_IM_SECRET " +
+                            "is missing or shorter than 32 UTF-8 bytes. Archive disabled until provisioned.");
+                    }
+                    else
+                    {
+                        try
+                        {
+                            string backend = portalImConfig.GetString(
+                                "StoreBackend", "SQLite").Trim();
+                            int retention = portalImConfig.GetInt("RetentionDays", 30);
+                            if (backend.Equals("MariaDB", StringComparison.OrdinalIgnoreCase) ||
+                                backend.Equals("MySQL", StringComparison.OrdinalIgnoreCase))
+                            {
+                                // Empty overrides inherit the authoritative
+                                // [DatabaseService] connection used by ROBUST.
+                                string provider = portalImConfig.GetString(
+                                    "StorageProvider", "").Trim();
+                                if (provider.Length == 0)
+                                    provider = databaseStorageProvider;
+                                string connection = portalImConfig.GetString(
+                                    "ConnectionString", "").Trim();
+                                if (connection.Length == 0)
+                                    connection = databaseConnectionString;
+                                citizenImStore = new NexCitizenImMySqlStore(
+                                    provider, connection, retention);
+                            }
+                            else if (backend.Equals("SQLite", StringComparison.OrdinalIgnoreCase))
+                            {
+                                citizenImStore = new NexCitizenImStore(
+                                    portalImConfig.GetString("StorePath",
+                                        "data/nexverse-portal-im.sqlite"), retention);
+                            }
+                            else
+                                throw new NotSupportedException(
+                                    "[NEX-PORTAL-IM]: Unsupported StoreBackend (MariaDB/MySQL or SQLite required).");
+
+                            NexCitizenImIngress citizenImIngress = new NexCitizenImIngress(
+                                sharedImSecret, citizenImStore, userAccounts, friendsService);
+                            server.AddSimpleStreamHandler(
+                                new SimpleStreamHandler("/internal/nexportal/im/v1",
+                                    citizenImIngress.Handle, "NexVerse Simulator Portal IM Ingest"),
+                                true);
+                            m_Log.InfoFormat(
+                                "[NEX-PORTAL-IM]: Opt-in conversation archive enabled using {0}.",
+                                backend);
+                        }
+                        catch (Exception e)
+                        {
+                            citizenImStore = null;
+                            m_Log.Error("[NEX-PORTAL-IM]: Archive initialization failed; " +
+                                "World API remains online and archive requests report unavailable.", e);
+                        }
+                    }
                 }
                 NexCitizenImApi citizenImApi =
                     new NexCitizenImApi(userAccounts, friendsService, authenticator,
