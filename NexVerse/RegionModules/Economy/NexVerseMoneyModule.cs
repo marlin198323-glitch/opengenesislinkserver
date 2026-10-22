@@ -1281,8 +1281,15 @@ namespace NexVerse.RegionModules.Economy
             IClientAPI client, UUID agentId, UUID groupId,
             UUID transactionId, UUID sessionId)
         {
-            if (client == null || !client.IsActive || client.SessionId != sessionId)
+            if (client == null || !client.IsActive || client.SessionId != sessionId ||
+                client.AgentId != agentId)
                 return;
+            // Do not expose any transaction detail without a genuine
+            // accounting power. An empty reply is safe for non-accountants.
+            // Even an authorized accountant must not be shown fabricated
+            // details; unauthorized viewers get a harmless empty response.
+            if (!CanReadGroupAccount(client, agentId, groupId))
+                m_Log.DebugFormat("[NEX-ECONOMY-VIEWER]: Denied group accounting details for {0}", groupId);
             // There is currently no mapped billing-period breakdown in the
             // legacy viewer protocol. Never fabricate transactions or tax.
             client.SendGroupAccountingDetails(client, groupId, transactionId,
@@ -1293,8 +1300,11 @@ namespace NexVerse.RegionModules.Economy
             IClientAPI client, UUID agentId, UUID groupId,
             UUID transactionId, UUID sessionId)
         {
-            if (client == null || !client.IsActive || client.SessionId != sessionId)
+            if (client == null || !client.IsActive || client.SessionId != sessionId ||
+                client.AgentId != agentId)
                 return;
+            if (!CanReadGroupAccount(client, agentId, groupId))
+                m_Log.DebugFormat("[NEX-ECONOMY-VIEWER]: Denied group sales detail for {0}", groupId);
             client.SendGroupTransactionsSummaryDetails(client, groupId,
                 transactionId, sessionId, 0);
         }
