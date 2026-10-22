@@ -253,9 +253,13 @@ namespace OpenSim.Region.ClientStack.Linden
             int skipedSmall = 0;
             for (int i = 0; i < numberInstances; i++)
             {
-                if (resources.instance_list.Array[i] is not OSD rawInstance ||
-                    !TryParseModelInstance(rawInstance, numberMeshs,
-                        out Vector3 scale, out int mesh, out error))
+                if (resources.instance_list.Array[i] is not OSD rawInstance)
+                {
+                    error = "Invalid LLSD instance entry at index " + i;
+                    return false;
+                }
+                if (!TryParseModelInstance(rawInstance, numberMeshs,
+                    out Vector3 scale, out int mesh, out error))
                 {
                     error = "Invalid model instance " + i + ": " + error;
                     return false;
