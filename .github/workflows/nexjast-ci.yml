@@ -377,6 +377,10 @@ jobs:
         shell: bash
         run: python3 tools/ci/verify_nexdiscovery.py
 
+      - name: Verify Firestorm groups Land & NV$ packet compatibility
+        shell: bash
+        run: python3 tools/ci/verify_firestorm_group_land_money.py
+
       - name: Verify citizen world map integration
         shell: bash
         run: python3 tools/ci/verify_citizen_world_map.py
