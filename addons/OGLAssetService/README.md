@@ -10,12 +10,14 @@ The addon builds as a separate .NET 8 assembly and leaves the original FSAssetSe
 - Offline FSAssets file copier with dry-run and SHA-256 verification.
 - Offline UUID-to-hash metadata audit, duplicate detection and MariaDB/PostgreSQL isolated backup/restore test fixtures.
 - GitHub Actions build and smoke tests.
+- Isolated ROBUST + MariaDB HTTP persistence smoke with synthetic texture, mesh and notecard payloads: `Store`, `Get`, `GetMetadata`, `GetData`, compressed FSAssets backing and restart readback. Passing CI does not cover production data or viewer flows.
+- Atomic metadata/hash compare-and-swap and immutable staging regression tests against disposable MariaDB/PostgreSQL fixtures; experimental update support remains disabled by default.
 
 ## Not implemented / release blockers
 
 - Distributed object store, node registration, authenticated replication and replica healing.
 - Full production metadata migration orchestration, spool consistency, transactional cutover and exercised rollback.
-- Running ROBUST `Get`, `GetMetadata`, `GetData`, `Store`, `Delete` and `UpdateContent` staging integration tests.
+- Production-equivalent staging acceptance on a **consistent clone of real SQL metadata plus FSAssets file contents**. Requires readback parity, `Store`/`Delete`/`UpdateContent` tests and a rehearsed switch back to the original connector. Legacy `UpdateContent` is not implemented as a normal mutable update; the atomic alternative is experimental and opt-in.
 - Verified multi-process cache coherency, Hypergrid interoperability, JPEG2000 diagnostics and production observability.
 
 ## Build
