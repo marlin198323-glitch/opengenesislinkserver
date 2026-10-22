@@ -1269,6 +1269,23 @@ namespace OpenSim.Groups
         }
 
         #region permissions
+        /// <summary>
+        /// Authorize an authenticated group's accounting view from persisted
+        /// group membership and the union of all assigned role powers.
+        /// Authentication of the caller must happen at the transport boundary.
+        /// </summary>
+        public bool CanReadGroupAccounting(string agentId, UUID groupId)
+        {
+            if (string.IsNullOrWhiteSpace(agentId) || groupId.IsZero())
+                return false;
+
+            if (m_Database.RetrieveGroup(groupId) == null ||
+                m_Database.RetrieveMember(groupId, agentId) == null)
+                return false;
+
+            return HasPower(agentId, groupId, GroupPowers.Accountable);
+        }
+
         private bool HasPower(string agentID, UUID groupID, GroupPowers power)
         {
             RoleMembershipData[] rmembership = m_Database.RetrieveMemberRoles(groupID, agentID);
