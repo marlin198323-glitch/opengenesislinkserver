@@ -3,7 +3,7 @@ using System;
 using System.Collections.Generic;
 using System.Data;
 using System.Data.Common;
-using NexVerse.Core.Economy;
+using MySql.Data.MySqlClient;
 
 namespace NexVerse.Server.Api
 {
@@ -20,10 +20,13 @@ namespace NexVerse.Server.Api
 
         internal NexCitizenImMySqlStore(string provider, string connectionString, int retentionDays)
         {
-            NexLedgerSqlRuntime runtime = NexLedgerSqlRuntime.Resolve(provider, connectionString);
-            if (runtime.Dialect != NexLedgerSqlDialect.MySql)
+            if (string.IsNullOrWhiteSpace(provider) ||
+                (provider.IndexOf("MySQL", StringComparison.OrdinalIgnoreCase) < 0 &&
+                 provider.IndexOf("MariaDB", StringComparison.OrdinalIgnoreCase) < 0))
                 throw new NotSupportedException("Portal IM MySql backend requires OpenSim.Data.MySQL.dll (MariaDB/MySQL).");
-            m_Connect = runtime.CreateConnection;
+            if (string.IsNullOrWhiteSpace(connectionString))
+                throw new ArgumentException("Existing grid MariaDB ConnectionString is required.");
+            m_Connect = () => new MySqlConnection(connectionString);
             m_RetentionDays = Math.Clamp(retentionDays, 7, 365);
 
             using DbConnection db = Open();
