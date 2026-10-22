@@ -245,16 +245,4 @@ namespace NexVerse.Server.Api
         }
     }
 
-    internal sealed class NexCitizenImEntry
-    {
-        public long seq { get; set; }
-        public string event_id { get; set; }
-        public string from_agent_id { get; set; }
-        public string to_agent_id { get; set; }
-        public string peer_id { get; set; }
-        public string sender_name { get; set; }
-        public string message { get; set; }
-        public string source { get; set; }
-        public DateTimeOffset accepted_at { get; set; }
-    }
 }
