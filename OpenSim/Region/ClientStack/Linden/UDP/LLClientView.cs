@@ -1468,6 +1468,14 @@ namespace OpenSim.Region.ClientStack.LindenUDP
 
         public void SendGroupAccountingDetails(IClientAPI sender,UUID groupID, UUID transactionID, UUID sessionID, int amt)
         {
+            SendGroupAccountingDetails(sender, groupID, transactionID,
+                sessionID, amt, null);
+        }
+
+        public void SendGroupAccountingDetails(IClientAPI sender, UUID groupID,
+            UUID transactionID, UUID sessionID, int amt,
+            IReadOnlyList<GroupAccountHistoryEntry> history)
+        {
             GroupAccountDetailsReplyPacket GADRP = new();
 
             GADRP.AgentData.AgentID = sender.AgentId;
@@ -1481,6 +1489,21 @@ namespace OpenSim.Region.ClientStack.LindenUDP
             // No legacy billing-period breakdown yet. Return zero real
             // entries, never fabricate a transaction for the viewer.
             GADRP.HistoryData = Array.Empty<GroupAccountDetailsReplyPacket.HistoryDataBlock>();
+            if (history != null && history.Count > 0)
+            {
+                int count = Math.Min(200, history.Count);
+                var blocks = new GroupAccountDetailsReplyPacket.HistoryDataBlock[count];
+                for (int i = 0; i < count; i++)
+                {
+                    GroupAccountHistoryEntry entry = history[i];
+                    blocks[i] = new GroupAccountDetailsReplyPacket.HistoryDataBlock
+                    {
+                        Description = Utils.StringToBytes(entry.Description ?? string.Empty),
+                        Amount = entry.Amount
+                    };
+                }
+                GADRP.HistoryData = blocks;
+            }
             OutPacket(GADRP, ThrottleOutPacketType.Task);
         }
 
@@ -1519,7 +1542,14 @@ namespace OpenSim.Region.ClientStack.LindenUDP
 
         public void SendGroupTransactionsSummaryDetails(IClientAPI sender,UUID groupID, UUID transactionID, UUID sessionID, int amt)
         {
-            // bad !
+            SendGroupTransactionsSummaryDetails(sender, groupID, transactionID,
+                sessionID, amt, null);
+        }
+
+        public void SendGroupTransactionsSummaryDetails(IClientAPI sender,
+            UUID groupID, UUID transactionID, UUID sessionID, int amt,
+            IReadOnlyList<GroupAccountHistoryEntry> history)
+        {
             GroupAccountTransactionsReplyPacket GATRP =
                     (GroupAccountTransactionsReplyPacket)PacketPool.Instance.GetPacket(
                     PacketType.GroupAccountTransactionsReply);
@@ -1535,6 +1565,24 @@ namespace OpenSim.Region.ClientStack.LindenUDP
             // The group sales protocol is independent of ledger postings;
             // until a proper breakdown exists, do not invent transaction data.
             GATRP.HistoryData = Array.Empty<GroupAccountTransactionsReplyPacket.HistoryDataBlock>();
+            if (history != null && history.Count > 0)
+            {
+                int count = Math.Min(200, history.Count);
+                var blocks = new GroupAccountTransactionsReplyPacket.HistoryDataBlock[count];
+                for (int i = 0; i < count; i++)
+                {
+                    GroupAccountHistoryEntry entry = history[i];
+                    blocks[i] = new GroupAccountTransactionsReplyPacket.HistoryDataBlock
+                    {
+                        Time = Utils.StringToBytes(entry.Time ?? string.Empty),
+                        User = Utils.StringToBytes(entry.User ?? string.Empty),
+                        Type = entry.Type,
+                        Item = Utils.StringToBytes(entry.Item ?? string.Empty),
+                        Amount = entry.Amount
+                    };
+                }
+                GATRP.HistoryData = blocks;
+            }
             OutPacket(GATRP, ThrottleOutPacketType.Task);
         }
 
