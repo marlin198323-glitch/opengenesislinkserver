@@ -350,6 +350,7 @@ namespace OpenSim.Region.Framework.Scenes
         private bool m_lastLandCollide;
 
         private TeleportFlags m_teleportFlags;
+        private int m_fastRezLoginNoticeSent;
         public TeleportFlags TeleportFlags
         {
             get { return m_teleportFlags; }
@@ -4017,6 +4018,11 @@ namespace OpenSim.Region.Framework.Scenes
 
             NeedInitialData = -1;
 
+            // Only a fresh grid login gets the one-time FastRez notice. Do not
+            // repeat it on teleports, crossings, HG visits or child agents.
+            bool sendFastRezLoginNotice = !IsNPC && !IsChildAgent &&
+                m_scene.FastRezNearbyFirst && IsRealLogin(m_teleportFlags);
+
             bool selfappearance = (flags & 4) != 0;
 
             // this should enqueued on the client processing job to save threads
@@ -4165,6 +4171,29 @@ namespace OpenSim.Region.Framework.Scenes
 
                     m_lastChildAgentUpdateGodLevel = GodController.ViwerUIGodLevel;
                     m_childUpdatesBusy = false; // allow them
+                }
+
+                // Direct-to-owner chat after the viewer has processed its CAPS
+                // seeds and initial scene data. Never publish this to region chat.
+                if (sendFastRezLoginNotice &&
+                    Interlocked.CompareExchange(ref m_fastRezLoginNoticeSent, 1, 0) == 0)
+                {
+                    try
+                    {
+                        ControllingClient.SendChatMessage(
+                            "OpenGenesisLINK FastRez 2.0 aktiviert",
+                            (byte)ChatTypeEnum.Owner,
+                            AbsolutePosition,
+                            "OpenGenesisLINK System",
+                            UUID.Zero,
+                            UUID.Zero,
+                            (byte)ChatSourceType.Object,
+                            (byte)ChatAudibleLevel.Fully);
+                    }
+                    catch (Exception error)
+                    {
+                        m_log.Debug("[FASTREZ]: Could not send private login notice.", error);
+                    }
                 }
             });
 
