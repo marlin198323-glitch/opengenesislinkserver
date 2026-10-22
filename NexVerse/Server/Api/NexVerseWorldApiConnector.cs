@@ -1010,7 +1010,7 @@ namespace NexVerse.Server.Api
 
                 IInstantMessage citizenInstantMessages =
                     LoadOptionalService<IInstantMessage>(config, "HGInstantMessageService");
-                NexCitizenImStore citizenImStore = null;
+                INexCitizenImStore citizenImStore = null;
                 IConfig portalImConfig = config.Configs["NexPortalIM"];
                 if (portalImConfig != null && portalImConfig.GetBoolean("Enabled", false))
                 {
