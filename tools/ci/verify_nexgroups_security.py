@@ -29,7 +29,8 @@ assert "principal.HasScope(NexScopes.AdminAll)" in api
 invites = segment(api, 'parts[1].Equals("invites"', 'parts[1].Equals("notices"')
 assert invites.count("invite.GroupID != groupId") == 2, "GET and DELETE must bind invitation to URL group"
 assert invites.count("m_Groups.GetAgentToGroupInvite(") == 2
-assert "m_Groups.RemoveAgentToGroupInvite(requester, inviteId)" in invites
+assert "string inviteRequester = Requester(authPrincipal, request);" in invites
+assert "m_Groups.RemoveAgentToGroupInvite(inviteRequester, inviteId)" in invites
 assert "WriteFailure(response, e);" in invites
 guard = segment(service, "private bool CanAccessInvitation(", "public GroupInviteInfo GetAgentToGroupInvite(")
 for marker in ("invite.PrincipalID", "GroupPowers.Invite", "IsOwner(", "string.IsNullOrWhiteSpace"):
