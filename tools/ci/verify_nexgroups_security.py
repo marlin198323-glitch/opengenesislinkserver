@@ -20,9 +20,10 @@ def segment(source, start, end):
 account = segment(api, 'parts[1].Equals("accounting"', 'parts[1].Equals("capabilities"')
 assert "CanReadGroupAccounting(authPrincipal, authAccount, groupId)" in account
 assert account.index("CanReadGroupAccounting(") < account.index("economy.EnsureWalletAccount(")
-assert "GroupPowers.Accountable" in segment(api, "private bool CanReadGroupAccounting(", "private bool EnsureGroupWallet(")
-assert "GetAgentGroupMembership(resident, resident, groupId)" in api
-assert "GetAgentGroupRoles(resident, resident, groupId)" in api
+assert "CanReadGroupAccounting(" in segment(service, "#region permissions", "private bool HasPower(")
+assert "GroupPowers.Accountable" in segment(service, "public bool CanReadGroupAccounting(", "private bool HasPower(")
+assert "m_Database.RetrieveMember(groupId, agentId)" in service
+assert "m_Groups.CanReadGroupAccounting(" in api
 assert "account == null || !account.LocalToGrid" in api
 assert "principal.HasScope(NexScopes.AdminAll)" in api
 
