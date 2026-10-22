@@ -19,12 +19,12 @@ namespace NexVerse.Server.Api
     internal sealed class NexCitizenImIngress
     {
         private readonly byte[] m_Key;
-        private readonly NexCitizenImStore m_Store;
+        private readonly INexCitizenImStore m_Store;
         private readonly IUserAccountService m_Accounts;
         private readonly IFriendsService m_Friends;
         private const int MaxBody = 8192;
 
-        internal NexCitizenImIngress(string sharedSecret, NexCitizenImStore store,
+        internal NexCitizenImIngress(string sharedSecret, INexCitizenImStore store,
             IUserAccountService accounts, IFriendsService friends)
         {
             if (Encoding.UTF8.GetByteCount(sharedSecret ?? "") < 32)

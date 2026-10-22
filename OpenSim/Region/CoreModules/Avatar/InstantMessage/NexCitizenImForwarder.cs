@@ -47,7 +47,8 @@ namespace OpenSim.Region.CoreModules.Avatar.InstantMessage
                 (url.Scheme != Uri.UriSchemeHttps &&
                  !(url.Scheme == Uri.UriSchemeHttp && url.IsLoopback)) ||
                 url.AbsolutePath != "/internal/nexportal/im/v1" ||
-                Encoding.UTF8.GetByteCount(secret) < 32)
+                Encoding.UTF8.GetByteCount(secret ?? "") < 32 ||
+                (secret ?? "").Contains("${Environment|", StringComparison.Ordinal))
             {
                 m_Log.Warn("[NEX-PORTAL-IM]: Forwarding disabled: require HTTPS/loopback URL and 32-byte secret.");
                 return null;

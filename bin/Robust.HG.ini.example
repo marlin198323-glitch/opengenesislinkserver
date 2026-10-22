@@ -730,7 +730,11 @@
     ; Opt-in web chat history and authenticated simulator -> Robust ingestion.
     ; The active Simulator must use the same NEX_PORTAL_IM_SECRET.
     Enabled = false
-    StorePath = "data/nexverse-portal-im.sqlite"
+    ; Set true after provisioning one shared 32+-byte HMAC secret.
+    ; MariaDB uses the existing [DatabaseService] connection.
+    StoreBackend = "MariaDB"
+    StorageProvider = ""
+    ConnectionString = ""
     RetentionDays = 30
     SharedSecret = "${Environment|NEX_PORTAL_IM_SECRET}"
 

@@ -94,10 +94,17 @@ for ini in ("bin/Robust.HG.ini", "bin/OpenSim.ini"):
     config = Path(ini).read_text()
     assert "[NexPortalIM]" in config, f"portal IM config not present: {ini}"
     config_section = config.split("[NexPortalIM]", 1)[1].split("\n[", 1)[0]
-    assert "Enabled = false" in config_section, "never turn on archive without provisioned secret"
+    assert "Enabled = true" in config_section
     assert 'SharedSecret = "${Environment|NEX_PORTAL_IM_SECRET}"' in config_section
-assert 'StorePath = "data/nexverse-portal-im.sqlite"' in Path("bin/Robust.HG.ini").read_text()
-assert 'IngestUrl = "http://127.0.0.1/internal/nexportal/im/v1"' in Path("bin/OpenSim.ini").read_text()
+assert 'StoreBackend = "MariaDB"' in Path("bin/Robust.HG.ini").read_text()
+assert 'IngestUrl = "https://world.stadt-nexverse.de/internal/nexportal/im/v1"' in Path("bin/OpenSim.ini").read_text()
+assert "m_Log.Error(\"[NEX-PORTAL-IM]: Archive requested but" in connector
+assert "NexCitizenImMySqlStore(" in connector
+assert "INexCitizenImStore citizenImStore" in connector
+assert "StoreBackend" in connector and "databaseConnectionString" in connector
+assert "catch (Exception e)" in connector
+assert "NEX_PORTAL_IM_SECRET" in Path("NexVerse/Server/Api/NexApiDocsPage.cs").read_text()
+assert 'id="secretGeneratePortalIm"' in Path("NexVerse/Server/Api/NexApiDocsPage.cs").read_text()
 assert '<Reference name="Mono.Data.Sqlite"/>' in prebuild
 for item in (
     '["/api/v1/messages/events"]',

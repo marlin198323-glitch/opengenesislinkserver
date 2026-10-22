@@ -176,9 +176,11 @@ Datenbankproblemen meldet dagegen
 `[NEX-PORTAL-IM]`. Keine automatischen Datenbankneuanlagen durch
 einen bloßen Lesezugriff außerhalb des konfigurierten Store-Starts.
 
-Die produktive `bin/Robust.HG.ini` und `bin/OpenSim.ini` enthalten
-nun beide die `[NexPortalIM]`-Sektion, aus Sicherheitsgründen zunächst
-`Enabled = false`. Für die tatsächliche Chat-Nutzung:
+Die aktive `bin/Robust.HG.ini` und `bin/OpenSim.ini` enthalten
+nun beide `[NexPortalIM] Enabled = true`. ROBUST nutzt die vorhandene
+MariaDB-Grid-Datenbank (keine separate SQLite-Datei). Fehlt der mindestens
+32 Byte lange gemeinsame HMAC-Schlüssel, **bleibt die World API online**,
+aber das Archiv ist explizit `unavailable`. Für die tatsächliche Chat-Nutzung:
 
 1. EINE geheime, zufällige Schlüsselzeichenfolge mit mindestens
    32 UTF-8-Bytes erzeugen, z. B. `openssl rand -hex 32`.
@@ -187,19 +189,23 @@ nun beide die `[NexPortalIM]`-Sektion, aus Sicherheitsgründen zunächst
    Secret-Quelle) auf ROBUST **und jedem beteiligten Simulator**
    mit demselben Wert hinterlegen. Bereits existierende Secrets
    nicht ohne Migrationsplanung ersetzen.
-2. In `bin/Robust.HG.ini` `[NexPortalIM] Enabled = true`
-   setzen. Der ROBUST-Dienstbenutzer muss den Ordner
-   `data/` sowie `data/nexverse-portal-im.sqlite`
-   schreibend erreichen; `StorePath` wird relativ zum
-   **Arbeitsverzeichnis** des ROBUST-Prozesses aufgelöst.
-3. Für Firestorm-Empfang in jedem beteiligten Simulator
-   `bin/OpenSim.ini` auf `[NexPortalIM] Enabled = true`
-   stellen. `IngestUrl` muss auf den geschützten ROBUST-
-   Endpunkt `/internal/nexportal/im/v1` zeigen. Loopback
-   `127.0.0.1` nur verwenden, wenn ROBUST tatsächlich auf
-   **demselben Host** läuft; andernfalls einen privaten,
-   abgesicherten HTTPS-Endpunkt nutzen und den Ingest-Zugang
-   für Fremde sperren.
+2. In `bin/Robust.HG.ini` ist `[NexPortalIM] Enabled = true`
+   bereits gesetzt. `StoreBackend = "MariaDB"` übernimmt automatisch
+   die **bestehende** `[DatabaseService]`-Verbindung. Beim ersten Start
+   werden `portal_im_settings` und `portal_im_entries` mit
+   Unique-Constraint und Indizes angelegt. Es werden **keine**
+   bestehenden OpenSim-Tabellen verändert. Der Datenbanknutzer benötigt
+   dafür `CREATE` (oder der Administrator legt das Schema vorab an).
+3. Für Firestorm-Empfang verwendet `bin/OpenSim.ini` bereits
+   `[NexPortalIM] Enabled = true` und
+   `IngestUrl = "https://world.stadt-nexverse.de/internal/nexportal/im/v1"`.
+   **Betriebsvoraussetzung:** Reverse Proxy für diesen exakten Pfad
+   zum World-API/ROBUST-Listener konfigurieren und per Firewall/IP-Allowlist
+   ausschließlich Simulator-Hosts zulassen. HMAC-Signatur validiert
+   außerdem alle übertragenen Nachrichten. Falls ROBUST und Simulator
+   wirklich auf demselben Host laufen, kann alternativ der zutreffende
+   `http://127.0.0.1:<ROBUST-Port>/internal/nexportal/im/v1` verwendet
+   werden, aber niemals Loopback auf einem fremden Host.
 4. ROBUST und betroffene Simulatoren vollständig neu starten.
    `GET /api/v1/messages/settings` mit einem lokalen
    `relationships:read`-Token prüfen (`available: true`,
@@ -219,14 +225,16 @@ Die Beispielsektionen liegen in `bin/Robust.HG.ini.example` und `bin/Robust.ini.
 ```ini
 [NexPortalIM]
     Enabled = true
-    StorePath = "data/nexverse-portal-im.sqlite"
+    StoreBackend = "MariaDB"
+    StorageProvider = ""
+    ConnectionString = ""
     RetentionDays = 30
     SharedSecret = "${Environment|NEX_PORTAL_IM_SECRET}"
 ```
 
-Generiere **einen neuen zufälligen Wert mit mindestens 32 Bytes** als Umgebungsvariable `NEX_PORTAL_IM_SECRET` und verwende **denselben** Wert in Robust und allen beteiligten Simulatorprozessen. Nicht mit OAuth-, OIDC- oder NexBus-Schlüsseln gleichsetzen und den Wert weder committen noch protokollieren. Der Datenbankpfad muss mit restriktiven Dateirechten für den Robust-Prozess beschreibbar sein.
+**Schlüssel über die World API generieren:** In `https://world.stadt-nexverse.de/api/v1/docs` als Administrator anmelden, dann `Schlüssel & Einrichtung` → `NexPortalIM-HMAC-Schlüssel erstellen`. Der Button prüft die Admin-Sitzung, erzeugt mit `crypto.getRandomValues` 48 kryptografisch zufällige Bytes und zeigt ausschließlich `NEX_PORTAL_IM_SECRET=<Hex-Wert>` zum Kopieren. Der Wert wird **nicht** in der World-API-Datenbank gespeichert. Er muss identisch in den geschützten `/etc/nexverse/nexverse.env`-Dateien von ROBUST und **allen** Simulatoren liegen (`chmod 600`); danach die Dienste neu starten. Vorhandene Schlüssel nicht ungeplant rotieren. Keine Auth-Tokens/Schlüssel ins Git-Repository committen.
 
-Der separate SQLite-Store ist allein für den Portalchat. Er führt keine Migrationen an den bestehenden OpenSim-Nutzerdatenbanken durch. Datensicherung und Löschrichtlinie separat festlegen.
+Die Portal-IM-Tabellen liegen jetzt getrennt von den bestehenden OpenSim-IM-Tabellen im konfigurierten MariaDB-Grid. Ein Backup muss `portal_im_settings` und `portal_im_entries` einschließen; Zugangskontrolle, Opt-in und Löschfristen gelten unverändert. Ein vorher benutztes `data/nexverse-portal-im.sqlite` wird **nicht automatisch** nach MariaDB migriert. Bei existierender produktiver Historie ist eine kontrollierte Migration vor dem Umschalten erforderlich.
 
 ## OpenSim-Simulator-Konfiguration
 
@@ -235,7 +243,7 @@ In `bin/OpenSim.ini.example`:
 ```ini
 [NexPortalIM]
     Enabled = true
-    IngestUrl = "http://127.0.0.1/internal/nexportal/im/v1"
+    IngestUrl = "https://world.stadt-nexverse.de/internal/nexportal/im/v1"
     SharedSecret = "${Environment|NEX_PORTAL_IM_SECRET}"
 ```
 

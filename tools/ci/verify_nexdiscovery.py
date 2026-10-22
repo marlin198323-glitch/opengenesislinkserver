@@ -166,5 +166,5 @@ gridinfo_section = robust_hg_deploy.split("\n[GridInfoService]\n", 1)[1].split("
 assert "welcome = https://stadt-nexverse.de/service/welcome" in gridinfo_section
 
 sim_features = opensim_config.split("[SimulatorFeatures]", 1)[1].split("\n[", 1)[0]
-assert 'SearchServerURI = "https://world.stadt-nexverse.de/search?q=[QUERY]&type=[TYPE]&maturity=[MATURITY]"' in sim_features
-assert 'DestinationGuideURI = "https://world.stadt-nexverse.de/destinations"' in sim_features
+assert 'SearchServerURI = "https://stadt-nexverse.de/service/search?q=[QUERY]&type=[TYPE]&maturity=[MATURITY]"' in sim_features
+assert 'DestinationGuideURI = "https://stadt-nexverse.de/service/destination"' in sim_features
