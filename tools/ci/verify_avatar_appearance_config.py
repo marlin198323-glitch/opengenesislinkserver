@@ -24,4 +24,18 @@ for path in ("bin/OpenSim.ini", "bin/OpenSim.ini.example"):
     appearance_index = content.index("\n[Appearance]\n")
     assert appearance_index < xbakes_index, f"{path}: [Appearance] should be declared before [XBakes]"
 
-print("OpenGenesisLINK avatar appearance cache configuration: OK")
+# Guard the simulator baseline and the runtime wiring, not only profile text.
+defaults = Path("bin/OpenSimDefaults.ini").read_text(encoding="utf-8")
+assert "WearablesRequestDelayMs = 4000" in defaults, "legacy default must stay at 4000 ms"
+
+factory = Path("OpenSim/Region/CoreModules/Avatar/AvatarFactory/AvatarFactoryModule.cs").read_text(encoding="utf-8")
+for token in (
+    'm_wearablesRequestDelayMs = 4000',
+    'appearanceConfig.GetInt("WearablesRequestDelayMs", m_wearablesRequestDelayMs)',
+    'requestedDelay >= 500 && requestedDelay <= 4000',
+    'Thread.Sleep(replyDelayMs);',
+):
+    assert token in factory, f"missing FastRez runtime guard: {token}"
+assert 'Thread.Sleep(4000);' not in factory, "legacy hard-coded 4000ms sleep remains"
+
+print("OpenGenesisLINK avatar appearance cache / FastRez wearables configuration: OK")
