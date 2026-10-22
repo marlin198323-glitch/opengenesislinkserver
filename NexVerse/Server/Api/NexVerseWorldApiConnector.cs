@@ -1021,7 +1021,8 @@ namespace NexVerse.Server.Api
                         Environment.GetEnvironmentVariable("NEX_PORTAL_IM_SECRET");
                     if (string.IsNullOrWhiteSpace(sharedImSecret))
                         sharedImSecret = portalImConfig.GetString("SharedSecret", "");
-                    if (System.Text.Encoding.UTF8.GetByteCount(sharedImSecret ?? "") < 32)
+                    if (System.Text.Encoding.UTF8.GetByteCount(sharedImSecret ?? "") < 32 ||
+                        (sharedImSecret ?? "").Contains("${Environment|", StringComparison.Ordinal))
                     {
                         // A missing optional archive secret must never prevent
                         // World API, login, or the rest of ROBUST from starting.
