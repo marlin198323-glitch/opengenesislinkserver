@@ -6,7 +6,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
   </PropertyGroup>
   <ItemGroup>
-    <ProjectReference Include="../../../NexVerse/Core/NexVerse.Core.csproj"/>
+    <PackageReference Include="System.Security.Permissions" Version="8.0.0" />
     <Reference Include="MySql.Data">
       <HintPath>../../../bin/MySql.Data.dll</HintPath>
       <Private>True</Private>
