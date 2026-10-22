@@ -12,6 +12,18 @@ Current development deployment base (confirm against the active `[NexVerseWorldA
 
 The endpoint above reflects the historically documented direct HTTP/port-80 deployment, **not a guarantee of live reachability, HTTPS or TLS protection**. Secure authenticated API traffic using an HTTPS reverse proxy or a comparably protected trusted network. Do not transmit bearer tokens, passwords or service API keys across plain public HTTP. The World API uses its own `/api/v1` namespace, whereas OAuth/OIDC endpoints include `/oauth/...` and `/.well-known/openid-configuration`. Paths in OpenAPI may depend on `EnablePrivilegedEndpoints`, configured services and simulator-side CAPS.
 
+## R409: verifizierter Portal-/World-Vertragsabgleich (23.10.2026)
+
+Der vollständige, quellenbelegte Gegenbericht steht in [OPEN_GENESISLINK_WORLD_API_GEGENPRUEFUNG_R409.md](OPEN_GENESISLINK_WORLD_API_GEGENPRUEFUNG_R409.md). Er hält technische Git-Baseline, echte Router-/Handlerbelege, differenzierte R397–R408-Einordnung und offene P0-/P1-Abnahmen fest. Der letzte produktiv installierte World-Commit ist damit nicht automatisch nachgewiesen.
+
+**Sicherheitsgrenze Bugreports:** POST an https://stadt-nexverse.de/api/v1/bug-reports ist eine **Stadtportal-API**, keine World-Route. Ein authentifizierter, serverseitig an den tatsächlichen Avatar und seine Region/Position gebundener Simulator-Ereignisadapter ist derzeit **P0 offen**. Keine Secrets in LSL/Browser, keine öffentliche World-Bug-Route, keine redundante Ticketspeicherung.
+
+**Kartenvertrag:** GET /api/v1/deutschland hat 16×16 Zellgrenze (256 m/Zelle), Viewport-Antwort derzeit maximal 256 Regionen und Suchantwort maximal 32. Die Quellimplementierung enthält kein truncated/reported_regions-Feld und braucht einen 44-Regionen-/50-Kachel-E2E-Fixture-Test. Ein leeres Standard-Viewport ist kein Beleg für ein leeres Grid.
+
+**Discovery:** DELETE /api/v1/places/{placeId} erfordert discovery:manage und löscht mit dem Place auch zugehörige Events, Destinations und Classifieds. Nicht vorhandene PlaceId kann HTTP 200 mit deleted:false liefern; das Portal muss dies behandeln und vor Löschung transparent bestätigen.
+
+**Verifikationsstatus:** Nur statischer Server-Quellcode, belegter GitHub-Commit-Diff und bereits vorhandene GitHub-CI. Den am 22.10. vom Portal gemeldeten OpenAPI-Fingerprint (151/203/168) und die Produktivverfügbarkeit konnten wir in dieser Sitzung nicht erneut prüfen. Eine E2E-Abnahme gegen Staging bleibt Pflicht.
+
 ## Aktueller Dokumentationsvertrag (0.9.3.10 Stable, 12.10.2026)
 
 Die **drei dynamisch generierten ChatGPT-MD-Anweisungen** und die **OpenAPI 3.1** werden vom Robust-Prozess geliefert. Verwende fuer einen konkreten Grid-Betrieb die Antworten derselben laufenden Version und nicht eine alte aus Git ausgecheckte Datei. Dieser Repository-Stand dokumentiert den **Quellcode**, nicht das automatische Deployment von /opt/robust und /opt/developer.

@@ -17,6 +17,12 @@ OpenGenesisLINK (OGL) ist eine eigenständig weiterentwickelte Serverplattform f
 
 Die tatsächliche Verfügbarkeit hängt von Version, Konfiguration und aktivierten Modulen ab. Vorhandener Code ist nicht automatisch eine produktiv freigegebene Funktion.
 
+## Stadtportal-/World-API-Abgleich R409 (23.10.2026)
+
+Der [belegte Server-Gegenbericht R409](doc/NexVerse/OPEN_GENESISLINK_WORLD_API_GEGENPRUEFUNG_R409.md) prüft die Portalrevisionen R397–R408 gegen Router, OpenAPI-Generator, Security, Regionskarte, Registrierungs- und Profilbildfunktionen. Der Live-Snapshot (151 Pfade/203 Operationen/168 Schemas) wurde vom Portal am 22.10. gemeldet, konnte hier aber nicht erneut abgerufen werden.
+
+Wichtigster offener P0-Punkt: **Ein sicherer Simulator-Eventadapter für Bugmeldungen zum Portal ist noch nicht implementiert.** Das Portal ist Empfänger; kein geheimer Service-Bearer gehört in öffentliche LSL-Skripte und die World API benötigt dafür kein zweites Bug-Ticketsystem. Weitere Vertragsfragen betreffen das nicht ausgewiesene Truncation-Verhalten der Deutschlandkarte und die Kaskadenlöschung von Discovery-Orten.
+
 ## Entwicklungsstand
 
 Der Quellcode meldet derzeit **OpenGenesisLINK 0.9.3.12**. Der Versionsstring allein ist kein Nachweis einer veröffentlichten oder vollständig abgenommenen Stable-Version. Maßgeblich für freigegebene Pakete sind die [GitHub-Releases](https://github.com/opengenesislink/opengenesislinkserver/releases) und die jeweilige Betreiberabnahme.
