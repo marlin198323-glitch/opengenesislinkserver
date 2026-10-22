@@ -36,6 +36,8 @@ namespace NexVerse.RegionModules.Discovery
         private bool m_Enabled;
         private bool m_LegacyFirestormCompatibility;
         private string m_WorldApiBaseUrl = string.Empty;
+        // Backend-only group land credential; never exposed to viewers/CAPS.
+        private string m_GroupLandApiKey = string.Empty;
         private int m_RequestTimeoutMilliseconds = 3000;
         private HttpClient m_Http;
 
@@ -60,6 +62,9 @@ namespace NexVerse.RegionModules.Discovery
                         string.Empty)
                     .Trim()
                     .TrimEnd('/');
+
+            m_GroupLandApiKey = section.GetString(
+                "GroupLandApiKey", string.Empty).Trim();
 
             m_LegacyFirestormCompatibility =
                 section.GetBoolean(
@@ -252,6 +257,51 @@ namespace NexVerse.RegionModules.Discovery
                     Desc = string.Empty, ActualArea = contributed,
                     BillableArea = 0, SimName = string.Empty
                 });
+
+                // Prefer the authoritative grid-wide SQL directory, which
+                // includes other simulator processes. Only the trusted
+                // simulator may use the explicit groups:read machine key;
+                // the avatar's membership was checked above.
+                if (!string.IsNullOrEmpty(m_GroupLandApiKey))
+                {
+                    try
+                    {
+                        using JsonDocument remote = GetGroupLandJson(queryID);
+                        if (!remote.RootElement.TryGetProperty(
+                                "parcels", out JsonElement list) ||
+                            list.ValueKind != JsonValueKind.Array)
+                            throw new InvalidOperationException(
+                                "Group land response has no parcels list.");
+
+                        foreach (JsonElement parcel in list.EnumerateArray())
+                        {
+                            rows.Add(new PlacesReplyData {
+                                OwnerID = TryUuid(parcel, "owner_id", out UUID owner)
+                                    ? owner : UUID.Zero,
+                                Name = String(parcel, "name"),
+                                Desc = String(parcel, "description"),
+                                ActualArea = Int32(parcel, "area"),
+                                BillableArea = Int32(parcel, "area"),
+                                GlobalX = UInt32(parcel, "global_x"),
+                                GlobalY = UInt32(parcel, "global_y"),
+                                GlobalZ = UInt32(parcel, "global_z"),
+                                SimName = String(parcel, "region_name"),
+                                SnapshotID = TryUuid(parcel, "snapshot_id", out UUID snapshot)
+                                    ? snapshot : UUID.Zero,
+                                Price = Int32(parcel, "price"),
+                                Dwell = 0
+                            });
+                        }
+                        client.SendPlacesReply(queryID, transactionID, rows.ToArray());
+                        return;
+                    }
+                    catch (Exception e)
+                    {
+                        m_Log.WarnFormat(
+                            "[NEX-DISCOVERY]: Grid-wide group land lookup failed for {0}; falling back to this simulator only: {1}",
+                            queryID, e.Message);
+                    }
+                }
 
                 foreach (Scene scene in scenes)
                 {
@@ -503,6 +553,28 @@ namespace NexVerse.RegionModules.Discovery
                     queryId,
                     Array.Empty<DirClassifiedReplyData>());
             }
+        }
+
+        private JsonDocument GetGroupLandJson(UUID groupId)
+        {
+            using HttpRequestMessage request = new HttpRequestMessage(
+                HttpMethod.Get,
+                m_WorldApiBaseUrl + "/api/v1/groups/" +
+                Uri.EscapeDataString(groupId.ToString()) + "/land");
+            request.Headers.TryAddWithoutValidation(
+                "X-NexVerse-Api-Key", m_GroupLandApiKey);
+            using HttpResponseMessage response = m_Http.Send(request);
+            response.EnsureSuccessStatusCode();
+            return JsonDocument.Parse(
+                response.Content.ReadAsStringAsync()
+                    .GetAwaiter().GetResult());
+        }
+
+        private static uint UInt32(JsonElement element, string name)
+        {
+            return element.TryGetProperty(name, out JsonElement value) &&
+                value.ValueKind == JsonValueKind.Number &&
+                value.TryGetUInt32(out uint result) ? result : 0;
         }
 
         private JsonDocument GetJson(string path)
