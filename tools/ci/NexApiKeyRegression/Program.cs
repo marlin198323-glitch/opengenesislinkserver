@@ -231,7 +231,7 @@ internal static class Program
             }
             catch (InvalidOperationException) { rejectedDuplicate = true; }
             Require(rejectedDuplicate, "Duplicate enabled service key accepted");
-            Require(experiencesReloaded.List().Count == 4,
+            Require(experiencesReloaded.List().Count == 5,
                 "Duplicate rejection modified the persistent key inventory");
 
             // Deletion is an irreversible second step after explicit disable.
@@ -261,7 +261,7 @@ internal static class Program
                 "Last-used metadata lost when cloning records");
             PersistentNexApiKeyStore afterCleanup =
                 new PersistentNexApiKeyStore(path);
-            Require(afterCleanup.List().Count == 4 &&
+            Require(afterCleanup.List().Count == 5 &&
                     afterCleanup.TryValidate(replacement.ApiKey, out _),
                 "Key cleanup or replacement did not survive restart");
 
