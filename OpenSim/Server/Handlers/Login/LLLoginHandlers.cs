@@ -98,14 +98,28 @@ namespace OpenSim.Server.Handlers.Login
                 //     }
                 // }
 
-                if (requestData.ContainsKey("first") && requestData["first"] != null &&
-                    requestData.ContainsKey("last") && requestData["last"] != null && (
+                // Firestorm 7.2.4 sends a single-name account as "username"
+                // instead of the legacy "first"/"last" XML-RPC parameters.
+                // Pass an empty last name to LLLoginService: the configured
+                // Resident name resolver performs the canonical normalization.
+                bool hasLegacyIdentity =
+                    requestData.ContainsKey("first") && requestData["first"] != null &&
+                    requestData.ContainsKey("last") && requestData["last"] != null;
+                bool hasAccountIdentity =
+                    requestData.ContainsKey("username") && requestData["username"] != null &&
+                    !string.IsNullOrWhiteSpace(requestData["username"].ToString());
+
+                if ((hasLegacyIdentity || hasAccountIdentity) && (
                         (requestData.ContainsKey("passwd") && requestData["passwd"] != null) ||
                         (!requestData.ContainsKey("passwd") && requestData.ContainsKey("web_login_key") && requestData["web_login_key"] != null && requestData["web_login_key"].ToString() != UUID.ZeroString)
                     ))
                 {
-                    string first = requestData["first"].ToString();
-                    string last = requestData["last"].ToString();
+                    string first = hasLegacyIdentity
+                        ? requestData["first"].ToString()
+                        : requestData["username"].ToString();
+                    string last = hasLegacyIdentity
+                        ? requestData["last"].ToString()
+                        : string.Empty;
                     string passwd = null;
                     if (requestData.ContainsKey("passwd"))
                     {
