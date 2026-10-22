@@ -149,7 +149,8 @@ internal static class Program
             string ownerToken = Jwt(owner, NexScopes.GroupsRead, NexScopes.GroupsManage);
             string memberToken = Jwt(member, NexScopes.GroupsRead, NexScopes.GroupsManage);
             string strangerToken = Jwt(stranger, NexScopes.GroupsRead, NexScopes.GroupsManage);
-            string inviteeToken = Jwt(invitee, NexScopes.GroupsRead);
+            string inviteeReadToken = Jwt(invitee, NexScopes.GroupsRead);
+            string inviteeToken = Jwt(invitee, NexScopes.GroupsRead, NexScopes.GroupsManage);
             string narrowToken = Jwt(stranger, NexScopes.UsersRead);
 
             var runtime = NexLedgerSqlRuntime.Resolve("OpenSim.Data.MySQL.dll", connection);
@@ -230,6 +231,8 @@ internal static class Program
                 "error", HttpMethod.Delete);
             await Verify(http, invitation, inviteeToken, HttpStatusCode.OK,
                 "invite");
+            await Verify(http, invitation, inviteeReadToken, HttpStatusCode.Forbidden,
+                "error", HttpMethod.Delete);
             await Verify(http, invitation, inviteeToken, HttpStatusCode.OK,
                 "deleted", HttpMethod.Delete);
             await Verify(http, invitation, inviteeToken, HttpStatusCode.NotFound, "error");
