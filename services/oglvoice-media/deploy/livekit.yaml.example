@@ -1,0 +1,13 @@
+# Copy to /etc/oglvoice/livekit.yaml, set chmod 0600 and replace credentials.
+# Do not commit the populated configuration to source control.
+port: 7880
+log_level: info
+rtc:
+  tcp_port: 7881
+  udp_port: 7882
+  use_external_ip: true
+turn:
+  enabled: true
+  udp_port: 3478
+keys:
+  REPLACE_WITH_OGLVOICE_API_KEY: REPLACE_WITH_LONG_RANDOM_LIVEKIT_SECRET

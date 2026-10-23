@@ -1,0 +1,12 @@
+# Dedicated vServer, Linux host networking is required for ICE.
+# Set LIVEKIT_TAG to a tested/pinned release in the local .env file.
+services:
+  livekit:
+    image: livekit/livekit-server:${LIVEKIT_TAG:?set a pinned LIVEKIT_TAG in .env}
+    restart: unless-stopped
+    network_mode: host
+    command: ["--config", "/etc/livekit/livekit.yaml"]
+    volumes:
+      - /etc/oglvoice/livekit.yaml:/etc/livekit/livekit.yaml:ro
+    security_opt:
+      - no-new-privileges:true

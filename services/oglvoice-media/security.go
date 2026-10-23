@@ -50,6 +50,8 @@ type config struct {
 	LiveKitSecret string              `json:"-"`
 	Bind       string                 `json:"-"`
 	PublicURL  string                 `json:"-"`
+	WebRTCPortMin uint16             `json:"-"`
+	WebRTCPortMax uint16             `json:"-"`
 }
 
 func loadConfig() (config, error) {
@@ -66,6 +68,22 @@ func loadConfig() (config, error) {
 	}
 	if cfg.LiveKitURL == "" || cfg.LiveKitKey == "" || len(cfg.LiveKitSecret) < 32 {
 		return cfg, errors.New("LiveKit URL/API credentials missing or too short")
+	}
+	// Constrain Pion ICE sockets to a firewallable range on a dedicated vServer.
+	// Both values must be present; default retains the existing behavior.
+	rawMin := strings.TrimSpace(os.Getenv("OGLVOICE_WEBRTC_PORT_MIN"))
+	rawMax := strings.TrimSpace(os.Getenv("OGLVOICE_WEBRTC_PORT_MAX"))
+	if rawMin != "" || rawMax != "" {
+		if rawMin == "" || rawMax == "" {
+			return cfg, errors.New("OGLVOICE_WEBRTC_PORT_MIN and MAX must be set together")
+		}
+		minPort, minErr := strconv.ParseUint(rawMin, 10, 16)
+		maxPort, maxErr := strconv.ParseUint(rawMax, 10, 16)
+		if minErr != nil || maxErr != nil || minPort < 1024 ||
+			maxPort < minPort || maxPort-minPort < 63 {
+			return cfg, errors.New("OGLVoice WebRTC UDP port range invalid (require at least 64 ports, min >=1024)")
+		}
+		cfg.WebRTCPortMin, cfg.WebRTCPortMax = uint16(minPort), uint16(maxPort)
 	}
 	if len(cfg.Nodes) == 0 || len(cfg.Tenants) == 0 {
 		return cfg, errors.New("media node ACL and tenant registry must not be empty")

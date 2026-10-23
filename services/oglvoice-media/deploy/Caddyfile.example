@@ -1,0 +1,28 @@
+# Copy to /etc/caddy/Caddyfile, replace the simulator IP/CIDR first.
+# Prefer a WireGuard subnet. Do NOT allow 0.0.0.0/0 to /internal/webrtc/.
+# Caddy obtains a public TLS certificate for voice.opengenesislink.de.
+voice.opengenesislink.de {
+    @authorized_exchange {
+        path /internal/webrtc/v1/exchange
+        method POST
+        remote_ip REPLACE_WITH_TRUSTED_SIMULATOR_IP_OR_CIDR
+    }
+
+    handle @authorized_exchange {
+        reverse_proxy 127.0.0.1:19098
+    }
+
+    handle /internal/webrtc/* {
+        respond "forbidden" 403
+    }
+
+    handle /healthz {
+        reverse_proxy 127.0.0.1:19098
+    }
+
+    # LiveKit WebSocket signalling (HTTPS/WSS) is public to authorized
+    # LiveKit clients; no admin key or signing secret is published here.
+    handle {
+        reverse_proxy 127.0.0.1:7880
+    }
+}

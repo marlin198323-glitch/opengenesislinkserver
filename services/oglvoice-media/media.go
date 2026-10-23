@@ -49,6 +49,19 @@ func roomID(a admission) string {
 		strings.ReplaceAll(strings.ToLower(a.RegionID), "-", "")
 }
 
+// A dedicated media host needs bounded, firewallable UDP sockets for Firestorm ICE.
+func newViewerPeerConnection(cfg config, iceServers []webrtc.ICEServer) (*webrtc.PeerConnection, error) {
+	configuration := webrtc.Configuration{ICEServers: iceServers}
+	if cfg.WebRTCPortMin == 0 {
+		return webrtc.NewPeerConnection(configuration)
+	}
+	settings := webrtc.SettingEngine{}
+	if err := settings.SetEphemeralUDPPortRange(cfg.WebRTCPortMin, cfg.WebRTCPortMax); err != nil {
+		return nil, err
+	}
+	return webrtc.NewAPI(webrtc.WithSettingEngine(settings)).NewPeerConnection(configuration)
+}
+
 func startPeer(cfg config, a admission, id string, onClose func()) (*peerState, error) {
 	p := &peerState{id: id, admission: a, onClose: onClose, lastSeen: time.Now()}
 	p.touch()
@@ -59,7 +72,7 @@ func startPeer(cfg config, a admission, id string, onClose func()) (*peerState, 
 			iceServers = append(iceServers, webrtc.ICEServer{URLs: []string{trimmed}})
 		}
 	}
-	pc, err := webrtc.NewPeerConnection(webrtc.Configuration{ICEServers: iceServers})
+	pc, err := newViewerPeerConnection(cfg, iceServers)
 	if err != nil { return nil, fmt.Errorf("Pion: %w", err) }
 	p.pc = pc
 
