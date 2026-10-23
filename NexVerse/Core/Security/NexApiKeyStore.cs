@@ -126,8 +126,14 @@ namespace NexVerse.Core.Security
                 }
                 finally
                 {
-                    m_File.Dispose();
-                    m_Mutex.ReleaseMutex();
+                    try
+                    {
+                        m_File.Dispose();
+                    }
+                    finally
+                    {
+                        m_Mutex.ReleaseMutex();
+                    }
                 }
             }
         }
@@ -456,8 +462,18 @@ namespace NexVerse.Core.Security
                         stored.SecretHash))
                     return false;
 
-                stored.LastUsedAt = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
-                SaveLocked();
+                long now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+                // Last-used is operational metadata, not an authorization
+                // grant. Avoid rewriting the entire credential file for
+                // every asset/statistics HTTP request under high traffic.
+                // First use is always persisted; later uses are sampled
+                // with a maximum age of 30 seconds.
+                if (stored.LastUsedAt <= 0 ||
+                    now - stored.LastUsedAt >= 30)
+                {
+                    stored.LastUsedAt = now;
+                    SaveLocked();
+                }
                 record = Clone(stored);
                 return true;
             }
