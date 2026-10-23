@@ -53,4 +53,4 @@ tar -xzf "$WORK/$ARCHIVE" -C "$WORK"
 mkdir -p "$INSTALL_ROOT"
 mv "$WORK/go" "$TARGET"
 "$TARGET/bin/go" version
-echo "Use $TARGET/bin/go build -tags nolibopusfile -trimpath -o /tmp/oglvoice-media ."
+echo "Use $TARGET/bin/go build -tags nolibopusfile -mod=mod -trimpath -o /tmp/oglvoice-media ."

@@ -42,7 +42,7 @@ fi
 cd /opt/oglvoice/source/services/oglvoice-media
 sudo bash deploy/install-go-toolchain.sh
 /opt/oglvoice/toolchains/go1.26.10/bin/go version
-/opt/oglvoice/toolchains/go1.26.10/bin/go build -tags nolibopusfile -trimpath -o /tmp/oglvoice-media .
+/opt/oglvoice/toolchains/go1.26.10/bin/go build -tags nolibopusfile -mod=mod -trimpath -o /tmp/oglvoice-media .
 sudo install -m 0755 -o root -g root /tmp/oglvoice-media /opt/oglvoice/oglvoice-media
 ```
 
