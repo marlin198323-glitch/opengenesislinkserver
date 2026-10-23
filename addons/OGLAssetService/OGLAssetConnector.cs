@@ -166,7 +166,9 @@ namespace OpenGenesisLINK.Addons.AssetService
                 MemoryCacheHits, MemoryCacheMisses, MemoryCacheUsedBytes,
                 DiskCacheHits, DiskCacheMisses, DiskCacheEvictions,
                 LocalInvalidationAttempts, DiskInvalidationFailures,
-                RedisInvalidationFailures);
+                RedisInvalidationFailures,
+                ParallelStoreEnabled, parallelReadPreferred, ParallelMirrored,
+                ParallelReadHits, ParallelReadMisses, ParallelWriteFailures);
         }
 
         private void TryInvalidateRedis(string id)
