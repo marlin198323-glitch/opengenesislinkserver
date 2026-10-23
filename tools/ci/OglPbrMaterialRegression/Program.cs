@@ -62,6 +62,36 @@ internal static class Program
         Assert(!Remove(ref materials, 7),
             "deleting from cleared array must be harmless");
 
-        Console.WriteLine("OpenGenesisLINK PBR material face deletion regression: OK");
+        // Exercise the existing glTF JSON -> Firestorm render-material override
+        // conversion path without a simulator or external services.
+        var add = typeof(MaterialsModule).GetMethod("AddMaterialOverride",
+            BindingFlags.NonPublic | BindingFlags.Static);
+        Assert(add != null, "glTF material override helper missing");
+        string gltf = "{\\"materials\\":[{\\"pbrMetallicRoughness\\":{"
+            + "\\"baseColorFactor\\":[1.0,0.5,0.25,1.0],"
+            + "\\"metallicFactor\\":0.2,\\"roughnessFactor\\":0.75},"
+            + "\\"emissiveFactor\\":[0.1,0.2,0.3],\\"doubleSided\\":true}]}";
+        RenderMaterialOverrideEntry[] overrideEntries = null;
+        object[] addArgs = { overrideEntries, gltf, 4 };
+        Assert((bool)add.Invoke(null, addArgs), "valid glTF PBR override rejected");
+        overrideEntries = (RenderMaterialOverrideEntry[])addArgs[0];
+        Assert(overrideEntries != null && overrideEntries.Length == 1 &&
+            overrideEntries[0].te_index == 4, "glTF PBR face not preserved");
+        string serialized = overrideEntries[0].data;
+        Assert(!string.IsNullOrWhiteSpace(serialized) &&
+            serialized.Contains("bc") && serialized.Contains("mf") &&
+            serialized.Contains("rf") && serialized.Contains("ec") &&
+            serialized.Contains("ds"), "glTF PBR factors lost during conversion");
+        addArgs = new object[] { overrideEntries, gltf, 4 };
+        Assert(!(bool)add.Invoke(null, addArgs),
+            "identical PBR data incorrectly reported as modified");
+        addArgs = new object[] { overrideEntries, "{\\"materials\\":[]}", 4 };
+        Assert(!(bool)add.Invoke(null, addArgs),
+            "malformed glTF material payload accepted");
+        overrideEntries = (RenderMaterialOverrideEntry[])addArgs[0];
+        Assert(overrideEntries.Length == 1 && overrideEntries[0].data == serialized,
+            "malformed glTF material mutated prior state");
+
+        Console.WriteLine("OpenGenesisLINK PBR face deletion and glTF override regression: OK");
     }
 }
