@@ -284,24 +284,24 @@ try
     string index = Path.Combine(parallelRoot, "ogl-index", "locations.sqlite");
     var parallel = new OGLParallelAssetStore(objects, index);
     string id = Guid.NewGuid().ToString("D");
-    byte[] original = new byte[] { 17, 19, 23 };
-    string originalHash = OGLObjectCache.ContentHash(original);
-    Check(parallel.Mirror(id, originalHash, original), "OGL parallel mirror");
-    Check(parallel.TryRead(id, originalHash)?.SequenceEqual(original) == true,
+    byte[] initialParallelPayload = new byte[] { 17, 19, 23 };
+    string originalHash = OGLObjectCache.ContentHash(initialParallelPayload);
+    Check(parallel.Mirror(id, originalHash, initialParallelPayload), "OGL parallel mirror");
+    Check(parallel.TryRead(id, originalHash)?.SequenceEqual(initialParallelPayload) == true,
         "Parallel read uses immutable OGL copy");
     Check(parallel.TryRead(id, new string('a', 64)) == null,
         "Changed authoritative SQL hash must invalidate old OGL mapping");
     var restarted = new OGLParallelAssetStore(objects, index);
-    Check(restarted.TryRead(id, originalHash)?.SequenceEqual(original) == true,
+    Check(restarted.TryRead(id, originalHash)?.SequenceEqual(initialParallelPayload) == true,
         "Parallel index and immutable payload survive process restart");
-    byte[] replacement = new byte[] { 42, 41, 40 };
-    string replacementHash = OGLObjectCache.ContentHash(replacement);
-    Check(restarted.Mirror(id, replacementHash, replacement),
+    byte[] replacementParallelPayload = new byte[] { 42, 41, 40 };
+    string replacementHash = OGLObjectCache.ContentHash(replacementParallelPayload);
+    Check(restarted.Mirror(id, replacementHash, replacementParallelPayload),
         "A changed UUID can point to a new immutable payload");
     Check(restarted.TryRead(id, originalHash) == null &&
-        restarted.TryRead(id, replacementHash)?.SequenceEqual(replacement) == true,
+        restarted.TryRead(id, replacementHash)?.SequenceEqual(replacementParallelPayload) == true,
         "Mapping update must not expose a stale blob");
-    Check(!restarted.Mirror(id, replacementHash, original),
+    Check(!restarted.Mirror(id, replacementHash, initialParallelPayload),
         "Nonmatching SQL digest must reject a mirror attempt");
 
     string snapshotFs = Path.Combine(parallelRoot, "snapshot", "fsassets");
