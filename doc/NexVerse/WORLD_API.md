@@ -770,6 +770,7 @@ Administrative management endpoint:
 - `GET /api/v1/auth/api-keys`
 - `POST /api/v1/auth/api-keys`
 - `PATCH /api/v1/auth/api-keys` — enable/disable, **or edit scopes of an existing key in place**
+- `GET /api/v1/auth/api-keys/self` — inspect the **live effective scopes of the supplied machine key** (no admin Bearer, no secret returned)
 - `DELETE /api/v1/auth/api-keys/{keyId}` — permanently removes a **previously disabled** key
 
 All four management operations require `admin:*` through a resident/OAuth administrator credential. API keys themselves can never receive `admin:*`, wildcard or interactive OIDC scopes.
@@ -794,6 +795,20 @@ The corresponding HTTP request is `PATCH /api/v1/auth/api-keys`:
   "expected_scopes": ["regions:read"]
 }
 ```
+
+**Verify what the serving World API really grants** (after an update and deploying the updated ROBUST build):
+
+```bash
+# Read the actual existing key from a protected environment/secret store.
+# Do not paste the secret into a public terminal log or conversation.
+curl --fail-with-body --silent --show-error \
+  -H "X-NexVerse-Api-Key: ${NEXVERSE_API_KEY}" \
+  "https://world.stadt-nexverse.de/api/v1/auth/api-keys/self"
+```
+
+A valid key receives JSON with its current `key_id`, `scopes`, `updated_at`, `enabled` and `authorization_source: "api_key"`. The endpoint rejects missing/invalid keys, and never returns the secret. The `statistics:read` grant can be exercised immediately through `GET /api/v1/statistics/summary` using the **same `X-NexVerse-Api-Key` header**. An existing resident/OAuth **Bearer access token** is a separate credential: adding a machine-key scope does not add it to an already issued bearer token. The administrative inventory's scope list is not proof that a different server instance has loaded the update.
+
+**Multi-instance behavior:** From this revision, each key operation reloads its shared, on-disk JSON under a cross-process lock; a second ROBUST process on the same host will see the new scopes on its next API request rather than re-serializing a stale in-memory copy. Concurrent changes are serialized through the adjacent persistent `<ApiKeyStorePath>.lock` file. All World API processes that should share keys **must use the exact same absolute `ApiKeyStorePath`** and a storage filesystem supporting advisory locks. Independent hosts using independent JSON files will not synchronize merely because they use the same public hostname; multi-host production should use a single authoritative key service/store rather than manually replicating these files. Do not delete the `.lock` file while ROBUST is running. `last_used_at` is now persisted at most once every 30 seconds per key to avoid excess writes; authentication checks the latest scopes for every request.
 
 `scopes` is the **complete desired set**, not only additions. Always first fetch `GET /api/v1/auth/api-keys` and copy the current scope array into `expected_scopes`. A concurrent change or active duplicate name+scope identity results in HTTP 409 `api_key_scope_conflict`; refresh and retry deliberately. Unknown, empty, wildcards, `admin:*`, identity scopes, and prohibited combinations (e.g. viewer Experience permission key mixed with statistics) are rejected. Every change is audited (previous and new scopes, never the plaintext secret); it takes effect on the **next API request** without reissuing any key. As before, disabled keys remain disabled until deliberately reactivated.
 
