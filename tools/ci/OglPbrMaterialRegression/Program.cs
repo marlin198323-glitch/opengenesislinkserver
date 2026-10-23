@@ -67,10 +67,10 @@ internal static class Program
         var add = typeof(MaterialsModule).GetMethod("AddMaterialOverride",
             BindingFlags.NonPublic | BindingFlags.Static);
         Assert(add != null, "glTF material override helper missing");
-        string gltf = "{\\"materials\\":[{\\"pbrMetallicRoughness\\":{"
-            + "\\"baseColorFactor\\":[1.0,0.5,0.25,1.0],"
-            + "\\"metallicFactor\\":0.2,\\"roughnessFactor\\":0.75},"
-            + "\\"emissiveFactor\\":[0.1,0.2,0.3],\\"doubleSided\\":true}]}";
+        string gltf = "{\"materials\":[{\"pbrMetallicRoughness\":{"
+            + "\"baseColorFactor\":[1.0,0.5,0.25,1.0],"
+            + "\"metallicFactor\":0.2,\"roughnessFactor\":0.75},"
+            + "\"emissiveFactor\":[0.1,0.2,0.3],\"doubleSided\":true}]}";
         RenderMaterialOverrideEntry[] overrideEntries = null;
         object[] addArgs = { overrideEntries, gltf, 4 };
         Assert((bool)add.Invoke(null, addArgs), "valid glTF PBR override rejected");
@@ -85,7 +85,7 @@ internal static class Program
         addArgs = new object[] { overrideEntries, gltf, 4 };
         Assert(!(bool)add.Invoke(null, addArgs),
             "identical PBR data incorrectly reported as modified");
-        addArgs = new object[] { overrideEntries, "{\\"materials\\":[]}", 4 };
+        addArgs = new object[] { overrideEntries, "{\"materials\":[]}", 4 };
         Assert(!(bool)add.Invoke(null, addArgs),
             "malformed glTF material payload accepted");
         overrideEntries = (RenderMaterialOverrideEntry[])addArgs[0];
