@@ -1,4 +1,12 @@
-# OGL AssetService addon — buildable compatibility preview
+# OGL AssetService — Generation 1 compatibility integration
+
+**Release boundary (23 October 2026):** The addon can be built and distributed with the normal OpenGenesisLINK server without activating it. The existing FSAssetConnector and on-disk FSAssets + SQL metadata remain authoritative. Merely updating `main` or compiling ROBUST does **not** switch services. Production configuration and asset files must not be migrated, renamed or deleted.
+
+To activate the connector, an operator would need to explicitly replace the `LocalServiceModule` in an isolated ROBUST configuration and enable `[OGLAssetService] Enabled=true`. That configuration is permitted for **disposable staging only** until a consistent copy of the real SQL database, FSAssets and spool passes readback, Viewer/Hypergrid and rollback gates. Do not enable the OGL admin HTTP listener on the public interface.
+
+**Safe defaults:** `Mode=compatibility`, `SingleWriterCacheEnabled=false`, `DiskCacheEnabled=false`, `RedisEnabled=false`, `ExperimentalAtomicUpdatesEnabled=false`. The optional SSD cache is now process-instance-scoped; it never serves entries from an older ROBUST process. Previous-session cache files are non-authoritative and should be cleaned up during offline maintenance of the dedicated cache directory.
+
+**Verification:** Full .NET/ROBUST build, isolated MariaDB persistence and restart-readback, MariaDB/PostgreSQL CAS fixtures and asset migration tests are enforced by GitHub Actions. Passing those checks means code integration is testable, **not** that Stadt NexVerse production data has been validated. See [staging procedure](STAGING-INBETRIEBNAHME-DE.md) and [cutover gates](CUTOVER-BENCHMARKS.md).
 
 The addon builds as a separate .NET 8 assembly and leaves the original FSAssetService and existing FSAssets authoritative. It is **disabled by default** and is not automatically loaded by ROBUST. No migration or service switchover occurs by building it.
 
