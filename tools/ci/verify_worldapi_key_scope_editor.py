@@ -62,6 +62,43 @@ for marker in (
     assert marker in openapi, "Missing OpenAPI scope update contract: " + marker
 
 assert "`statistics:read`" in docs and "without" in docs
+
+# Existing grants must refresh on every authentication, not merely on ROBUST
+# startup; a second process must never overwrite a newer scope assignment
+# when it updates last-used metadata.
+for marker in (
+    "private StoreLease OpenLatestLocked()",
+    "m_CrossProcessMutex.WaitOne(",
+    "file.Lock(0, 1)",
+    "m_Document = Load()",
+    "using StoreLease lease = OpenLatestLocked();",
+    "m_File.Unlock(0, 1)",
+    "now - stored.LastUsedAt >= 30",
+):
+    assert marker in store, "Missing live scope refresh/locking contract: " + marker
+assert store.count("using StoreLease lease = OpenLatestLocked();") >= 7
+
+# Self-introspection requires possession of the original machine credential;
+# the route cannot reveal salts, hashes or other tenants' key metadata.
+assert '"/api/v1/auth/api-keys/self"' in api
+self_handler = api.split("private void HandleApiKeySelf(", 1)[1].split(
+    "private void HandleApiKeyDelete(", 1)[0]
+for marker in (
+    '"X-NexVerse-Api-Key"',
+    "m_ApiKeys.TryValidate(providedKey, out NexApiKeyRecord record)",
+    'authorization_source = "api_key"',
+    'response.AddHeader("Cache-Control", "no-store")',
+):
+    assert marker in self_handler, "Unsafe/missing live-scope introspection: " + marker
+for forbidden in ("record.SecretHash", "record.SecretSalt", "record.ApiKey"):
+    assert forbidden not in self_handler, "Self scope check exposes secret material: " + forbidden
+assert '"ApiKeySelfResponse"' in openapi
+assert '"/api/v1/auth/api-keys/self"' in openapi
+assert "private static object ApiKeySelfOperation()" in openapi
+assert "apiKeyAuth" in openapi.split("private static object ApiKeySelfOperation()", 1)[1].split(
+    "private static object SimulatorBridgeOperations(", 1)[0]
+assert "/api/v1/auth/api-keys/self" in docs
+assert "same `X-NexVerse-Api-Key` header" in docs
 scripts = re.findall(r"<script[^>]*>(.*?)</script>", view, re.DOTALL)
 assert scripts, "No embedded page JavaScript found"
 with tempfile.TemporaryDirectory() as work:
