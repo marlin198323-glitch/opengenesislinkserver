@@ -519,13 +519,13 @@ Archivprüfungen bleiben auch für freigegebene Importe aktiv.</div>
 
 <section class="page" id="page-chatgpt">
 <div class="hero">
-<div><div class="eyebrow">KI-Integration</div><h1>ChatGPT-Anweisungen &amp; Portaltrennung</h1><p>Downloadbare Arbeitsanweisungen fuer ChatGPT und API-Agenten. Die Trennung zwischen Buergerportal, Adminbereich und technischen Diensten folgt den Zielgruppen- und Scope-Metadaten des laufenden OpenAPI-Vertrags. Interne Simulator-Bridges (z. B. Experiences) sind keine direkt benutzbaren Einwohner-Endpunkte.</p></div>
+<div><div class="eyebrow">OGL WORLD API / KI-VERTRAG</div><h1>ChatGPT-Anweisungen &amp; vollstaendiger API-Funktionsatlas</h1><p>Neu aufgebauter Arbeitsvertrag fuer ChatGPT und API-Agenten: alle im OpenAPI deklarierten 151 Pfade, thematisch sortierte Funktionen fuer Buergerportal, Administration und Serverdienste, aktuelle Rollen- und Scope-Automatik sowie sichere Praxisablaeufe. Die HTTP-Methode und das echte Autorisierungsniveau bleiben im laufenden OpenAPI-Vertrag verbindlich.</p></div>
 <div class="pill"><span class="dot good"></span><span>OpenAPI-gebunden</span></div>
 </div>
 
 <div class="section">
 <h2>Gesamtanweisung</h2>
-<p class="sectionlead">Enthaelt gemeinsame Sicherheitsregeln, API-Basis, Authentifizierung, Fehlerbehandlung sowie getrennte Kapitel fuer Buergerportal, Adminbereich und Service-Integrationen.</p>
+<p class="sectionlead">Umfassendes OGL-Handbuch fuer KI-Assistenten: Konten, Rechte, Regionen, Grid-Raster, Nodes, Estates, Gruppen, Experiences, Banking, NV$, Handel, Suche, Karten, Freunde und IM. Mit vollstaendigem Pfadverzeichnis, Rollenautomatik, Schutzregeln und Runbooks.</p>
 <div class="portalactions">
 <a class="action actionlink" href="/api/v1/chatgpt-instructions.md" download>Gesamtanweisung als MD</a>
 <a class="action actionlink" href="/api/v1/openapi.json" target="_blank" rel="noreferrer">OpenAPI JSON oeffnen</a>
@@ -538,7 +538,7 @@ Archivprüfungen bleiben auch für freigegebene Importe aktiv.</div>
 <div class="portalcard">
 <div class="eyebrow">Einwohner</div>
 <h3>Buergerportal</h3>
-<p>Self-Service fuer das eigene Konto und explizit autorisierte Einwohnerfunktionen. Keine stillschweigende Rechteausweitung auf fremde Konten oder Adminfunktionen.</p>
+<p>Eigenes Konto, Profil, Freunde, IM, Gruppen, Inventar/Outfits, NV$, Banking, Commerce, Land, Weltkarte, Suche, Discovery und Experiences. Bewohner erhalten ihre vorgesehenen Lese-Scopes automatisch beim neuen Login; keine Einzelvergabe fuer jeden Einwohner.</p>
 <div class="portalactions">
 <a class="action actionlink" href="/api/v1/chatgpt-buergerportal.md" download>Buergerportal-MD</a>
 <button class="action" data-audience-target="citizen">Einwohner-Endpunkte</button>
@@ -549,7 +549,7 @@ Archivprüfungen bleiben auch für freigegebene Importe aktiv.</div>
 <div class="portalcard">
 <div class="eyebrow">Administration</div>
 <h3>Adminbereich</h3>
-<p>Konten, Grid, Regionen, Simulatoren, Estates, Security, Audit und administrative Economy-/Discovery-Funktionen. Nur mit ausdruecklich autorisiertem Admin-Principal.</p>
+<p>Benutzer- und Rollenverwaltung, Admin-Login, OAuth/Keys, Audit, Regions-Lifecycle, Simulator-Nodes, Estates, Grid-Placement, Wirtschaft/Banking, Discovery-Moderation, Gruppen und Experiences. Mit sicheren Mutationsablaeufen und eigenstaendigen Service-Grenzen.</p>
 <div class="portalactions">
 <a class="action actionlink" href="/api/v1/chatgpt-admin.md" download>Adminbereich-MD</a>
 <button class="action" data-audience-target="admin">Admin-Endpunkte</button>
@@ -560,7 +560,7 @@ Archivprüfungen bleiben auch für freigegebene Importe aktiv.</div>
 
 <div class="section">
 <h2>Automatische Zuordnung</h2>
-<p class="sectionlead">ChatGPT soll nicht anhand des URL-Namens raten. Jede Operation wird anhand der im OpenAPI-Dokument veroeffentlichten Metadaten eingeordnet.</p>
+<p class="sectionlead">Die Markdown-Anweisungen enthalten den vollstaendigen, versionierten Pfadkatalog. Entscheidend bleiben die Live-Operationen im OpenAPI-Schema: Ein Pfad mit GET und PATCH kann unterschiedliche Zielgruppen und Scopes besitzen. Ein dokumentiertes optionales Modul ist nicht automatisch aktiviert.</p>
 <div class="changegrid">
 <div class="change"><h3>x-nexverse-audience</h3><p>Ordnet eine Operation Einwohner, Administration und/oder Dienst zu.</p></div>
 <div class="change"><h3>x-nexverse-scope</h3><p>Definiert den benoetigten Berechtigungsumfang.</p></div>
