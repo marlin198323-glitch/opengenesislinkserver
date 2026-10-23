@@ -111,6 +111,30 @@ namespace NexVerse.Core.Security
                 .OrderBy(x => x, StringComparer.OrdinalIgnoreCase)
                 .ToArray();
 
+        // These grants are computed, not materialized per user. A new or
+        // existing resident automatically receives them on the NEXT login.
+        // The corresponding API endpoints still enforce ownership and
+        // must not accept these grants as administrator permissions.
+        private static readonly string[] s_DefaultResidentScopes =
+        {
+            NexScopes.UsersRead,
+            NexScopes.UsersWrite,
+            NexScopes.ProfileRead,
+            NexScopes.ProfileWrite,
+            NexScopes.RelationshipsRead,
+            NexScopes.RelationshipsWrite,
+            NexScopes.GroupsRead,
+            NexScopes.GroupsManage,
+            NexScopes.InventoryRead,
+            NexScopes.EconomyRead,
+            NexScopes.RegionsRead,
+            NexScopes.ExperiencesRead,
+            NexScopes.DiscoveryRead
+        };
+
+        public static IReadOnlyCollection<string> DefaultResidentScopes =>
+            Array.AsReadOnly(s_DefaultResidentScopes);
+
         public static string[] SplitStoredValues(string raw)
         {
             return (raw ?? string.Empty)
@@ -225,32 +249,8 @@ namespace NexVerse.Core.Security
             IEnumerable<string> explicitScopes)
         {
             HashSet<string> scopes =
-                new HashSet<string>(
-                    StringComparer.OrdinalIgnoreCase)
-                {
-                    NexScopes.UsersRead,
-                    NexScopes.UsersWrite,
-                    // Resident self-service: each endpoint still checks ownership
-                    // or group membership/powers in the authoritative service.
-                    NexScopes.ProfileRead,
-                    NexScopes.ProfileWrite,
-                    NexScopes.RelationshipsRead,
-                    NexScopes.RelationshipsWrite,
-                    NexScopes.GroupsRead,
-                    NexScopes.GroupsManage,
-
-                    // Automatic resident self-service reads. Endpoints MUST
-                    // still verify owner/group entitlement; these scopes
-                    // never grant access to another resident's assets or
-                    // balances and are not financial transfer permissions.
-                    // Resolving these on every login scales to arbitrary
-                    // account counts without rewriting UserAccounts rows.
-                    NexScopes.InventoryRead,
-                    NexScopes.EconomyRead,
-                    NexScopes.RegionsRead,
-                    NexScopes.ExperiencesRead,
-                    NexScopes.DiscoveryRead
-                };
+                new HashSet<string>(s_DefaultResidentScopes,
+                    StringComparer.OrdinalIgnoreCase);
 
             foreach (string role in roles ?? Array.Empty<string>())
             {
