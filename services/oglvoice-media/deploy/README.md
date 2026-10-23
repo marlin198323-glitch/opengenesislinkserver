@@ -46,7 +46,7 @@ toolchain as required, rather than changing dependency versions arbitrarily.
 Copy `deploy/livekit.yaml.example` to `/etc/oglvoice/livekit.yaml`; choose a strong
 LiveKit API key and random API secret (at least 32 bytes). Put **exactly the same**
 key and secret in `/etc/oglvoice/media.env` (based on `deploy/media.env.example`).
-Replace NodeId and the **existing** NexBus shared key with your actual simulator values.
+Keep the existing grid tenant `nexverse` for Stadt NexVerse (or use separate tenant IDs for other grids). Replace NodeId and the **existing** NexBus shared key with your actual simulator values.
 For multiple simulators add a separate `nodes` entry per NodeId, using each node's
 real shared key. Never expose a LiveKit signing secret to a viewer.
 
@@ -107,7 +107,7 @@ On the grid ROBUST's **active** `Robust.HG.ini` or `Robust.ini` (not only the
     Enabled = true
     Mode = "GridAuthority"
     ServiceUrl = "https://voice.opengenesislink.de"
-    TenantId = "opengenesislink"
+    TenantId = "nexverse"
     IncludeHypergridGuests = true
     EnableFirestormGateway = true
     MediaGatewayUrl = "https://voice.opengenesislink.de/internal/webrtc/v1/exchange"
