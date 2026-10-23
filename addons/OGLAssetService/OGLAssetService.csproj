@@ -6,12 +6,22 @@
     <Nullable>disable</Nullable>
     <ImplicitUsings>disable</ImplicitUsings>
     <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
+    <!-- ROBUST runs directly from the shared bin directory. The addon must
+         be deployed there, not only under its own bin/Release/net8.0 path. -->
+    <OutputPath>../../bin/</OutputPath>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <AppendRuntimeIdentifierToOutputPath>false</AppendRuntimeIdentifierToOutputPath>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="StackExchange.Redis" Version="2.8.24" />
+    <PackageReference Include="Microsoft.Data.Sqlite" Version="8.0.11" />
     <ProjectReference Include="../../OpenSim/Services/FSAssetService/OpenSim.Services.FSAssetService.csproj" />
     <Reference Include="Nini">
       <HintPath>../../bin/Nini.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="log4net">
+      <HintPath>../../bin/log4net.dll</HintPath>
       <Private>false</Private>
     </Reference>
   </ItemGroup>

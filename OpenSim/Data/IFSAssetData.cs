@@ -33,6 +33,17 @@ namespace OpenSim.Data
 {
     public delegate string FSStoreDelegate(AssetBase asset, bool force);
 
+    /// <summary>
+    /// Optional, atomic compare-and-swap for FSAssets metadata hash mappings.
+    /// Implementations must return false if the ID is absent or its current hash
+    /// differs from expectedHash; they must never insert a missing asset.
+    /// The payload file must be durably staged before invoking this operation.
+    /// </summary>
+    public interface IFSAssetHashCompareExchange
+    {
+        bool TryReplaceHash(string id, string expectedHash, string newHash);
+    }
+
     public interface IFSAssetDataPlugin : IPlugin
     {
         bool[]          AssetsExist(UUID[] uuids);

@@ -3,28 +3,66 @@ on:
   push:
     paths:
       - 'addon-modules/OGLAssetService/**'
+      - 'addons/OGLAssetService/OGLAssetService.csproj'
+      - 'OpenSim/Server/Directory.Build.targets'
       - 'runprebuild.sh'
+      - 'tools/ci/smoke_ogl_assetservice_runtime.sh'
+      - 'tools/ci/verify_ogl_assetservice_staging_readback.py'
       - '.github/workflows/ogl-assetservice-addon-modules.yml'
   pull_request:
     paths:
       - 'addon-modules/OGLAssetService/**'
+      - 'addons/OGLAssetService/OGLAssetService.csproj'
+      - 'OpenSim/Server/Directory.Build.targets'
       - 'runprebuild.sh'
+      - 'tools/ci/smoke_ogl_assetservice_runtime.sh'
+      - 'tools/ci/verify_ogl_assetservice_staging_readback.py'
       - '.github/workflows/ogl-assetservice-addon-modules.yml'
   workflow_dispatch:
+permissions:
+  contents: read
 jobs:
   addon-build:
     runs-on: ubuntu-latest
+    timeout-minutes: 35
+    services:
+      mariadb:
+        image: mariadb:11
+        env:
+          MARIADB_ROOT_PASSWORD: ogl-test-only
+          MARIADB_DATABASE: ogl_assetservice_smoke
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="healthcheck.sh --connect --innodb_initialized"
+          --health-interval=5s --health-timeout=5s --health-retries=20
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '8.0.x'
-      - name: Generate OpenSim solution and build dependencies
+      - name: Generate OpenSim solution and actual operator build script
         run: |
           chmod +x runprebuild.sh
           ./runprebuild.sh
-          dotnet build -c Release OpenSim.sln
-      - name: Build and stage OGL AssetService
-        run: bash addon-modules/OGLAssetService/build.sh Release
-      - name: Verify staged addon
-        run: test -s bin/OpenGenesisLINK.Addons.OGLAssetService.dll
+          test -s compile.sh
+          bash -n compile.sh addon-modules/OGLAssetService/build.sh
+      - name: Compile full server and install OGL AssetService using operator script
+        run: bash ./compile.sh
+      - name: Verify shared ROBUST bin deployment
+        run: |
+          set -euo pipefail
+          for dll in \
+            OpenGenesisLINK.Addons.OGLAssetService.dll \
+            OpenSim.Services.FSAssetService.dll \
+            StackExchange.Redis.dll \
+            Pipelines.Sockets.Unofficial.dll \
+            Microsoft.Data.Sqlite.dll \
+            Microsoft.Extensions.Logging.Abstractions.dll; do
+            test -s "bin/$dll" || { echo "::error::Missing bin/$dll"; exit 1; }
+          done
+      - name: Validate read-only legacy-vs-OGL staging comparison helper
+        run: python3 tools/ci/verify_ogl_assetservice_staging_readback.py self-test
+      - name: Smoke-test live ROBUST host loading OGL on isolated MariaDB
+        shell: bash
+        run: bash tools/ci/smoke_ogl_assetservice_runtime.sh

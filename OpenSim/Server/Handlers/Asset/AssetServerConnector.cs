@@ -65,6 +65,9 @@ namespace OpenSim.Server.Handlers.Asset
         }
 
         private IAssetService m_AssetService;
+
+        // The optional OGL admin lifecycle reuses ROBUST's existing service.
+        public IAssetService LoadedAssetService => m_AssetService;
         private string m_ConfigName = "AssetService";
 
         public AssetServiceConnector(IConfigSource config, IHttpServer server, string configName) :

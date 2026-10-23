@@ -29,6 +29,7 @@ using System;
 using System.Collections.Generic;
 using System.Threading;
 using System.Reflection;
+using System.Net;
 using OpenSim.Framework;
 using OpenSim.Framework.Console;
 using OpenSim.Framework.Servers;
@@ -140,6 +141,33 @@ namespace OpenSim.Server.Base
                     MainServer.AddHttpServer(new BaseHttpServer(https_port));
                 }
             }
+            ConfigureOglAdminTls();
+        }
+
+        private void ConfigureOglAdminTls()
+        {
+            IConfig admin = Config.Configs["OGLAssetServiceAdmin"];
+            if (admin == null || !admin.GetBoolean("Enabled", false))
+                return;
+            if (!admin.GetBoolean("DedicatedListenerConfirmed", false))
+                throw new InvalidOperationException("Dedicated OGL admin listener must be confirmed.");
+            int requested = admin.GetInt("ExpectedTlsPort", 0);
+            if (requested <= 0 || requested > 65535)
+                throw new InvalidOperationException("Invalid OGL admin TLS port.");
+            if (MainServer.Servers.ContainsKey((uint)requested))
+                throw new InvalidOperationException("OGL admin port already allocated.");
+            string cert = admin.GetString("TlsCertificatePath", "");
+            string secret = admin.GetString("TlsCertificatePassword", "");
+            if (String.IsNullOrWhiteSpace(cert) || String.IsNullOrEmpty(secret))
+                throw new InvalidOperationException("OGL admin TLS certificate not configured.");
+            string bind = admin.GetString("ListenAddress", "127.0.0.1");
+            if (!IPAddress.TryParse(bind, out IPAddress ip) ||
+                ip.Equals(IPAddress.Any) || ip.Equals(IPAddress.IPv6Any) ||
+                ip.IsIPv4MappedToIPv6 && ip.MapToIPv4().Equals(IPAddress.Any))
+                throw new InvalidOperationException("OGL admin cannot bind to a wildcard address.");
+            BaseHttpServer listener = new BaseHttpServer((uint)requested, true, cert, secret);
+            listener.ListenIPAddress = ip;
+            MainServer.AddHttpServer(listener);
         }
 
         protected override void Initialise()

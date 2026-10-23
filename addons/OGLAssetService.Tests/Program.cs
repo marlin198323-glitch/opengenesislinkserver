@@ -5,6 +5,176 @@ static void Check(bool condition, string message)
     if (!condition) throw new Exception(message);
 }
 
+// Opt-in Redis integration smoke test: uses a unique asset ID and does not flush Redis.
+if (args.Contains("--redis-smoke", StringComparer.OrdinalIgnoreCase))
+{
+    string connection = Environment.GetEnvironmentVariable("OGL_ASSET_REDIS_CONNECTION")
+        ?? throw new InvalidOperationException("OGL_ASSET_REDIS_CONNECTION is required");
+    int database = int.TryParse(Environment.GetEnvironmentVariable("OGL_ASSET_REDIS_DATABASE"), out int parsed)
+        ? parsed : 2;
+    string assetId = "ogl-smoke-" + Guid.NewGuid().ToString("N");
+    using var coordinator = new OGLRedisAssetCoordinator(connection, database);
+    long initial = await coordinator.GetRevisionAsync(assetId);
+    Check(initial == 0, "New smoke-test ID must have revision zero");
+    long incremented = await coordinator.InvalidateAsync(assetId);
+    Check(incremented == 1, "First revision increment must be one");
+    Check(await coordinator.GetRevisionAsync(assetId) == 1, "Revision readback failed");
+    // Verify a second independent Redis connection sees the same revision.
+    using (var secondCoordinator = new OGLRedisAssetCoordinator(connection, database))
+    {
+        Check(await secondCoordinator.GetRevisionAsync(assetId) == 1,
+            "Revision must be visible across Redis clients");
+        Check(await secondCoordinator.InvalidateAsync(assetId) == 2,
+            "Second client revision increment failed");
+    }
+    Check(await coordinator.GetRevisionAsync(assetId) == 2,
+        "Original client must observe the second client's invalidation");
+    byte[] payloadSample = System.Text.Encoding.UTF8.GetBytes("ogl-redis-payload-" + assetId);
+    string contentHash = await coordinator.PutPayloadAsync(payloadSample, TimeSpan.FromMinutes(2));
+    Check((await secondPayloadReader()).SequenceEqual(payloadSample),
+        "Content-addressed payload must round-trip between connections");
+    Check(await coordinator.GetPayloadAsync(new string('a', 64)) == null,
+        "Unknown content hash must miss");
+    Check(coordinator.PayloadMisses == 1, "Redis payload miss counter");
+    Check(await coordinator.GetPayloadAsync(contentHash) is { Length: > 0 },
+        "Redis payload hit must return bytes");
+    Check(coordinator.PayloadHits == 1, "Redis payload hit counter");
+    Check(coordinator.PayloadIntegrityFailures == 0, "No integrity failures expected");
+    // A stale publisher must not reintroduce a mapping after invalidation.
+    Check(await coordinator.TryPublishMappingAsync(assetId, 2, contentHash,
+        TimeSpan.FromMinutes(2)), "Current revision mapping publication");
+    Check(await coordinator.GetMappedHashAsync(assetId, 2) == contentHash,
+        "Current revision mapping lookup");
+    using (var invalidator = new OGLRedisAssetCoordinator(connection, database))
+        Check(await invalidator.InvalidateAsync(assetId) == 3,
+            "Third revision increment failed");
+    Check(!await coordinator.TryPublishMappingAsync(assetId, 2, contentHash,
+        TimeSpan.FromMinutes(2)), "Stale mapping publication must be rejected");
+    Check(await coordinator.GetMappedHashAsync(assetId, 3) == null,
+        "New revision must not resolve stale mapping");
+    Check(await coordinator.TryGetMappedPayloadAsync(assetId) == null,
+        "Revision change must invalidate mapped payload read");
+
+    Check(await coordinator.TryPublishMappingAsync(assetId, 3, contentHash,
+        TimeSpan.FromMinutes(2)), "New revision mapping publication");
+    Check((await coordinator.TryGetMappedPayloadAsync(assetId))?.SequenceEqual(payloadSample) == true,
+        "Stable revision must return integrity-checked mapped payload");
+
+    string readThroughId = assetId + "-read-through";
+    int authoritativeReads = 0;
+    byte[] authoritativeBytes = System.Text.Encoding.UTF8.GetBytes("authoritative-" + assetId);
+    byte[] ReadAuthoritative()
+    {
+        authoritativeReads++;
+        return (byte[])authoritativeBytes.Clone();
+    }
+    Check((await coordinator.ReadThroughAsync(readThroughId, ReadAuthoritative,
+        TimeSpan.FromMinutes(2))).SequenceEqual(authoritativeBytes),
+        "Read-through must return authoritative bytes on first miss");
+    Check(authoritativeReads == 1, "First read-through must consult authoritative storage");
+    Check((await coordinator.ReadThroughAsync(readThroughId, ReadAuthoritative,
+        TimeSpan.FromMinutes(2))).SequenceEqual(authoritativeBytes),
+        "Second read-through must return cached bytes");
+    Check(authoritativeReads == 1, "Second read-through should hit Redis");
+    using (var writer = new OGLRedisAssetCoordinator(connection, database))
+        await writer.InvalidateAsync(readThroughId);
+    Check((await coordinator.ReadThroughAsync(readThroughId, ReadAuthoritative,
+        TimeSpan.FromMinutes(2))).SequenceEqual(authoritativeBytes),
+        "Invalidated read-through must return authoritative bytes");
+    Check(authoritativeReads == 2, "Invalidated read-through must re-fetch authoritative bytes");
+    // Deterministic write during an authoritative read: never publish a
+    // mapping for the old revision, even if the read returns bytes.
+    string racingId = assetId + "-racing-read";
+    byte[] RaceRead()
+    {
+        using var concurrentWriter = new OGLRedisAssetCoordinator(connection, database);
+        concurrentWriter.InvalidateAsync(racingId).GetAwaiter().GetResult();
+        return (byte[])authoritativeBytes.Clone();
+    }
+    Check((await coordinator.ReadThroughAsync(racingId, RaceRead,
+        TimeSpan.FromMinutes(2))).SequenceEqual(authoritativeBytes),
+        "Racing authoritative read should still return its bytes");
+    Check(await coordinator.GetRevisionAsync(racingId) == 1,
+        "Concurrent writer must increment revision during authoritative read");
+    Check(await coordinator.GetMappedHashAsync(racingId, 0) == null &&
+        await coordinator.GetMappedHashAsync(racingId, 1) == null,
+        "Concurrent write must prevent publishing an old payload mapping");
+    bool badHashRejected = false;
+    try { await coordinator.GetPayloadAsync("not-a-sha256"); }
+    catch (ArgumentException) { badHashRejected = true; }
+    Check(badHashRejected, "Malformed content hashes must be rejected");
+    bool oversizedRejected = false;
+    try { await coordinator.PutPayloadAsync(new byte[8 * 1024 * 1024 + 1], TimeSpan.FromSeconds(1)); }
+    catch (ArgumentOutOfRangeException) { oversizedRejected = true; }
+    Check(oversizedRejected, "Oversized Redis payloads must be rejected");
+    async Task<byte[]> secondPayloadReader()
+    {
+        using var reader = new OGLRedisAssetCoordinator(connection, database);
+        return await reader.GetPayloadAsync(contentHash);
+    }
+    bool excessiveTtlRejected = false;
+    try { await coordinator.PutPayloadAsync(payloadSample, TimeSpan.FromDays(2)); }
+    catch (ArgumentOutOfRangeException) { excessiveTtlRejected = true; }
+    Check(excessiveTtlRejected, "Excessive Redis payload TTL must be rejected");
+    bool invalidMappingTtlRejected = false;
+    try { await coordinator.TryPublishMappingAsync(assetId, 3, contentHash, TimeSpan.Zero); }
+    catch (ArgumentOutOfRangeException) { invalidMappingTtlRejected = true; }
+    Check(invalidMappingTtlRejected, "Invalid mapping TTL must be rejected");
+    // Corrupt only a random smoke-test revision key; never touch production IDs.
+    string revisionKey = "ogl:asset:v1:" + Convert.ToHexString(
+        System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(assetId)))
+        .ToLowerInvariant();
+    using (var raw = StackExchange.Redis.ConnectionMultiplexer.Connect(connection))
+    {
+        await raw.GetDatabase(database).StringSetAsync(revisionKey, "invalid-revision");
+        bool invalidRevisionRejected = false;
+        try { await coordinator.GetRevisionAsync(assetId); }
+        catch (InvalidOperationException) { invalidRevisionRejected = true; }
+        Check(invalidRevisionRejected, "Malformed Redis revision must fail closed");
+        await raw.GetDatabase(database).KeyDeleteAsync(revisionKey);
+    }
+    Console.WriteLine("Redis revision smoke test passed (DB " + database + ")");
+    Console.WriteLine("Note: smoke-test revision key was deleted; short-lived payload and mapping keys expire by TTL.");
+    return;
+}
+
+// Opt-in microbenchmark: measures the cache implementation, NOT end-to-end ROBUST/FSAssets.
+// Keep the smoke tests as the default execution path.
+if (args.Contains("--benchmark", StringComparer.OrdinalIgnoreCase))
+{
+    const int iterations = 100_000;
+    const int payloadBytes = 64 * 1024;
+    byte[] sample = new byte[payloadBytes];
+    new Random(42).NextBytes(sample);
+    var benchmarkCache = new OGLObjectCache(16L * 1024 * 1024);
+    benchmarkCache.Put("benchmark-asset", sample);
+    // Warm-up JIT and cache before measuring.
+    for (int i = 0; i < 1000; i++)
+        Check(benchmarkCache.TryGet("benchmark-asset", out _), "Warm-up cache miss");
+    var timer = System.Diagnostics.Stopwatch.StartNew();
+    long bytesRead = 0;
+    for (int i = 0; i < iterations; i++)
+    {
+        Check(benchmarkCache.TryGet("benchmark-asset", out var bytes), "Unexpected cache miss");
+        bytesRead += bytes.Length;
+    }
+    timer.Stop();
+    double elapsedSeconds = Math.Max(timer.Elapsed.TotalSeconds, 0.000001);
+    Console.WriteLine(System.Text.Json.JsonSerializer.Serialize(new
+    {
+        benchmark = "OGLObjectCache warm-hit microbenchmark",
+        iterations,
+        payloadBytes,
+        elapsedMs = timer.Elapsed.TotalMilliseconds,
+        operationsPerSecond = iterations / elapsedSeconds,
+        throughputMiBPerSecond = bytesRead / 1048576.0 / elapsedSeconds,
+        hits = benchmarkCache.Hits,
+        misses = benchmarkCache.Misses,
+        note = "Not a legacy FSAssetConnector comparison or end-to-end asset latency measurement"
+    }));
+    return;
+}
+
 var memory = new OGLObjectCache(5);
 var original = new byte[] { 1, 2, 3 };
 memory.Put("first", original);
@@ -17,6 +187,25 @@ Check(!memory.TryGet("first", out _), "LRU must evict first entry");
 Check(memory.UsedBytes == 3 && memory.Count == 1, "Memory accounting");
 memory.Invalidate("second");
 Check(memory.Count == 0, "Invalidation");
+// Replacing a cache key must not retain an obsolete snapshot or double-count memory.
+memory.Put("replacement", new byte[] { 1, 2 });
+memory.Put("replacement", new byte[] { 3, 4, 5 });
+Check(memory.Count == 1 && memory.UsedBytes == 3, "Replacement memory accounting");
+Check(memory.TryGet("replacement", out var replacement) &&
+    replacement.SequenceEqual(new byte[] { 3, 4, 5 }), "Replacement must return new bytes");
+memory.Invalidate("replacement");
+Check(!memory.TryGet("replacement", out _), "Invalidated replacement must miss");
+// Concurrent read/write/invalidate must not corrupt LRU or accounting.
+var concurrent = new OGLObjectCache(1024);
+System.Threading.Tasks.Parallel.For(0, 2000, i =>
+{
+    string key = "asset-" + (i % 16);
+    if (i % 3 == 0) concurrent.Put(key, new byte[32]);
+    else if (i % 3 == 1) concurrent.TryGet(key, out _);
+    else concurrent.Invalidate(key);
+});
+Check(concurrent.UsedBytes >= 0 && concurrent.UsedBytes <= 1024 &&
+    concurrent.Count <= 16, "Concurrent cache accounting");
 Check(OGLObjectCache.ContentHash(new byte[] { 97, 98, 99 }) ==
     "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad", "SHA-256");
 
@@ -26,6 +215,13 @@ try
     var disk = new OGLDiskCache(root);
     disk.Put("asset-uuid", new byte[] { 9, 8, 7 });
     Check(disk.TryGet("asset-uuid", out var payload) && payload.SequenceEqual(new byte[] { 9, 8, 7 }), "Disk roundtrip");
+    // A fresh ROBUST process must not trust SSD cache files created before
+    // it started, even if the payload checksum is still valid.
+    var afterRestart = new OGLDiskCache(root);
+    Check(!afterRestart.TryGet("asset-uuid", out _),
+        "Disk cache must miss on restart rather than serving old UUID contents");
+    Check(disk.TryGet("asset-uuid", out payload) && payload.SequenceEqual(new byte[] { 9, 8, 7 }),
+        "Original instance must retain its own cache entries");
     var file = Directory.GetFiles(root, "*.cache", SearchOption.AllDirectories).Single();
     using (var stream = new FileStream(file, FileMode.Open, FileAccess.Write))
     {

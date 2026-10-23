@@ -1,0 +1,8 @@
+<Project>
+  <!-- Prebuild regenerates Robust.csproj from prebuild.xml. Keep the OGL
+       admin host dependency attached to the generated project as well. -->
+  <ItemGroup Condition="'$(MSBuildProjectName)' == 'Robust'">
+    <ProjectReference Include="../../addons/OGLAssetService/OGLAssetService.csproj"
+                      Condition="Exists('$(MSBuildProjectDirectory)/../../addons/OGLAssetService/OGLAssetService.csproj')" />
+  </ItemGroup>
+</Project>

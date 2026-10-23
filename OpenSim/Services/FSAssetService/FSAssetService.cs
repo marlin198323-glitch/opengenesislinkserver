@@ -709,6 +709,74 @@ namespace OpenSim.Services.FSAssetService
             }
         }
 
+        /// <summary>
+        /// Opt-in FSAssets hash replacement. Stages immutable bytes before
+        /// publishing the new hash via the storage provider's atomic CAS.
+        /// Does not modify the legacy UpdateContent contract.
+        /// </summary>
+        protected bool TryUpdateContentAtomic(string id, byte[] data)
+        {
+            if (String.IsNullOrWhiteSpace(id) || data == null ||
+                !(m_DataConnector is IFSAssetHashCompareExchange compareExchange))
+                return false;
+
+            string oldHash;
+            AssetMetadata metadata = m_DataConnector.Get(id, out oldHash);
+            if (metadata == null || String.IsNullOrWhiteSpace(oldHash))
+                return false;
+
+            // Object XML normalization must happen before hashing so the
+            // staged file always matches the hash published to SQL.
+            byte[] content = data;
+            if (metadata.Type == (int)AssetType.Object)
+            {
+                string xml = ExternalRepresentationUtils.SanitizeXml(Utils.BytesToString(data));
+                content = Utils.StringToBytes(xml);
+            }
+            string newHash = GetSHA256Hash(content);
+            if (String.Equals(newHash, oldHash, StringComparison.OrdinalIgnoreCase))
+            {
+                // Re-read metadata: a concurrent writer may have changed the mapping.
+                string currentHash;
+                AssetMetadata current = m_DataConnector.Get(id, out currentHash);
+                if (current == null ||
+                    !String.Equals(currentHash, oldHash, StringComparison.OrdinalIgnoreCase))
+                    return false;
+                // No-op must not succeed for missing or corrupted FSAssets.
+                // Revalidate the metadata after reading the payload so a
+                // concurrent writer cannot silently turn this into success.
+                byte[] existingContent = GetFsData(oldHash);
+                if (existingContent == null ||
+                    !existingContent.AsSpan().SequenceEqual(content))
+                    return false;
+                string verifiedHash;
+                AssetMetadata verified = m_DataConnector.Get(id, out verifiedHash);
+                return verified != null &&
+                    String.Equals(verifiedHash, oldHash, StringComparison.OrdinalIgnoreCase);
+            }
+
+            // FSBase may already hold the immutable digest in compressed form.
+            // The spool publisher is used only if neither durable store has it.
+            if (!AssetExists(newHash) &&
+                !AtomicFsAssetPayload.TryPublish(m_SpoolDirectory, newHash, content))
+                return false;
+
+            // Verify the exact bytes readers will observe before SQL publication.
+            byte[] persisted = GetFsData(newHash);
+            if (persisted == null || !persisted.AsSpan().SequenceEqual(content))
+                return false;
+
+            // The original digest must still refer to the bytes that were
+            // read at the start. CAS protects metadata concurrency, while
+            // this check avoids publishing over an already-corrupt baseline.
+            byte[] previous = GetFsData(oldHash);
+            if (previous == null ||
+                !String.Equals(GetSHA256Hash(previous), oldHash, StringComparison.OrdinalIgnoreCase))
+                return false;
+
+            return compareExchange.TryReplaceHash(id, oldHash, newHash);
+        }
+
         public bool UpdateContent(string id, byte[] data)
         {
             return false;

@@ -1,0 +1,23 @@
+; Development-only example. Copy this section into the ROBUST-loaded configuration.
+; Provide a dedicated TLS listener with network ACLs and a separate
+; operator-controlled audit journal before enabling these routes.
+[OGLAssetServiceAdmin]
+Enabled = false
+DedicatedListenerConfirmed = false
+; ROBUST creates the dedicated TLS listener on this port when enabled.
+ExpectedTlsPort = 0
+; Explicit non-wildcard interface. Loopback is the recommended default.
+ListenAddress = 127.0.0.1
+; Dedicated PFX/PKCS#12 certificate and password (operator supplied).
+TlsCertificatePath =
+TlsCertificatePassword =
+AuthType = BasicHttpAuthentication
+ServiceName = ogl-admin-service
+Role = Viewer
+; Never commit actual credentials or reuse public asset-service credentials.
+HttpAuthUsername = REPLACE_WITH_PRIVATE_ADMIN_USER
+HttpAuthPassword = REPLACE_WITH_PRIVATE_ADMIN_SECRET
+; Persistent, operator-owned audit journal; directory must be writable only by the service.
+AuditJournalPath = logs/ogl-asset-admin-audit.jsonl
+AuditMaxJournalBytes = 10485760
+AuditRetainedFiles = 5

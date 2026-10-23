@@ -348,6 +348,29 @@ namespace OpenSim.Framework.Servers.HttpServer
             m_streamHandlers.TryAdd(handlerKey, handler);
         }
 
+        /// <summary>
+        /// Atomically reserve a stream route. Unlike AddStreamHandler this
+        /// reports collisions instead of silently keeping an existing route.
+        /// </summary>
+        public bool TryAddExclusiveStreamHandler(IRequestHandler handler)
+        {
+            if (handler == null) throw new ArgumentNullException(nameof(handler));
+            if (handler.Path == "/") return false;
+            return m_streamHandlers.TryAdd(GetHandlerKey(handler.HttpMethod, handler.Path), handler);
+        }
+
+        /// <summary>
+        /// Remove only the exact handler previously registered by this owner.
+        /// A foreign handler at the same path must never be removed.
+        /// </summary>
+        public bool TryRemoveOwnedStreamHandler(IRequestHandler handler)
+        {
+            if (handler == null) return false;
+            string key = GetHandlerKey(handler.HttpMethod, handler.Path);
+            return ((ICollection<KeyValuePair<string, IRequestHandler>>)m_streamHandlers)
+                .Remove(new KeyValuePair<string, IRequestHandler>(key, handler));
+        }
+
         public void AddGenericStreamHandler(IRequestHandler handler)
         {
             if(string.IsNullOrWhiteSpace(handler.Path))

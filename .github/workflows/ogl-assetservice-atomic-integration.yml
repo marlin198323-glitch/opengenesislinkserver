@@ -1,0 +1,51 @@
+name: OGL AssetService Atomic Integration Gate
+on:
+  push:
+    branches: [feature/ogl-assetservice-cutover-benchmarks]
+    paths:
+      - 'OpenSim/Data/IFSAssetData.cs'
+      - 'OpenSim/Data/MySQL/MySQLFSAssetData.cs'
+      - 'OpenSim/Data/PGSQL/PGSQLFSAssetData.cs'
+      - 'OpenSim/Services/FSAssetService/**'
+      - 'addons/OGLAssetService/**'
+      - 'addons/OGLAssetService.Tests/**'
+      - 'addons/OGLAssetService.AtomicTests/**'
+      - 'addons/OGLAssetService.Migration/**'
+      - '.github/workflows/ogl-assetservice-atomic-integration.yml'
+  pull_request:
+    paths:
+      - 'OpenSim/Data/IFSAssetData.cs'
+      - 'OpenSim/Data/MySQL/MySQLFSAssetData.cs'
+      - 'OpenSim/Data/PGSQL/PGSQLFSAssetData.cs'
+      - 'OpenSim/Services/FSAssetService/**'
+      - 'addons/OGLAssetService/**'
+      - 'addons/OGLAssetService.Tests/**'
+      - 'addons/OGLAssetService.AtomicTests/**'
+      - 'addons/OGLAssetService.Migration/**'
+      - '.github/workflows/ogl-assetservice-atomic-integration.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  full-build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - name: Generate OpenSimulator projects
+        run: |
+          chmod +x runprebuild.sh
+          ./runprebuild.sh
+      - name: Compile full OpenSimulator solution (includes both FSAsset SQL providers)
+        run: dotnet build OpenSim.sln -c Release
+      - name: Compile OGL AssetService connector and atomic write integration
+        run: dotnet build addons/OGLAssetService/OGLAssetService.csproj -c Release
+      - name: Run atomic FSAssets publication, corruption and concurrency regressions
+        run: dotnet run --project addons/OGLAssetService.AtomicTests/OGLAssetService.AtomicTests.csproj -c Release
+      - name: Compile and execute isolated cache tests
+        run: |
+          dotnet build addons/OGLAssetService.Tests/OGLAssetService.Tests.csproj -c Release
+          dotnet run --project addons/OGLAssetService.Tests/OGLAssetService.Tests.csproj -c Release --no-build

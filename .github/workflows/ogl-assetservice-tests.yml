@@ -1,11 +1,15 @@
 name: OGL AssetService Cache and Migration Tests
 on:
   push:
-    branches: [feature/ogl-assetservice-addon]
+    branches: [feature/ogl-assetservice-addon, feature/ogl-assetservice-cutover-benchmarks]
     paths:
       - 'addons/OGLAssetService/**'
       - 'addons/OGLAssetService.Tests/**'
       - 'addons/OGLAssetService.Migration/**'
+      - 'OpenSim/Data/IFSAssetData.cs'
+      - 'OpenSim/Data/MySQL/MySQLFSAssetData.cs'
+      - 'OpenSim/Data/PGSQL/PGSQLFSAssetData.cs'
+      - 'OpenSim/Services/FSAssetService/FSAssetService.cs'
       - '.github/workflows/ogl-assetservice-tests.yml'
   pull_request:
     paths:
@@ -120,5 +124,13 @@ jobs:
         env:
           PGPASSWORD: ogl-test-only
         run: bash addons/OGLAssetService.Migration/test-sql-roundtrip.sh postgres
+      - name: Verify atomic SQL compare-and-swap under concurrent writers (MariaDB)
+        env:
+          MYSQL_PWD: ogl-test-only
+        run: bash addons/OGLAssetService.Migration/test-atomic-cas.sh mysql
+      - name: Verify atomic SQL compare-and-swap under concurrent writers (PostgreSQL)
+        env:
+          PGPASSWORD: ogl-test-only
+        run: bash addons/OGLAssetService.Migration/test-atomic-cas.sh postgres
       - name: Run isolated cache and migration tests
         run: dotnet run --project addons/OGLAssetService.Tests/OGLAssetService.Tests.csproj --configuration Release --no-build
