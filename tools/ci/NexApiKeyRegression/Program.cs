@@ -56,6 +56,88 @@ internal static class Program
                         StringComparison.OrdinalIgnoreCase)),
                 "API key scopes were not retained");
 
+            // Existing-key scope editing must never rotate the secret, lose
+            // last-used metadata, or require a new environment variable.
+            string originalSalt = validated.SecretSalt;
+            string originalHash = validated.SecretHash;
+            long originalCreated = validated.CreatedAt;
+            long originalUsed = validated.LastUsedAt;
+            string[] originalScopes = validated.Scopes.ToArray();
+            Require(store.SupportedScopes.Contains(NexScopes.StatisticsRead),
+                "statistics:read missing from the machine-key scope catalog");
+            Require(!store.SupportedScopes.Contains(NexScopes.AdminAll) &&
+                    !store.SupportedScopes.Contains(NexScopes.ExperiencesManage),
+                "Machine-key scope catalog exposed privileged resident/admin scopes");
+            string[] withStatistics =
+                originalScopes.Concat(new[] { NexScopes.StatisticsRead }).ToArray();
+            Require(store.UpdateScopes(registration.Record.KeyId,
+                    withStatistics, originalScopes),
+                "Could not add statistics:read to an existing machine key");
+            Require(store.TryValidate(registration.ApiKey,
+                    out NexApiKeyRecord augmented) &&
+                    augmented.Scopes.Contains(NexScopes.StatisticsRead) &&
+                    augmented.SecretHash == originalHash &&
+                    augmented.SecretSalt == originalSalt &&
+                    augmented.CreatedAt == originalCreated &&
+                    augmented.LastUsedAt >= originalUsed,
+                "Scope update rotated or invalidated existing key material");
+            Require(!store.UpdateScopes(registration.Record.KeyId,
+                    new[] { NexScopes.UsersRead }, originalScopes),
+                "Stale expected scopes must not overwrite concurrent admin changes");
+            Require(store.TryValidate(registration.ApiKey,
+                    out NexApiKeyRecord afterStale) &&
+                    afterStale.Scopes.Contains(NexScopes.StatisticsRead),
+                "Stale scope update changed a key");
+
+            foreach (string forbidden in new[]
+            {
+                NexScopes.AdminAll, "regions:*", NexScopes.SecurityManage,
+                NexScopes.ExperiencesManage, NexScopes.ProfileWrite
+            })
+            {
+                bool rejected = false;
+                try
+                {
+                    store.UpdateScopes(registration.Record.KeyId,
+                        new[] { forbidden }, withStatistics);
+                }
+                catch (ArgumentException) { rejected = true; }
+                Require(rejected, "Unsafe machine API key scope update accepted " + forbidden);
+            }
+            bool emptyRejected = false;
+            try
+            {
+                store.UpdateScopes(registration.Record.KeyId,
+                    Array.Empty<string>(), withStatistics);
+            }
+            catch (ArgumentException) { emptyRejected = true; }
+            Require(emptyRejected, "Clearing all API key scopes must be rejected");
+
+            NexApiKeyRegistration duplicateIdentity = store.Create(
+                "Region read integration", new[] { NexScopes.UsersRead });
+            Require(!store.UpdateScopes(registration.Record.KeyId,
+                    new[] { NexScopes.UsersRead }, withStatistics),
+                "Scope editor bypassed active duplicate name/scope protection");
+            Require(store.SetEnabled(duplicateIdentity.Record.KeyId, false) &&
+                    store.Delete(duplicateIdentity.Record.KeyId),
+                "Scope editor regression fixture cleanup failed");
+            Require(store.UpdateScopes(registration.Record.KeyId,
+                    originalScopes, withStatistics),
+                "Existing-key scope removal failed");
+            Require(store.TryValidate(registration.ApiKey,
+                    out NexApiKeyRecord restored) &&
+                    restored.Scopes.Length == originalScopes.Length &&
+                    restored.Scopes.SequenceEqual(originalScopes),
+                "Removing a scope failed to preserve original key");
+            PersistentNexApiKeyStore editedReloaded =
+                new PersistentNexApiKeyStore(path);
+            Require(editedReloaded.TryValidate(registration.ApiKey,
+                    out NexApiKeyRecord persistedEdited) &&
+                    persistedEdited.Scopes.SequenceEqual(originalScopes) &&
+                    persistedEdited.SecretSalt == originalSalt &&
+                    persistedEdited.SecretHash == originalHash,
+                "Edited key lost identity or scopes after service restart");
+
             Require(
                 !store.TryValidate(
                     registration.ApiKey + "x",
