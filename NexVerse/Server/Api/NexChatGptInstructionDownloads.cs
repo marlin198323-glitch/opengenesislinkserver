@@ -488,7 +488,7 @@ namespace NexVerse.Server.Api
             md.AppendLine("- Keine Live-Freigabe oder Funktionstest ausserhalb der im Ziel-Grid tatsaechlich gestarteten Version. Ein OpenAPI-Pfad kann ohne Feature-Flag/Service-Initialisierung noch nicht nutzbar sein.");
         }
 
-        private static void AppendCompleteRouteIndex(StringBuilder md, string requestedAudience)
+        private void AppendCompleteRouteIndex(StringBuilder md, string requestedAudience)
         {
             md.AppendLine();
             md.AppendLine("## Vollstaendiges Pfadverzeichnis der deklarierten OpenAPI-World-API (Stand dieses Builds)");
