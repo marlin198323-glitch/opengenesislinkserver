@@ -1,0 +1,23 @@
+[Unit]
+Description=OpenGenesisLINK OGLVoice Firestorm WebRTC Media Bridge
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+User=oglvoice
+Group=oglvoice
+WorkingDirectory=/opt/oglvoice
+EnvironmentFile=/etc/oglvoice/media.env
+ExecStart=/opt/oglvoice/oglvoice-media
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+LimitNOFILE=65535
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target

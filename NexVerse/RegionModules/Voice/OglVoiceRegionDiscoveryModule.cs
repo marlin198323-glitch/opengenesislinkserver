@@ -35,6 +35,9 @@ namespace NexVerse.RegionModules.Voice
         private int m_Disposed;
         // Log readiness transitions only, not every periodic discovery poll.
         private int m_ViewerProviderState = -1;
+        // Only report changes in HTTP error state. A disabled ROBUST route
+        // must not flood the simulator log every discovery interval.
+        private int m_LastDiscoveryHttpError;
         private OglVoiceProviderDescriptor m_Current;
         private DateTimeOffset m_LastRefresh;
 
@@ -199,7 +202,14 @@ namespace NexVerse.RegionModules.Voice
                 {
                     Volatile.Write(ref m_Current, null);
                     Interlocked.Exchange(ref m_ViewerProviderState, -1);
-                    m_Log.WarnFormat("[OGL-VOICE]: Provider-Discovery abgelehnt (HTTP {0}).", (int)response.StatusCode);
+                    int status = (int)response.StatusCode;
+                    if (Interlocked.Exchange(ref m_LastDiscoveryHttpError, status) != status)
+                    {
+                        if (status == 404)
+                            m_Log.Warn("[OGL-VOICE]: Provider-Discovery HTTP 404: ROBUST registriert /internal/oglvoice/v1/provider nur bei [OGLVoice] Enabled=true. AuthorityUrl, NodeAgent PeerUrl und den ROBUST-Listener pruefen. Wiederholte 404-Meldungen werden bis zum Statuswechsel unterdrueckt.");
+                        else
+                            m_Log.WarnFormat("[OGL-VOICE]: Provider-Discovery abgelehnt (HTTP {0}).", status);
+                    }
                     return;
                 }
 
@@ -220,6 +230,8 @@ namespace NexVerse.RegionModules.Voice
                     throw new InvalidOperationException("Empty provider descriptor");
                 provider.Validate();
 
+                if (Interlocked.Exchange(ref m_LastDiscoveryHttpError, 0) != 0)
+                    m_Log.Info("[OGL-VOICE]: Provider-Discovery HTTP-Zugriff wiederhergestellt.");
                 Volatile.Write(ref m_Current, provider);
                 m_LastRefresh = DateTimeOffset.UtcNow;
                 bool viewerReady = provider.viewer_capability == "firestorm-webrtc-v1" &&
