@@ -713,7 +713,7 @@ namespace OpenSim.Region.ClientStack.Linden
         }
 
         // parses a LOD or physics mesh component
-        private bool submesh(byte[] data, int offset, int size, out int ntriangles, out int nsides)
+        private static bool submesh(byte[] data, int offset, int size, out int ntriangles, out int nsides)
         {
             ntriangles = 0;
             nsides = 0;
@@ -725,10 +725,9 @@ namespace OpenSim.Region.ClientStack.Linden
                 {
                     using (MemoryStream inMs = new MemoryStream(data, offset, size))
                     {
-                        using (DeflateStream decompressionStream = new DeflateStream(inMs, CompressionMode.Decompress))
+                        using (ZLibStream decompressionStream = new ZLibStream(inMs, CompressionMode.Decompress))
                         {
                             byte[] readBuffer = new byte[2048];
-                            inMs.Read(readBuffer, 0, 2); // skip first 2 bytes in header
                             int readLen = 0;
 
                             while ((readLen = decompressionStream.Read(readBuffer, 0, readBuffer.Length)) > 0)
@@ -779,7 +778,7 @@ namespace OpenSim.Region.ClientStack.Linden
         }
 
         // parses convex hulls component
-        private bool hulls(byte[] data, int offset, int size, out int nvertices, out int nhulls, out string reason)
+        private static bool hulls(byte[] data, int offset, int size, out int nvertices, out int nhulls, out string reason)
         {
             nvertices = 0;
             nhulls = 1;
@@ -798,10 +797,9 @@ namespace OpenSim.Region.ClientStack.Linden
                 {
                     using (MemoryStream inMs = new MemoryStream(data, offset, size))
                     {
-                        using (DeflateStream decompressionStream = new DeflateStream(inMs, CompressionMode.Decompress))
+                        using (ZLibStream decompressionStream = new ZLibStream(inMs, CompressionMode.Decompress))
                         {
                             byte[] readBuffer = new byte[8192];
-                            inMs.Read(readBuffer, 0, 2); // skip first 2 bytes in header
                             int readLen = 0;
 
                             while ((readLen = decompressionStream.Read(readBuffer, 0, readBuffer.Length)) > 0)

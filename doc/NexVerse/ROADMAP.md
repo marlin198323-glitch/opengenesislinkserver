@@ -1421,6 +1421,8 @@ Provide API/web tooling for:
 
 # Milestone 0.9.3.13
 
+> **Goal-Status: in Arbeit, keine Stable-Freigabe.** [Release- und Nachweismatrix](09313_RELEASE_ACCEPTANCE.md); aktueller Code-/CI-Stand ersetzt keine Viewer-/Storage-Abnahme.
+
 ## 17. Assets and Rendering
 
 ### 17.1 NexAsset
