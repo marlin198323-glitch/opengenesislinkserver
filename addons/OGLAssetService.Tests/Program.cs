@@ -215,6 +215,13 @@ try
     var disk = new OGLDiskCache(root);
     disk.Put("asset-uuid", new byte[] { 9, 8, 7 });
     Check(disk.TryGet("asset-uuid", out var payload) && payload.SequenceEqual(new byte[] { 9, 8, 7 }), "Disk roundtrip");
+    // A fresh ROBUST process must not trust SSD cache files created before
+    // it started, even if the payload checksum is still valid.
+    var afterRestart = new OGLDiskCache(root);
+    Check(!afterRestart.TryGet("asset-uuid", out _),
+        "Disk cache must miss on restart rather than serving old UUID contents");
+    Check(disk.TryGet("asset-uuid", out payload) && payload.SequenceEqual(new byte[] { 9, 8, 7 }),
+        "Original instance must retain its own cache entries");
     var file = Directory.GetFiles(root, "*.cache", SearchOption.AllDirectories).Single();
     using (var stream = new FileStream(file, FileMode.Open, FileAccess.Write))
     {
