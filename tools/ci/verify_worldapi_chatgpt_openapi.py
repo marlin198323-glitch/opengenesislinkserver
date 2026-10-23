@@ -77,4 +77,74 @@ for marker in ("/api/v1/chatgpt-instructions.md",
                "/api/v1/openapi.json"):
     assert marker in explorer, "Explorer link missing: " + marker
 
+# R2026 capability atlas: every route from the World API's canonical
+# OpenAPI dictionary must occur exactly once in the ChatGPT guide index.
+# Regressions here mean an endpoint was added, moved or removed without
+# updating the AI instructions. Do not silence drift by allowing extras.
+registered = re.findall(r'^\\s*\\["(/[^"]+)"\\]\\s*=\\s*', spec, re.MULTILINE)
+assert len(registered) == len(set(registered)), "Duplicate World OpenAPI paths"
+assert len(registered) >= 151, "Unexpectedly reduced World API surface"
+route_index = md.split(
+    "private void AppendCompleteRouteIndex(StringBuilder md, string requestedAudience)", 1
+)[1].split("private static void AppendEndpointMetadata(StringBuilder md)", 1)[0]
+documented = re.findall(r'^\\s*"(/[^"]+)"\\s*[,)]\\s*;?\\s*
+, route_index, re.MULTILINE)
+assert len(documented) == len(set(documented)), "Duplicate paths in AI instructions"
+assert set(registered) == set(documented), (
+    "Missing from ChatGPT: " + str(sorted(set(registered) - set(documented))) +
+    "; not in OpenAPI: " + str(sorted(set(documented) - set(registered)))
+)
+assert "AppendCatalogGroup(md, requestedAudience, \\"service\\"" in route_index
+assert "string.Equals(requestedAudience, \\"citizen\\"" not in route_index
+assert "string.Equals(kind, requestedAudience" in route_index
+assert 'string.Equals(requestedAudience, "admin"' in route_index
+assert "bool include =" in route_index
+assert "private void AppendCompleteRouteIndex" in md, (
+    "Route index must use instance base URL, not static fallbacks"
+)
+assert "m_PublicBaseUrl" in route_index and "m_ApiBaseUrl" in route_index
+
+# Required coverage in ALL and focused citizen/admin manuals. Tests check
+# generated method calls, topic coverage and least-privilege rules.
+all_section = md.split("private string BuildAll()", 1)[1].split(
+    "private string BuildCitizen()", 1
+)[0]
+citizen_section = md.split("private string BuildCitizen()", 1)[1].split(
+    "private string BuildAdmin()", 1
+)[0]
+admin_section = md.split("private string BuildAdmin()", 1)[1].split(
+    "private StringBuilder NewDocument(", 1
+)[0]
+for name in ("AppendIdentityAndScope2026", "AppendCitizenCoverage2026",
+             "AppendAdminCoverage2026", "AppendServiceBoundaries2026",
+             "AppendRequestPlaybooks2026", "AppendCompleteRouteIndex"):
+    assert name + "(md" in all_section, "Missing ALL manual chapter " + name
+for name in ("AppendCitizenCoverage2026", "AppendIdentityAndScope2026",
+             "AppendCompleteRouteIndex"):
+    assert name + "(md" in citizen_section, "Missing citizen chapter " + name
+for name in ("AppendAdminCoverage2026", "AppendIdentityAndScope2026",
+             "AppendServiceBoundaries2026", "AppendCompleteRouteIndex"):
+    assert name + "(md" in admin_section, "Missing admin chapter " + name
+assert 'AppendAdminCoverage2026(md)' not in citizen_section
+assert 'AppendCitizenCoverage2026(md)' not in admin_section
+assert 'AppendCompleteRouteIndex(md, "all")' in all_section
+assert 'AppendCompleteRouteIndex(md, "citizen")' in citizen_section
+assert 'AppendCompleteRouteIndex(md, "admin")' in admin_section
+
+for required in (
+    "100.000", "default_scopes", "statistics:read", "economy:read",
+    "inventory:read", "authorization_persistence_failed",
+    "expected_scopes", "admin:*", "Role", "Auth",
+    "X-NexVerse-Api-Key", "Idempotency-Key", "x-nexverse-audience",
+    "experiences:viewer:permissions", "eindeutige", "Service",
+    "Region", "Estate", "Discovery", "Banking", "NexCommerce",
+    "Gruppen", "World", "OAuth", "OIDC", "OpenAPI",
+):
+    assert required in md, "Missing R2026 AI capability/safety chapter: " + required
+
+print(
+    "World ChatGPT 2026 atlas: " + str(len(documented)) +
+    " OpenAPI paths exactly catalogued; ALL/citizen/admin & scope/security gates OK"
+)
+
 print(f"OpenAPI / ChatGPT docs consistency: {len(actual)} explicit Experience paths covered")
