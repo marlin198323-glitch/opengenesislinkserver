@@ -16,6 +16,14 @@
     <PackageReference Include="StackExchange.Redis" Version="2.8.24" />
     <PackageReference Include="Microsoft.Data.Sqlite" Version="8.0.11" />
     <ProjectReference Include="../../OpenSim/Services/FSAssetService/OpenSim.Services.FSAssetService.csproj" />
+    <Reference Include="OpenMetaverse">
+      <HintPath>../../bin/OpenMetaverse.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="OpenMetaverseTypes">
+      <HintPath>../../bin/OpenMetaverseTypes.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
     <Reference Include="Nini">
       <HintPath>../../bin/Nini.dll</HintPath>
       <Private>false</Private>

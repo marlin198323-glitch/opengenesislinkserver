@@ -6,6 +6,13 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
   <ItemGroup>
+    <PackageReference Include="Microsoft.Data.Sqlite" Version="8.0.11" />
+    <Compile Include="../OGLAssetService/IOGLAssetLocationDirectory.cs" Link="IOGLAssetLocationDirectory.cs" />
+    <Compile Include="../OGLAssetService/OGLAssetLocationDirectory.cs" Link="OGLAssetLocationDirectory.cs" />
+    <Compile Include="../OGLAssetService/OGLSqliteAssetLocationDirectory.cs" Link="OGLSqliteAssetLocationDirectory.cs" />
+    <Compile Include="../OGLAssetService/OGLNodeObjectStore.cs" Link="OGLNodeObjectStore.cs" />
+    <Compile Include="../OGLAssetService/OGLParallelAssetStore.cs" Link="OGLParallelAssetStore.cs" />
+    <Compile Include="../OGLAssetService/OGLParallelSnapshotMigrator.cs" Link="OGLParallelSnapshotMigrator.cs" />
     <Compile Include="../OGLAssetService/OGLFsassetsMigrator.cs" Link="OGLFsassetsMigrator.cs" />
     <Compile Include="../OGLAssetService/OGLFsassetsHashAudit.cs" Link="OGLFsassetsHashAudit.cs" />
     <Compile Include="../OGLAssetService/OGLFsassetsMetadataAudit.cs" Link="OGLFsassetsMetadataAudit.cs" />

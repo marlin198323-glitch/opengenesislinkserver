@@ -10,6 +10,26 @@ To activate the connector, an operator would need to explicitly replace the `Loc
 
 The addon builds as a separate .NET 8 assembly and leaves the original FSAssetService and existing FSAssets authoritative. It is **disabled by default** and is not automatically loaded by ROBUST. No migration or service switchover occurs by building it.
 
+## Optional OGL parallel mirror (Generation 2 staging)
+
+PR #283 introduces an **opt-in** parallel local content-addressed OGL object store.
+With `ParallelStoreEnabled=true`, successful FSAssets commits also publish the
+normalized stored bytes to OGL SHA-256 objects plus a SQLite UUID/hash index.
+With `ParallelReadPreferred=true`, the connector serves the OGL blob **only**
+when its hash matches the current FSAssets SQL mapping, otherwise it falls
+back to authoritative FSAssets. This keeps existing asset UUIDs and metadata
+unchanged. If OGL is unavailable, FSAssets remains usable; a failed secondary
+write is counted rather than turning a successful upload into an error.
+
+This is not yet a separate OGL microservice or a fully distributed primary:
+both physical stores are driven by the same ROBUST connector and FSAssets
+continues to commit first. Enabling it on production remains prohibited until
+staging, snapshot parity, Viewer/HG and rollback acceptance are complete.
+The standalone offline `--parallel-snapshot` importer supports resumable
+migration from a *consistent* SQL UUID/hash TSV + FSAssets base/spool copy,
+with read-only dry-run by default. See the full
+[German parallel-store/migration guide](PARALLEL-MIGRATION-DE.md).
+
 ## Implemented
 
 - `OGLAssetConnector` extending the existing `FSAssetConnector` in `Mode=compatibility`.

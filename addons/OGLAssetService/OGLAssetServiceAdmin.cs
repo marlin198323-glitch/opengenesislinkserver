@@ -41,7 +41,8 @@ namespace OpenGenesisLINK.Addons.AssetService
             OGLAssetServiceDiagnostics d = connector.GetDiagnostics();
             return new OGLAssetServiceConfiguration(
                 "compatibility", d.AtomicUpdatesEnabled,
-                d.LocalCacheEnabled, d.RedisEnabled);
+                d.LocalCacheEnabled, d.RedisEnabled,
+                d.ParallelStoreEnabled, d.ParallelReadPreferred);
         }
 
         public OGLAssetServiceStatus GetStatus()
@@ -51,7 +52,7 @@ namespace OpenGenesisLINK.Addons.AssetService
             string state;
             string reason;
             if (metrics.AtomicExceptions > 0 || metrics.DiskInvalidationFailures > 0 ||
-                metrics.RedisInvalidationFailures > 0)
+                metrics.RedisInvalidationFailures > 0 || metrics.ParallelWriteFailures > 0)
             {
                 state = "degraded";
                 reason = "One or more operation or cache invalidation errors were observed.";
@@ -65,6 +66,11 @@ namespace OpenGenesisLINK.Addons.AssetService
             {
                 state = "experimental";
                 reason = "Atomic metadata updates are enabled; end-to-end acceptance is pending.";
+            }
+            else if (metrics.ParallelStoreEnabled)
+            {
+                state = "parallel";
+                reason = "OGL mirror enabled; FSAssets SQL and payloads remain authoritative.";
             }
             else
             {
@@ -82,14 +88,19 @@ namespace OpenGenesisLINK.Addons.AssetService
         public bool ExperimentalAtomicUpdatesEnabled { get; }
         public bool SingleWriterCacheEnabled { get; }
         public bool RedisEnabled { get; }
+        public bool ParallelStoreEnabled { get; }
+        public bool ParallelReadPreferred { get; }
 
         public OGLAssetServiceConfiguration(string mode, bool atomicUpdates,
-            bool singleWriterCache, bool redisEnabled)
+            bool singleWriterCache, bool redisEnabled,
+            bool parallelStoreEnabled = false, bool parallelReadPreferred = false)
         {
             Mode = mode;
             ExperimentalAtomicUpdatesEnabled = atomicUpdates;
             SingleWriterCacheEnabled = singleWriterCache;
             RedisEnabled = redisEnabled;
+            ParallelStoreEnabled = parallelStoreEnabled;
+            ParallelReadPreferred = parallelReadPreferred;
         }
     }
 

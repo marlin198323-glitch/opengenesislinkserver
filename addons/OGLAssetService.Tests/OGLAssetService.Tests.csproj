@@ -6,6 +6,13 @@
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="StackExchange.Redis" Version="2.8.24" />
+    <PackageReference Include="Microsoft.Data.Sqlite" Version="8.0.11" />
+    <Compile Include="../OGLAssetService/IOGLAssetLocationDirectory.cs" Link="IOGLAssetLocationDirectory.cs" />
+    <Compile Include="../OGLAssetService/OGLAssetLocationDirectory.cs" Link="OGLAssetLocationDirectory.cs" />
+    <Compile Include="../OGLAssetService/OGLSqliteAssetLocationDirectory.cs" Link="OGLSqliteAssetLocationDirectory.cs" />
+    <Compile Include="../OGLAssetService/OGLNodeObjectStore.cs" Link="OGLNodeObjectStore.cs" />
+    <Compile Include="../OGLAssetService/OGLParallelAssetStore.cs" Link="OGLParallelAssetStore.cs" />
+    <Compile Include="../OGLAssetService/OGLParallelSnapshotMigrator.cs" Link="OGLParallelSnapshotMigrator.cs" />
     <Compile Include="../OGLAssetService/OGLRedisAssetCoordinator.cs" Link="OGLRedisAssetCoordinator.cs" />
     <Compile Include="../OGLAssetService/OGLObjectCache.cs" Link="OGLObjectCache.cs" />
     <Compile Include="../OGLAssetService/OGLDiskCache.cs" Link="OGLDiskCache.cs" />

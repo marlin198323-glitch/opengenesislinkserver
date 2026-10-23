@@ -1,7 +1,11 @@
 using System;
+using System.IO;
+using System.Threading;
+using OpenMetaverse;
 using Nini.Config;
 using OpenSim.Services.FSAssetService;
 using OpenSim.Framework;
+using OpenSim.Framework.Serialization.External;
 using OpenSim.Services.Interfaces;
 
 namespace OpenGenesisLINK.Addons.AssetService
@@ -23,6 +27,12 @@ namespace OpenGenesisLINK.Addons.AssetService
         private readonly bool redisEnabled;
         private readonly bool localCacheEnabled;
         private readonly bool atomicUpdatesEnabled;
+        private readonly OGLParallelAssetStore parallelStore;
+        private readonly bool parallelReadPreferred;
+        private long parallelMirrored;
+        private long parallelReadHits;
+        private long parallelReadMisses;
+        private long parallelWriteFailures;
         private long redisInvalidationFailures;
         private long atomicUpdateAttempts;
         private long atomicUpdateSucceeded;
@@ -50,6 +60,11 @@ namespace OpenGenesisLINK.Addons.AssetService
         public long DiskCacheHits => diskCache?.Hits ?? 0;
         public long DiskCacheMisses => diskCache?.Misses ?? 0;
         public long DiskCacheEvictions => diskCache?.Evictions ?? 0;
+        public bool ParallelStoreEnabled => parallelStore != null;
+        public long ParallelMirrored => Interlocked.Read(ref parallelMirrored);
+        public long ParallelReadHits => Interlocked.Read(ref parallelReadHits);
+        public long ParallelReadMisses => Interlocked.Read(ref parallelReadMisses);
+        public long ParallelWriteFailures => Interlocked.Read(ref parallelWriteFailures);
         public OGLAssetConnector(IConfigSource config, string configName)
             : base(config, configName)
         {
@@ -90,6 +105,34 @@ namespace OpenGenesisLINK.Addons.AssetService
                 redis = new OGLRedisAssetCoordinator(redisConnection, settings.GetInt("RedisDatabase", 2));
             }
 
+            bool parallelEnabled = settings.GetBoolean("ParallelStoreEnabled", false);
+            parallelReadPreferred = settings.GetBoolean("ParallelReadPreferred", false);
+            if (parallelReadPreferred && !parallelEnabled)
+                throw new InvalidOperationException("ParallelReadPreferred requires ParallelStoreEnabled.");
+            if (parallelEnabled)
+            {
+                if (localCacheEnabled || redisEnabled || atomicUpdatesEnabled)
+                    throw new InvalidOperationException(
+                        "Parallel mode requires local cache, Redis and experimental atomic updates to remain off.");
+                string objects = settings.GetString("ParallelObjectDirectory", "");
+                string index = settings.GetString("ParallelIndexPath", "");
+                if (String.IsNullOrWhiteSpace(objects) || String.IsNullOrWhiteSpace(index))
+                    throw new InvalidOperationException("Dedicated ParallelObjectDirectory and ParallelIndexPath are required.");
+                string fsbase = Path.GetFullPath(m_FSBase);
+                string spool = Path.GetFullPath(m_SpoolDirectory);
+                string objectPath = Path.GetFullPath(objects);
+                string indexPath = Path.GetFullPath(index);
+                if (OGLParallelAssetStore.IsInside(objectPath, fsbase) ||
+                    OGLParallelAssetStore.IsInside(objectPath, spool) ||
+                    OGLParallelAssetStore.IsInside(fsbase, objectPath) ||
+                    OGLParallelAssetStore.IsInside(spool, objectPath) ||
+                    OGLParallelAssetStore.IsInside(indexPath, fsbase) ||
+                    OGLParallelAssetStore.IsInside(indexPath, spool))
+                    throw new InvalidOperationException(
+                        "Parallel OGL storage must be disjoint from the authoritative FSAssets directories.");
+                parallelStore = new OGLParallelAssetStore(objectPath, indexPath);
+            }
+
             string mode = settings.GetString("Mode", "compatibility");
             if (!String.Equals(mode, "compatibility", StringComparison.OrdinalIgnoreCase))
                 throw new NotSupportedException(
@@ -98,6 +141,8 @@ namespace OpenGenesisLINK.Addons.AssetService
                 "[OGL-ASSETS]: OGL AssetService geladen; authoritative=FSAssets; " +
                 "mode=compatibility; local_cache={0}; redis_coordination={1}; atomic_updates={2}",
                 localCacheEnabled, redisEnabled, atomicUpdatesEnabled);
+            OglLog.InfoFormat("[OGL-ASSETS]: parallel_store={0}; parallel_read_preferred={1}; authoritative=FSAssets",
+                parallelEnabled, parallelReadPreferred);
         }
 
         /// <summary>
@@ -121,7 +166,9 @@ namespace OpenGenesisLINK.Addons.AssetService
                 MemoryCacheHits, MemoryCacheMisses, MemoryCacheUsedBytes,
                 DiskCacheHits, DiskCacheMisses, DiskCacheEvictions,
                 LocalInvalidationAttempts, DiskInvalidationFailures,
-                RedisInvalidationFailures);
+                RedisInvalidationFailures,
+                ParallelStoreEnabled, parallelReadPreferred, ParallelMirrored,
+                ParallelReadHits, ParallelReadMisses, ParallelWriteFailures);
         }
 
         private void TryInvalidateRedis(string id)
@@ -142,7 +189,31 @@ namespace OpenGenesisLINK.Addons.AssetService
         // This does NOT provide cross-process transactional isolation.
         public override AssetBase Get(string id)
         {
-            lock (cacheSync) return base.Get(id);
+            lock (cacheSync)
+            {
+                if (parallelStore != null && parallelReadPreferred)
+                {
+                    // The SQL metadata remains authoritative; never resurrect
+                    // an asset deleted from FSAssets or return stale OGL bytes.
+                    string hash;
+                    AssetMetadata metadata = m_DataConnector.Get(id, out hash);
+                    if (metadata != null)
+                    {
+                        byte[] bytes = TryReadParallel(id, hash);
+                        if (bytes != null)
+                        {
+                            var asset = new AssetBase { Metadata = metadata, Data = bytes };
+                            if (asset.Type == (int)AssetType.Object)
+                            {
+                                string xml = ExternalRepresentationUtils.SanitizeXml(Utils.BytesToString(bytes));
+                                asset.Data = Utils.StringToBytes(xml);
+                            }
+                            return asset;
+                        }
+                    }
+                }
+                return base.Get(id);
+            }
         }
 
         public override AssetMetadata GetMetadata(string id)
@@ -163,6 +234,14 @@ namespace OpenGenesisLINK.Addons.AssetService
                 // Redis connectivity or revision failures must never return stale cached data.
                 // In this experimental mode all reads bypass local caches until a
                 // distributed writer protocol has been verified end-to-end.
+                if (parallelStore != null && parallelReadPreferred)
+                {
+                    string hash;
+                    if (m_DataConnector.Get(id, out hash) == null)
+                        return null;
+                    byte[] bytes = TryReadParallel(id, hash);
+                    return bytes ?? base.GetData(id);
+                }
                 if (redisEnabled || !localCacheEnabled) return base.GetData(id);
                 if (cache.TryGet(id, out byte[] result)) return result;
                 if (diskCache != null)
@@ -216,6 +295,8 @@ namespace OpenGenesisLINK.Addons.AssetService
                         else
                             System.Threading.Interlocked.Increment(ref atomicUpdateRejected);
                     }
+                    if (updated && parallelStore != null)
+                        TryMirrorCommitted(id);
                     return updated;
                 }
                 catch (Exception)
@@ -266,6 +347,9 @@ namespace OpenGenesisLINK.Addons.AssetService
                 try
                 {
                     id = base.Store(asset);
+                    if (parallelStore != null &&
+                        Guid.TryParse(id, out Guid committedId) && committedId != Guid.Empty)
+                        TryMirrorCommitted(id);
                     return id;
                 }
                 finally
@@ -283,6 +367,68 @@ namespace OpenGenesisLINK.Addons.AssetService
                             StringComparison.OrdinalIgnoreCase))
                         TryInvalidateRedis(id);
                 }
+            }
+        }
+
+        // Reads use a SQL hash guard both before and after loading the OGL
+        // object. If the directory is absent, corrupt or unavailable, the
+        // authoritative FSAssets read is always used as fallback.
+        private byte[] TryReadParallel(string id, string hash)
+        {
+            try
+            {
+                byte[] result = parallelStore.TryRead(id, hash);
+                if (result != null)
+                {
+                    string freshHash;
+                    if (m_DataConnector.Get(id, out freshHash) != null &&
+                        String.Equals(hash, freshHash, StringComparison.OrdinalIgnoreCase))
+                    {
+                        Interlocked.Increment(ref parallelReadHits);
+                        return result;
+                    }
+                }
+            }
+            catch (Exception error)
+            {
+                OglLog.Warn("[OGL-ASSETS]: Parallel read failed; using authoritative FSAssets.", error);
+            }
+            Interlocked.Increment(ref parallelReadMisses);
+            return null;
+        }
+
+        // FSAssets commits first; mirror failure is not permitted to turn a
+        // successful asset upload into an API error. The unmigrated asset stays
+        // fully accessible through FSAssets and can be reconciled offline.
+        private void TryMirrorCommitted(string id)
+        {
+            try
+            {
+                string expectedHash;
+                if (m_DataConnector.Get(id, out expectedHash) == null)
+                    return;
+                byte[] source = base.GetData(id);
+                if (source == null || !parallelStore.Mirror(id, expectedHash, source))
+                {
+                    Interlocked.Increment(ref parallelWriteFailures);
+                    OglLog.Warn("[OGL-ASSETS]: Parallel mirror skipped; legacy FSAssets remains authoritative.");
+                    return;
+                }
+                string freshHash;
+                if (m_DataConnector.Get(id, out freshHash) == null ||
+                    !String.Equals(expectedHash, freshHash, StringComparison.OrdinalIgnoreCase))
+                {
+                    // Mapping is safe to leave: reads only accept an exact match
+                    // with the current authoritative SQL hash.
+                    Interlocked.Increment(ref parallelWriteFailures);
+                    return;
+                }
+                Interlocked.Increment(ref parallelMirrored);
+            }
+            catch (Exception error)
+            {
+                Interlocked.Increment(ref parallelWriteFailures);
+                OglLog.Warn("[OGL-ASSETS]: Parallel mirror failed; FSAssets commit preserved.", error);
             }
         }
 
