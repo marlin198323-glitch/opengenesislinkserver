@@ -301,6 +301,13 @@ jobs:
         shell: bash
         run: python3 tools/ci/verify_user_authorization.py
 
+      - name: Test personal World bearer grant/re-login behavior (Issue 289)
+        shell: bash
+        run: |
+          set -euo pipefail
+          dotnet run --configuration Release --project tools/ci/NexPersonalScopeRegression/NexPersonalScopeRegression.csproj
+          python3 tools/ci/verify_world_personal_scopes_issue_289.py
+
       - name: Verify Region Control Plane mutations
         shell: bash
         run: python3 tools/ci/verify_region_mutations.py
