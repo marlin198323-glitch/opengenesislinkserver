@@ -62,7 +62,7 @@ for marker in (
     assert marker in openapi, "Missing OpenAPI scope update contract: " + marker
 
 assert "`statistics:read`" in docs and "without" in docs
-scripts = re.findall(r"<script(?:\\s[^>]*)?>(.*?)</script>", view, re.DOTALL)
+scripts = re.findall(r"<script[^>]*>(.*?)</script>", view, re.DOTALL)
 assert scripts, "No embedded page JavaScript found"
 with tempfile.TemporaryDirectory() as work:
     for number, script in enumerate(scripts):
