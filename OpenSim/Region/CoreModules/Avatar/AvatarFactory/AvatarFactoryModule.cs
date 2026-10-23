@@ -58,6 +58,8 @@ namespace OpenSim.Region.CoreModules.Avatar.AvatarFactory
         private int m_savetime = 5; // seconds to wait before saving changed appearance
         private int m_sendtime = 2; // seconds to wait before sending changed appearance
         private bool m_reusetextures = false;
+        // Legacy delay remains the default; NexVerse can opt in to faster wearables replies.
+        private int m_wearablesRequestDelayMs = 4000;
 
         private int m_checkTime = 500; // milliseconds to wait between checks for appearance updates
         private System.Timers.Timer m_updateTimer = new System.Timers.Timer();
@@ -79,6 +81,12 @@ namespace OpenSim.Region.CoreModules.Avatar.AvatarFactory
                 m_savetime = Convert.ToInt32(appearanceConfig.GetString("DelayBeforeAppearanceSave",Convert.ToString(m_savetime)));
                 m_sendtime = Convert.ToInt32(appearanceConfig.GetString("DelayBeforeAppearanceSend",Convert.ToString(m_sendtime)));
                 m_reusetextures = appearanceConfig.GetBoolean("ReuseTextures",m_reusetextures);
+
+                int requestedDelay = appearanceConfig.GetInt("WearablesRequestDelayMs", m_wearablesRequestDelayMs);
+                if (requestedDelay >= 500 && requestedDelay <= 4000)
+                    m_wearablesRequestDelayMs = requestedDelay;
+                else
+                    m_log.WarnFormat("[AVFACTORY]: WearablesRequestDelayMs={0} is outside 500..4000 ms; retaining {1} ms", requestedDelay, m_wearablesRequestDelayMs);
 
                 // m_log.InfoFormat("[AVFACTORY] configured for {0} save and {1} send",m_savetime,m_sendtime);
             }
@@ -1167,9 +1175,10 @@ namespace OpenSim.Region.CoreModules.Avatar.AvatarFactory
         /// <param name="client"></param>
         private void Client_OnRequestWearables(IClientAPI client)
         {
+            int replyDelayMs = m_wearablesRequestDelayMs;
             Util.FireAndForget(delegate(object x)
             {
-                Thread.Sleep(4000);
+                Thread.Sleep(replyDelayMs);
 
                 // m_log.DebugFormat("[AVFACTORY]: Client_OnRequestWearables called for {0} ({1})", client.Name, client.AgentId);
                 ScenePresence sp = m_scene.GetScenePresence(client.AgentId);

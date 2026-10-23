@@ -741,6 +741,8 @@ namespace OpenSim.Region.Framework.Scenes
         public float ReprioritizationDistance { get; set; }
         private readonly float m_minReprioritizationDistance = 32f;
         public bool ObjectsCullingByDistance = false;
+        // Opt-in: queue objects near a joining avatar ahead of distant objects.
+        public bool FastRezNearbyFirst = false;
 
         private readonly ExpiringCacheOS<UUID, UUID> TeleportTargetsCoolDown = new();
 
@@ -1129,6 +1131,7 @@ namespace OpenSim.Region.Framework.Scenes
 
                 ObjectsCullingByDistance
                     = interestConfig.GetBoolean("ObjectsCullingByDistance", ObjectsCullingByDistance);
+                FastRezNearbyFirst = interestConfig.GetBoolean("FastRezNearbyFirst", FastRezNearbyFirst);
 
             }
 

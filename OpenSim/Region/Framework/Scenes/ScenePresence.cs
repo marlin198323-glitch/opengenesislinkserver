@@ -350,6 +350,7 @@ namespace OpenSim.Region.Framework.Scenes
         private bool m_lastLandCollide;
 
         private TeleportFlags m_teleportFlags;
+        private int m_fastRezLoginNoticeSent;
         public TeleportFlags TeleportFlags
         {
             get { return m_teleportFlags; }
@@ -4017,6 +4018,11 @@ namespace OpenSim.Region.Framework.Scenes
 
             NeedInitialData = -1;
 
+            // Only a fresh grid login gets the one-time FastRez notice. Do not
+            // repeat it on teleports, crossings, HG visits or child agents.
+            bool sendFastRezLoginNotice = !IsNPC && !IsChildAgent &&
+                m_scene.FastRezNearbyFirst && IsRealLogin(m_teleportFlags);
+
             bool selfappearance = (flags & 4) != 0;
 
             // this should enqueued on the client processing job to save threads
@@ -4090,7 +4096,39 @@ namespace OpenSim.Region.Framework.Scenes
                     bool cacheEmpty = (flags & 2) != 0;
 
                     EntityBase[] entities = Scene.Entities.GetEntities();
-                    if(cacheEmpty)
+
+                    // FastRez only changes the initial enqueue order. Existing
+                    // update prioritization, viewer cache probes and object data
+                    // remain unchanged. Collect once so moving objects cannot
+                    // be skipped between the near/far passes.
+                    if (m_scene.FastRezNearbyFirst)
+                    {
+                        List<SceneObjectGroup> nearby = new List<SceneObjectGroup>();
+                        List<SceneObjectGroup> distant = new List<SceneObjectGroup>();
+                        Vector3 origin = AbsolutePosition;
+                        const float nearDistanceSquared = 64f * 64f;
+
+                        foreach (EntityBase e in entities)
+                        {
+                            if (e is SceneObjectGroup grp && !grp.IsAttachment)
+                            {
+                                if (Vector3.DistanceSquared(origin, grp.AbsolutePosition) <= nearDistanceSquared)
+                                    nearby.Add(grp);
+                                else
+                                    distant.Add(grp);
+                            }
+                        }
+
+                        nearby.AddRange(distant);
+                        foreach (SceneObjectGroup grp in nearby)
+                        {
+                            if (cacheEmpty || !grp.IsViewerCachable)
+                                grp.SendFullAnimUpdateToClient(ControllingClient);
+                            else
+                                grp.SendUpdateProbes(ControllingClient);
+                        }
+                    }
+                    else if(cacheEmpty)
                     {
                         foreach (EntityBase e in entities)
                         {
@@ -4133,6 +4171,29 @@ namespace OpenSim.Region.Framework.Scenes
 
                     m_lastChildAgentUpdateGodLevel = GodController.ViwerUIGodLevel;
                     m_childUpdatesBusy = false; // allow them
+                }
+
+                // Direct-to-owner chat after the viewer has processed its CAPS
+                // seeds and initial scene data. Never publish this to region chat.
+                if (sendFastRezLoginNotice &&
+                    Interlocked.CompareExchange(ref m_fastRezLoginNoticeSent, 1, 0) == 0)
+                {
+                    try
+                    {
+                        ControllingClient.SendChatMessage(
+                            "OpenGenesisLINK FastRez 2.0 aktiviert",
+                            (byte)ChatTypeEnum.Owner,
+                            AbsolutePosition,
+                            "OpenGenesisLINK System",
+                            UUID.Zero,
+                            UUID.Zero,
+                            (byte)ChatSourceType.Object,
+                            (byte)ChatAudibleLevel.Fully);
+                    }
+                    catch (Exception error)
+                    {
+                        m_log.Debug("[FASTREZ]: Could not send private login notice.", error);
+                    }
                 }
             });
 
