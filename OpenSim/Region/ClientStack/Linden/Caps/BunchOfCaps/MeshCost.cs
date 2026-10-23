@@ -209,20 +209,11 @@ namespace OpenSim.Region.ClientStack.Linden
                 for (int i = 0; i < numberMeshs; i++)
                 {
                     ameshCostParam curCost = new ameshCostParam();
-                    if (resources.mesh_list.Array[i] is not OSD meshData)
+                    // LLSDStreamhandler currently uses legacy LLSDDeserialize, which
+                    // leaves array entries as raw byte[] instead of OSD binary values.
+                    if (!TryGetMeshBinary(resources.mesh_list.Array[i], out byte[] data))
                     {
-                        error = "Invalid mesh list entry at index " + i;
-                        return false;
-                    }
-                    if (meshData == null || meshData.Type != OSDType.Binary)
-                    {
-                        error = "Invalid mesh binary data at index " + i;
-                        return false;
-                    }
-                    byte[] data = meshData.AsBinary();
-                    if (data == null || data.Length == 0)
-                    {
-                        error = "Missing mesh binary data at index " + i;
+                        error = "Invalid or missing mesh binary data at index " + i;
                         return false;
                     }
 
@@ -253,12 +244,7 @@ namespace OpenSim.Region.ClientStack.Linden
             int skipedSmall = 0;
             for (int i = 0; i < numberInstances; i++)
             {
-                if (resources.instance_list.Array[i] is not OSD rawInstance)
-                {
-                    error = "Invalid LLSD instance entry at index " + i;
-                    return false;
-                }
-                if (!TryParseModelInstance(rawInstance, numberMeshs,
+                if (!TryParseModelInstance(resources.instance_list.Array[i], numberMeshs,
                     out Vector3 scale, out int mesh, out error))
                 {
                     error = "Invalid model instance " + i + ": " + error;
@@ -351,6 +337,82 @@ namespace OpenSim.Region.ClientStack.Linden
         /// instance_list contains OSDMap/OSDArray values, not Hashtable
         /// and ArrayList; invalid casts used to reject otherwise valid models.
         /// </summary>
+        /// <summary>
+        /// Accept both typed LLSD values and the legacy CLR values produced by
+        /// LLSDStreamhandler -> LLSD.LLSDDeserialize -> DeserialiseOSDMap.
+        /// Do not change the shared CAPS decoder: other capabilities depend on it.
+        /// </summary>
+        public static bool TryParseModelInstance(object instance, int meshCount,
+            out Vector3 scale, out int meshIndex, out string error)
+        {
+            scale = Vector3.Zero;
+            meshIndex = -1;
+            error = string.Empty;
+
+            if (instance is OSD typed)
+                return TryParseModelInstance(typed, meshCount, out scale, out meshIndex, out error);
+
+            if (instance is not Hashtable legacy)
+            {
+                error = "instance is not an LLSD map";
+                return false;
+            }
+
+            if (legacy["scale"] is not ArrayList rawScale || rawScale.Count != 3)
+            {
+                error = "missing or invalid scale array";
+                return false;
+            }
+
+            OSDArray parsedScale = new OSDArray();
+            foreach (object coordinate in rawScale)
+            {
+                switch (coordinate)
+                {
+                    case double value:
+                        parsedScale.Add(OSD.FromReal(value));
+                        break;
+                    case float value:
+                        parsedScale.Add(OSD.FromReal(value));
+                        break;
+                    case int value:
+                        parsedScale.Add(OSD.FromInteger(value));
+                        break;
+                    default:
+                        error = "scale components must be LLSD numbers";
+                        return false;
+                }
+            }
+
+            OSDMap parsed = new OSDMap { ["scale"] = parsedScale };
+            if (legacy.ContainsKey("mesh"))
+            {
+                if (legacy["mesh"] is not int index)
+                {
+                    error = "mesh index is not an integer";
+                    return false;
+                }
+                parsed["mesh"] = OSD.FromInteger(index);
+            }
+
+            return TryParseModelInstance(parsed, meshCount, out scale, out meshIndex, out error);
+        }
+
+        /// <summary>
+        /// Mesh entries are byte[] after the legacy XML parser and OSDBinary
+        /// after the newer typed LLSD parser. Reject all other types and empty data.
+        /// </summary>
+        public static bool TryGetMeshBinary(object entry, out byte[] data)
+        {
+            data = entry switch
+            {
+                byte[] bytes => bytes,
+                OSD osd when osd.Type == OSDType.Binary => osd.AsBinary(),
+                _ => null
+            };
+            return data != null && data.Length > 0;
+        }
+
         public static bool TryParseModelInstance(OSD instance, int meshCount,
             out Vector3 scale, out int meshIndex, out string error)
         {
