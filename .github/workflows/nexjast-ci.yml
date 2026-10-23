@@ -1287,6 +1287,18 @@ jobs:
           grep -F 'experiences:viewer:permissions' /tmp/nexverse-chatgpt-admin.md
           grep -F 'experiences:viewer:manage' /tmp/nexverse-chatgpt-admin.md
 
+          # Validate the actual server-generated Markdown, not merely source
+          # markers: every documented full-index path must equal the running
+          # server OpenAPI, and citizen/admin indexes must respect audiences.
+          curl --silent --fail --max-time 5 \
+            http://127.0.0.1:19090/api/v1/openapi.json \
+            > /tmp/nexverse-chatgpt-openapi.json
+          python3 tools/ci/verify_worldapi_chatgpt_runtime.py \
+            --openapi /tmp/nexverse-chatgpt-openapi.json \
+            --all /tmp/nexverse-chatgpt.md \
+            --citizen /tmp/nexverse-chatgpt-citizen.md \
+            --admin /tmp/nexverse-chatgpt-admin.md
+
 
   ledger-db-matrix:
     name: NV dollar live database matrix
