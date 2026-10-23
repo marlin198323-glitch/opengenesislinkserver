@@ -41,6 +41,10 @@ jobs:
           sudo apt-get update -qq
           sudo apt-get install -y --no-install-recommends pkg-config libopus-dev
 
+      - name: Validate dedicated-host Go bootstrap syntax
+        shell: bash
+        run: bash -n deploy/install-go-toolchain.sh
+
       - name: Resolve pinned dependencies
         shell: bash
         run: go mod tidy
