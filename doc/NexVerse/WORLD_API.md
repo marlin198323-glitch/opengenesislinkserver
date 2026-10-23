@@ -38,6 +38,67 @@ Die **drei dynamisch generierten ChatGPT-MD-Anweisungen** und die **OpenAPI 3.1*
 
 Anweisungen enthalten die Basis-URL aus der Runtime-Konfiguration. Sie **berechtigen** ChatGPT nicht, ohne angebundene Authentifizierung zu handeln. Der OpenAPI-Katalog ist ein technischer Vertrag, **kein Beleg** dafuer, dass jeder optionale Endpunkt in einem bestimmten Deployment aktiv oder bereits durch reale Viewer-Tests abgenommen ist.
 
+### Aktueller ChatGPT-Funktionsatlas (vollstaendige Generation)
+
+Die dynamisch von `NexChatGptInstructionDownloads` gerenderten Downloads
+sind fuer den aktuellen OpenGenesisLINK-Stand radikal erweitert worden.
+Sie enthalten **kein** fest auf Stadt-NexVerse zugeschnittenes Ersatz-API,
+sondern werden fuer jedes OGL-Grid mit der konfigurierten World-API-
+Basis-URL generiert.
+
+- **Gesamtanweisung**: Zusammenspiel aller Buerger-, Administrations-
+  und Dienstbereiche, moderne Scope-/Token-/OAuth- und
+  Sicherheitspolicies, typische Workflows sowie ein nach Zugriffstypen
+  gegliederter Katalog **aller 151 aktuell im OpenAPI-Vertrag deklarierten
+  Pfade**. Die aktuelle Anzahl ist der Source-Stand und kann mit
+  spaeteren Versionen wachsen.
+- **Buergerportal**: eigene Profile/Display Names, persoenliche Sitzung,
+  Freundschaften/Blockierungen, opt-in IM, Gruppen,
+  Owner-/Power-basiertes Inventar und Outfits, NV$/Banking,
+  Handels- und Landprozesse, oeffentliche Map/Warp3D-Karten,
+  Such- und Discovery-/Destinationdienste sowie
+  autorisierte Experience-Sicht. Service- und reine Admin-Pfade
+  werden nicht als Einwohner-Self-Service beworben.
+- **Administration**: sichere Benutzer-Lifecycle-Aktionen, Level,
+  Rollen, explizite Scope-Ausnahmen, Maschinen-Keys ohne Rotation,
+  OAuth-Client-Lifecycle, Audit, Statistik, Grid-/VAR-Platzierung,
+  verwaltete Regionen und Operationen, Simulator-Nodes,
+  Estates/Feature-Control, Economy-Reversals, Kontostatus,
+  Banking-Policies, Marketplace-/Discovery-Verwaltung,
+  Gruppen, Experiences und technische Simulator-Bridges.
+  Reine Dienstpfade werden zum Verstaendnis aufgefuehrt, aber
+  duerfen **nicht** als Browser-Admin-Endpunkte verwendet werden.
+- **Automatische Benutzer-Scopes**: Nach PR #291 stellt
+  `GetEffectiveScopes` bei jeder neuen persoenlichen Anmeldung
+  die jeweiligen Resident-/Rollen-/Admin-Leserechte aus. Die
+  Anweisung rät nicht mehr dazu, Standardleserechte bei hunderttausend
+  Bewohnern individuell zu vergeben. `default_scopes` und
+  `GET /api/v1/auth/authorization-model` dokumentieren die
+  serverseitig tatsaechlich geltende Vererbung.
+- **Betriebsgrenzen**: Unterscheidung von im Code beschrieben,
+  optional aktiviert, tatsaechlich live getestet und auf dem
+  Ziel-Grid produktiv verfuegbar. Keine Garantie auf
+  Portal-spezifische Features, die nicht im OGL-OpenAPI-Vertrag
+  registriert sind, und keine Umgehung von Owner-, Audience-,
+  Service-, Estate-, Gruppen- oder Simulator-CAP-Beschraenkungen.
+
+**Pfadparitaet ist eine CI-Gate-Bedingung.**
+`tools/ci/verify_worldapi_chatgpt_openapi.py` gleicht seit dieser
+Ueberarbeitung den gesamten Pfadindex der Anweisung mit
+`NexVerseWorldApiHandlers.OpenApi` ab. Ein neuer oder entfernter
+OpenAPI-Pfad ohne Anpassung im Index scheitert bei CI.
+Die konkrete HTTP-Methode, JSON-Schemata, Auth-Metadaten
+(`x-nexverse-audience`, `x-nexverse-scope`,
+`x-nexverse-ai-instruction`, `x-nexverse-security-constraints`)
+und Feature-Verfuegbarkeit immer am laufenden Server pruefen.
+
+**Abnahme nach dem Deployment:** Die drei Markdown-Routen
+und `/api/v1/openapi.json` auf **derselben** World-Instanz abrufen,
+MD/Schema auf Widersprueche pruefen, Admin- und Citizen-Downloads
+auf korrekte Teilkataloge testen. ChatGPT erhaelt auch dadurch
+kein administratives Credential.
+
+
 ### NexExperiences – korrekte Service- und Viewer-Grenzen
 
 | Endpunkt | Methode | Scope | Zielgruppe |
