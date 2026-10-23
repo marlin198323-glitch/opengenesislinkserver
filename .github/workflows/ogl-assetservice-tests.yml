@@ -88,6 +88,34 @@ jobs:
           cp "$RUNNER_TEMP/asset-payload" "$folder/$hash"
           printf '123e4567-e89b-12d3-a456-426614174000\t%s\n' "$hash" > "$RUNNER_TEMP/metadata-valid.tsv"
           dotnet run --project addons/OGLAssetService.Migration/OGLAssetService.Migration.csproj -c Release --no-build -- --verify-metadata "$base" "$RUNNER_TEMP/metadata-valid.tsv" --expected-rows 1
+      - name: Migrate verified SQL/FSAssets snapshot into OGL SQLite and immutable blobs
+        shell: bash
+        run: |
+          set -euo pipefail
+          base="$RUNNER_TEMP/metadata-valid"
+          spool="$RUNNER_TEMP/parallel-spool"
+          index="$RUNNER_TEMP/ogl-new-index/locations.sqlite"
+          objects="$RUNNER_TEMP/ogl-new-objects"
+          mkdir -p "$spool"
+          command=(dotnet run --project addons/OGLAssetService.Migration/OGLAssetService.Migration.csproj -c Release --no-build -- --parallel-snapshot "$base" "$spool" "$RUNNER_TEMP/metadata-valid.tsv" "$objects" "$index" --expected-rows 1)
+          "${command[@]}"
+          test ! -e "$index" && test ! -e "$objects"
+          if "${command[@]}" --copy; then
+            echo "ERROR: migration accepted --copy without offline snapshot acknowledgement"
+            exit 1
+          fi
+          "${command[@]}" --copy --offline-snapshot-confirmed
+          "${command[@]}" --copy --offline-snapshot-confirmed
+          python3 - "$objects" "$index" "$RUNNER_TEMP/asset-payload" <<'PY'
+          import hashlib, pathlib, sqlite3, sys
+          objects, index, payload = pathlib.Path(sys.argv[1]), sys.argv[2], pathlib.Path(sys.argv[3]).read_bytes()
+          digest = hashlib.sha256(payload).hexdigest()
+          with sqlite3.connect(index) as db:
+              row = db.execute("SELECT content_hash FROM ogl_asset_locations WHERE asset_id = ?",
+                               ("123e4567-e89b-12d3-a456-426614174000",)).fetchone()
+          assert row == (digest,), row
+          assert (objects / digest[:2] / digest[2:4] / digest).read_bytes() == payload
+          PY
       - name: Reject corrupt and duplicate metadata fixtures
         shell: bash
         run: |
