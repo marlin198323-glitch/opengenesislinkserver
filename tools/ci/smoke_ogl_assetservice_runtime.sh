@@ -88,7 +88,11 @@ PY
     fi
     if ! kill -0 "$ROBUST_PID" 2>/dev/null; then
       echo "::error::ROBUST exited before OGL AssetService activated" >&2
-      tail -n 100 "$WORK/robust.log" >&2
+      echo "===== ROBUST STARTUP =====" >&2
+      head -n 110 "$WORK/robust.log" >&2
+      echo "===== ROBUST ASSET ERROR SUMMARY =====" >&2
+      grep -Ei 'OGL|ASSET|SQLITE|EXCEPTION|ERROR|PLUGIN' "$WORK/robust.log" | head -n 90 >&2 || true
+      tail -n 35 "$WORK/robust.log" >&2
       exit 1
     fi
     sleep 0.5
@@ -96,12 +100,20 @@ PY
 
   if [ "$ready" -ne 1 ]; then
     echo "::error::OGL connector was not activated or HTTP listener was unreachable" >&2
-    tail -n 100 "$WORK/robust.log" >&2
+    echo "===== ROBUST STARTUP =====" >&2
+      head -n 110 "$WORK/robust.log" >&2
+      echo "===== ROBUST ASSET ERROR SUMMARY =====" >&2
+      grep -Ei 'OGL|ASSET|SQLITE|EXCEPTION|ERROR|PLUGIN' "$WORK/robust.log" | head -n 90 >&2 || true
+      tail -n 35 "$WORK/robust.log" >&2
     exit 1
   fi
   if ! grep -Fq 'authoritative=FSAssets; mode=compatibility; local_cache=False; redis_coordination=False; atomic_updates=False' "$WORK/robust.log"; then
     echo "::error::Unexpected OGL AssetService runtime safety flags" >&2
-    tail -n 100 "$WORK/robust.log" >&2
+    echo "===== ROBUST STARTUP =====" >&2
+      head -n 110 "$WORK/robust.log" >&2
+      echo "===== ROBUST ASSET ERROR SUMMARY =====" >&2
+      grep -Ei 'OGL|ASSET|SQLITE|EXCEPTION|ERROR|PLUGIN' "$WORK/robust.log" | head -n 90 >&2 || true
+      tail -n 35 "$WORK/robust.log" >&2
     exit 1
   fi
 }
