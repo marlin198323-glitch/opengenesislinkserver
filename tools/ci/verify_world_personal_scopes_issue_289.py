@@ -58,6 +58,20 @@ for marker in (
 ):
     assert marker in api, "World personal scope API regression: " + marker
 
+# The Control Center must show inherited (automatic) assignments
+# separately from stored individual exceptions. A manual checkbox must not
+# appear unchecked when a role already grants that scope.
+for marker in (
+    "model.default_scopes",
+    "const inherited=new Set(",
+    "existing.legacy_admin",
+    "input.checked=byRole||original.includes(scope)",
+    "input.disabled=byRole",
+    "if(input.disabled)continue",
+    "Automatisch",
+):
+    assert marker in ui, "Automatic role UI contract missing: " + marker
+
 assert "NexScopes.AdminAll" in policy
 assert "NexScopes.StatisticsRead" in policy
 assert "NexScopes.EconomyRead" in policy
