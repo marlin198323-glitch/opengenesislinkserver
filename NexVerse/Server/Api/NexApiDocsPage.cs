@@ -649,7 +649,7 @@ Archivprüfungen bleiben auch für freigegebene Importe aktiv.</div>
 <div class="row" style="margin-bottom:14px"><button class="action" id="secretLoadKeys">Schlüsselbestand aktualisieren</button></div>
 <div class="authnote" id="secretListStatus" role="status">Als Administrator anmelden, dann Schlüsselbestand laden.</div>
 <div id="secretKeyList" class="changegrid"></div>
-<p class="authnote">Scope-Änderungen gelten ab der nächsten API-Authentifizierung mit dem <em>gleichen</em> Schlüssel. Der vollständige Secret-Wert wird nicht erneut angezeigt. Die Bearbeitung sowie Aktivierung, Deaktivierung und Löschung verlangen Administratorrechte und werden protokolliert. Für dauerhafte Löschung zuerst deaktivieren.</p>
+<p class="authnote">Scope-Änderungen gelten ab der nächsten API-Authentifizierung mit dem <em>gleichen</em> Schlüssel. Der vollständige Secret-Wert wird nicht erneut angezeigt. Die Bearbeitung sowie Aktivierung, Deaktivierung und Löschung verlangen Administratorrechte und werden protokolliert. Für dauerhafte Löschung zuerst deaktivieren. Die tatsächlichen Berechtigungen eines vorhandenen Maschinen-Keys können per <code>GET /api/v1/auth/api-keys/self</code> mit <code>X-NexVerse-Api-Key</code> geprüft werden. Ein Bearer-Token ist ein anderer Berechtigungsnachweis und übernimmt keine neuen API-Key-Scopes.</p>
 </div>
 </section>
 
