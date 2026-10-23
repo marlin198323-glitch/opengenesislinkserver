@@ -51,9 +51,14 @@ assert "name+'='+values[name]" in builder
 
 # Reuse the real admin-only API key issuer; never issue wildcard/admin scopes.
 assert "NexScopes.GroupsRead," in keys
-assert "NexScopes.AdminAll" not in keys.split("HashSet<string> supportedScopes", 1)[1].split(
-    "foreach (string scope", 1
+# The machine allowlist is now a shared, explicit policy for create AND edit.
+machine_scopes = keys.split("private static readonly HashSet<string> s_SupportedScopes", 1)[1].split(
+    "public IReadOnlyCollection<string> SupportedScopes", 1
 )[0]
+assert "NexScopes.AdminAll" not in machine_scopes
+assert "NexScopes.SecurityManage" not in machine_scopes
+assert "NexScopes.GroupsRead" in machine_scopes
+assert "NexScopes.StatisticsRead" in machine_scopes
 assert 'NexScopes.AdminAll,' in auth
 assert '"/api/v1/auth/api-keys"' in auth
 assert "Nur Gruppenland-API-Key erstellen" in docs
