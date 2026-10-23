@@ -44,6 +44,11 @@ namespace NexVerse.Core.Security
             IEnumerable<string> scopes);
 
         IReadOnlyList<NexApiKeyRecord> List();
+        IReadOnlyCollection<string> SupportedScopes { get; }
+        // Compare-and-set replaces grants on an existing credential without
+        // rotating the secret, and rejects stale admin edits.
+        bool UpdateScopes(string keyId, IEnumerable<string> scopes,
+            IEnumerable<string> expectedScopes);
         bool SetEnabled(string keyId, bool enabled);
         bool Delete(string keyId);
         bool TryValidate(
@@ -54,6 +59,43 @@ namespace NexVerse.Core.Security
     public sealed class PersistentNexApiKeyStore : INexApiKeyStore
     {
         private const int SecretIterations = 120000;
+
+        private static readonly HashSet<string> s_SupportedScopes =
+            new HashSet<string>(
+                new[]
+                {
+                    NexScopes.UsersRead,
+                    NexScopes.UsersWrite,
+                    NexScopes.UsersRegister,
+                    NexScopes.InventoryRead,
+                    NexScopes.InventoryWrite,
+                    NexScopes.FriendsManage,
+                    NexScopes.RegionsRead,
+                    NexScopes.RegionsManage,
+                    NexScopes.SimulatorsRead,
+                    NexScopes.SimulatorsManage,
+                    NexScopes.StatisticsRead,
+                    NexScopes.EstatesRead,
+                    NexScopes.EstatesManage,
+                    NexScopes.EconomyRead,
+                    NexScopes.EconomyTransfer,
+                    // Viewer simulator backend may read group-owned land
+                    // only via an explicitly granted groups:read machine key.
+                    NexScopes.GroupsRead,
+                    NexScopes.ExperiencesScript,
+                    // Separate trusted simulator CAP transport. This is
+                    // deliberately NOT experiences:manage or admin:*.
+                    NexScopes.ExperiencesViewerPermissions,
+                    // Firestorm Experience acquisition / owner-only edits
+                    // require a separate privileged simulator credential.
+                    NexScopes.ExperiencesViewerManage
+                }
+                StringComparer.OrdinalIgnoreCase);
+
+        public IReadOnlyCollection<string> SupportedScopes =>
+            s_SupportedScopes
+                .OrderBy(x => x, StringComparer.OrdinalIgnoreCase)
+                .ToArray();
 
         private readonly object m_Sync = new object();
         private readonly string m_Path;
@@ -83,62 +125,7 @@ namespace NexVerse.Core.Security
                     "At least one API key scope is required.",
                     nameof(scopes));
 
-            HashSet<string> supportedScopes = new HashSet<string>(
-                new[]
-                {
-                    NexScopes.UsersRead,
-                    NexScopes.UsersWrite,
-                    NexScopes.UsersRegister,
-                    NexScopes.InventoryRead,
-                    NexScopes.InventoryWrite,
-                    NexScopes.FriendsManage,
-                    NexScopes.RegionsRead,
-                    NexScopes.RegionsManage,
-                    NexScopes.SimulatorsRead,
-                    NexScopes.SimulatorsManage,
-                    NexScopes.StatisticsRead,
-                    NexScopes.EstatesRead,
-                    NexScopes.EstatesManage,
-                    NexScopes.EconomyRead,
-                    NexScopes.EconomyTransfer,
-                    // Viewer simulator backend may read group-owned land
-                    // only via an explicitly granted groups:read machine key.
-                    NexScopes.GroupsRead,
-                    NexScopes.ExperiencesScript,
-                    // Separate trusted simulator CAP transport. This is
-                    // deliberately NOT experiences:manage or admin:*.
-                    NexScopes.ExperiencesViewerPermissions,
-                    // Firestorm Experience acquisition / owner-only edits
-                    // require a separate privileged simulator credential.
-                    NexScopes.ExperiencesViewerManage
-                },
-                StringComparer.OrdinalIgnoreCase);
-
-            foreach (string scope in normalizedScopes)
-            {
-                if (!supportedScopes.Contains(scope))
-                {
-                    throw new ArgumentException(
-                        "API keys may only receive explicit supported machine scopes; wildcard, admin and interactive identity scopes are forbidden.",
-                        nameof(scopes));
-                }
-            }
-
-            if (normalizedScopes.Contains(
-                    NexScopes.ExperiencesViewerPermissions,
-                    StringComparer.OrdinalIgnoreCase) &&
-                normalizedScopes.Length != 1)
-                throw new ArgumentException(
-                    "Experiences viewer permission credentials must have only experiences:viewer:permissions.",
-                    nameof(scopes));
-
-            if (normalizedScopes.Contains(
-                    NexScopes.ExperiencesViewerManage,
-                    StringComparer.OrdinalIgnoreCase) &&
-                normalizedScopes.Length != 1)
-                throw new ArgumentException(
-                    "Firestorm Experience management credentials must have only experiences:viewer:manage.",
-                    nameof(scopes));
+            ValidateScopes(normalizedScopes);
 
             string normalizedName = string.IsNullOrWhiteSpace(name)
                 ? "NexVerse API key" : name.Trim();
@@ -203,6 +190,65 @@ namespace NexVerse.Core.Security
                     .OrderBy(x => x.Name, StringComparer.OrdinalIgnoreCase)
                     .ThenBy(x => x.KeyId, StringComparer.Ordinal)
                     .ToArray();
+            }
+        }
+
+        /// <summary>
+        /// Edit an existing credential's grants in place. The token ID, salt
+        /// and PBKDF2 hash must remain unchanged. Both the expected scopes and
+        /// the new scopes are normalized so clients can use the GET inventory
+        /// as an optimistic-concurrency token without exposing any secret.
+        /// </summary>
+        public bool UpdateScopes(
+            string keyId,
+            IEnumerable<string> scopes,
+            IEnumerable<string> expectedScopes)
+        {
+            if (string.IsNullOrWhiteSpace(keyId) || expectedScopes == null)
+                return false;
+
+            string[] desired = NormalizeScopes(scopes);
+            ValidateScopes(desired);
+            string[] expected = NormalizeScopes(expectedScopes);
+
+            lock (m_Sync)
+            {
+                NexApiKeyRecord record = m_Document.Keys.FirstOrDefault(x =>
+                    string.Equals(x.KeyId, keyId, StringComparison.Ordinal));
+
+                if (record == null || !SameScopes(record.Scopes, expected))
+                    return false;
+
+                // Do not allow two simultaneously enabled credentials to
+                // acquire identical name+scope identities, matching Create.
+                if (record.Enabled && m_Document.Keys.Any(other =>
+                    !string.Equals(other.KeyId, keyId, StringComparison.Ordinal) &&
+                    other.Enabled &&
+                    string.Equals(other.Name?.Trim(), record.Name?.Trim(),
+                        StringComparison.OrdinalIgnoreCase) &&
+                    SameScopes(other.Scopes, desired)))
+                    return false;
+
+                if (SameScopes(record.Scopes, desired))
+                    return true;
+
+                string[] previous = record.Scopes;
+                long previousUpdatedAt = record.UpdatedAt;
+                record.Scopes = desired;
+                record.UpdatedAt = Math.Max(
+                    DateTimeOffset.UtcNow.ToUnixTimeSeconds(),
+                    previousUpdatedAt + 1);
+                try
+                {
+                    SaveLocked();
+                }
+                catch
+                {
+                    record.Scopes = previous;
+                    record.UpdatedAt = previousUpdatedAt;
+                    throw;
+                }
+                return true;
             }
         }
 
@@ -344,8 +390,37 @@ namespace NexVerse.Core.Security
 
         private static bool SameScopes(string[] left, string[] right)
         {
-            string[] normalized = NormalizeScopes(left);
-            return normalized.SequenceEqual(right, StringComparer.OrdinalIgnoreCase);
+            return NormalizeScopes(left).SequenceEqual(
+                NormalizeScopes(right), StringComparer.OrdinalIgnoreCase);
+        }
+
+        private static void ValidateScopes(string[] normalizedScopes)
+        {
+            if (normalizedScopes.Length == 0)
+                throw new ArgumentException(
+                    "At least one API key scope is required.", nameof(normalizedScopes));
+
+            foreach (string scope in normalizedScopes)
+            {
+                if (!s_SupportedScopes.Contains(scope))
+                    throw new ArgumentException(
+                        "API keys may only receive explicit supported machine scopes; wildcard, admin and interactive identity scopes are forbidden.",
+                        nameof(normalizedScopes));
+            }
+
+            if (normalizedScopes.Contains(NexScopes.ExperiencesViewerPermissions,
+                    StringComparer.OrdinalIgnoreCase) &&
+                normalizedScopes.Length != 1)
+                throw new ArgumentException(
+                    "Experiences viewer permission credentials must have only experiences:viewer:permissions.",
+                    nameof(normalizedScopes));
+
+            if (normalizedScopes.Contains(NexScopes.ExperiencesViewerManage,
+                    StringComparer.OrdinalIgnoreCase) &&
+                normalizedScopes.Length != 1)
+                throw new ArgumentException(
+                    "Firestorm Experience management credentials must have only experiences:viewer:manage.",
+                    nameof(normalizedScopes));
         }
 
         private static string[] NormalizeScopes(
@@ -353,7 +428,7 @@ namespace NexVerse.Core.Security
         {
             return (scopes ?? Array.Empty<string>())
                 .Where(x => !string.IsNullOrWhiteSpace(x))
-                .Select(x => x.Trim())
+                .Select(x => x.Trim().ToLowerInvariant())
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .OrderBy(x => x, StringComparer.OrdinalIgnoreCase)
                 .ToArray();
