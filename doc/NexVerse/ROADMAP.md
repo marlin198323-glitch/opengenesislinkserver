@@ -1421,7 +1421,7 @@ Provide API/web tooling for:
 
 # Milestone 0.9.3.13
 
-## 17. Assets, Rendering and Media
+## 17. Assets and Rendering
 
 ### 17.1 NexAsset
 
@@ -1454,10 +1454,6 @@ Add or improve support for:
 - modern upload validation.
 
 Legacy Collada remains available for compatibility while glTF becomes the preferred future direction.
-
-### 17.3 NexMedia
-
-Modernize parcel/shared media controls with explicit security and permission policies.
 
 ---
 
