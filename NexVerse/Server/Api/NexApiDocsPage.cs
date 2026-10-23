@@ -644,12 +644,12 @@ Archivprüfungen bleiben auch für freigegebene Importe aktiv.</div>
 <p class="authnote">Setze für die Secret-Datei <code>chmod 600 /etc/nexverse/nexverse.env</code>. Starte zunächst Robust mit dem neuen NexBus-Key und dem PR-#104-Code neu, danach die Simulatoren. Bereits vorhandene Prozessvariablen haben Vorrang vor der Datei.</p>
 </div>
 <div class="section">
-<h2>4. Schlüsselbestand und Duplikate bereinigen</h2>
-<p class="sectionlead">Es erscheinen nur ID, Name, Scopes und letzte Nutzung, niemals geheime Werte. Duplikate sind gleichnamige aktive Schlüssel mit identischen Scopes. Prüfe vor der Deaktivierung alle vorhandenen <code>nexverse.env</code>-Dateien auf Robust und den Simulatoren.</p>
+<h2>4. Vorhandene API-Schlüssel verwalten</h2>
+<p class="sectionlead">Bestehende Schlüssel lassen sich jetzt um Berechtigungen wie <code>statistics:read</code> erweitern, ohne ihren Schlüsselwert auszutauschen. Klicke beim gewünschten Schlüssel auf <strong>Berechtigungen bearbeiten</strong>. Die Liste zeigt nur zulässige Maschinen-Scopes; <code>admin:*</code> und interaktive Scopes bleiben gesperrt. Es erscheinen ausschließlich ID, Name, Scopes und letzte Nutzung, niemals geheime Werte.</p>
 <div class="row" style="margin-bottom:14px"><button class="action" id="secretLoadKeys">Schlüsselbestand aktualisieren</button></div>
 <div class="authnote" id="secretListStatus" role="status">Als Administrator anmelden, dann Schlüsselbestand laden.</div>
 <div id="secretKeyList" class="changegrid"></div>
-<p class="authnote">Bereinigung in zwei Schritten: Schlüssel einzeln deaktivieren, anschließend optional dauerhaft löschen. Aktive Schlüssel können serverseitig nicht gelöscht werden. Jede Änderung benötigt eine Bestätigung und wird auditiert.</p>
+<p class="authnote">Scope-Änderungen gelten ab der nächsten API-Authentifizierung mit dem <em>gleichen</em> Schlüssel. Der vollständige Secret-Wert wird nicht erneut angezeigt. Die Bearbeitung sowie Aktivierung, Deaktivierung und Löschung verlangen Administratorrechte und werden protokolliert. Für dauerhafte Löschung zuerst deaktivieren.</p>
 </div>
 </section>
 
@@ -1705,7 +1705,7 @@ function secretKeyFingerprint(key) {
   return JSON.stringify([(key.name||'').trim().toLowerCase(),
     [...(key.scopes||[])].map(x=>String(x).toLowerCase()).sort()]);
 }
-function secretRenderKeyInventory(keys) {
+function secretRenderKeyInventory(keys, supportedScopes) {
   const host=$('secretKeyList');host.replaceChildren();
   const activeCounts=new Map();
   keys.filter(k=>k.enabled).forEach(k=>{
@@ -1742,7 +1742,82 @@ function secretRenderKeyInventory(keys) {
       remove.addEventListener('click',()=>secretManageKey(key,'delete'));
       controls.append(remove);
     }
-    card.append(controls);host.append(card);
+    const edit=document.createElement('button');edit.className='action';
+    edit.textContent='Berechtigungen bearbeiten';
+    controls.append(edit);
+    card.append(controls);
+    const editor=document.createElement('div');
+    editor.hidden=true;
+    editor.style.marginTop='12px';
+    const description=document.createElement('p');
+    description.textContent='Berechtigungen für diesen Schlüssel auswählen. Der Schlüsselwert bleibt erhalten.';
+    editor.append(description);
+    const choices=document.createElement('div');choices.className='changegrid';
+    const allowed=new Set(supportedScopes||[]);
+    const allScopes=[...new Set([...(supportedScopes||[]),...(key.scopes||[])])].sort();
+    const boxes=[];
+    for(const scope of allScopes){
+      const label=document.createElement('label');label.className='change';
+      const check=document.createElement('input');check.type='checkbox';
+      check.value=scope;check.style.width='auto';
+      check.checked=(key.scopes||[]).includes(scope);
+      if(!allowed.has(scope))check.disabled=true;
+      const caption=document.createElement('span');caption.textContent=' '+scope+
+        (!allowed.has(scope)?' (nicht mehr zuweisbar)':'');
+      label.append(check,caption);choices.append(label);
+      boxes.push(check);
+    }
+    editor.append(choices);
+    const actions=document.createElement('div');actions.className='row';
+    actions.style.marginTop='10px';
+    const save=document.createElement('button');save.className='action';
+    save.textContent='Berechtigungen speichern';
+    save.addEventListener('click',async()=>{
+      const selected=boxes.filter(box=>box.checked&&!box.disabled).map(box=>box.value);
+      save.disabled=true;
+      try{await secretEditKeyScopes(key,selected);}
+      finally{save.disabled=false;}
+    });
+    const cancel=document.createElement('button');cancel.className='action';
+    cancel.textContent='Abbrechen';
+    cancel.addEventListener('click',()=>{editor.hidden=true;edit.textContent='Berechtigungen bearbeiten';});
+    actions.append(save,cancel);
+    editor.append(actions);
+    edit.addEventListener('click',()=>{
+      editor.hidden=!editor.hidden;
+      edit.textContent=editor.hidden?'Berechtigungen bearbeiten':'Editor schließen';
+    });
+    card.append(editor);
+    host.append(card);
+  }
+}
+async function secretEditKeyScopes(key,scopes) {
+  try{
+    if(!window.isSecureContext)throw new Error('Nur über HTTPS verfügbar.');
+    if(!scopes.length)throw new Error('Mindestens eine Berechtigung auswählen.');
+    const previous=key.scopes||[];
+    const added=scopes.filter(scope=>!previous.includes(scope));
+    const removed=previous.filter(scope=>!scopes.includes(scope));
+    if(!added.length&&!removed.length){
+      $('secretListStatus').textContent='Keine Änderungen an den Berechtigungen.';
+      return;
+    }
+    const details='Hinzufügen: '+(added.join(', ')||'keine')+
+      '\nEntfernen: '+(removed.join(', ')||'keine');
+    if(!window.confirm('Berechtigungen von '+key.name+' ('+key.key_id+
+      ') ändern, ohne den Schlüssel zu erneuern?\n'+details))return;
+    const token=await secretAdminToken();
+    await secretJson('/api/v1/auth/api-keys',{
+      method:'PATCH',
+      headers:{'Authorization':'Bearer '+token,'Content-Type':'application/json'},
+      body:JSON.stringify({key_id:key.key_id,scopes:scopes,expected_scopes:previous})
+    });
+    await secretLoadKeys();
+    $('secretListStatus').textContent='Berechtigungen für '+key.name+
+      ' aktualisiert. Derselbe API-Schlüssel bleibt gültig.';
+  }catch(error){
+    $('secretListStatus').textContent='Berechtigungen konnten nicht gespeichert werden: '+
+      String(error.message||error)+'. Bestand gegebenenfalls aktualisieren.';
   }
 }
 async function secretLoadKeys() {
@@ -1751,7 +1826,7 @@ async function secretLoadKeys() {
     const token=await secretAdminToken();
     const response=await secretJson('/api/v1/auth/api-keys',{
       headers:{'Authorization':'Bearer '+token}});
-    secretRenderKeyInventory(response.keys||[]);
+    secretRenderKeyInventory(response.keys||[],response.supported_scopes||[]);
   }catch(error){
     $('secretListStatus').textContent='Schlüsselbestand konnte nicht geladen werden: '+
       String(error.message||error);
