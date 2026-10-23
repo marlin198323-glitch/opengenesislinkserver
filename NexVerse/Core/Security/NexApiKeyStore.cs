@@ -89,7 +89,7 @@ namespace NexVerse.Core.Security
                     // Firestorm Experience acquisition / owner-only edits
                     // require a separate privileged simulator credential.
                     NexScopes.ExperiencesViewerManage
-                }
+                },
                 StringComparer.OrdinalIgnoreCase);
 
         public IReadOnlyCollection<string> SupportedScopes =>
