@@ -742,6 +742,7 @@ function adminLogout(){
   ['adminLoginPassword','adminLoginTotp','bearer','gridBearer','nodesBearer','statsBearer'].forEach(id=>{$(id).value=''});
   secretClear();
   worldAuthReset();
+  worldAuthSelfId='';
   adminUpdateStatus('Abgemeldet',null);
   showPage('adminlogin');
   if(window.parent!==window)window.parent.postMessage({type:'ogl-logout'},window.parent.location.origin);
@@ -1689,7 +1690,7 @@ const worldReadScopeChoices=[
  'economy:read','inventory:read','groups:read',
  'experiences:read','discovery:read'
 ];
-let worldAuthLoaded=null;
+let worldAuthLoaded=null,worldAuthSelfId='';
 function worldAuthReset(){
   worldAuthLoaded=null;
   $('worldAuthSave').disabled=true;
@@ -1709,6 +1710,7 @@ async function worldAuthUseMe(){
     const me=await secretJson('/api/v1/users/me',{
       headers:{'Authorization':'Bearer '+token}});
     if(typeof me.principal_id!=='string')throw new Error('World lieferte keine eigene Principal-ID.');
+    worldAuthSelfId=me.principal_id.toLowerCase();
     $('worldAuthPrincipal').value=me.principal_id;
     worldAuthReset();
     await worldAuthLoad();
@@ -1802,10 +1804,13 @@ async function worldAuthSave(){
       throw new Error('World hat eine abweichende Scope-Liste bestätigt. Bestand neu laden.');
     worldAuthReset();
     status.textContent='Persönliche Scopes erfolgreich gespeichert. Bewohner im Stadtportal vollständig abmelden und erneut anmelden. Falls dein eigenes Konto geändert wurde, hier ebenfalls neu anmelden.';
-    // Never reuse an admin token after its own authorization changed.
-    if(old.id===$('worldAuthPrincipal').value.trim().toLowerCase()){
-      // The server rejects a stale token after an own-account change; no
-      // implicit privilege refresh is attempted in this browser.
+    // Editing this administrator's own account invalidates the current
+    // security-stamped bearer. Clear it instead of leaving a stale token
+    // in memory and require a fresh Control Center login.
+    if(old.id===worldAuthSelfId){
+      adminLogout();
+      $('adminLoginMessage').textContent=
+        'Eigene Berechtigungen geändert. Bitte neu als Administrator anmelden.';
     }
   }catch(err){
     status.textContent='Nicht gespeichert oder Abnahme unklar: '+String(err.message||err)+
