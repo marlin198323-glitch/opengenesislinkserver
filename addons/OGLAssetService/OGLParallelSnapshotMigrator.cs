@@ -70,8 +70,11 @@ namespace OpenGenesisLINK.Addons.AssetService
                 try
                 {
                     string id = uuid.ToString("D");
-                    string hash = parts[1].ToLowerInvariant();
-                    byte[] bytes = ReadSnapshotPayload(source, spoolRoot, hash, osgrid);
+                    string sourceHash = parts[1];
+                    string hash = sourceHash.ToLowerInvariant();
+                    // Legacy FSAssets uses uppercase SHA-256 filenames in many
+                    // installations. Keep the exact SQL hash casing for lookup.
+                    byte[] bytes = ReadSnapshotPayload(source, spoolRoot, sourceHash, osgrid);
                     if (bytes == null ||
                         !String.Equals(Convert.ToHexString(SHA256.HashData(bytes)),
                             hash, StringComparison.OrdinalIgnoreCase))
