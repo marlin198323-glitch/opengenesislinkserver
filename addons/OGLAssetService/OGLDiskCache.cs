@@ -13,6 +13,11 @@ namespace OpenGenesisLINK.Addons.AssetService
     public sealed class OGLDiskCache
     {
         private readonly string root;
+        // Cache payloads from a previous ROBUST process are not authoritative:
+        // the FSAssets metadata could have changed while this process was offline.
+        // A per-instance namespace prevents a cold restart from returning stale
+        // payloads without touching any existing files on disk.
+        private readonly string instanceRoot;
         private readonly object sync = new object();
         private readonly long maxBytes;
         private long hits, misses, evictions;
@@ -28,6 +33,8 @@ namespace OpenGenesisLINK.Addons.AssetService
             this.maxBytes = maxBytes;
             root = Path.GetFullPath(directory);
             Directory.CreateDirectory(root);
+            instanceRoot = Path.Combine(root, "ogl-session-" + Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(instanceRoot);
         }
 
         private string EntryPath(string key)
@@ -36,7 +43,7 @@ namespace OpenGenesisLINK.Addons.AssetService
                 throw new ArgumentException("Cache key is required.", nameof(key));
             byte[] bytes = SHA256.HashData(Encoding.UTF8.GetBytes(key));
             string hash = Convert.ToHexString(bytes).ToLowerInvariant();
-            return Path.Combine(root, hash.Substring(0, 2), hash + ".cache");
+            return Path.Combine(instanceRoot, hash.Substring(0, 2), hash + ".cache");
         }
 
         public bool TryGet(string key, out byte[] data)
