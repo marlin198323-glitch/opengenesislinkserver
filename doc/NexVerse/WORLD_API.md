@@ -769,7 +769,7 @@ Administrative management endpoint:
 
 - `GET /api/v1/auth/api-keys`
 - `POST /api/v1/auth/api-keys`
-- `PATCH /api/v1/auth/api-keys`
+- `PATCH /api/v1/auth/api-keys` — enable/disable, **or edit scopes of an existing key in place**
 - `DELETE /api/v1/auth/api-keys/{keyId}` — permanently removes a **previously disabled** key
 
 All four management operations require `admin:*` through a resident/OAuth administrator credential. API keys themselves can never receive `admin:*`, wildcard or interactive OIDC scopes.
@@ -783,6 +783,20 @@ A creation body is:
 }
 ```
 
+**Edit permissions on an existing key (no rotation):** Sign in as a resident/OAuth administrator (`admin:*`) and open `/api/v1/docs` → **Schlüssel & Einrichtung** → **Schlüsselbestand aktualisieren** → **Berechtigungen bearbeiten** for the desired key. Check `statistics:read` and any other permitted scopes, then save. The API key **ID and secret stay identical** and remain usable by existing clients. The inventory's `supported_scopes` array is populated from the same server-side allowlist used for creation and updates, not a hard-coded browser catalog. Existing state-change requests with `enabled` remain supported.
+
+The corresponding HTTP request is `PATCH /api/v1/auth/api-keys`:
+
+```json
+{
+  "key_id": "nxk_YOUR_EXISTING_KEY_ID",
+  "scopes": ["regions:read", "statistics:read"],
+  "expected_scopes": ["regions:read"]
+}
+```
+
+`scopes` is the **complete desired set**, not only additions. Always first fetch `GET /api/v1/auth/api-keys` and copy the current scope array into `expected_scopes`. A concurrent change or active duplicate name+scope identity results in HTTP 409 `api_key_scope_conflict`; refresh and retry deliberately. Unknown, empty, wildcards, `admin:*`, identity scopes, and prohibited combinations (e.g. viewer Experience permission key mixed with statistics) are rejected. Every change is audited (previous and new scopes, never the plaintext secret); it takes effect on the **next API request** without reissuing any key. As before, disabled keys remain disabled until deliberately reactivated.
+
 The full key is returned exactly once. Its secret is persisted only as a PBKDF2-SHA256 hash. The GET inventory exposes `last_used_at` for maintenance (zero means no recorded use), but **never** plaintext keys, salts or hashes. Duplicate active issuance with the same normalized name and identical set of scopes is rejected with HTTP 409 (`api_key_duplicate`). Disable the old entry explicitly before a rotation; the new secret is not retrievable for an existing key. Runtime storage defaults to:
 
 `data/nexverse-api-keys.json`
@@ -793,7 +807,7 @@ API-key principals use subjects in the form `api-key:<key_id>`. Disabling a key 
 
 ### Key inventory and safe duplicate cleanup (0.9.3.10 Dev)
 
-The World API docs/control-center page `/api/v1/docs` > **Schluessel & Einrichtung** now offers a read-only inventory with normalized same-name/same-scope duplicate indicators and last-used timestamps. Every disable/reactivate/delete operation requires an explicit click and confirmation. Permanent deletion is forbidden for active keys on the server, even if a client sends DELETE directly. All state changes and deletions emit audit events. The key ID is public metadata to administrators, **not** the secret.
+The World API docs/control-center page `/api/v1/docs` > **Schluessel & Einrichtung** offers a key inventory with normalized same-name/same-scope duplicate indicators, last-used timestamps **and a per-key scope editor**. Every disable/reactivate/delete operation requires an explicit click and confirmation. Permanent deletion is forbidden for active keys on the server, even if a client sends DELETE directly. All state changes and deletions emit audit events. The key ID is public metadata to administrators, **not** the secret.
 
 **Before disabling an apparent duplicate:** compare `/etc/nexverse/nexverse.env` on Robust and all relevant simulators, identify which key ID the running process is using, and validate a replacement with restricted permissions. The inventory cannot detect whether a key has been copied into an inactive simulator, nor whether two different IDs share a usage role. The duplicate label is a review hint, not authority to bulk delete.
 
