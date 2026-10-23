@@ -1362,7 +1362,8 @@ namespace NexVerse.Server.Api
                     keys = m_ApiKeys
                         .List()
                         .Select(ApiKeyPayload)
-                        .ToArray()
+                        .ToArray(),
+                    supported_scopes = m_ApiKeys.SupportedScopes
                 });
                 return;
             }
@@ -1485,6 +1486,83 @@ namespace NexVerse.Server.Api
                 {
                     string keyId =
                         GetOptionalString(root, "key_id");
+
+                    // Scope grants can be updated on an existing key. The
+                    // administrator must pass the currently observed scope
+                    // set so two concurrent editors cannot silently replace
+                    // each other's changes. Enabled-state changes retain
+                    // their existing PATCH contract and audit events.
+                    if (root.TryGetProperty("scopes", out JsonElement newScopesElement))
+                    {
+                        if (string.IsNullOrWhiteSpace(keyId) ||
+                            root.TryGetProperty("enabled", out JsonElement enabledInScopePatch) ||
+                            !TryReadStringArray(newScopesElement, out string[] scopes) ||
+                            !root.TryGetProperty("expected_scopes",
+                                out JsonElement expectedScopesElement) ||
+                            !TryReadStringArray(expectedScopesElement,
+                                out string[] expectedScopes))
+                        {
+                            WriteError(response, HttpStatusCode.BadRequest,
+                                "invalid_request",
+                                "key_id, scopes and expected_scopes arrays are required; do not combine scopes with enabled.");
+                            return;
+                        }
+
+                        NexApiKeyRecord current = m_ApiKeys.List().FirstOrDefault(x =>
+                            string.Equals(x.KeyId, keyId, StringComparison.Ordinal));
+                        if (current == null)
+                        {
+                            WriteError(response, HttpStatusCode.NotFound,
+                                "api_key_not_found", "API key was not found.");
+                            return;
+                        }
+
+                        try
+                        {
+                            if (!m_ApiKeys.UpdateScopes(keyId, scopes, expectedScopes))
+                            {
+                                WriteError(response, HttpStatusCode.Conflict,
+                                    "api_key_scope_conflict",
+                                    "API key scopes changed or an enabled key already has this name and scope set. Refresh the inventory and try again.");
+                                return;
+                            }
+                        }
+                        catch (ArgumentException e)
+                        {
+                            WriteError(response, HttpStatusCode.BadRequest,
+                                "invalid_api_key_scopes", e.Message);
+                            return;
+                        }
+
+                        NexApiKeyRecord updatedScopes = m_ApiKeys.List().FirstOrDefault(x =>
+                            string.Equals(x.KeyId, keyId, StringComparison.Ordinal));
+                        string scopeCorrelationId = AddCorrelation(response);
+                        m_Audit.Record(new NexAuditEvent(
+                            principal.Subject,
+                            "auth.api_key.scopes.update",
+                            keyId,
+                            scopeCorrelationId,
+                            new Dictionary<string, string>
+                            {
+                                ["previous_scopes"] = string.Join(" ", current.Scopes),
+                                ["scopes"] = string.Join(" ", updatedScopes.Scopes)
+                            }));
+                        m_EventBus.Publish(new NexEvent(
+                            "auth.api_key.scopes.changed",
+                            "nexverse.world-api",
+                            new Dictionary<string, string>
+                            {
+                                ["key_id"] = keyId
+                            },
+                            scopeCorrelationId));
+
+                        WriteJson(response, new
+                        {
+                            key = ApiKeyPayload(updatedScopes),
+                            correlation_id = scopeCorrelationId
+                        });
+                        return;
+                    }
 
                     if (string.IsNullOrWhiteSpace(keyId) ||
                         !root.TryGetProperty(

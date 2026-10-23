@@ -151,7 +151,7 @@ namespace NexVerse.Server.Api
                 ["/api/v1/auth/api-keys"] = AuthenticatedOperations(
                     ("get", "Eingeschränkte Maschinen-API-Schlüssel inklusive letzter Verwendung auflisten", "admin:*", "200"),
                     ("post", "Dedizierten Maschinen-API-Schlüssel ohne doppelte aktive Identität erstellen", "admin:*", "201"),
-                    ("patch", "Maschinen-API-Schlüssel aktivieren oder deaktivieren", "admin:*", "200")),
+                    ("patch", "Scopes bestehender Maschinen-Schlüssel ohne Rotation bearbeiten oder Schlüssel aktivieren/deaktivieren", "admin:*", "200")),
                 ["/api/v1/auth/api-keys/{keyId}"] = AuthenticatedOperations(
                     ("delete", "Nur zuvor deaktivierten Maschinen-API-Schlüssel dauerhaft entfernen", "admin:*", "200")),
                 ["/api/v1/auth/authorization-model"] = AuthenticatedOperations(
@@ -895,8 +895,8 @@ namespace NexVerse.Server.Api
                 paths,
                 "/api/v1/auth/api-keys",
                 "patch",
-                "ApiKeyStateRequest",
-                null,
+                "ApiKeyUpdateRequest",
+                "ApiKeyUpdateResponse",
                 "200");
             ApplyJsonContract(
                 paths,
@@ -5749,6 +5749,44 @@ namespace NexVerse.Server.Api
                         ["enabled"] = new { type = "boolean" }
                     }
                 },
+                ["ApiKeyScopeUpdateRequest"] = new
+                {
+                    type = "object",
+                    required = new[] { "key_id", "scopes", "expected_scopes" },
+                    properties = new Dictionary<string, object>
+                    {
+                        ["key_id"] = new { type = "string" },
+                        ["scopes"] = new
+                        {
+                            type = "array",
+                            minItems = 1,
+                            items = new { type = "string" }
+                        },
+                        ["expected_scopes"] = new
+                        {
+                            type = "array",
+                            items = new { type = "string" },
+                            description = "Aktuelle Scopes aus GET; konkurrierende Änderungen werden mit 409 abgelehnt."
+                        }
+                    }
+                },
+                ["ApiKeyUpdateRequest"] = new
+                {
+                    oneOf = new object[]
+                    {
+                        SchemaRef("ApiKeyStateRequest"),
+                        SchemaRef("ApiKeyScopeUpdateRequest")
+                    }
+                },
+                ["ApiKeyUpdateResponse"] = new
+                {
+                    type = "object",
+                    properties = new Dictionary<string, object>
+                    {
+                        ["key"] = apiKeyRef,
+                        ["correlation_id"] = new { type = "string" }
+                    }
+                },
                 ["ApiKeyDeleteResponse"] = new
                 {
                     type = "object",
@@ -5768,6 +5806,12 @@ namespace NexVerse.Server.Api
                         {
                             type = "array",
                             items = apiKeyRef
+                        },
+                        ["supported_scopes"] = new
+                        {
+                            type = "array",
+                            items = new { type = "string" },
+                            description = "Serverseitig zugelassene Maschinen-Berechtigungen, einschließlich statistics:read."
                         }
                     }
                 },
