@@ -312,6 +312,42 @@ internal static class Program
                 Check(resp.StatusCode == HttpStatusCode.Forbidden,
                     "groups:read key without economy:read gained finance history");
             }
+            // A separate World API/admin instance updates the same key file
+            // after the HTTP authenticator was constructed. The next real
+            // request with the SAME secret must immediately gain or lose its
+            // scoped authorization. The existing key must not be reissued.
+            var remoteAdmin = new PersistentNexApiKeyStore(
+                Path.Combine(scratch, "keys.json"));
+            Check(remoteAdmin.UpdateScopes(groupsOnlyKey.Record.KeyId,
+                    new[] { NexScopes.GroupsRead, NexScopes.EconomyRead,
+                            NexScopes.StatisticsRead },
+                    new[] { NexScopes.GroupsRead }),
+                "External World API scope grant was not persisted");
+            using (var req = new HttpRequestMessage(HttpMethod.Get, historyUrl))
+            {
+                req.Headers.TryAddWithoutValidation("X-NexVerse-Api-Key",
+                    groupsOnlyKey.ApiKey);
+                using var resp = await http.SendAsync(req);
+                Check(resp.StatusCode == HttpStatusCode.OK,
+                    "Running API authenticator ignored externally granted scopes");
+            }
+            Check(keyStore.List().First(x =>
+                    x.KeyId == groupsOnlyKey.Record.KeyId)
+                    .Scopes.Contains(NexScopes.StatisticsRead),
+                "Running API key inventory did not refresh statistics:read");
+            Check(remoteAdmin.UpdateScopes(groupsOnlyKey.Record.KeyId,
+                    new[] { NexScopes.GroupsRead },
+                    new[] { NexScopes.GroupsRead, NexScopes.EconomyRead,
+                            NexScopes.StatisticsRead }),
+                "External API key scope revocation failed");
+            using (var req = new HttpRequestMessage(HttpMethod.Get, historyUrl))
+            {
+                req.Headers.TryAddWithoutValidation("X-NexVerse-Api-Key",
+                    groupsOnlyKey.ApiKey);
+                using var resp = await http.SendAsync(req);
+                Check(resp.StatusCode == HttpStatusCode.Forbidden,
+                    "Running API authenticator kept revoked scopes after update");
+            }
             string land = "/api/v1/groups/" + group + "/land";
             await Verify(http, land, ownerToken, HttpStatusCode.OK, "parcels");
             using (var req = new HttpRequestMessage(HttpMethod.Get, land))
