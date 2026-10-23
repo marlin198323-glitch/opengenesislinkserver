@@ -567,6 +567,10 @@ jobs:
         shell: bash
         run: dotnet build --configuration Release OpenSim.sln
 
+      - name: Regression-test PBR render-material face deletion
+        shell: bash
+        run: dotnet run --configuration Release --project tools/ci/OglPbrMaterialRegression/OglPbrMaterialRegression.csproj
+
       - name: Build optional OGL Seasons addon
         shell: bash
         run: bash addon-modules/OGLSeasons/build.sh Release
