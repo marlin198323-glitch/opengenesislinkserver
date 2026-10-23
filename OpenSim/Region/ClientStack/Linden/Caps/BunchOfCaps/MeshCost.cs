@@ -713,7 +713,7 @@ namespace OpenSim.Region.ClientStack.Linden
         }
 
         // parses a LOD or physics mesh component
-        private bool submesh(byte[] data, int offset, int size, out int ntriangles, out int nsides)
+        private static bool submesh(byte[] data, int offset, int size, out int ntriangles, out int nsides)
         {
             ntriangles = 0;
             nsides = 0;
@@ -778,7 +778,7 @@ namespace OpenSim.Region.ClientStack.Linden
         }
 
         // parses convex hulls component
-        private bool hulls(byte[] data, int offset, int size, out int nvertices, out int nhulls, out string reason)
+        private static bool hulls(byte[] data, int offset, int size, out int nvertices, out int nhulls, out string reason)
         {
             nvertices = 0;
             nhulls = 1;
