@@ -7,6 +7,8 @@ using OpenMetaverse;
 using OpenMetaverse.StructuredData;
 using OpenSim.Framework.Capabilities;
 using OpenSim.Region.ClientStack.Linden;
+using OSDMap = OpenMetaverse.StructuredData.OSDMap;
+using OSDArray = OpenMetaverse.StructuredData.OSDArray;
 
 internal static class Program
 {
