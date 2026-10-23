@@ -648,7 +648,28 @@ namespace NexVerse.Server.Api
             }
 
             m_UserAccounts.InvalidateCache(id);
-            return Convert(account);
+            // A successful SQL write is not enough: a missing serializer
+            // mapping in UserAccountService used to drop NexVerseRoles and
+            // NexVerseScopes while returning success. Read the authoritative
+            // persisted account back before confirming an authorization
+            // change and invalidating the caller's existing bearer tokens.
+            UserAccount verified = m_UserAccounts.GetUserAccount(UUID.Zero, id);
+            if (verified == null ||
+                !string.Equals(
+                    NexAuthorizationPolicy.JoinStoredValues(
+                        NexAuthorizationPolicy.SplitStoredValues(verified.NexVerseRoles)),
+                    account.NexVerseRoles, StringComparison.Ordinal) ||
+                !string.Equals(
+                    NexAuthorizationPolicy.JoinStoredValues(
+                        NexAuthorizationPolicy.SplitStoredValues(verified.NexVerseScopes)),
+                    account.NexVerseScopes, StringComparison.Ordinal) ||
+                verified.NexVerseStateChanged != account.NexVerseStateChanged)
+            {
+                error = "authorization_persistence_failed";
+                return null;
+            }
+
+            return Convert(verified);
         }
 
         public bool SetPassword(string principalId, string password)
@@ -1100,6 +1121,8 @@ namespace NexVerse.Server.Api
                     scopes = NexAuthorizationPolicy.GetRoleScopes(role)
                 }).ToArray(),
                 scopes = NexAuthorizationPolicy.AssignableScopes,
+                default_scopes = NexAuthorizationPolicy.DefaultResidentScopes,
+                scope_assignment = "Automatic resident defaults + role-derived grants + optional per-user explicit scopes at token issuance; no per-user materialization.",
                 privileged = new
                 {
                     roles = new[] { NexRoles.Administrator },
@@ -1297,11 +1320,14 @@ namespace NexVerse.Server.Api
                     HttpStatusCode status =
                         error == "user_not_found"
                             ? HttpStatusCode.NotFound
-                            : error.Contains(
-                                  "requires_admin",
-                                  StringComparison.Ordinal)
-                                ? HttpStatusCode.Forbidden
-                                : HttpStatusCode.BadRequest;
+                            : error == "authorization_update_failed" ||
+                              error == "authorization_persistence_failed"
+                                ? HttpStatusCode.ServiceUnavailable
+                                : error.Contains(
+                                      "requires_admin",
+                                      StringComparison.Ordinal)
+                                    ? HttpStatusCode.Forbidden
+                                    : HttpStatusCode.BadRequest;
 
                     WriteError(
                         response,
