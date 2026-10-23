@@ -154,6 +154,7 @@ namespace NexVerse.Server.Api
                     ("patch", "Scopes bestehender Maschinen-Schlüssel ohne Rotation bearbeiten oder Schlüssel aktivieren/deaktivieren", "admin:*", "200")),
                 ["/api/v1/auth/api-keys/{keyId}"] = AuthenticatedOperations(
                     ("delete", "Nur zuvor deaktivierten Maschinen-API-Schlüssel dauerhaft entfernen", "admin:*", "200")),
+                ["/api/v1/auth/api-keys/self"] = ApiKeySelfOperation(),
                 ["/api/v1/auth/authorization-model"] = AuthenticatedOperations(
                     ("get", "Verfügbare Einwohnerrollen, Einzel-Scopes und privilegierte Zuweisungen lesen", "security:manage", "200")),
                 ["/oauth/authorize"] = AuthenticatedOperations(
@@ -897,6 +898,13 @@ namespace NexVerse.Server.Api
                 "patch",
                 "ApiKeyUpdateRequest",
                 "ApiKeyUpdateResponse",
+                "200");
+            ApplyJsonContract(
+                paths,
+                "/api/v1/auth/api-keys/self",
+                "get",
+                null,
+                "ApiKeySelfResponse",
                 "200");
             ApplyJsonContract(
                 paths,
@@ -2382,6 +2390,28 @@ namespace NexVerse.Server.Api
             }
 
             return result;
+        }
+
+        private static object ApiKeySelfOperation()
+        {
+            Dictionary<string, object> route = (Dictionary<string, object>)
+                AuthenticatedOperations(
+                    ("get", "Berechtigungen des eigenen Maschinen-API-Schlüssels prüfen (kein Secret)", null, "200"));
+            Dictionary<string, object> operation =
+                (Dictionary<string, object>)route["get"];
+            operation["security"] = new object[]
+            {
+                new Dictionary<string, string[]>
+                {
+                    ["apiKeyAuth"] = Array.Empty<string>()
+                }
+            };
+            operation["x-nexverse-audience"] = new[] { "service" };
+            operation["x-nexverse-ai-instruction"] =
+                "Den bereits vorhandenen Maschinen-API-Schlüssel nur per X-NexVerse-Api-Key-Header über TLS verwenden. " +
+                "Die Antwort enthält die aktuell wirksamen Scopes, niemals den Secret-Wert. " +
+                "Ein Bearer-Zugriff ist ausdrücklich nicht zulässig.";
+            return route;
         }
 
         private static object SimulatorBridgeOperations(
@@ -5785,6 +5815,19 @@ namespace NexVerse.Server.Api
                     {
                         ["key"] = apiKeyRef,
                         ["correlation_id"] = new { type = "string" }
+                    }
+                },
+                ["ApiKeySelfResponse"] = new
+                {
+                    type = "object",
+                    required = new[] { "key_id", "scopes", "authorization_source" },
+                    properties = new Dictionary<string, object>
+                    {
+                        ["key_id"] = new { type = "string" },
+                        ["scopes"] = new { type = "array", items = new { type = "string" } },
+                        ["enabled"] = new { type = "boolean" },
+                        ["updated_at"] = new { type = "integer" },
+                        ["authorization_source"] = new { type = "string", @enum = new[] { "api_key" } }
                     }
                 },
                 ["ApiKeyDeleteResponse"] = new
