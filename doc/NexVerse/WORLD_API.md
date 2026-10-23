@@ -318,16 +318,34 @@ A successful authorization change advances the account security stamp and revoke
 
 ### Issue #289: persönliche Fachscopes kontrolliert zuweisen
 
-`admin:*` ist eine World-API-Wildcard, aber **nicht** automatisch ein
-ausgeschriebener `statistics:read`-/`regions:read`-Eintrag im
-persönlichen Login-Token. Ein Maschinen-API-Key darf dieses Defizit
-nicht für eine Bürger- oder Admin-Sitzung ersetzen.
+`admin:*` ist weiterhin eine World-API-Wildcard, aber die World-API-
+Loginrichtlinie stellt jetzt zusätzlich die passenden **expliziten
+Lese-Fachscopes** automatisch auf Basis der Resident-/Admin-Rolle und
+des Legacy-`UserLevel` aus. Bewohner erhalten unter anderem
+`economy:read` und `inventory:read` nur für ihren eigenen Account,
+Administrator-Token auch `statistics:read`, `regions:read`,
+`simulators:read` und `estates:read`. Diese automatische
+Berechnung funktioniert auch bei über 100.000 bestehenden Nutzern,
+ohne einzelnen Benutzerkonten Rechte in der Datenbank zuzuweisen.
+Geschützte Schreib-, Transfer- und Administrationsrechte werden
+dadurch **nicht** global verteilt.
+
+Der zuvor beobachtete Fehler der manuellen Scope-Speicherung lag in
+`OpenSim/Services/UserAccountService/UserAccountService.cs`:
+`NexVerseRoles`/`NexVerseScopes` wurden nicht von/nach
+`UserAccounts` serialisiert. Auch der Remote-`setaccount`-Handler
+ignorierte die Felder. Diese Zuordnung ist jetzt korrigiert und
+die Benutzer-API prüft gespeicherte Werte nach einem PATCH durch
+erneutes Lesen; bei Fehlern antwortet sie mit HTTP 503
+`authorization_persistence_failed`, nicht mit einem falschen Erfolg.
 
 Im geschützten World Control Center unter
 `/api/v1/docs` → **Schlüssel & Einrichtung** →
 **5. Persönliche World-API-Berechtigungen (keine Maschinen-Schlüssel)**
-können ausdrücklich genehmigte **Lese-Fachscopes** für eine Bewohner-UUID
-hinzugefügt werden. Der Editor lädt `GET`-Rollen/Scopes,
+werden automatisch geerbte Scopes angezeigt und nur für
+**individuelle Ausnahmen** zusätzliche Lese-Fachscopes zugewiesen.
+Der Editor lädt `GET`-Rollen/Scopes sowie
+`default_scopes` aus der World-Rollenrichtlinie,
 erhält alle bestehenden nicht bearbeiteten Berechtigungen,
 prüft unmittelbar vor dem Schreiben erneut den Stand
 und verlangt eine Bestätigung. World verlangt weiterhin einen

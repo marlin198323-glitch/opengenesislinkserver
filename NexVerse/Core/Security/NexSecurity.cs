@@ -111,6 +111,30 @@ namespace NexVerse.Core.Security
                 .OrderBy(x => x, StringComparer.OrdinalIgnoreCase)
                 .ToArray();
 
+        // These grants are computed, not materialized per user. A new or
+        // existing resident automatically receives them on the NEXT login.
+        // The corresponding API endpoints still enforce ownership and
+        // must not accept these grants as administrator permissions.
+        private static readonly string[] s_DefaultResidentScopes =
+        {
+            NexScopes.UsersRead,
+            NexScopes.UsersWrite,
+            NexScopes.ProfileRead,
+            NexScopes.ProfileWrite,
+            NexScopes.RelationshipsRead,
+            NexScopes.RelationshipsWrite,
+            NexScopes.GroupsRead,
+            NexScopes.GroupsManage,
+            NexScopes.InventoryRead,
+            NexScopes.EconomyRead,
+            NexScopes.RegionsRead,
+            NexScopes.ExperiencesRead,
+            NexScopes.DiscoveryRead
+        };
+
+        public static IReadOnlyCollection<string> DefaultResidentScopes =>
+            Array.AsReadOnly(s_DefaultResidentScopes);
+
         public static string[] SplitStoredValues(string raw)
         {
             return (raw ?? string.Empty)
@@ -225,20 +249,8 @@ namespace NexVerse.Core.Security
             IEnumerable<string> explicitScopes)
         {
             HashSet<string> scopes =
-                new HashSet<string>(
-                    StringComparer.OrdinalIgnoreCase)
-                {
-                    NexScopes.UsersRead,
-                    NexScopes.UsersWrite,
-                    // Resident self-service: each endpoint still checks ownership
-                    // or group membership/powers in the authoritative service.
-                    NexScopes.ProfileRead,
-                    NexScopes.ProfileWrite,
-                    NexScopes.RelationshipsRead,
-                    NexScopes.RelationshipsWrite,
-                    NexScopes.GroupsRead,
-                    NexScopes.GroupsManage
-                };
+                new HashSet<string>(s_DefaultResidentScopes,
+                    StringComparer.OrdinalIgnoreCase);
 
             foreach (string role in roles ?? Array.Empty<string>())
             {
@@ -252,8 +264,15 @@ namespace NexVerse.Core.Security
                     scopes.Add(scope);
             }
 
+            // Legacy UserLevel 200+ administrators may have the stored
+            // 'resident' role rather than 'administrator'. Their World
+            // token still needs explicit READ scope names for Portal
+            // compatibility; do not materialize per-user assignments.
             if (userLevel >= adminMinimumLevel)
-                scopes.Add(NexScopes.AdminAll);
+            {
+                foreach (string scope in GetRoleScopes(NexRoles.Administrator))
+                    scopes.Add(scope);
+            }
 
             return scopes
                 .OrderBy(x => x, StringComparer.OrdinalIgnoreCase)
@@ -307,7 +326,28 @@ namespace NexVerse.Core.Security
             }
 
             if (string.Equals(role, NexRoles.Administrator, StringComparison.OrdinalIgnoreCase))
-                return new[] { NexScopes.AdminAll };
+            {
+                // Keep admin:* for existing authorization decisions, but
+                // expose only READ grants as distinct strings in personal
+                // JWTs for the Portal. Never synthesize economy transfers,
+                // region mutations, account edits or service-only secrets.
+                return new[]
+                {
+                    NexScopes.AdminAll,
+                    NexScopes.UsersRead,
+                    NexScopes.ProfileRead,
+                    NexScopes.RelationshipsRead,
+                    NexScopes.InventoryRead,
+                    NexScopes.GroupsRead,
+                    NexScopes.RegionsRead,
+                    NexScopes.SimulatorsRead,
+                    NexScopes.StatisticsRead,
+                    NexScopes.EstatesRead,
+                    NexScopes.EconomyRead,
+                    NexScopes.ExperiencesRead,
+                    NexScopes.DiscoveryRead
+                };
+            }
 
             return Array.Empty<string>();
         }

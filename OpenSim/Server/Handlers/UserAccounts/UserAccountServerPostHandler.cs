@@ -319,6 +319,16 @@ namespace OpenSim.Server.Handlers.UserAccounts
                 Int32.TryParse(otmp.ToString(), out int stateChanged))
                 existingAccount.NexVerseStateChanged = stateChanged;
 
+            // The standard remote UserAccount connector serializes both
+            // properties via UserAccount.ToKeyValuePairs(). Without this
+            // handler mapping a remote StoreUserAccount reports success but
+            // drops all edited role and scope values.
+            if (request.TryGetValue("NexVerseRoles", out otmp))
+                existingAccount.NexVerseRoles = otmp?.ToString() ?? "resident";
+
+            if (request.TryGetValue("NexVerseScopes", out otmp))
+                existingAccount.NexVerseScopes = otmp?.ToString() ?? string.Empty;
+
             // The LLLoginService can use a remote account connector. Persist
             // the versioned ToS acceptance from its setaccount request, rather
             // than silently returning success with the old account snapshot.

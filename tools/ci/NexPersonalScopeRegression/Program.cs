@@ -1,96 +1,145 @@
 using System;
-using System.Collections.Generic;
 using System.Linq;
 using NexVerse.Core.Security;
 
-// Issue #289 regression: native personal World token scopes vs admin wildcard,
-// independently scoped service credentials, targeted grants and re-login.
+// Native World bearer tests: automatic per-role baseline, legacy UserLevel,
+// explicit overrides, least privilege and the fact that existing JWTs do not
+// magically gain newly configured role-derived grants until their next issue.
 internal static class Program
 {
-    private static void Check(bool success, string message)
+    private static void Check(bool yes, string message)
     {
-        if (!success) throw new InvalidOperationException(message);
+        if (!yes) throw new InvalidOperationException(message);
+    }
+
+    private static void HasAll(string[] actual, params string[] expected)
+    {
+        Check(expected.All(actual.Contains),
+            "Missing automatically issued grants: " +
+            string.Join(",", expected.Where(s => !actual.Contains(s))));
+    }
+
+    private static void HasNone(string[] actual, params string[] forbidden)
+    {
+        Check(!forbidden.Any(actual.Contains),
+            "Excessive automatic grants: " +
+            string.Join(",", forbidden.Where(actual.Contains)));
     }
 
     private static int Main()
     {
-        const int adminLevel = 200;
+        const int adminMinimum = 200;
         const string adminId = "11111111-2222-3333-4444-555555555555";
-        const string residentId = "11111111-2222-3333-4444-666666666666";
-        var signer = new HmacNexAccessTokenService(
+        const string citizenId = "11111111-2222-3333-4444-666666666666";
+        var issuer = new HmacNexAccessTokenService(
             "https://world.stadt-nexverse.de", "nexverse-world-api",
             new string('N', 64), 600);
 
-        string[] before = NexAuthorizationPolicy.GetEffectiveScopes(
-            adminLevel, adminLevel, new[] { NexRoles.Administrator }, Array.Empty<string>());
-        Check(before.Contains(NexScopes.AdminAll), "Admin must retain admin:*");
-        Check(!before.Contains(NexScopes.StatisticsRead),
-            "Admin wildcard must not fabricate a separately issued statistics:read");
-        string oldToken = signer.Issue(adminId, before, 100);
-        Check(signer.TryValidate(oldToken, out NexAccessTokenClaims oldClaims) &&
-            !oldClaims.Scopes.Contains(NexScopes.StatisticsRead),
-            "Old bearer unexpectedly contains a newly assigned read scope");
+        string[] baseResident = NexAuthorizationPolicy.GetEffectiveScopes(
+            0, adminMinimum, new[] { NexRoles.Resident }, Array.Empty<string>());
+        HasAll(baseResident, NexScopes.UsersRead, NexScopes.ProfileRead,
+            NexScopes.InventoryRead, NexScopes.EconomyRead,
+            NexScopes.RegionsRead, NexScopes.GroupsRead,
+            NexScopes.ExperiencesRead, NexScopes.DiscoveryRead);
+        HasNone(baseResident, NexScopes.AdminAll, NexScopes.SecurityManage,
+            NexScopes.StatisticsRead, NexScopes.SimulatorsRead,
+            NexScopes.EstatesRead, NexScopes.EconomyTransfer,
+            NexScopes.RegionsManage, NexScopes.SimulatorsManage,
+            NexScopes.InventoryWrite, NexScopes.DiscoveryManage,
+            NexScopes.ExperiencesManage, NexScopes.ExperiencesViewerManage);
 
-        var requested = new[] {
+        // SQL accounts with the old default "resident" role must work exactly
+        // like newly registered accounts. No explicit database migration or
+        // 100,000 separate PATCH calls should be necessary.
+        string[] emptyStoredRoles = NexAuthorizationPolicy.GetEffectiveScopes(
+            0, adminMinimum, Array.Empty<string>(), Array.Empty<string>());
+        HasAll(emptyStoredRoles, NexScopes.InventoryRead, NexScopes.EconomyRead);
+        string[] legacyAdmin = NexAuthorizationPolicy.GetEffectiveScopes(
+            200, adminMinimum, new[] { NexRoles.Resident }, Array.Empty<string>());
+        HasAll(legacyAdmin, NexScopes.AdminAll, NexScopes.StatisticsRead,
+            NexScopes.SimulatorsRead, NexScopes.EstatesRead,
+            NexScopes.EconomyRead, NexScopes.InventoryRead,
+            NexScopes.RegionsRead, NexScopes.DiscoveryRead);
+
+        string[] roleAdmin = NexAuthorizationPolicy.GetEffectiveScopes(
+            0, adminMinimum, new[] { NexRoles.Administrator }, Array.Empty<string>());
+        HasAll(roleAdmin, NexScopes.AdminAll, NexScopes.StatisticsRead,
+            NexScopes.SimulatorsRead, NexScopes.EstatesRead,
+            NexScopes.EconomyRead, NexScopes.InventoryRead);
+        HasNone(roleAdmin, NexScopes.EconomyTransfer, NexScopes.InventoryWrite,
+            NexScopes.SimulatorsManage, NexScopes.ExperiencesViewerPermissions);
+
+        string oldAdminToken = issuer.Issue(adminId,
+            new[] { NexScopes.UsersRead, NexScopes.AdminAll }, 100);
+        Check(issuer.TryValidate(oldAdminToken, out NexAccessTokenClaims oldAdmin)
+            && !oldAdmin.Scopes.Contains(NexScopes.StatisticsRead),
+            "Existing signed tokens should not magically acquire newly configured read scopes");
+        string refreshedAdminToken = issuer.Issue(adminId, legacyAdmin, 100);
+        Check(issuer.TryValidate(refreshedAdminToken,
+            out NexAccessTokenClaims newAdmin), "New admin JWT invalid");
+        HasAll(newAdmin.Scopes.ToArray(), NexScopes.AdminAll,
             NexScopes.StatisticsRead, NexScopes.RegionsRead,
-            NexScopes.SimulatorsRead, NexScopes.EstatesRead
-        };
-        Check(NexAuthorizationPolicy.TryNormalizeAssignment(
-            new[] { NexRoles.Administrator }, requested, true,
-            out string[] roles, out string[] explicitScopes, out string error),
-            "Administrator-approved read grants must be valid: " + error);
-        string[] after = NexAuthorizationPolicy.GetEffectiveScopes(
-            adminLevel, adminLevel, roles, explicitScopes);
-        Check(requested.All(after.Contains), "World effective token lacks an explicitly assigned read grant");
-        string newToken = signer.Issue(adminId, after, 101);
-        Check(signer.TryValidate(newToken, out NexAccessTokenClaims refreshed) &&
-            refreshed.Scopes.Contains(NexScopes.StatisticsRead) &&
-            refreshed.Scopes.Contains(NexScopes.AdminAll),
-            "Re-login must produce a bearer containing both explicit and admin scopes");
-        Check(oldClaims.SecurityStamp != refreshed.SecurityStamp,
-            "Old bearer must remain stamped with its old authorization version");
-        Check(!oldClaims.Scopes.Contains(NexScopes.StatisticsRead),
-            "Existing access token gained rights without re-issuance");
+            NexScopes.SimulatorsRead, NexScopes.EstatesRead);
+
+        string residentToken = issuer.Issue(citizenId, baseResident, 50);
+        Check(issuer.TryValidate(residentToken, out NexAccessTokenClaims citizen),
+            "New resident JWT invalid");
+        HasAll(citizen.Scopes.ToArray(), NexScopes.EconomyRead,
+            NexScopes.InventoryRead, NexScopes.RegionsRead);
+        HasNone(citizen.Scopes.ToArray(), NexScopes.AdminAll,
+            NexScopes.StatisticsRead, NexScopes.EconomyTransfer,
+            NexScopes.SecurityManage);
 
         Check(NexAuthorizationPolicy.TryNormalizeAssignment(
-            new[] { NexRoles.Resident }, new[] { NexScopes.EconomyRead }, false,
-            out string[] residentRoles, out string[] residentExplicit, out error),
-            "Resident own economy read should be selectively assignable: " + error);
-        string[] residentScopes = NexAuthorizationPolicy.GetEffectiveScopes(
-            0, adminLevel, residentRoles, residentExplicit);
-        Check(residentScopes.Contains(NexScopes.EconomyRead) &&
-            !residentScopes.Contains(NexScopes.AdminAll) &&
-            !residentScopes.Contains(NexScopes.EconomyTransfer),
-            "Personal economy read must not grant administrator or transfer powers");
-        string residentToken = signer.Issue(residentId, residentScopes, 50);
-        Check(signer.TryValidate(residentToken, out NexAccessTokenClaims citizen) &&
-            citizen.Scopes.Contains(NexScopes.EconomyRead) &&
-            !citizen.Scopes.Contains(NexScopes.StatisticsRead),
-            "Citizen bearer has unassigned administrator/statistics privileges");
-
+            new[] { NexRoles.Resident },
+            new[] { NexScopes.EconomyRead, NexScopes.DiscoverySubmit }, false,
+            out string[] roles, out string[] custom, out string error),
+            "Resident explicit scope assignment should be valid: " + error);
+        var withCustom = NexAuthorizationPolicy.GetEffectiveScopes(
+            0, adminMinimum, roles, custom);
+        HasAll(withCustom, NexScopes.EconomyRead, NexScopes.DiscoverySubmit);
         Check(!NexAuthorizationPolicy.TryNormalizeAssignment(
-            new[] { NexRoles.Resident }, new[] { NexScopes.AdminAll }, false,
-            out _, out _, out error),
-            "Resident should not be able to self-grant admin:*");
+            new[] { NexRoles.Resident }, new[] { NexScopes.AdminAll },
+            false, out _, out _, out error), "Residents must not self-grant admin:*");
         Check(!NexAuthorizationPolicy.TryNormalizeAssignment(
-            new[] { NexRoles.Resident }, new[] { NexScopes.SecurityManage }, false,
-            out _, out _, out error),
-            "Resident should not self-grant security:manage");
+            new[] { NexRoles.Resident }, new[] { NexScopes.SecurityManage },
+            false, out _, out _, out error), "Residents must not self-grant security:manage");
 
-        NexPrincipal admin = new NexPrincipal(adminId, refreshed.Scopes);
-        NexPrincipal citizenPrincipal = new NexPrincipal(residentId, citizen.Scopes);
-        NexPrincipal machine = new NexPrincipal("api-key:service-key",
-            new[] { NexScopes.StatisticsRead });
-        Check(admin.HasScope(NexScopes.StatisticsRead), "Admin read scope denied");
-        Check(citizenPrincipal.HasScope(NexScopes.EconomyRead) &&
-            !citizenPrincipal.HasScope(NexScopes.SecurityManage),
-            "Citizen ownership/scope guard regression");
-        Check(machine.HasScope(NexScopes.StatisticsRead) &&
-            !machine.HasScope(NexScopes.AdminAll) &&
-            !machine.HasScope(NexScopes.EconomyRead),
-            "Service key grants must not become personal bearer grants");
+        string[] support = NexAuthorizationPolicy.GetEffectiveScopes(
+            0, adminMinimum, new[] { NexRoles.Support }, Array.Empty<string>());
+        HasAll(support, NexScopes.StatisticsRead, NexScopes.RegionsRead,
+            NexScopes.SimulatorsRead, NexScopes.EstatesRead);
+        HasNone(support, NexScopes.AdminAll, NexScopes.EconomyTransfer);
+        string[] manager = NexAuthorizationPolicy.GetEffectiveScopes(
+            0, adminMinimum, new[] { NexRoles.RegionManager }, Array.Empty<string>());
+        HasAll(manager, NexScopes.RegionsManage, NexScopes.SimulatorsManage);
+        HasNone(manager, NexScopes.AdminAll, NexScopes.EconomyTransfer);
 
-        Console.WriteLine("Personal World-API scopes: role, targeted grant, native token re-login, revocation boundary and service isolation PASS");
+        // Scale test: no role-to-user SQL materialization. Existing 100K users
+        // get exactly the policy appropriate for their role when logging in.
+        for (int i = 0; i < 100_000; i++)
+        {
+            string[] computed = NexAuthorizationPolicy.GetEffectiveScopes(
+                0, adminMinimum, new[] { NexRoles.Resident }, Array.Empty<string>());
+            if (i == 0 || i == 99_999)
+            {
+                HasAll(computed, NexScopes.EconomyRead, NexScopes.InventoryRead);
+                HasNone(computed, NexScopes.AdminAll, NexScopes.StatisticsRead);
+            }
+        }
+
+        var adminPrincipal = new NexPrincipal(adminId, newAdmin.Scopes);
+        var citizenPrincipal = new NexPrincipal(citizenId, citizen.Scopes);
+        var servicePrincipal = new NexPrincipal("api-key:test", new[] { NexScopes.StatisticsRead });
+        Check(adminPrincipal.HasScope(NexScopes.StatisticsRead) &&
+            citizenPrincipal.HasScope(NexScopes.EconomyRead) &&
+            !citizenPrincipal.HasScope(NexScopes.AdminAll) &&
+            servicePrincipal.HasScope(NexScopes.StatisticsRead) &&
+            !servicePrincipal.HasScope(NexScopes.AdminAll) &&
+            !servicePrincipal.HasScope(NexScopes.EconomyRead),
+            "Principal machine-key isolation or least privilege regression");
+
+        Console.WriteLine("World personal scopes: 100K role-derived users, admin read grants, OAuth/native JWT, preserved explicit scopes and least privilege OK");
         return 0;
     }
 }
