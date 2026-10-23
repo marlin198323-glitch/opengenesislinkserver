@@ -5,6 +5,7 @@ using OpenMetaverse;
 using Nini.Config;
 using OpenSim.Services.FSAssetService;
 using OpenSim.Framework;
+using OpenSim.Framework.Serialization.External;
 using OpenSim.Services.Interfaces;
 
 namespace OpenGenesisLINK.Addons.AssetService
