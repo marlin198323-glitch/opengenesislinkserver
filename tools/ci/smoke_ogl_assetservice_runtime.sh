@@ -24,7 +24,7 @@ cleanup() {
 }
 trap cleanup EXIT
 
-mkdir -p "$WORK/registry" "$WORK/include" "$WORK/fsassets/data" "$WORK/fsassets/tmp"
+mkdir -p "$WORK/registry" "$WORK/include" "$WORK/fsassets/data" "$WORK/fsassets/tmp" "$WORK/ogl"
 cat > "$WORK/Robust.OGLSmoke.ini" <<EOF
 [Startup]
   RegistryLocation = "$WORK/registry"
@@ -50,6 +50,10 @@ cat > "$WORK/Robust.OGLSmoke.ini" <<EOF
   DiskCacheEnabled = false
   RedisEnabled = false
   ExperimentalAtomicUpdatesEnabled = false
+  ParallelStoreEnabled = true
+  ParallelReadPreferred = true
+  ParallelObjectDirectory = "$WORK/ogl/objects"
+  ParallelIndexPath = "$WORK/ogl/locations.sqlite"
 [OGLAssetServiceAdmin]
   Enabled = false
 EOF
@@ -108,7 +112,8 @@ assert_ready
 # Exercise the actual public asset HTTP handlers and the asynchronous FSAssets
 # spool writer against throwaway MariaDB, not just a TCP health check.
 python3 tools/ci/verify_ogl_assetservice_http_persistence.py \
-  write "$WORK/fixtures.json" "$WORK/fsassets/data"
+  write "$WORK/fixtures.json" "$WORK/fsassets/data" \
+  --ogl-objects "$WORK/ogl/objects" --ogl-index "$WORK/ogl/locations.sqlite"
 
 # Force the next read through a NEW OGL connector/ROBUST process so that
 # memory-only state cannot mask a failed SQL/object-store persistence.
@@ -119,6 +124,23 @@ ROBUST_PID=""
 start_robust
 assert_ready
 python3 tools/ci/verify_ogl_assetservice_http_persistence.py \
-  read "$WORK/fixtures.json" "$WORK/fsassets/data"
+  read "$WORK/fixtures.json" "$WORK/fsassets/data" \
+  --ogl-objects "$WORK/ogl/objects" --ogl-index "$WORK/ogl/locations.sqlite"
 
-echo "OGL AssetService isolated ROBUST HTTP persistence smoke PASS"
+# Strict proof that the new read path actually uses the OGL copy:
+# hide ONLY disposable CI FSAssets folders, start a new ROBUST instance,
+# and confirm that the same HTTP asset requests still work via OGL.
+kill "$ROBUST_PID"
+wait "$ROBUST_PID" 2>/dev/null || true
+ROBUST_PID=""
+mv "$WORK/fsassets/data" "$WORK/fsassets/data-hidden"
+mv "$WORK/fsassets/tmp" "$WORK/fsassets/tmp-hidden"
+mkdir -p "$WORK/fsassets/data" "$WORK/fsassets/tmp/spool"
+: > "$WORK/robust.log"
+start_robust
+assert_ready
+python3 tools/ci/verify_ogl_assetservice_http_persistence.py \
+  mirror-read "$WORK/fixtures.json" "$WORK/fsassets/data" \
+  --ogl-objects "$WORK/ogl/objects" --ogl-index "$WORK/ogl/locations.sqlite"
+
+echo "OGL AssetService isolated ROBUST HTTP dual-store + OGL-first read smoke PASS"
