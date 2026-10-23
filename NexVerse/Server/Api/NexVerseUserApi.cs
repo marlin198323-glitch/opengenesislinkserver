@@ -1495,7 +1495,7 @@ namespace NexVerse.Server.Api
                     if (root.TryGetProperty("scopes", out JsonElement newScopesElement))
                     {
                         if (string.IsNullOrWhiteSpace(keyId) ||
-                            root.TryGetProperty("enabled", out JsonElement _) ||
+                            root.TryGetProperty("enabled", out JsonElement enabledInScopePatch) ||
                             !TryReadStringArray(newScopesElement, out string[] scopes) ||
                             !root.TryGetProperty("expected_scopes",
                                 out JsonElement expectedScopesElement) ||
