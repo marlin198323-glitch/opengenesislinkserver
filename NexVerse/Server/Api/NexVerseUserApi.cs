@@ -904,6 +904,11 @@ namespace NexVerse.Server.Api
                 HandleApiKeys(request, response);
                 return;
             }
+            if (string.Equals(path, "/api/v1/auth/api-keys/self", StringComparison.OrdinalIgnoreCase))
+            {
+                HandleApiKeySelf(request, response);
+                return;
+            }
             if (path.StartsWith("/api/v1/auth/api-keys/", StringComparison.OrdinalIgnoreCase))
             {
                 HandleApiKeyDelete(request, response,
@@ -1649,6 +1654,52 @@ namespace NexVerse.Server.Api
                 HttpStatusCode.MethodNotAllowed,
                 "method_not_allowed",
                 "GET, POST or PATCH is required.");
+        }
+
+        /// <summary>
+        /// An API key can inspect its own effective live scope set. This is
+        /// deliberately not a bearer/admin inventory: the caller must present
+        /// the actual machine key via X-NexVerse-Api-Key, never a URL parameter.
+        /// No plaintext secret, hash, salt or other key inventory is returned.
+        /// </summary>
+        private void HandleApiKeySelf(IOSHttpRequest request,
+            IOSHttpResponse response)
+        {
+            response.AddHeader("Cache-Control", "no-store");
+            if (!RequireMethod(request, response, "GET"))
+                return;
+
+            if (m_ApiKeys == null)
+            {
+                WriteError(response, HttpStatusCode.ServiceUnavailable,
+                    "api_key_store_unavailable", "API key storage is unavailable.");
+                return;
+            }
+
+            string providedKey = request?.Headers?["X-NexVerse-Api-Key"]?.Trim();
+            if (string.IsNullOrWhiteSpace(providedKey))
+            {
+                WriteError(response, HttpStatusCode.Unauthorized,
+                    "api_key_required",
+                    "Supply the machine credential in the X-NexVerse-Api-Key header.");
+                return;
+            }
+
+            if (!m_ApiKeys.TryValidate(providedKey, out NexApiKeyRecord record))
+            {
+                WriteError(response, HttpStatusCode.Unauthorized,
+                    "invalid_api_key", "Invalid or disabled API key.");
+                return;
+            }
+
+            WriteJson(response, new
+            {
+                key_id = record.KeyId,
+                scopes = record.Scopes,
+                enabled = record.Enabled,
+                updated_at = record.UpdatedAt,
+                authorization_source = "api_key"
+            });
         }
 
         /// <summary>
