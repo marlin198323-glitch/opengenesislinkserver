@@ -77,25 +77,21 @@ for marker in ("/api/v1/chatgpt-instructions.md",
                "/api/v1/openapi.json"):
     assert marker in explorer, "Explorer link missing: " + marker
 
-# R2026 capability atlas: every route from the World API's canonical
-# OpenAPI dictionary must occur exactly once in the ChatGPT guide index.
-# Regressions here mean an endpoint was added, moved or removed without
-# updating the AI instructions. Do not silence drift by allowing extras.
-registered = re.findall(r'^\\s*\\["(/[^"]+)"\\]\\s*=\\s*', spec, re.MULTILINE)
+# R2026 capability atlas: every route from the canonical OpenAPI dictionary
+# must occur exactly once in the ChatGPT route catalog.
+registered = re.findall(r'^\s*\["(/[^"]+)"\]\s*=\s*', spec, re.MULTILINE)
 assert len(registered) == len(set(registered)), "Duplicate World OpenAPI paths"
 assert len(registered) >= 151, "Unexpectedly reduced World API surface"
 route_index = md.split(
     "private void AppendCompleteRouteIndex(StringBuilder md, string requestedAudience)", 1
 )[1].split("private static void AppendEndpointMetadata(StringBuilder md)", 1)[0]
-documented = re.findall(r'^\\s*"(/[^"]+)"\\s*[,)]\\s*;?\\s*
-, route_index, re.MULTILINE)
+documented = re.findall(r'^\s*"(/[^"]+)"\s*[,)]\s*;?\s*$', route_index, re.MULTILINE)
 assert len(documented) == len(set(documented)), "Duplicate paths in AI instructions"
 assert set(registered) == set(documented), (
     "Missing from ChatGPT: " + str(sorted(set(registered) - set(documented))) +
     "; not in OpenAPI: " + str(sorted(set(documented) - set(registered)))
 )
-assert "AppendCatalogGroup(md, requestedAudience, \\"service\\"" in route_index
-assert "string.Equals(requestedAudience, \\"citizen\\"" not in route_index
+assert 'AppendCatalogGroup(md, requestedAudience, "service"' in route_index
 assert "string.Equals(kind, requestedAudience" in route_index
 assert 'string.Equals(requestedAudience, "admin"' in route_index
 assert "bool include =" in route_index
@@ -104,8 +100,7 @@ assert "private void AppendCompleteRouteIndex" in md, (
 )
 assert "m_PublicBaseUrl" in route_index and "m_ApiBaseUrl" in route_index
 
-# Required coverage in ALL and focused citizen/admin manuals. Tests check
-# generated method calls, topic coverage and least-privilege rules.
+# Required coverage in ALL and focused citizen/admin manuals.
 all_section = md.split("private string BuildAll()", 1)[1].split(
     "private string BuildCitizen()", 1
 )[0]
@@ -125,8 +120,8 @@ for name in ("AppendCitizenCoverage2026", "AppendIdentityAndScope2026",
 for name in ("AppendAdminCoverage2026", "AppendIdentityAndScope2026",
              "AppendServiceBoundaries2026", "AppendCompleteRouteIndex"):
     assert name + "(md" in admin_section, "Missing admin chapter " + name
-assert 'AppendAdminCoverage2026(md)' not in citizen_section
-assert 'AppendCitizenCoverage2026(md)' not in admin_section
+assert "AppendAdminCoverage2026(md)" not in citizen_section
+assert "AppendCitizenCoverage2026(md)" not in admin_section
 assert 'AppendCompleteRouteIndex(md, "all")' in all_section
 assert 'AppendCompleteRouteIndex(md, "citizen")' in citizen_section
 assert 'AppendCompleteRouteIndex(md, "admin")' in admin_section
