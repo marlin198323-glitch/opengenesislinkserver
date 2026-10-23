@@ -1749,9 +1749,9 @@ function secretRenderKeyInventory(keys, supportedScopes) {
     const editor=document.createElement('div');
     editor.hidden=true;
     editor.style.marginTop='12px';
-    const description=document.createElement('p');
-    description.textContent='Berechtigungen für diesen Schlüssel auswählen. Der Schlüsselwert bleibt erhalten.';
-    editor.append(description);
+    const editDescription=document.createElement('p');
+    editDescription.textContent='Berechtigungen für diesen Schlüssel auswählen. Der Schlüsselwert bleibt erhalten.';
+    editor.append(editDescription);
     const choices=document.createElement('div');choices.className='changegrid';
     const allowed=new Set(supportedScopes||[]);
     const allScopes=[...new Set([...(supportedScopes||[]),...(key.scopes||[])])].sort();
