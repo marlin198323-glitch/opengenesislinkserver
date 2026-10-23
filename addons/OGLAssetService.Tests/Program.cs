@@ -318,23 +318,25 @@ try
     {
         string uuid = Guid.NewGuid().ToString("D");
         string digest = OGLObjectCache.ContentHash(assets[i]);
+        // Production FSAssets often stores uppercase digest filenames.
+        string sourceHash = i == 1 ? digest.ToUpperInvariant() : digest;
         importedIds.Add(uuid);
-        rows.Add(uuid + "\t" + digest);
-        string shard = Path.Combine(snapshotFs, digest[..2], digest.Substring(2, 2),
-            digest.Substring(4, 2), digest.Substring(6, 4));
+        rows.Add(uuid + "\t" + sourceHash);
+        string shard = Path.Combine(snapshotFs, sourceHash[..2], sourceHash.Substring(2, 2),
+            sourceHash.Substring(4, 2), sourceHash.Substring(6, 4));
         if (i < 2)
         {
             Directory.CreateDirectory(shard);
-            if (i == 0) File.WriteAllBytes(Path.Combine(shard, digest), assets[i]);
+            if (i == 0) File.WriteAllBytes(Path.Combine(shard, sourceHash), assets[i]);
             else
             {
-                using var compressedFile = File.Create(Path.Combine(shard, digest + ".gz"));
+                using var compressedFile = File.Create(Path.Combine(shard, sourceHash + ".gz"));
                 using var gzip = new System.IO.Compression.GZipStream(compressedFile,
                     System.IO.Compression.CompressionLevel.Optimal);
                 gzip.Write(assets[i]);
             }
         }
-        else File.WriteAllBytes(Path.Combine(snapshotSpool, digest + ".asset"), assets[i]);
+        else File.WriteAllBytes(Path.Combine(snapshotSpool, sourceHash + ".asset"), assets[i]);
     }
     File.WriteAllLines(tsv, rows);
     var importer = new OGLParallelSnapshotMigrator();
