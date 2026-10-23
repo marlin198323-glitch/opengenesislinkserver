@@ -333,11 +333,6 @@ namespace OpenSim.Region.ClientStack.Linden
         }
 
         /// <summary>
-        /// Decode a viewer's model instance from LLSD. The capability's
-        /// instance_list contains OSDMap/OSDArray values, not Hashtable
-        /// and ArrayList; invalid casts used to reject otherwise valid models.
-        /// </summary>
-        /// <summary>
         /// Accept both typed LLSD values and the legacy CLR values produced by
         /// LLSDStreamhandler -> LLSD.LLSDDeserialize -> DeserialiseOSDMap.
         /// Do not change the shared CAPS decoder: other capabilities depend on it.
