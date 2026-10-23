@@ -138,6 +138,49 @@ internal static class Program
                     persistedEdited.SecretHash == originalHash,
                 "Edited key lost identity or scopes after service restart");
 
+            // Regression: one ROBUST instance edits a key while a second,
+            // already running API-key authenticator still holds the old JSON
+            // document. Validation must refresh grants and MUST NOT write an
+            // old scope set over the new persistent configuration.
+            PersistentNexApiKeyStore adminInstance =
+                new PersistentNexApiKeyStore(path);
+            PersistentNexApiKeyStore apiInstance =
+                new PersistentNexApiKeyStore(path);
+            Require(adminInstance.UpdateScopes(registration.Record.KeyId,
+                    withStatistics, originalScopes),
+                "Another World API instance could not add statistics:read");
+            Require(apiInstance.TryValidate(registration.ApiKey,
+                    out NexApiKeyRecord freshFromApiInstance) &&
+                    freshFromApiInstance.Scopes.Contains(NexScopes.StatisticsRead),
+                "An already-running API authenticator did not receive new scopes");
+            PersistentNexApiKeyStore observer =
+                new PersistentNexApiKeyStore(path);
+            Require(observer.TryValidate(registration.ApiKey,
+                    out NexApiKeyRecord persistedAfterAuth) &&
+                    persistedAfterAuth.Scopes.Contains(NexScopes.StatisticsRead),
+                "Another instance's last-used write erased a new scope grant");
+            Require(apiInstance.List().First(x =>
+                    x.KeyId == registration.Record.KeyId).Scopes
+                    .Contains(NexScopes.StatisticsRead),
+                "The inventory retained stale scope metadata after another instance's update");
+            Require(!apiInstance.UpdateScopes(registration.Record.KeyId,
+                    new[] { NexScopes.UsersRead }, originalScopes),
+                "A stale administrator overwrote another process's new grants");
+            Require(adminInstance.UpdateScopes(registration.Record.KeyId,
+                    originalScopes, withStatistics),
+                "Removing statistics:read across processes failed");
+            Require(!apiInstance.TryValidate(registration.ApiKey,
+                    out NexApiKeyRecord removedFromApiInstance) ||
+                    !removedFromApiInstance.Scopes.Contains(NexScopes.StatisticsRead),
+                "A long-running authenticator retained a revoked scope");
+            Require(adminInstance.SetEnabled(registration.Record.KeyId, false),
+                "Disabling a key from another process failed");
+            Require(!apiInstance.TryValidate(registration.ApiKey, out _),
+                "An already-running authenticator accepted an externally disabled key");
+            Require(adminInstance.SetEnabled(registration.Record.KeyId, true) &&
+                    store.TryValidate(registration.ApiKey, out _),
+                "Re-enabling a key did not propagate across processes");
+
             Require(
                 !store.TryValidate(
                     registration.ApiKey + "x",
