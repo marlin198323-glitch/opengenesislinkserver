@@ -8,7 +8,7 @@ using OpenGenesisLINK.Addons.AssetService;
 if (args.Length >= 7 && args[0] == "--parallel-snapshot")
 {
     long expected = 0;
-    bool copy = false;
+    bool parallelCopy = false;
     bool confirmed = false;
     bool osgrid = false;
     bool invalid = false;
@@ -22,8 +22,8 @@ if (args.Length >= 7 && args[0] == "--parallel-snapshot")
                     invalid = true;
                 break;
             case "--copy":
-                if (copy) invalid = true;
-                copy = true;
+                if (parallelCopy) invalid = true;
+                parallelCopy = true;
                 break;
             case "--offline-snapshot-confirmed":
                 if (confirmed) invalid = true;
@@ -38,7 +38,7 @@ if (args.Length >= 7 && args[0] == "--parallel-snapshot")
                 break;
         }
     }
-    if (invalid || expected <= 0 || (copy && !confirmed))
+    if (invalid || expected <= 0 || (parallelCopy && !confirmed))
     {
         Console.Error.WriteLine("Required: --expected-rows N; --copy requires --offline-snapshot-confirmed.");
         return 2;
@@ -46,10 +46,10 @@ if (args.Length >= 7 && args[0] == "--parallel-snapshot")
     try
     {
         var result = new OGLParallelSnapshotMigrator().Run(
-            args[1], args[2], args[3], args[4], args[5], expected, copy, osgrid);
+            args[1], args[2], args[3], args[4], args[5], expected, parallelCopy, osgrid);
         Console.WriteLine(JsonSerializer.Serialize(new
         {
-            Mode = copy ? "copy-verify" : "read-only-dry-run",
+            Mode = parallelCopy ? "copy-verify" : "read-only-dry-run",
             ExpectedRows = expected,
             result.Rows,
             result.Valid,
