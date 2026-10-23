@@ -1031,7 +1031,9 @@ namespace OpenSim.Region.OptionalModules.Materials
                 return false;
 
             int indx = 0;
-            while (entries[indx].te_index != side && indx < entries.Length)
+            // Bounds must be checked before accessing the element. Removing
+            // a material from an absent face must be a safe no-op.
+            while (indx < entries.Length && entries[indx].te_index != side)
                 indx++;
 
             if (indx >= entries.Length)
