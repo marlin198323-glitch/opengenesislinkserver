@@ -1,8 +1,11 @@
 // SPDX-License-Identifier: MPL-2.0
 // Real LLSD instance structures as sent in mesh upload fee requests.
 using System;
+using System.Collections;
+using System.Text;
 using OpenMetaverse;
 using OpenMetaverse.StructuredData;
+using OpenSim.Framework.Capabilities;
 using OpenSim.Region.ClientStack.Linden;
 
 internal static class Program
@@ -73,6 +76,49 @@ internal static class Program
             out _, out _, out _), "missing scale accepted");
         Assert(!ModelCost.TryParseModelInstance(OSD.FromString("bad"), 1,
             out _, out _, out _), "non-map instance accepted");
+        // Real CAPS fee decoding uses the legacy LLSD XML parser: nested
+        // arrays retain Hashtable / ArrayList / byte[] rather than OSD values.
+        const string feeXml = @"<llsd><map>
+          <key>asset_resources</key><map>
+            <key>instance_list</key><array><map>
+              <key>scale</key><array><real>1.5</real><real>2</real><real>0.5</real></array>
+              <key>mesh</key><integer>0</integer>
+            </map></array>
+            <key>mesh_list</key><array><binary encoding=""base64"">AQID</binary></array>
+          </map></map></llsd>";
+        var legacyRoot = (Hashtable)LLSD.LLSDDeserialize(Encoding.UTF8.GetBytes(feeXml));
+        var legacyRequest = new LLSDAssetUploadRequest();
+        LLSDHelpers.DeserialiseOSDMap(legacyRoot, legacyRequest);
+        var resources = legacyRequest.asset_resources;
+        Assert(resources.mesh_list.Array.Count == 1 &&
+            resources.mesh_list.Array[0] is byte[],
+            "legacy fee decoder must reproduce raw binary bytes");
+        Assert(resources.instance_list.Array.Count == 1 &&
+            resources.instance_list.Array[0] is Hashtable,
+            "legacy fee decoder must reproduce untyped instance maps");
+        Assert(ModelCost.TryGetMeshBinary(resources.mesh_list.Array[0], out byte[] meshBytes) &&
+            meshBytes.Length == 3 && meshBytes[0] == 1 && meshBytes[2] == 3,
+            "decoded LLSD binary mesh must be accepted");
+        Assert(ModelCost.TryParseModelInstance(resources.instance_list.Array[0], 1,
+            out scale, out mesh, out error) && mesh == 0 && scale.X == 1.5f,
+            "decoded legacy LLSD instance must be accepted: " + error);
+        Assert(ModelCost.TryGetMeshBinary(OSD.FromBinary(meshBytes), out byte[] typedBytes) &&
+            typedBytes.Length == meshBytes.Length,
+            "typed OSD binary mesh must remain accepted");
+        Assert(!ModelCost.TryGetMeshBinary("AQID", out _) &&
+            !ModelCost.TryGetMeshBinary(Array.Empty<byte>(), out _),
+            "nonbinary or empty mesh payload must be rejected");
+
+        var brokenScale = new Hashtable { ["scale"] = new ArrayList { 1.0, 0.0, 1.0 }, ["mesh"] = 0 };
+        Assert(!ModelCost.TryParseModelInstance((object)brokenScale, 1,
+            out _, out _, out _), "legacy zero scale must be rejected");
+        var brokenIndex = new Hashtable { ["scale"] = new ArrayList { 1.0, 1.0, 1.0 }, ["mesh"] = 2 };
+        Assert(!ModelCost.TryParseModelInstance((object)brokenIndex, 1,
+            out _, out _, out _), "legacy out-of-range mesh index must be rejected");
+        var brokenType = new Hashtable { ["scale"] = new ArrayList { 1.0, 1.0, 1.0 }, ["mesh"] = "0" };
+        Assert(!ModelCost.TryParseModelInstance((object)brokenType, 1,
+            out _, out _, out _), "legacy string mesh index must be rejected");
+
         Console.WriteLine("OpenGenesisLINK Mesh upload fee LLSD instance regression: OK");
     }
 }
