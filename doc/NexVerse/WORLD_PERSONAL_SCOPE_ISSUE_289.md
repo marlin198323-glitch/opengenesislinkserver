@@ -24,7 +24,51 @@ Der PATCH bleibt ausschließlich über einen **persönlichen Admin-Bearer** mit
 `admin:*`. Es wird **kein** Maschinen-API-Key zum Bearbeiten oder
 Ausstellen persönlicher Rechte verwendet.
 
-## Umsetzung: Control Center
+## Korrektur ab Scope-Automatik-Fix
+
+**Ursache der verschwundenen Zuweisungen:** Die SQL-Migrationen enthielten
+`NexVerseRoles` und `NexVerseScopes`, aber
+`UserAccountService.MakeUserAccount()` hat diese Felder beim Lesen nicht
+übernommen und `StoreUserAccount()` beim Schreiben nicht übergeben.
+Auch der Remote-`setaccount`-Handler verwarf die Werte. Das wurde
+korrigiert. Die World-Benutzerverwaltung liest nach einem erfolgreichen
+Update die Daten erneut und antwortet bei abweichendem Speicherstand
+mit HTTP **503** und `authorization_persistence_failed` statt
+scheinbar erfolgreichem PATCH. Die Kontoschema-Migration muss bereits
+erfolgreich ausgeführt sein.
+
+**Skalierbare Rollenautomatik:** Ein Login berechnet die Berechtigungen
+jedes Kontos dynamisch aus Resident-Basis, gespeicherten Rollen,
+gezielten Ausnahmen und legacy `UserLevel`. Das gilt ohne
+Datenbank-Schreibschleife auch für mehr als 100.000 bestehende Accounts.
+
+| Kontotyp | Automatische Fachscopes |
+|---|---|
+| Bewohner (auch ohne explizite Scopes) | `inventory:read`, `economy:read`, `regions:read`, `experiences:read`, `discovery:read` plus die bisherigen Nutzer-, Profil-, Beziehungs- und Gruppen-Basisscopes |
+| Support, Moderator, Regionsmanager | Bewohner-Basis plus die bereits definierten jeweiligen Rollen-Scopes, insbesondere `statistics:read` bei Support und höher |
+| Administrator-Rolle oder Legacy-`UserLevel >= AdminMinimumUserLevel` | Bewohner-Basis und zusätzlich `admin:*`, `statistics:read`, `regions:read`, `simulators:read`, `estates:read` und weitere reine Lese-Scopes |
+
+Keine automatische Vergabe von `economy:transfer`,
+`inventory:write`, `simulators:manage`, `security:manage` oder
+`admin:*` an gewöhnliche Bewohner. Jeder World-Endpunkt bleibt
+verpflichtet, die Besitzer-, Gruppen- und Audience-Grenzen separat
+zu überprüfen. Die erlaubten Bewohner-Leseaufrufe bleiben daher
+auf ihre eigenen Wirtschafts- und Inventardaten beschränkt.
+
+**Anwendung der neuen Regeln:** Aktuelle Access-Tokens werden nicht
+nachträglich umgeschrieben. ROBUST aktualisieren und persönliches
+Stadtportal-Konto komplett abmelden und erneut anmelden. Das neue
+`scope`-Feld des World-Session-Logins enthält dann die aus der Rolle
+automatisch berechneten Fachscopes. Unveränderte Konten müssen dafür
+weder `PATCH` aufrufen noch in SQL migriert werden.
+
+Die alte Einzelzuweisungsoberfläche ist ab jetzt **nur für Ausnahmen**.
+Automatisch geerbte Scopes werden angezeigt und sind im Editor gesperrt;
+das darunterliegende Rollensystem entscheidet. Der World-API-Endpunkt
+`GET /api/v1/auth/authorization-model` zeigt
+`default_scopes` und die Rollenmatrix zur Überprüfung.
+
+## Umsetzung: Control Center (Ausnahmen)
 
 Nach Installation des neuen Builds:
 
@@ -36,12 +80,11 @@ Nach Installation des neuen Builds:
 3. Für das *autorisierte* Zielkonto die Principal-UUID eingeben; alternativ
    **„Eigenes Admin-Konto verwenden”**. Persönliche Rollen/Scopes aus World
    laden und prüfen.
-4. Nur wirklich erforderliche Lese-Scopes markieren, z. B. für den
-   Betreiberadministrator `statistics:read`, `regions:read`,
-   `simulators:read`, `estates:read`; für die eigene Bürger-Finanzseite
-   bei einem berechtigten Bewohner `economy:read`.
-   **Nicht** allen Bürgern alle Admin-, Eigentümer-, Service- oder
-   Finanztransferrechte zuweisen.
+4. Zuerst prüfen, ob die gewünschten Berechtigungen **automatisch**
+   durch die Resident-/Admin-Rolle bereits vorhanden sind. Sie stehen
+   dann als „Automatisch durch Rolle” und sind nicht erneut zu vergeben.
+   Nur begründete Ausnahme-Scopes, die kein Rollenstandard sind,
+   werden separat zugewiesen. Alle bisherigen Rollen und Ausnahmen erhalten.
 5. Vor dem Schreiben lädt das Frontend Rollen und explizite Scopes erneut.
    Die API unterstützt optionale `expected_roles` und
    `expected_scopes`; eine erkennbare Abweichung führt zu
@@ -134,7 +177,8 @@ Abnahme einschließlich verweigertem `invalid_scope` ausführen.
 ## Akzeptanzmatrix
 
 - [x] Native Token-Ausgabe aus `Roles + ExplicitScopes` ist im Quellcode vorhanden
-- [x] Admin-PATCH/GET/Rollenmodell existieren bereits; jetzt sichere UI mit nur Lese-Scopes
+- [x] Admin-PATCH/GET/Rollenmodell und anzeigende automatische Resident-/Admin-Scopes
+- [x] Fehlende SQL-/Remote-Account-Serialisierung behoben und Speicherung per Readback verifiziert
 - [x] Sicherheits-/Token-/Audience-Grenzen werden durch Regressionen verifiziert
 - [ ] Neuer Build **produktiv** deployed; aktivierte privilegierte World-Routen geprüft
 - [ ] Produktives autorisiertes Konto gezielt geändert, ursprüngliche Scopes und Rollen erhalten
