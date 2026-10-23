@@ -26,13 +26,22 @@ namespace OpenGenesisLINK.Addons.AssetService
         public long LocalInvalidations { get; }
         public long DiskInvalidationFailures { get; }
         public long RedisInvalidationFailures { get; }
+        public bool ParallelStoreEnabled { get; }
+        public bool ParallelReadPreferred { get; }
+        public long ParallelMirrored { get; }
+        public long ParallelReadHits { get; }
+        public long ParallelReadMisses { get; }
+        public long ParallelWriteFailures { get; }
 
         public OGLAssetServiceDiagnostics(
             bool atomicUpdatesEnabled, bool localCacheEnabled, bool redisEnabled,
             long attempts, long succeeded, long rejected, long exceptions,
             long elapsedTicks, long memoryHits, long memoryMisses, long memoryBytes,
             long diskHits, long diskMisses, long diskEvictions, long localInvalidations,
-            long diskInvalidationFailures, long redisInvalidationFailures)
+            long diskInvalidationFailures, long redisInvalidationFailures,
+            bool parallelStoreEnabled = false, bool parallelReadPreferred = false,
+            long parallelMirrored = 0, long parallelReadHits = 0,
+            long parallelReadMisses = 0, long parallelWriteFailures = 0)
         {
             CapturedAtUtc = DateTimeOffset.UtcNow;
             AtomicUpdatesEnabled = atomicUpdatesEnabled;
@@ -53,6 +62,12 @@ namespace OpenGenesisLINK.Addons.AssetService
             LocalInvalidations = localInvalidations;
             DiskInvalidationFailures = diskInvalidationFailures;
             RedisInvalidationFailures = redisInvalidationFailures;
+            ParallelStoreEnabled = parallelStoreEnabled;
+            ParallelReadPreferred = parallelReadPreferred;
+            ParallelMirrored = parallelMirrored;
+            ParallelReadHits = parallelReadHits;
+            ParallelReadMisses = parallelReadMisses;
+            ParallelWriteFailures = parallelWriteFailures;
         }
     }
 }
