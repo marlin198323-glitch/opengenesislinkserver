@@ -1421,7 +1421,7 @@ Provide API/web tooling for:
 
 # Milestone 0.9.3.13
 
-## 17. Assets, Rendering, Marketplace and Media
+## 17. Assets, Rendering and Media
 
 ### 17.1 NexAsset
 
@@ -1455,24 +1455,7 @@ Add or improve support for:
 
 Legacy Collada remains available for compatibility while glTF becomes the preferred future direction.
 
-### 17.3 NexMarketplace
-
-Build a marketplace integrated with NV$:
-
-- merchants;
-- stores;
-- listings;
-- products;
-- variants;
-- delivery;
-- redelivery;
-- refunds;
-- search;
-- merchant analytics;
-- vendor API;
-- inventory delivery integration.
-
-### 17.4 NexMedia
+### 17.3 NexMedia
 
 Modernize parcel/shared media controls with explicit security and permission policies.
 
