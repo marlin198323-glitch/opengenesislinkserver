@@ -316,6 +316,45 @@ Example:
 
 A successful authorization change advances the account security stamp and revokes resident refresh tokens, so existing bearer sessions become stale and the user must sign in again. Normal resident bootstrap sessions still receive at least `users:read` and `users:write`.
 
+### Issue #289: persönliche Fachscopes kontrolliert zuweisen
+
+`admin:*` ist eine World-API-Wildcard, aber **nicht** automatisch ein
+ausgeschriebener `statistics:read`-/`regions:read`-Eintrag im
+persönlichen Login-Token. Ein Maschinen-API-Key darf dieses Defizit
+nicht für eine Bürger- oder Admin-Sitzung ersetzen.
+
+Im geschützten World Control Center unter
+`/api/v1/docs` → **Schlüssel & Einrichtung** →
+**5. Persönliche World-API-Berechtigungen (keine Maschinen-Schlüssel)**
+können ausdrücklich genehmigte **Lese-Fachscopes** für eine Bewohner-UUID
+hinzugefügt werden. Der Editor lädt `GET`-Rollen/Scopes,
+erhält alle bestehenden nicht bearbeiteten Berechtigungen,
+prüft unmittelbar vor dem Schreiben erneut den Stand
+und verlangt eine Bestätigung. World verlangt weiterhin einen
+persönlichen `security:manage`-Bearer und bei Admin-Zielkonten
+`admin:*`. Nach einem eigenen Admin-Update ist ein neuer Control-Center-
+Login notwendig.
+
+Das bestehende Benutzer-`PATCH`-API akzeptiert optional
+`expected_scopes` und `expected_roles` (aus dem vorherigen `GET`);
+bei erkennbar zwischenzeitlich veränderten Zuweisungen antwortet es
+mit `409 authorization_changed`. Alte Clients können diese optionalen
+Felder weglassen. Die Vorbedingung ersetzt keine verteilte
+SQL-Compare-and-Swap-Transaktion bei mehreren unabhängigen Schreibhosts.
+
+**Wirksamkeit:** Erst eine neue persönliche World-/Portal-Anmeldung
+stellt den aktualisierten Scope-String aus. `GET /api/v1/users/me`
+zeigt die gespeicherten expliziten Benutzer-Scopes, ersetzt aber nicht
+den Nachweis, dass der **neu ausgestellte Bearer** die entsprechenden
+Scopes tatsächlich trägt. Der dokumentierte, read-only Test unter
+`tools/diagnostics/verify_world_personal_scope_289.py` prüft mit
+genau diesem persönlichen Bearer das Token-Scope und für
+`statistics:read` die autorisierte World-Antwort mit
+`protected_details=true`. Die vollständige
+Produktions-/OAuth-Abnahme steht in
+[WORLD_PERSONAL_SCOPE_ISSUE_289.md](WORLD_PERSONAL_SCOPE_ISSUE_289.md).
+
+
 World API bearer authentication now accepts only native NexVerse access tokens. Restricted machine integrations use `X-NexVerse-Api-Key`; OAuth service clients use `client_credentials`.
 
 ## Transport safety

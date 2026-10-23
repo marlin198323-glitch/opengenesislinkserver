@@ -651,6 +651,23 @@ Archivprüfungen bleiben auch für freigegebene Importe aktiv.</div>
 <div id="secretKeyList" class="changegrid"></div>
 <p class="authnote">Scope-Änderungen gelten ab der nächsten API-Authentifizierung mit dem <em>gleichen</em> Schlüssel. Der vollständige Secret-Wert wird nicht erneut angezeigt. Die Bearbeitung sowie Aktivierung, Deaktivierung und Löschung verlangen Administratorrechte und werden protokolliert. Für dauerhafte Löschung zuerst deaktivieren.</p>
 </div>
+<div class="section" id="worldPersonalAuthorization">
+<h2>5. Persönliche World-API-Berechtigungen (keine Maschinen-Schlüssel)</h2>
+<p class="sectionlead">Fachscopes werden dem jeweiligen Bewohnerkonto zugewiesen, damit sie nach einer <strong>vollständigen erneuten Anmeldung</strong> im persönlichen World-Bearer erscheinen. Das Bearbeiten von Maschinen-API-Schlüsseln oben ändert diesen Token nicht. Die Funktion verlangt einen World-Administrator mit <code>security:manage</code>; privilegierte Zielkonten zusätzlich <code>admin:*</code>.</p>
+<div class="grid2">
+<div><label class="label2" for="worldAuthPrincipal">Bewohner-UUID / Principal-ID</label><input id="worldAuthPrincipal" maxlength="36" autocomplete="off" spellcheck="false" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"></div>
+<div><label class="label2">Ausgewähltes Konto</label><div class="authnote" id="worldAuthIdentity">Noch kein Benutzerkonto geladen.</div></div>
+</div>
+<div class="row" style="margin-top:12px;flex-wrap:wrap">
+<button class="action" id="worldAuthUseMe">Eigenes Admin-Konto verwenden</button>
+<button class="action" id="worldAuthLoad">Berechtigungen aus World laden</button>
+<button class="action" id="worldAuthSave" disabled>Ausgewählte Lese-Scopes speichern</button>
+</div>
+<div class="authnote" id="worldAuthStatus" role="status">Zuerst eine UUID auswählen und die aktuellen Benutzerberechtigungen laden. Vor dem Speichern wird die Zuweisung erneut geprüft.</div>
+<p class="authnote" id="worldAuthExisting">Rollen, bisherige explizite Scopes und effektive Scopes werden nach dem Laden angezeigt. Es werden ausschließlich die ausgewählten Lese-Scopes hinzugefügt oder entfernt; alle anderen expliziten Scopes und Rollen bleiben unangetastet.</p>
+<div class="changegrid" id="worldAuthChoices"></div>
+<p class="authnote">Kein automatischer Zugriff: <code>admin:*</code> ist kein Ersatz für separat im Token ausgestellte Fachscopes. Nach einer Änderung wird der bisherige World-Bearer ungültig; mit <code>POST /api/v1/auth/session</code> beziehungsweise im Stadtportal erneut anmelden. Geschützte World-API-Daten und Eigentümerrechte bleiben serverseitig geschützt. Eine Änderung des eigenen Administrator-Kontos beendet auch die aktuelle Control-Center-Sitzung.</p>
+</div>
 </section>
 
 <section class="page" id="page-explorer">
@@ -724,6 +741,8 @@ function adminLogout(){
   adminSessionExpiry=0;
   ['adminLoginPassword','adminLoginTotp','bearer','gridBearer','nodesBearer','statsBearer'].forEach(id=>{$(id).value=''});
   secretClear();
+  worldAuthReset();
+  worldAuthSelfId='';
   adminUpdateStatus('Abgemeldet',null);
   showPage('adminlogin');
   if(window.parent!==window)window.parent.postMessage({type:'ogl-logout'},window.parent.location.origin);
@@ -1663,6 +1682,141 @@ async function execute(){
   }catch(err){$('status').textContent='Anfrage fehlgeschlagen';$('status').className='small status-bad';$('output').textContent=String(err)}
 }
 
+/* Issue #289: Personal World-Bearer authorization – never machine-key grants.
+   Read current assignment before editing and again immediately before saving.
+   Server-side ownership, account privileges and required scopes stay authoritative. */
+const worldReadScopeChoices=[
+ 'statistics:read','regions:read','simulators:read','estates:read',
+ 'economy:read','inventory:read','groups:read',
+ 'experiences:read','discovery:read'
+];
+let worldAuthLoaded=null,worldAuthSelfId='';
+function worldAuthReset(){
+  worldAuthLoaded=null;
+  $('worldAuthSave').disabled=true;
+  $('worldAuthChoices').replaceChildren();
+  $('worldAuthIdentity').textContent='Noch kein Benutzerkonto geladen.';
+  $('worldAuthExisting').textContent='Rollen, bisherige explizite Scopes und effektive Scopes werden nach dem Laden angezeigt.';
+}
+function worldAuthArray(values){
+  return [...new Set((Array.isArray(values)?values:[]).map(x=>String(x).toLowerCase()))].sort();
+}
+function worldAuthSame(left,right){
+  return JSON.stringify(worldAuthArray(left))===JSON.stringify(worldAuthArray(right));
+}
+async function worldAuthUseMe(){
+  try{
+    const token=await secretAdminToken();
+    const me=await secretJson('/api/v1/users/me',{
+      headers:{'Authorization':'Bearer '+token}});
+    if(typeof me.principal_id!=='string')throw new Error('World lieferte keine eigene Principal-ID.');
+    worldAuthSelfId=me.principal_id.toLowerCase();
+    $('worldAuthPrincipal').value=me.principal_id;
+    worldAuthReset();
+    await worldAuthLoad();
+  }catch(err){$('worldAuthStatus').textContent='Eigene UUID nicht geladen: '+String(err.message||err);}
+}
+async function worldAuthLoad(){
+  worldAuthReset();
+  const status=$('worldAuthStatus');
+  try{
+    if(!window.isSecureContext)throw new Error('Diese Funktion erfordert HTTPS.');
+    const id=$('worldAuthPrincipal').value.trim().toLowerCase();
+    if(!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(id))
+      throw new Error('Bitte eine vollständige gültige Bewohner-UUID eingeben.');
+    const token=await secretAdminToken();
+    const authHeaders={'Authorization':'Bearer '+token};
+    const [model,existing]=await Promise.all([
+      secretJson('/api/v1/auth/authorization-model',{headers:authHeaders}),
+      secretJson('/api/v1/users/'+encodeURIComponent(id)+'/authorization',{headers:authHeaders})
+    ]);
+    const allowed=new Set(Array.isArray(model.scopes)?model.scopes:[]);
+    const original=worldAuthArray(existing.explicit_scopes);
+    const readable=worldReadScopeChoices.filter(scope=>allowed.has(scope));
+    if(!readable.length)throw new Error('World gibt keine bearbeitbaren Lese-Scopes frei.');
+    $('worldAuthIdentity').textContent='Principal-ID: '+existing.principal_id+
+      ' · UserLevel: '+existing.legacy_user_level;
+    $('worldAuthExisting').textContent='Rollen: '+(existing.roles||[]).join(', ')+
+      ' | Explizit: '+(original.join(', ')||'keine')+
+      ' | Effektiv: '+(existing.effective_scopes||[]).join(', ');
+    const grid=$('worldAuthChoices');
+    for(const scope of readable){
+      const label=document.createElement('label');label.className='change';
+      const input=document.createElement('input');input.type='checkbox';
+      input.value=scope;input.checked=original.includes(scope);
+      input.style.width='auto';
+      const name=document.createElement('strong');name.textContent=' '+scope;
+      const note=document.createElement('p');
+      note.textContent=original.includes(scope)?
+        'Explizit vorhanden – Abwahl entfernt nur diesen expliziten Eintrag.':
+        'Nicht explizit vorhanden – Auswahl ergänzt diesen Fachscope.';
+      label.append(input,name,note);grid.append(label);
+    }
+    worldAuthLoaded={id,roles:worldAuthArray(existing.roles),original,stamp:existing.authorization_revision||null};
+    $('worldAuthSave').disabled=false;
+    status.textContent='Persönliche World-Rechte geladen (nur Lese-Scopes bearbeitbar). Keine Änderung gespeichert.';
+  }catch(err){
+    status.textContent='Benutzerberechtigungen nicht geladen: '+String(err.message||err);
+  }
+}
+async function worldAuthSave(){
+  const button=$('worldAuthSave');button.disabled=true;
+  const status=$('worldAuthStatus');
+  try{
+    if(!window.isSecureContext)throw new Error('Diese Funktion erfordert HTTPS.');
+    const old=worldAuthLoaded;
+    if(!old||$('worldAuthPrincipal').value.trim().toLowerCase()!==old.id)
+      throw new Error('Bitte Bewohnerberechtigungen erneut laden.');
+    const token=await secretAdminToken();
+    const toggled=[...$('worldAuthChoices').querySelectorAll('input[type=checkbox]')];
+    const merged=new Set(old.original);
+    for(const input of toggled){
+      if(input.checked)merged.add(input.value);
+      else merged.delete(input.value);
+    }
+    const next=worldAuthArray([...merged]);
+    const added=next.filter(scope=>!old.original.includes(scope));
+    const removed=old.original.filter(scope=>!next.includes(scope));
+    if(!added.length&&!removed.length){
+      status.textContent='Keine Scope-Änderung ausgewählt.';
+      return;
+    }
+    // A stale browser must not silently overwrite a newer assignment.
+    const url='/api/v1/users/'+encodeURIComponent(old.id)+'/authorization';
+    const latest=await secretJson(url,{headers:{'Authorization':'Bearer '+token}});
+    if(!worldAuthSame(latest.explicit_scopes,old.original)||
+        !worldAuthSame(latest.roles,old.roles))
+      throw new Error('Die World-Rechte wurden seit dem Laden verändert. Neu laden, bevor du speicherst.');
+    const details='Hinzufügen: '+(added.join(', ')||'keine')+
+      '\nEntfernen: '+(removed.join(', ')||'keine');
+    if(!window.confirm('PERSÖNLICHE Berechtigungen für '+old.id+
+      ' ändern?\n'+details+
+      '\n\nAlle bestehenden Rollen und übrigen Fachscopes bleiben erhalten. Bisherige Sitzungen müssen neu angemeldet werden.'))return;
+    const res=await secretJson(url,{
+      method:'PATCH',
+      headers:{'Authorization':'Bearer '+token,'Content-Type':'application/json'},
+      body:JSON.stringify({scopes:next,expected_scopes:old.original,
+        expected_roles:old.roles})
+    });
+    if(res.reauthentication_required!==true)
+      throw new Error('World hat die Neuanmeldung nicht bestätigt.');
+    if(res.authorization&&!worldAuthSame(res.authorization.explicit_scopes,next))
+      throw new Error('World hat eine abweichende Scope-Liste bestätigt. Bestand neu laden.');
+    worldAuthReset();
+    status.textContent='Persönliche Scopes erfolgreich gespeichert. Bewohner im Stadtportal vollständig abmelden und erneut anmelden. Falls dein eigenes Konto geändert wurde, hier ebenfalls neu anmelden.';
+    // Editing this administrator's own account invalidates the current
+    // security-stamped bearer. Clear it instead of leaving a stale token
+    // in memory and require a fresh Control Center login.
+    if(old.id===worldAuthSelfId){
+      adminLogout();
+      $('adminLoginMessage').textContent=
+        'Eigene Berechtigungen geändert. Bitte neu als Administrator anmelden.';
+    }
+  }catch(err){
+    status.textContent='Nicht gespeichert oder Abnahme unklar: '+String(err.message||err)+
+      ' – Berechtigungen neu laden und den aktuellen World-Stand prüfen.';
+  }finally{button.disabled=worldAuthLoaded===null;}
+}
 /* Secrets console: admin-only World API key issuance; no browser persistence. */
 function secretStatus(message, ok) {
   const node=$('secretStatus');
@@ -2082,6 +2236,10 @@ $('secretGeneratePortalIm').addEventListener('click',secretGeneratePortalIm);
 $('secretCopy').addEventListener('click',secretCopy);
 $('secretClear').addEventListener('click',secretClear);
 $('secretLoadKeys').addEventListener('click',secretLoadKeys);
+$('worldAuthUseMe').addEventListener('click',worldAuthUseMe);
+$('worldAuthLoad').addEventListener('click',worldAuthLoad);
+$('worldAuthSave').addEventListener('click',worldAuthSave);
+$('worldAuthPrincipal').addEventListener('input',worldAuthReset);
 $('search').addEventListener('input',renderEndpointList);$('run').addEventListener('click',execute);$('clear').addEventListener('click',()=>{$('bearer').value='';$('apiKey').value='';$('idem').value=''});
 $('loadStats').addEventListener('click',loadStatistics);$('clearStats').addEventListener('click',()=>{$('statsBearer').value='';$('statsApiKey').value=''});
 $('loadGrid').addEventListener('click',loadGridLayout);$('clearGridCredentials').addEventListener('click',()=>{$('gridBearer').value='';$('gridApiKey').value='';$('gridMutationIdempotency').value=''});
