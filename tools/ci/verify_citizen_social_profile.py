@@ -12,7 +12,16 @@ connector=Path("NexVerse/Server/Api/NexVerseWorldApiConnector.cs").read_text(enc
 schema=Path("NexVerse/Server/Api/NexVerseWorldApiHandlers.cs").read_text(encoding="utf-8")
 docs=Path("doc/NexVerse/PORTAL_SOCIAL_PROFILE.md").read_text(encoding="utf-8")
 
-section=security.split("public static string[] GetEffectiveScopes(",1)[1].split("foreach (string role",1)[0]
+# The resident base is centralized for role-policy introspection and the
+# 100k-user automatic scope assignment. Keep checking actual membership and
+# that GetEffectiveScopes uses it at every login.
+section=security.split("private static readonly string[] s_DefaultResidentScopes",1)[1].split(
+    "public static IReadOnlyCollection<string> DefaultResidentScopes",1
+)[0]
+effective=security.split("public static string[] GetEffectiveScopes(",1)[1].split(
+    "public static string[] GetRoleScopes(",1
+)[0]
+assert "new HashSet<string>(s_DefaultResidentScopes" in effective
 for scope in ("NexScopes.ProfileRead", "NexScopes.ProfileWrite", "NexScopes.RelationshipsRead",
               "NexScopes.RelationshipsWrite", "NexScopes.GroupsRead", "NexScopes.GroupsManage"):
     assert scope in section, "missing default citizen scope "+scope
