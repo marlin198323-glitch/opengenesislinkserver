@@ -9,6 +9,7 @@ import base64
 import gzip
 import hashlib
 import json
+import sqlite3
 import time
 import urllib.error
 import urllib.request
@@ -81,6 +82,23 @@ def assert_durable_fsassets(entries, fs_dir):
     assert not unresolved, f"FSAssets writer did not persist: {list(unresolved)}"
 
 
+def assert_parallel_mirrors(entries, object_root, index_path):
+    """Check SQL UUID -> immutable OGL payload parity independently of ROBUST."""
+    assert object_root.is_dir(), "OGL object directory missing"
+    assert index_path.is_file(), "OGL location index missing"
+    with sqlite3.connect(index_path) as connection:
+        for entry in entries:
+            asset_id, payload = entry["id"], base64.b64decode(entry["payload"])
+            digest = hashlib.sha256(payload).hexdigest()
+            row = connection.execute(
+                "SELECT content_hash FROM ogl_asset_locations WHERE asset_id=?",
+                (asset_id,),
+            ).fetchone()
+            assert row == (digest,), f"OGL index does not match FSAssets SQL digest for {asset_id}"
+            blob = object_root / digest[:2] / digest[2:4] / digest
+            assert blob.read_bytes() == payload, f"Missing or corrupt OGL payload {asset_id}"
+
+
 def make_asset(asset_id, name, asset_type, payload):
     # XmlSerializer<AssetBase> accepts its public property names. FullID is
     # resolved by AssetMetadata.ID's setter when a valid UUID is provided.
@@ -100,10 +118,13 @@ def make_asset(asset_id, name, asset_type, payload):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("phase", choices=("write", "read"))
+    parser.add_argument("phase", choices=("write", "read", "mirror-read"))
     parser.add_argument("state", type=Path)
     parser.add_argument("fs_dir", type=Path)
+    parser.add_argument("--ogl-objects", type=Path)
+    parser.add_argument("--ogl-index", type=Path)
     args = parser.parse_args()
+    assert args.ogl_objects is not None and args.ogl_index is not None, "Missing OGL mirror paths"
     if args.phase == "write":
         fixtures = [
             ("Texture", 0, b"\x00\x01\xfe\xff" * 8192),
@@ -130,15 +151,18 @@ def main():
         args.state.write_text(json.dumps(entries), encoding="utf-8")
         assert_missing()
         assert_durable_fsassets(entries, args.fs_dir)
-        print("OGL asset HTTP Store/Get/GetMetadata/GetData and FSAssets writer PASS")
+        assert_parallel_mirrors(entries, args.ogl_objects, args.ogl_index)
+        print("OGL asset HTTP dual-write, FSAssets and parallel OGL SHA256 parity PASS")
     else:
         entries = json.loads(args.state.read_text(encoding="utf-8"))
         assert len(entries) == 3, "Expected three fixtures after ROBUST restart"
         for entry in entries:
             assert_asset(entry)
-        assert_durable_fsassets(entries, args.fs_dir)
+        if args.phase == "read":
+            assert_durable_fsassets(entries, args.fs_dir)
+        assert_parallel_mirrors(entries, args.ogl_objects, args.ogl_index)
         assert_missing()
-        print("OGL asset persisted readback after ROBUST restart PASS")
+        print("OGL asset readback via mirror after ROBUST restart PASS")
 
 
 if __name__ == "__main__":
