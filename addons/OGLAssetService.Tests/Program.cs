@@ -274,6 +274,101 @@ try
 }
 finally { if (Directory.Exists(migrationRoot)) Directory.Delete(migrationRoot, true); }
 
+// Parallel OGL writes are a second immutable copy; the SQL hash remains
+// authoritative. Test live write/read, invalid mappings, integrity, restart,
+// and offline backfill from regular, gzip and spool snapshot payloads.
+string parallelRoot = Path.Combine(Path.GetTempPath(), "ogl-parallel-" + Guid.NewGuid().ToString("N"));
+try
+{
+    string objects = Path.Combine(parallelRoot, "ogl-objects");
+    string index = Path.Combine(parallelRoot, "ogl-index", "locations.sqlite");
+    var parallel = new OGLParallelAssetStore(objects, index);
+    string id = Guid.NewGuid().ToString("D");
+    byte[] original = new byte[] { 17, 19, 23 };
+    string originalHash = OGLObjectCache.ContentHash(original);
+    Check(parallel.Mirror(id, originalHash, original), "OGL parallel mirror");
+    Check(parallel.TryRead(id, originalHash)?.SequenceEqual(original) == true,
+        "Parallel read uses immutable OGL copy");
+    Check(parallel.TryRead(id, new string('a', 64)) == null,
+        "Changed authoritative SQL hash must invalidate old OGL mapping");
+    var restarted = new OGLParallelAssetStore(objects, index);
+    Check(restarted.TryRead(id, originalHash)?.SequenceEqual(original) == true,
+        "Parallel index and immutable payload survive process restart");
+    byte[] replacement = new byte[] { 42, 41, 40 };
+    string replacementHash = OGLObjectCache.ContentHash(replacement);
+    Check(restarted.Mirror(id, replacementHash, replacement),
+        "A changed UUID can point to a new immutable payload");
+    Check(restarted.TryRead(id, originalHash) == null &&
+        restarted.TryRead(id, replacementHash)?.SequenceEqual(replacement) == true,
+        "Mapping update must not expose a stale blob");
+    Check(!restarted.Mirror(id, replacementHash, original),
+        "Nonmatching SQL digest must reject a mirror attempt");
+
+    string snapshotFs = Path.Combine(parallelRoot, "snapshot", "fsassets");
+    string snapshotSpool = Path.Combine(parallelRoot, "snapshot", "spool");
+    Directory.CreateDirectory(snapshotFs);
+    Directory.CreateDirectory(snapshotSpool);
+    string snapshotIndex = Path.Combine(parallelRoot, "snapshot-import", "locations.sqlite");
+    string snapshotObjects = Path.Combine(parallelRoot, "snapshot-import", "objects");
+    string tsv = Path.Combine(parallelRoot, "snapshot", "sql-export.tsv");
+    var rows = new System.Collections.Generic.List<string>();
+    byte[][] assets = { new byte[] { 1, 3, 5 }, new byte[] { 2, 4, 6 }, new byte[] { 7, 8, 9 } };
+    var importedIds = new System.Collections.Generic.List<string>();
+    for (int i = 0; i < assets.Length; i++)
+    {
+        string uuid = Guid.NewGuid().ToString("D");
+        string digest = OGLObjectCache.ContentHash(assets[i]);
+        importedIds.Add(uuid);
+        rows.Add(uuid + "\t" + digest);
+        string shard = Path.Combine(snapshotFs, digest[..2], digest.Substring(2, 2),
+            digest.Substring(4, 2), digest.Substring(6, 4));
+        if (i < 2)
+        {
+            Directory.CreateDirectory(shard);
+            if (i == 0) File.WriteAllBytes(Path.Combine(shard, digest), assets[i]);
+            else
+            {
+                using var compressedFile = File.Create(Path.Combine(shard, digest + ".gz"));
+                using var gzip = new System.IO.Compression.GZipStream(compressedFile,
+                    System.IO.Compression.CompressionLevel.Optimal);
+                gzip.Write(assets[i]);
+            }
+        }
+        else File.WriteAllBytes(Path.Combine(snapshotSpool, digest + ".asset"), assets[i]);
+    }
+    File.WriteAllLines(tsv, rows);
+    var importer = new OGLParallelSnapshotMigrator();
+    var plan = importer.Run(snapshotFs, snapshotSpool, tsv, snapshotObjects,
+        snapshotIndex, 3, false);
+    Check(plan.Valid == 3 && plan.Failed == 0 && !Directory.Exists(snapshotObjects),
+        "Snapshot dry-run must validate all assets without creating OGL files");
+    var first = importer.Run(snapshotFs, snapshotSpool, tsv, snapshotObjects,
+        snapshotIndex, 3, true);
+    Check(first.Imported == 3 && first.Failed == 0, "All snapshot formats migrate");
+    var resumed = importer.Run(snapshotFs, snapshotSpool, tsv, snapshotObjects,
+        snapshotIndex, 3, true);
+    Check(resumed.Imported == 0 && resumed.VerifiedExisting == 3,
+        "Migration must resume idempotently without replacing immutable payloads");
+    var imported = new OGLParallelAssetStore(snapshotObjects, snapshotIndex);
+    for (int i = 0; i < assets.Length; i++)
+        Check(imported.TryRead(importedIds[i], OGLObjectCache.ContentHash(assets[i]))
+            ?.SequenceEqual(assets[i]) == true, "Migrated UUID and payload parity");
+    bool overlapDenied = false;
+    try
+    {
+        importer.Run(snapshotFs, snapshotSpool, tsv,
+            Path.Combine(snapshotFs, "dangerous"), snapshotIndex, 3, true);
+    }
+    catch (InvalidOperationException) { overlapDenied = true; }
+    Check(overlapDenied, "Source and destination overlap must be rejected");
+    bool countDenied = false;
+    try { importer.Run(snapshotFs, snapshotSpool, tsv, snapshotObjects, snapshotIndex, 2, false); }
+    catch (InvalidDataException) { countDenied = true; }
+    Check(countDenied, "Incomplete or unexpected SQL snapshot row count must fail");
+}
+finally { if (Directory.Exists(parallelRoot)) Directory.Delete(parallelRoot, true); }
+Console.WriteLine("OGL parallel write-through and snapshot migration tests passed");
+
 string auditRoot = Path.Combine(Path.GetTempPath(), "ogl-audit-" + Guid.NewGuid().ToString("N"));
 try
 {
