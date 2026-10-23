@@ -259,6 +259,16 @@ namespace OpenSim.Services.UserAccountService
 
             if (d.Data.ContainsKey("NexVerseStateChanged") && d.Data["NexVerseStateChanged"] != null)
                 Int32.TryParse(d.Data["NexVerseStateChanged"], out u.NexVerseStateChanged);
+
+            // These columns already exist in the UserAccounts SQL migrations.
+            // Without mapping them back into UserAccount, PATCH authorization
+            // appears successful but every following GET/login sees resident +
+            // empty explicit scopes, regardless of the database contents.
+            if (d.Data.ContainsKey("NexVerseRoles") && d.Data["NexVerseRoles"] != null)
+                u.NexVerseRoles = d.Data["NexVerseRoles"].ToString();
+            if (d.Data.ContainsKey("NexVerseScopes") && d.Data["NexVerseScopes"] != null)
+                u.NexVerseScopes = d.Data["NexVerseScopes"].ToString();
+
             if (d.Data.ContainsKey("NexVerseTosAcceptedVersion"))
                 u.NexVerseTosAcceptedVersion = d.Data["NexVerseTosAcceptedVersion"] ?? string.Empty;
             if (d.Data.ContainsKey("NexVerseTosAcceptedAtUtc") &&
@@ -386,6 +396,13 @@ namespace OpenSim.Services.UserAccountService
             d.Data["NexVerseState"] = string.IsNullOrWhiteSpace(data.NexVerseState) ? "active" : data.NexVerseState;
             d.Data["NexVerseStateReason"] = data.NexVerseStateReason ?? string.Empty;
             d.Data["NexVerseStateChanged"] = data.NexVerseStateChanged.ToString();
+            // Preserve explicit resident role/scope assignments across the
+            // SQL Store/Get cycle, including unrelated account updates.
+            // Missing columns in a live schema are a migration error and
+            // must not be silently treated as successful authorization.
+            d.Data["NexVerseRoles"] = string.IsNullOrWhiteSpace(data.NexVerseRoles)
+                ? "resident" : data.NexVerseRoles;
+            d.Data["NexVerseScopes"] = data.NexVerseScopes ?? string.Empty;
             d.Data["NexVerseTosAcceptedVersion"] = data.NexVerseTosAcceptedVersion ?? string.Empty;
             d.Data["NexVerseTosAcceptedAtUtc"] = data.NexVerseTosAcceptedAtUtc.ToString();
             List<string> parts = new List<string>();
