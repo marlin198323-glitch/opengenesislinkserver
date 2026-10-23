@@ -237,7 +237,19 @@ namespace NexVerse.Core.Security
                     NexScopes.RelationshipsRead,
                     NexScopes.RelationshipsWrite,
                     NexScopes.GroupsRead,
-                    NexScopes.GroupsManage
+                    NexScopes.GroupsManage,
+
+                    // Automatic resident self-service reads. Endpoints MUST
+                    // still verify owner/group entitlement; these scopes
+                    // never grant access to another resident's assets or
+                    // balances and are not financial transfer permissions.
+                    // Resolving these on every login scales to arbitrary
+                    // account counts without rewriting UserAccounts rows.
+                    NexScopes.InventoryRead,
+                    NexScopes.EconomyRead,
+                    NexScopes.RegionsRead,
+                    NexScopes.ExperiencesRead,
+                    NexScopes.DiscoveryRead
                 };
 
             foreach (string role in roles ?? Array.Empty<string>())
@@ -252,8 +264,15 @@ namespace NexVerse.Core.Security
                     scopes.Add(scope);
             }
 
+            // Legacy UserLevel 200+ administrators may have the stored
+            // 'resident' role rather than 'administrator'. Their World
+            // token still needs explicit READ scope names for Portal
+            // compatibility; do not materialize per-user assignments.
             if (userLevel >= adminMinimumLevel)
-                scopes.Add(NexScopes.AdminAll);
+            {
+                foreach (string scope in GetRoleScopes(NexRoles.Administrator))
+                    scopes.Add(scope);
+            }
 
             return scopes
                 .OrderBy(x => x, StringComparer.OrdinalIgnoreCase)
@@ -307,7 +326,28 @@ namespace NexVerse.Core.Security
             }
 
             if (string.Equals(role, NexRoles.Administrator, StringComparison.OrdinalIgnoreCase))
-                return new[] { NexScopes.AdminAll };
+            {
+                // Keep admin:* for existing authorization decisions, but
+                // expose only READ grants as distinct strings in personal
+                // JWTs for the Portal. Never synthesize economy transfers,
+                // region mutations, account edits or service-only secrets.
+                return new[]
+                {
+                    NexScopes.AdminAll,
+                    NexScopes.UsersRead,
+                    NexScopes.ProfileRead,
+                    NexScopes.RelationshipsRead,
+                    NexScopes.InventoryRead,
+                    NexScopes.GroupsRead,
+                    NexScopes.RegionsRead,
+                    NexScopes.SimulatorsRead,
+                    NexScopes.StatisticsRead,
+                    NexScopes.EstatesRead,
+                    NexScopes.EconomyRead,
+                    NexScopes.ExperiencesRead,
+                    NexScopes.DiscoveryRead
+                };
+            }
 
             return Array.Empty<string>();
         }
