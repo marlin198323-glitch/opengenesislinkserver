@@ -30,18 +30,31 @@ For the media bridge, prefer direct host deployment rather than bridged Docker N
 
 ```bash
 sudo apt-get update
-sudo apt-get install -y ca-certificates git golang-go pkg-config libopus-dev libopus0 caddy docker.io docker-compose-plugin
-sudo useradd --system --no-create-home --shell /usr/sbin/nologin oglvoice
+sudo apt-get install -y ca-certificates curl git pkg-config libopus-dev libopus0 caddy docker.io docker-compose-plugin
+getent group oglvoice >/dev/null || sudo groupadd --system oglvoice
+id -u oglvoice >/dev/null 2>&1 || sudo useradd --system --gid oglvoice --no-create-home --shell /usr/sbin/nologin oglvoice
 sudo install -d -m 0750 -o oglvoice -g oglvoice /opt/oglvoice /etc/oglvoice
-git clone https://github.com/opengenesislink/opengenesislinkserver.git /opt/oglvoice/source
+if [ -d /opt/oglvoice/source/.git ]; then
+  git -C /opt/oglvoice/source pull --ff-only origin main
+else
+  git clone https://github.com/opengenesislink/opengenesislinkserver.git /opt/oglvoice/source
+fi
 cd /opt/oglvoice/source/services/oglvoice-media
-go build -tags nolibopusfile -trimpath -o /tmp/oglvoice-media .
+sudo bash deploy/install-go-toolchain.sh
+/opt/oglvoice/toolchains/go1.26.10/bin/go version
+/opt/oglvoice/toolchains/go1.26.10/bin/go build -tags nolibopusfile -mod=mod -trimpath -o /tmp/oglvoice-media .
 sudo install -m 0755 -o root -g root /tmp/oglvoice-media /opt/oglvoice/oglvoice-media
 ```
 
-**Go version:** Debian's `golang-go` may be older than the `go` directive in
-`services/oglvoice-media/go.mod`. Verify `go version` and install the supported upstream
-toolchain as required, rather than changing dependency versions arbitrarily.
+**Go version / v39227 build failure:** `go 1.26.8` in `go.mod` is valid for
+modern Go and is the module's *minimum* version. Older Debian-packaged `go` binaries
+can reject patch versions with `invalid go version ... must match format 1.23`.
+Do **not** downgrade `go.mod` or dependencies. The script installs the official
+Go **1.26.10** Linux x86-64/ARM64 release to
+`/opt/oglvoice/toolchains/go1.26.10` and verifies its Go-published SHA-256
+before extracting it. It does **not** replace `/usr/bin/go` or `/usr/local/go`;
+the explicit binary path ensures the correct toolchain is used. Unsupported
+architectures and checksum mismatches abort without changing an existing Go install.
 
 Copy `deploy/livekit.yaml.example` to `/etc/oglvoice/livekit.yaml`; choose a strong
 LiveKit API key and random API secret (at least 32 bytes). Put **exactly the same**
