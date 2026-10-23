@@ -2,6 +2,9 @@
 // Real LLSD instance structures as sent in mesh upload fee requests.
 using System;
 using System.Collections;
+using System.IO;
+using System.IO.Compression;
+using System.Reflection;
 using System.Text;
 using OpenMetaverse;
 using OpenMetaverse.StructuredData;
@@ -29,6 +32,72 @@ internal static class Program
         return new OSDArray {
             OSD.FromReal(x), OSD.FromReal(y), OSD.FromReal(z)
         };
+    }
+
+    // Exercise the actual private fee-stage decoders with real zlib-wrapped
+    // binary LLSD, not just the newer typed LLSD instance converter.
+    private static byte[] CompressLlsd(OSD value)
+    {
+        byte[] serialized = OSDParser.SerializeLLSDBinary(value, true);
+        using (MemoryStream output = new MemoryStream())
+        {
+            using (ZLibStream compressor = new ZLibStream(output, CompressionLevel.Optimal, true))
+                compressor.Write(serialized, 0, serialized.Length);
+            return output.ToArray();
+        }
+    }
+
+    private static bool DecodePrivateSection(string methodName, byte[] compressed, object[] args)
+    {
+        MethodInfo method = typeof(ModelCost).GetMethod(methodName,
+            BindingFlags.Instance | BindingFlags.NonPublic);
+        Assert(method != null, "missing mesh fee decoder: " + methodName);
+        return (bool)method.Invoke(new ModelCost(), args);
+    }
+
+    private static void VerifyZlibGeometryDecoding()
+    {
+        var triangle = new OSDMap {
+            ["Position"] = OSD.FromBinary(new byte[6]),
+            ["TriangleList"] = OSD.FromBinary(new byte[6])
+        };
+        byte[] lod = CompressLlsd(new OSDArray { triangle });
+        object[] lodArgs = { lod, 0, lod.Length, 0, 0 };
+        Assert(DecodePrivateSection("submesh", lod, lodArgs),
+            "valid zlib-wrapped LOD LLSD rejected");
+        Assert((int)lodArgs[3] == 1 && (int)lodArgs[4] == 1,
+            "LOD triangle/side counts were not decoded");
+
+        var convex = new OSDMap {
+            ["BoundingVerts"] = OSD.FromBinary(new byte[18])
+        };
+        byte[] hull = CompressLlsd(convex);
+        object[] hullArgs = { hull, 0, hull.Length, 0, 0, string.Empty };
+        Assert(DecodePrivateSection("hulls", hull, hullArgs),
+            "valid zlib-wrapped convex hull LLSD rejected");
+        Assert((int)hullArgs[3] == 3 && (int)hullArgs[4] == 1,
+            "convex hull vertex count was not decoded");
+
+        // The parser must also reject invalid compressed payloads and
+        // invalid geometry, rather than silently accepting malformed data.
+        byte[] invalidZlib = { 0, 0, 0, 0, 0, 0 };
+        object[] invalidArgs = { invalidZlib, 0, invalidZlib.Length, 0, 0 };
+        Assert(!DecodePrivateSection("submesh", invalidZlib, invalidArgs),
+            "invalid zlib data accepted as LOD");
+        byte[] noTriangles = CompressLlsd(new OSDArray {
+            new OSDMap { ["Position"] = OSD.FromBinary(new byte[6]) }
+        });
+        object[] missingTriangleArgs = { noTriangles, 0, noTriangles.Length, 0, 0 };
+        Assert(!DecodePrivateSection("submesh", noTriangles, missingTriangleArgs),
+            "LOD without TriangleList accepted");
+
+        object[] invalidHullArgs = { invalidZlib, 0, invalidZlib.Length, 0, 0, string.Empty };
+        Assert(!DecodePrivateSection("hulls", invalidZlib, invalidHullArgs),
+            "invalid zlib data accepted as hull");
+        byte[] missingVerts = CompressLlsd(new OSDMap());
+        object[] missingVertsArgs = { missingVerts, 0, missingVerts.Length, 0, 0, string.Empty };
+        Assert(!DecodePrivateSection("hulls", missingVerts, missingVertsArgs),
+            "hull without BoundingVerts accepted");
     }
 
     private static void Main()
@@ -121,6 +190,7 @@ internal static class Program
         Assert(!ModelCost.TryParseModelInstance((object)brokenType, 1,
             out _, out _, out _), "legacy string mesh index must be rejected");
 
-        Console.WriteLine("OpenGenesisLINK Mesh upload fee LLSD instance regression: OK");
+        VerifyZlibGeometryDecoding();
+        Console.WriteLine("OpenGenesisLINK Mesh upload fee LLSD instance + zlib geometry regression: OK");
     }
 }
