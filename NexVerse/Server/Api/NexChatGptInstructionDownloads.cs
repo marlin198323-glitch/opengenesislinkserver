@@ -488,6 +488,241 @@ namespace NexVerse.Server.Api
             md.AppendLine("- Keine Live-Freigabe oder Funktionstest ausserhalb der im Ziel-Grid tatsaechlich gestarteten Version. Ein OpenAPI-Pfad kann ohne Feature-Flag/Service-Initialisierung noch nicht nutzbar sein.");
         }
 
+        private static void AppendCompleteRouteIndex(StringBuilder md, string requestedAudience)
+        {
+            md.AppendLine();
+            md.AppendLine("## Vollstaendiges Pfadverzeichnis der deklarierten OpenAPI-World-API (Stand dieses Builds)");
+            md.AppendLine();
+            md.AppendLine("Diese Pfade entsprechen dem dokumentierten Server-OpenAPI-Vertrag. Alle Pfade sind relativ zu " + m_PublicBaseUrl + "; /oauth/* hat KEIN /api/v1-Praefix. Die Zielgruppen-Einordnung ist nur Orientierung und kein Zugangsrecht.");
+            md.AppendLine("Fuer JEDE konkrete HTTP-Methode und Ressource den aktuellen OpenAPI-Vertrag " + m_ApiBaseUrl + "/openapi.json pruefen. Gemischt bedeutet: oeffentliche/Einwohner-GETs und privilegierte Schreib- oder Owner-Operationen koennen denselben Pfad teilen.");
+            md.AppendLine("Nur im Dokument definierte Methoden verwenden. Optionale Features und betrieberspezifische Webendpunkte sind nicht allein durch eine Pfaddeclaration live.");
+            md.AppendLine();
+            AppendCatalogGroup(md, requestedAudience, "public", "capabilities",
+                "/api/v1/capabilities");
+            AppendCatalogGroup(md, requestedAudience, "public", "chatgpt-admin.md",
+                "/api/v1/chatgpt-admin.md");
+            AppendCatalogGroup(md, requestedAudience, "public", "chatgpt-buergerportal.md",
+                "/api/v1/chatgpt-buergerportal.md");
+            AppendCatalogGroup(md, requestedAudience, "public", "chatgpt-instructions.md",
+                "/api/v1/chatgpt-instructions.md");
+            AppendCatalogGroup(md, requestedAudience, "public", "Destination-Guide und Moderation",
+                "/api/v1/destinations/categories",
+                "/api/v1/destinations/{destinationId}",
+                "/api/v1/destinations/{destinationId}/visit");
+            AppendCatalogGroup(md, requestedAudience, "public", "Betreiber-Warp3D/MapLibre-Karte",
+                "/api/v1/deutschland",
+                "/api/v1/deutschland/view",
+                "/api/v1/deutschland/tiles/{zoom}/{x}/{y}.jpg",
+                "/api/v1/deutschland/xyz/{z}/{x}/{y}.jpg");
+            AppendCatalogGroup(md, requestedAudience, "public", "docs",
+                "/api/v1/docs");
+            AppendCatalogGroup(md, requestedAudience, "public", "health",
+                "/api/v1/health");
+            AppendCatalogGroup(md, requestedAudience, "public", "Landportal",
+                "/api/v1/land-portal");
+            AppendCatalogGroup(md, requestedAudience, "public", "openapi.json",
+                "/api/v1/openapi.json");
+            AppendCatalogGroup(md, requestedAudience, "public", "API-Basis, Health, Version und MD-Anleitungen",
+                "/api/v1");
+            AppendCatalogGroup(md, requestedAudience, "public", "Indexuebergreifende Suche",
+                "/api/v1/search");
+            AppendCatalogGroup(md, requestedAudience, "public", "version",
+                "/api/v1/version");
+            AppendCatalogGroup(md, requestedAudience, "public", "Oeffentliche Weltkarte",
+                "/api/v1/world-map",
+                "/api/v1/world-map/view");
+            AppendCatalogGroup(md, requestedAudience, "citizen", "Login, Token, Maschinenkeys und Scope-/OAuth-Verwaltung",
+                "/api/v1/auth/session",
+                "/api/v1/auth/sessions/revoke");
+            AppendCatalogGroup(md, requestedAudience, "citizen", "Inventar, Outfit, Kopien und Papierkorb",
+                "/api/v1/inventory/tree",
+                "/api/v1/inventory/search",
+                "/api/v1/inventory/outfits/health",
+                "/api/v1/inventory/outfits/ensure-folders",
+                "/api/v1/inventory/folders",
+                "/api/v1/inventory/folders/{folderId}",
+                "/api/v1/inventory/items/{itemId}",
+                "/api/v1/inventory/items/copy",
+                "/api/v1/inventory/folders/{folderId}/restore",
+                "/api/v1/inventory/items/{itemId}/restore",
+                "/api/v1/inventory/links",
+                "/api/v1/inventory/lost-and-found",
+                "/api/v1/inventory/trash/empty");
+            AppendCatalogGroup(md, requestedAudience, "citizen", "Inworld-IM/Webchat",
+                "/api/v1/messages",
+                "/api/v1/messages/settings",
+                "/api/v1/messages/events",
+                "/api/v1/messages/with/{peerId}",
+                "/api/v1/messages/history");
+            AppendCatalogGroup(md, requestedAudience, "citizen", "OAuth2/OIDC-Flows",
+                "/oauth/authorize",
+                "/oauth/token",
+                "/oauth/revoke");
+            AppendCatalogGroup(md, requestedAudience, "citizen", "Freunde und Blockierungen",
+                "/api/v1/relationships/{principalId}",
+                "/api/v1/relationships/{principalId}/{targetId}",
+                "/api/v1/relationships/{principalId}/blocks/{targetId}");
+            AppendCatalogGroup(md, requestedAudience, "citizen", "Bewohnerkonten, Rollen und Autorisierung",
+                "/api/v1/users/me",
+                "/api/v1/users/me/delete");
+            AppendCatalogGroup(md, requestedAudience, "shared", "Banking, Zahlungsanforderungen und Escrow",
+                "/api/v1/banking/transactions",
+                "/api/v1/banking/statements",
+                "/api/v1/banking/reconciliation",
+                "/api/v1/banking/transfers",
+                "/api/v1/banking/payment-requests",
+                "/api/v1/banking/payment-requests/{requestId}/pay",
+                "/api/v1/banking/payment-requests/{requestId}/cancel",
+                "/api/v1/banking/accounts/{accountId}/policy",
+                "/api/v1/banking/escrow/{escrowId}/fund",
+                "/api/v1/banking/escrow/{escrowId}/release");
+            AppendCatalogGroup(md, requestedAudience, "shared", "Kleinanzeigen",
+                "/api/v1/classifieds",
+                "/api/v1/classifieds/{classifiedId}");
+            AppendCatalogGroup(md, requestedAudience, "shared", "NexCommerce-Kaufabwicklung",
+                "/api/v1/commerce/orders",
+                "/api/v1/commerce/orders/{orderId}",
+                "/api/v1/commerce/orders/{orderId}/refund");
+            AppendCatalogGroup(md, requestedAudience, "shared", "Destination-Guide und Moderation",
+                "/api/v1/destinations");
+            AppendCatalogGroup(md, requestedAudience, "shared", "NV$-Ledger, Buchungen und Konten",
+                "/api/v1/economy/balance",
+                "/api/v1/economy/virtual-account",
+                "/api/v1/economy/transfers",
+                "/api/v1/economy/transactions/{transactionId}");
+            AppendCatalogGroup(md, requestedAudience, "shared", "Veranstaltungen",
+                "/api/v1/events",
+                "/api/v1/events/{eventId}");
+            AppendCatalogGroup(md, requestedAudience, "shared", "Experiences und Script-/Viewer-Bridges",
+                "/api/v1/experiences",
+                "/api/v1/experiences/{experienceId}",
+                "/api/v1/experiences/{experienceId}/logs",
+                "/api/v1/experiences/{experienceId}/roles/{role}/{residentId}",
+                "/api/v1/experiences/{experienceId}/residents/{residentId}",
+                "/api/v1/experiences/{experienceId}/policies/{kind}/{locationId}",
+                "/api/v1/experiences/{experienceId}/scripts/{scriptId}/bind");
+            AppendCatalogGroup(md, requestedAudience, "shared", "Gruppen, Mitgliedschaften, Rollen, Notices, Einladungen, Bans",
+                "/api/v1/groups",
+                "/api/v1/groups/mine",
+                "/api/v1/groups/{groupId}",
+                "/api/v1/groups/{groupId}/members",
+                "/api/v1/groups/{groupId}/members/{agentId}",
+                "/api/v1/groups/{groupId}/roles",
+                "/api/v1/groups/{groupId}/roles/{roleId}",
+                "/api/v1/groups/{groupId}/roles/{roleId}/members/{agentId}",
+                "/api/v1/groups/{groupId}/invites",
+                "/api/v1/groups/{groupId}/invites/{inviteId}",
+                "/api/v1/groups/{groupId}/notices",
+                "/api/v1/groups/{groupId}/bans",
+                "/api/v1/groups/{groupId}/bans/{agentId}",
+                "/api/v1/groups/{groupId}/accounting",
+                "/api/v1/groups/{groupId}/capabilities");
+            AppendCatalogGroup(md, requestedAudience, "shared", "Landangebote, Kaeufe und Mieten",
+                "/api/v1/land-commerce/listings",
+                "/api/v1/land-commerce/listings/{listingId}/deactivate",
+                "/api/v1/land-commerce/listings/{listingId}/purchase",
+                "/api/v1/land-commerce/listings/{listingId}/lease",
+                "/api/v1/land-commerce/leases",
+                "/api/v1/land-commerce/leases/{leaseId}/pay");
+            AppendCatalogGroup(md, requestedAudience, "shared", "Landportal",
+                "/api/v1/land-portal/owned");
+            AppendCatalogGroup(md, requestedAudience, "shared", "Places",
+                "/api/v1/places",
+                "/api/v1/places/{placeId}");
+            AppendCatalogGroup(md, requestedAudience, "shared", "Avatarprofile und Bildbytes",
+                "/api/v1/profiles/{principalId}",
+                "/api/v1/profiles/{principalId}/image");
+            AppendCatalogGroup(md, requestedAudience, "shared", "Regionen",
+                "/api/v1/regions",
+                "/api/v1/regions/{regionId}");
+            AppendCatalogGroup(md, requestedAudience, "shared", "Statistik und geschuetzte Auswertung",
+                "/api/v1/statistics/summary");
+            AppendCatalogGroup(md, requestedAudience, "shared", "Bewohnerkonten, Rollen und Autorisierung",
+                "/api/v1/users/{principalId}",
+                "/api/v1/users/{principalId}/password");
+            AppendCatalogGroup(md, requestedAudience, "admin", "Audit",
+                "/api/v1/audit");
+            AppendCatalogGroup(md, requestedAudience, "admin", "Login, Token, Maschinenkeys und Scope-/OAuth-Verwaltung",
+                "/api/v1/auth/admin/session",
+                "/api/v1/auth/api-keys",
+                "/api/v1/auth/api-keys/{keyId}",
+                "/api/v1/auth/authorization-model",
+                "/api/v1/auth/clients");
+            AppendCatalogGroup(md, requestedAudience, "admin", "Destination-Guide und Moderation",
+                "/api/v1/destinations/{destinationId}/moderation");
+            AppendCatalogGroup(md, requestedAudience, "admin", "NV$-Ledger, Buchungen und Konten",
+                "/api/v1/economy/transactions/{transactionId}/reverse",
+                "/api/v1/economy/accounts/{accountId}/status");
+            AppendCatalogGroup(md, requestedAudience, "admin", "Estate-Verwaltung",
+                "/api/v1/estates",
+                "/api/v1/estates/{estateId}",
+                "/api/v1/estates/{estateId}/management",
+                "/api/v1/estates/{estateId}/regions/{regionId}");
+            AppendCatalogGroup(md, requestedAudience, "admin", "Optionale signierte Simulator-Funktionsfreigaben",
+                "/api/v1/feature-control/nodes",
+                "/api/v1/feature-control/nodes/{nodeId}");
+            AppendCatalogGroup(md, requestedAudience, "admin", "Grid-Raster und Platzierung",
+                "/api/v1/grid/layout",
+                "/api/v1/grid/cells/{x}/{y}",
+                "/api/v1/grid/validate-placement");
+            AppendCatalogGroup(md, requestedAudience, "admin", "Inventar, Outfit, Kopien und Papierkorb",
+                "/api/v1/inventory/items");
+            AppendCatalogGroup(md, requestedAudience, "admin", "Simulator-Nodes",
+                "/api/v1/nodes",
+                "/api/v1/nodes/{nodeId}");
+            AppendCatalogGroup(md, requestedAudience, "admin", "Asynchrone Regionenoperationen",
+                "/api/v1/region-operations/{operationId}");
+            AppendCatalogGroup(md, requestedAudience, "admin", "Regionen",
+                "/api/v1/regions/{regionId}/placement",
+                "/api/v1/regions/{regionId}/lifecycle");
+            AppendCatalogGroup(md, requestedAudience, "admin", "Bewohnerkonten, Rollen und Autorisierung",
+                "/api/v1/users",
+                "/api/v1/users/{principalId}/audit",
+                "/api/v1/users/{principalId}/state",
+                "/api/v1/users/{principalId}/level",
+                "/api/v1/users/{principalId}/authorization");
+            AppendCatalogGroup(md, requestedAudience, "service", "NV$-Ledger, Buchungen und Konten",
+                "/api/v1/economy/accounts/ensure");
+            AppendCatalogGroup(md, requestedAudience, "service", "Experiences und Script-/Viewer-Bridges",
+                "/api/v1/experiences/script/search",
+                "/api/v1/experiences/script/info",
+                "/api/v1/experiences/viewer/permissions",
+                "/api/v1/experiences/viewer/group",
+                "/api/v1/experiences/viewer/manage",
+                "/api/v1/experiences/viewer/script-binding",
+                "/api/v1/experiences/script/resolve",
+                "/api/v1/experiences/script/details",
+                "/api/v1/experiences/script/permission",
+                "/api/v1/experiences/script/location",
+                "/api/v1/experiences/script/kv");
+            AppendCatalogGroup(md, requestedAudience, "service", "Vertrauenswuerdige Portal-Registrierungsbridge",
+                "/api/v1/portal/avatars/register",
+                "/api/v1/portal/avatars/name-availability");
+        }
+
+        private static void AppendCatalogGroup(StringBuilder md, string requestedAudience,
+            string kind, string chapter, params string[] paths)
+        {
+            bool include = string.Equals(requestedAudience, "all", StringComparison.Ordinal) ||
+                string.Equals(kind, "public", StringComparison.Ordinal) ||
+                string.Equals(kind, requestedAudience, StringComparison.Ordinal) ||
+                string.Equals(kind, "shared", StringComparison.Ordinal) ||
+                (string.Equals(requestedAudience, "admin", StringComparison.Ordinal) &&
+                 string.Equals(kind, "service", StringComparison.Ordinal));
+            if (!include)
+                return;
+
+            string group = kind == "public" ? "Oeffentlich / Katalog" :
+                kind == "citizen" ? "Persoenliche Einwohneroperationen" :
+                kind == "admin" ? "Admin-/Betriebsfunktionen" :
+                kind == "service" ? "Nur vertrauenswuerdiger Dienst/Simulator" :
+                "Gemischte Leserechte, Owner-/Admin-Mutationen";
+            md.AppendLine("### " + chapter + " — " + group);
+            foreach (string path in paths)
+                md.AppendLine("- `" + path + "`");
+            md.AppendLine();
+        }
+
         private static void AppendEndpointMetadata(StringBuilder md)
         {
             md.AppendLine();
