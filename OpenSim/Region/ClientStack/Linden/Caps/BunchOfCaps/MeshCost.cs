@@ -725,10 +725,9 @@ namespace OpenSim.Region.ClientStack.Linden
                 {
                     using (MemoryStream inMs = new MemoryStream(data, offset, size))
                     {
-                        using (DeflateStream decompressionStream = new DeflateStream(inMs, CompressionMode.Decompress))
+                        using (ZLibStream decompressionStream = new ZLibStream(inMs, CompressionMode.Decompress))
                         {
                             byte[] readBuffer = new byte[2048];
-                            inMs.Read(readBuffer, 0, 2); // skip first 2 bytes in header
                             int readLen = 0;
 
                             while ((readLen = decompressionStream.Read(readBuffer, 0, readBuffer.Length)) > 0)
@@ -798,10 +797,9 @@ namespace OpenSim.Region.ClientStack.Linden
                 {
                     using (MemoryStream inMs = new MemoryStream(data, offset, size))
                     {
-                        using (DeflateStream decompressionStream = new DeflateStream(inMs, CompressionMode.Decompress))
+                        using (ZLibStream decompressionStream = new ZLibStream(inMs, CompressionMode.Decompress))
                         {
                             byte[] readBuffer = new byte[8192];
-                            inMs.Read(readBuffer, 0, 2); // skip first 2 bytes in header
                             int readLen = 0;
 
                             while ((readLen = decompressionStream.Read(readBuffer, 0, readBuffer.Length)) > 0)
