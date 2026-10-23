@@ -1232,6 +1232,58 @@ namespace NexVerse.Server.Api
                     return;
                 }
 
+                // Optional optimistic preconditions for interactive
+                // administrators: a stale browser must not silently replace
+                // a scope/role assignment that changed after its GET.
+                // Older PATCH clients remain compatible when omitted.
+                bool expectScopes =
+                    root.TryGetProperty("expected_scopes",
+                        out JsonElement expectedScopesElement);
+                bool expectRoles =
+                    root.TryGetProperty("expected_roles",
+                        out JsonElement expectedRolesElement);
+                string[] expectedScopes = null;
+                string[] expectedRoles = null;
+                if ((expectScopes &&
+                     !TryReadStringArray(expectedScopesElement,
+                         out expectedScopes)) ||
+                    (expectRoles &&
+                     !TryReadStringArray(expectedRolesElement,
+                         out expectedRoles)))
+                {
+                    WriteError(response, HttpStatusCode.BadRequest,
+                        "invalid_authorization_precondition",
+                        "expected_scopes and expected_roles must be arrays of strings.");
+                    return;
+                }
+
+                if (expectScopes || expectRoles)
+                {
+                    NexUserRecord latest = m_Users.GetById(principalId);
+                    if (latest == null)
+                    {
+                        WriteError(response, HttpStatusCode.NotFound,
+                            "user_not_found", "User account was not found.");
+                        return;
+                    }
+                    if ((expectScopes &&
+                         !String.Equals(
+                             NexAuthorizationPolicy.JoinStoredValues(latest.ExplicitScopes),
+                             NexAuthorizationPolicy.JoinStoredValues(expectedScopes),
+                             StringComparison.Ordinal)) ||
+                        (expectRoles &&
+                         !String.Equals(
+                             NexAuthorizationPolicy.JoinStoredValues(latest.Roles),
+                             NexAuthorizationPolicy.JoinStoredValues(expectedRoles),
+                             StringComparison.Ordinal)))
+                    {
+                        WriteError(response, HttpStatusCode.Conflict,
+                            "authorization_changed",
+                            "The resident roles or explicit scopes changed since the last read. Refresh before editing.");
+                        return;
+                    }
+                }
+
                 NexUserRecord updated =
                     m_Users.SetAuthorization(
                         principalId,
