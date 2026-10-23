@@ -1293,7 +1293,7 @@ jobs:
           curl --silent --fail --max-time 5 \
             http://127.0.0.1:19090/api/v1/openapi.json \
             > /tmp/nexverse-chatgpt-openapi.json
-          python3 tools/ci/verify_worldapi_chatgpt_runtime.py \
+          python3 "$GITHUB_WORKSPACE/tools/ci/verify_worldapi_chatgpt_runtime.py" \
             --openapi /tmp/nexverse-chatgpt-openapi.json \
             --all /tmp/nexverse-chatgpt.md \
             --citizen /tmp/nexverse-chatgpt-citizen.md \
