@@ -41,8 +41,11 @@ test -s bin/StackExchange.Redis.dll
 test -s bin/Microsoft.Data.Sqlite.dll
 ```
 
-**Wichtig:** Der PR #237 ist nicht in `main` enthalten. Ein regulärer
-`main`-Build ist deshalb kein Nachweis für die weiterentwickelte OGL-Version.
+**Wichtig:** Solange PR #237 offen ist, nur den aktualisierten Feature-Branch
+isoliert bauen. Nach einer möglichen Code-Integration in `main` ist das Addon
+zwar mitkompiliert, wird aber in produktiven ROBUST-Konfigurationen **nicht
+automatisch aktiviert**. Die Integration von Quellcode ist keine Freigabe zum
+Umstellen des Asset-Speichers.
 
 ## 3. Aus einer Kopie der ROBUST-Konfiguration einen Staging-Start erstellen
 
