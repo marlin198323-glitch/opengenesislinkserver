@@ -50,9 +50,9 @@ internal static class Program
     private static bool DecodePrivateSection(string methodName, byte[] compressed, object[] args)
     {
         MethodInfo method = typeof(ModelCost).GetMethod(methodName,
-            BindingFlags.Instance | BindingFlags.NonPublic);
+            BindingFlags.Static | BindingFlags.NonPublic);
         Assert(method != null, "missing mesh fee decoder: " + methodName);
-        return (bool)method.Invoke(new ModelCost(), args);
+        return (bool)method.Invoke(null, args);
     }
 
     private static void VerifyZlibGeometryDecoding()
