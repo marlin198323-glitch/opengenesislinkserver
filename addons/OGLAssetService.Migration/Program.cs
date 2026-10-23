@@ -3,6 +3,71 @@ using System.IO;
 using System.Text.Json;
 using OpenGenesisLINK.Addons.AssetService;
 
+// Offline dual-store backfill. The source must be a consistent, quiesced
+// snapshot, never a live ROBUST spool. No source file or SQL row is changed.
+if (args.Length >= 7 && args[0] == "--parallel-snapshot")
+{
+    long expected = 0;
+    bool copy = false;
+    bool confirmed = false;
+    bool osgrid = false;
+    bool invalid = false;
+    for (int i = 6; i < args.Length; i++)
+    {
+        switch (args[i])
+        {
+            case "--expected-rows":
+                if (expected != 0 || ++i >= args.Length ||
+                    !long.TryParse(args[i], out expected) || expected <= 0)
+                    invalid = true;
+                break;
+            case "--copy":
+                if (copy) invalid = true;
+                copy = true;
+                break;
+            case "--offline-snapshot-confirmed":
+                if (confirmed) invalid = true;
+                confirmed = true;
+                break;
+            case "--osgrid":
+                if (osgrid) invalid = true;
+                osgrid = true;
+                break;
+            default:
+                invalid = true;
+                break;
+        }
+    }
+    if (invalid || expected <= 0 || (copy && !confirmed))
+    {
+        Console.Error.WriteLine("Required: --expected-rows N; --copy requires --offline-snapshot-confirmed.");
+        return 2;
+    }
+    try
+    {
+        var result = new OGLParallelSnapshotMigrator().Run(
+            args[1], args[2], args[3], args[4], args[5], expected, copy, osgrid);
+        Console.WriteLine(JsonSerializer.Serialize(new
+        {
+            Mode = copy ? "copy-verify" : "read-only-dry-run",
+            ExpectedRows = expected,
+            result.Rows,
+            result.Valid,
+            result.Imported,
+            result.VerifiedExisting,
+            result.Bytes,
+            result.Failed
+        }, new JsonSerializerOptions { WriteIndented = true }));
+        return result.Failed == 0 && result.Rows == expected ? 0 : 1;
+    }
+    catch (Exception ex)
+    {
+        Console.Error.WriteLine("Parallel migration failed: " + ex.GetType().Name +
+            ": " + ex.Message);
+        return 1;
+    }
+}
+
 if (args.Length >= 3 && args[0] == "--verify-metadata")
 {
     long? expectedRows = null;
@@ -69,6 +134,7 @@ if (args.Length < 2 || args.Length > 3 ||
     (args.Length == 3 && args[2] != "--copy"))
 {
     Console.Error.WriteLine("Usage: OGLFsassetsMigration <offline-source> <separate-target> [--copy]");
+    Console.Error.WriteLine("   or: OGLFsassetsMigration --parallel-snapshot <offline-fsbase> <offline-spool> <uuid-hash.tsv> <ogl-object-directory> <ogl-index.sqlite> --expected-rows N [--osgrid] [--copy --offline-snapshot-confirmed]");
     Console.Error.WriteLine("   or: OGLFsassetsMigration --verify-metadata <offline-fsassets-base> <uuid-hash.tsv> --expected-rows <count> [--osgrid]");
     Console.Error.WriteLine("   or: OGLFsassetsMigration --verify-hashes <offline-fsassets-base> <hash-list.txt> [--osgrid]");
     Console.Error.WriteLine("Default: read-only dry-run. --copy requires a stopped FSAssets writer and a DB snapshot.");
