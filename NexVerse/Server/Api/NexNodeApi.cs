@@ -307,6 +307,13 @@ namespace NexVerse.Server.Api
                     node.ObjectMessageMaxAgeSeconds,
                 maintenance_mode = node.MaintenanceMode,
                 draining = node.Draining,
+                update = new
+                {
+                    state = node.UpdateState,
+                    operation_id = node.UpdateOperationId,
+                    updated_at = node.UpdateAt,
+                    type = "download_and_build_only"
+                },
                 luna_texture =
                     LunaTextureNodePayload(node),
                 last_seen =
