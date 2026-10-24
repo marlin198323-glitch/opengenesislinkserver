@@ -76,6 +76,38 @@ internal static class Program
         Require(NexBusProtocol.Verify(wire, sharedKey, "sha256=" + signature), "wire HMAC verification failed");
         Require(!NexBusProtocol.Verify(wire, new string('X', 64), "sha256=" + signature), "wrong NexBus HMAC key accepted");
 
+        // A NexBus member knows the bus secret but must not be able to
+        // impersonate ROBUST and authorize privileged node code updates.
+        string controlKey = new string('U', 64);
+        string updateOperation = Guid.NewGuid().ToString("D");
+        long issuedAt = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+        string authorization = NexBusProtocol.SignNodeStageRequest(
+            "simulator-1", updateOperation, issuedAt, controlKey);
+        Require(NexBusProtocol.VerifyNodeStageRequest(
+            "simulator-1", updateOperation, issuedAt, controlKey,
+            authorization, issuedAt), "valid ROBUST update HMAC rejected");
+        Require(!NexBusProtocol.VerifyNodeStageRequest(
+            "simulator-2", updateOperation, issuedAt, controlKey,
+            authorization, issuedAt), "HMAC reused for another node");
+        Require(!NexBusProtocol.VerifyNodeStageRequest(
+            "simulator-1", Guid.NewGuid().ToString("D"), issuedAt, controlKey,
+            authorization, issuedAt), "HMAC reused for another operation");
+        Require(!NexBusProtocol.VerifyNodeStageRequest(
+            "simulator-1", updateOperation, issuedAt, sharedKey,
+            authorization, issuedAt), "NexBus key accepted as ROBUST control key");
+        Require(!NexBusProtocol.VerifyNodeStageRequest(
+            "simulator-1", updateOperation, issuedAt, controlKey,
+            authorization, issuedAt + 301), "expired update authorization accepted");
+        Require(!NexBusProtocol.VerifyNodeStageRequest(
+            "simulator-1", updateOperation, issuedAt, controlKey,
+            authorization, issuedAt - 61), "future-issued authorization accepted");
+        Require(!NexBusProtocol.VerifyNodeStageRequest(
+            "simulator-1", updateOperation, issuedAt, "", authorization,
+            issuedAt), "empty node update control key accepted");
+        Require(!NexBusProtocol.VerifyNodeStageRequest(
+            "simulator-1", "invalid-operation-id", issuedAt, controlKey,
+            authorization, issuedAt), "invalid node update operation accepted");
+
         NexEvent wireEvent = NexBusProtocol.Deserialize(wire);
         Require(wireEvent.EventId == ev.EventId, "wire EventId mismatch");
         Require(wireEvent.Name == ev.Name, "wire event name mismatch");
