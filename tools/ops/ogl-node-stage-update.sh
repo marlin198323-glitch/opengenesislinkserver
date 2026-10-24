@@ -11,10 +11,15 @@ if [[ $# -ne 3 ]]; then
 fi
 root="$(realpath -m -- "$1")"
 live="$(realpath -m -- "$2")"
+# The simulator's bin directory is inside its deployed checkout. Exclude
+# the entire deployed tree, not just bin, from untrusted staging downloads.
+deployment="$(realpath -m -- "$live/..")"
 build="$3"
-if [[ "$root" != /* || "$root" == / || "$live" == / ||
+if [[ -z "$1" || -z "$2" || "$root" != /* || "$root" == / || "$live" == / ||
       "$root" == "$live" || "$root" == "$live/"* ||
-      "$live" == "$root/"* || ! "$build" =~ ^[01]$ ]]; then
+      "$live" == "$root/"* || "$root" == "$deployment" ||
+      "$root" == "$deployment/"* || "$deployment" == "$root/"* ||
+      ! "$build" =~ ^[01]$ ]]; then
   echo "Unsafe staging root/live directory relationship" >&2
   exit 65
 fi
