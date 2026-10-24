@@ -559,6 +559,13 @@ jobs:
           chmod +x runprebuild.sh
           ./runprebuild.sh
 
+      - name: Verify FastMap updater config and update staging safety
+        shell: bash
+        run: |
+          python3 tools/ci/verify_ogl_fastmap_updater.py
+          python3 -m py_compile tools/ops/ogl-config-example-sync.py
+          bash -n tools/ops/ogl-node-stage-update.sh
+
       - name: Regression-test OGL FastMap deferred startup queue
         shell: bash
         run: dotnet run --configuration Release --project tools/ci/OglFastMapStartupRegression/OglFastMapStartupRegression.csproj
