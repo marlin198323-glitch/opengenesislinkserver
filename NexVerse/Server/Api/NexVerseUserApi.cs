@@ -834,7 +834,8 @@ namespace NexVerse.Server.Api
             int adminMinimumLevel,
             INexSecurityStore securityStore = null,
             bool selfDeletionEnabled = false,
-            string trustedSelfDeletionProxyIps = "")
+            string trustedSelfDeletionProxyIps = "",
+            string nodeUpdateControlKey = "")
         {
             m_Users = users ?? throw new ArgumentNullException(nameof(users));
             m_Authenticator = authenticator ?? throw new ArgumentNullException(nameof(authenticator));
@@ -865,7 +866,8 @@ namespace NexVerse.Server.Api
                 nodeRegistry,
                 authenticator,
                 distributedNexBusEnabled,
-                eventBus);
+                eventBus,
+                nodeUpdateControlKey);
             m_EstateApi = new NexEstateApi(
                 estateData,
                 grid,
