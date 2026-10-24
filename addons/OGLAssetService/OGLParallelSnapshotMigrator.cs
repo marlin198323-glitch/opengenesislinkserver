@@ -50,6 +50,19 @@ namespace OpenGenesisLINK.Addons.AssetService
             RejectLinkedDirectory(spoolRoot);
             RejectLinkedFile(metadataTsv);
 
+            // A confirmed copy must not start creating the destination if the
+            // offline metadata export is truncated, duplicated or any snapshot
+            // payload is missing/corrupt. The preflight is read-only.
+            // Copy remains resumable if a later I/O fault interrupts phase two.
+            if (copy)
+            {
+                Result preview = Run(fsBase, spool, metadataTsv, objectDirectory,
+                    indexPath, expectedRows, false, osgrid);
+                if (preview.Failed != 0 || preview.Valid != expectedRows)
+                    throw new InvalidDataException(
+                        "Snapshot preflight failed: no parallel objects or index were created.");
+            }
+
             // A dry run cannot even create the OGL directories or SQLite file.
             OGLParallelAssetStore target = copy ? new OGLParallelAssetStore(objects, index) : null;
             var result = new Result();
