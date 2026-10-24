@@ -61,6 +61,9 @@
 
 [Map]
     GenerateMaptiles = true
+    ; OGL FastMap 2.0: opt in after testing (keep true for normal map rendering).
+    FastMapAsyncStartup = false
+    FastMapStartupDelaySeconds = 45
     MapImageModule = "Warp3DImageModule"
     TextureOnMapTile = true
     DrawPrimOnMapTile = true
