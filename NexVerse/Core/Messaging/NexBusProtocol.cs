@@ -118,6 +118,49 @@ namespace NexVerse.Core.Messaging
             }
         }
 
+        // Update operations use an independent control-plane secret, not the
+        // NexBus transport key shared by multiple simulator participants.
+        // The domain prefix prevents signatures from authorizing other events.
+        private static byte[] NodeStagePayload(string nodeId, string operationId, long issuedAt)
+        {
+            if (string.IsNullOrWhiteSpace(nodeId) ||
+                nodeId.IndexOfAny(new[] { '\r', '\n' }) >= 0 ||
+                !Guid.TryParse(operationId, out Guid parsed))
+                throw new ArgumentException("Invalid node update authorization identity.");
+            string normalizedNode = nodeId.Trim().ToLowerInvariant();
+            string normalized = "ogl-node-stage-v1\\n" + normalizedNode.Length.ToString(System.Globalization.CultureInfo.InvariantCulture)
+                + ":" + normalizedNode + "\\n" + parsed.ToString("D") + "\\n"
+                + issuedAt.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            return Encoding.UTF8.GetBytes(normalized);
+        }
+
+        public static string SignNodeStageRequest(
+            string nodeId, string operationId, long issuedAt, string controlKey)
+        {
+            return Sign(NodeStagePayload(nodeId, operationId, issuedAt), controlKey);
+        }
+
+        public static bool VerifyNodeStageRequest(
+            string nodeId, string operationId, long issuedAt, string controlKey,
+            string signature, long currentUnixSeconds)
+        {
+            // Allow 60s clock skew into the future, and no more than 5 minutes
+            // of age. A replay with a second event ID must be checked by the
+            // node's operation-ID replay cache.
+            if (issuedAt > currentUnixSeconds + 60 ||
+                issuedAt < currentUnixSeconds - 300)
+                return false;
+            try
+            {
+                return Verify(NodeStagePayload(nodeId, operationId, issuedAt),
+                    controlKey, signature);
+            }
+            catch (ArgumentException)
+            {
+                return false;
+            }
+        }
+
         public static void ValidateSharedKey(string sharedKey)
         {
             if (string.IsNullOrEmpty(sharedKey) ||
