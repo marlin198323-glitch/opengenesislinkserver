@@ -1573,23 +1573,10 @@ namespace OpenSim.Region.CoreModules.World.WorldMap
         {
             bool needRegionSave = false;
 
-            // remove old assets
-            UUID lastID = m_scene.RegionInfo.RegionSettings.TerrainImageID;
-            if (!lastID.IsZero())
-            {
-                m_scene.AssetService.Delete(lastID.ToString());
-                m_scene.RegionInfo.RegionSettings.TerrainImageID = UUID.Zero;
-                myMapImageJPEG = Array.Empty<byte>();
-                needRegionSave = true;
-            }
-
-            lastID = m_scene.RegionInfo.RegionSettings.ParcelImageID;
-            if (!lastID.IsZero())
-            {
-                m_scene.AssetService.Delete(lastID.ToString());
-                m_scene.RegionInfo.RegionSettings.ParcelImageID = UUID.Zero;
-                needRegionSave = true;
-            }
+            // Keep the old map asset until its replacement has been stored
+            // and the new RegionSettings have been committed.
+            UUID oldTerrainImage = m_scene.RegionInfo.RegionSettings.TerrainImageID;
+            UUID oldParcelImage = m_scene.RegionInfo.RegionSettings.ParcelImageID;
 
             if(mapbmp != null)
             {
@@ -1637,9 +1624,12 @@ namespace OpenSim.Region.CoreModules.World.WorldMap
                         // Store the new one
                         m_log.DebugFormat("[WORLD MAP]: Kartenbild {0} für {1} wird gespeichert", asset.ID, m_regionName);
 
-                        m_scene.AssetService.Store(asset);
+                        string newTerrainId = m_scene.AssetService.Store(asset);
+                        if (string.IsNullOrEmpty(newTerrainId))
+                            throw new IOException("Unable to store newly rendered map tile.");
 
                         m_scene.RegionInfo.RegionSettings.TerrainImageID = terrainImageID;
+                        myMapImageJPEG = Array.Empty<byte>();
                         needRegionSave = true;
                     }
                 }
@@ -1666,14 +1656,34 @@ namespace OpenSim.Region.CoreModules.World.WorldMap
                 parcels.Local = m_localV1MapAssets;
                 parcels.Flags = AssetFlags.Maptile;
 
-                m_scene.AssetService.Store(parcels);
+                string newParcelId = m_scene.AssetService.Store(parcels);
+                if (!string.IsNullOrEmpty(newParcelId))
+                {
+                    m_scene.RegionInfo.RegionSettings.ParcelImageID = parcelImageID;
+                    needRegionSave = true;
+                }
+                else
+                {
+                    m_log.WarnFormat("[WORLD MAP]: Failed to store parcel overlay for {0}; retaining old overlay.", m_regionName);
+                }
+            }
 
-                m_scene.RegionInfo.RegionSettings.ParcelImageID = parcelImageID;
+            if (overlay == null && !oldParcelImage.IsZero())
+            {
+                m_scene.RegionInfo.RegionSettings.ParcelImageID = UUID.Zero;
                 needRegionSave = true;
             }
 
             if (needRegionSave)
+            {
                 m_scene.RegionInfo.RegionSettings.Save();
+                UUID currentTerrain = m_scene.RegionInfo.RegionSettings.TerrainImageID;
+                UUID currentParcel = m_scene.RegionInfo.RegionSettings.ParcelImageID;
+                if (!oldTerrainImage.IsZero() && oldTerrainImage != currentTerrain)
+                    m_scene.AssetService.Delete(oldTerrainImage.ToString());
+                if (!oldParcelImage.IsZero() && oldParcelImage != currentParcel)
+                    m_scene.AssetService.Delete(oldParcelImage.ToString());
+            }
         }
 
         private void MakeRootAgent(ScenePresence avatar)
