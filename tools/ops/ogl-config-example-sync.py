@@ -37,20 +37,32 @@ def safe_relative(base, path):
 def sync(active_bin, downloaded_bin, output):
     if not active_bin.is_dir() or not downloaded_bin.is_dir():
         raise ValueError("Both binary config directories must exist")
+    active_root = active_bin.resolve()
+    downloaded_root = downloaded_bin.resolve()
+    output_root = output.resolve()
+    if (output_root == active_root or active_root in output_root.parents
+            or output_root == downloaded_root or downloaded_root in output_root.parents):
+        raise ValueError("Review output must not be inside a live or downloaded bin tree")
+    if output.is_symlink():
+        raise ValueError("Review output may not be a symlink")
     output.mkdir(parents=True, exist_ok=True)
     report = []
     # Scan the shipped complete defaults, plus active config files. Keep all
     # actual live config values private: report contains setting names only.
     file_set = set()
     for folder in (downloaded_bin, active_bin):
-        for path in folder.glob("*.ini"):
-            if path.is_file():
-                file_set.add(path.name)
+        for pattern in ("*.ini", "*.ini.example"):
+            for path in folder.glob(pattern):
+                if path.is_file():
+                    canonical = path.name.removesuffix(".example")
+                    file_set.add(canonical)
         inc = folder / "config-include"
         if inc.is_dir():
-            for path in inc.rglob("*.ini"):
-                if path.is_file():
-                    file_set.add(str(safe_relative(folder, path)))
+            for pattern in ("*.ini", "*.ini.example"):
+                for path in inc.rglob(pattern):
+                    if path.is_file():
+                        canonical = str(safe_relative(folder, path))
+                        file_set.add(canonical.removesuffix(".example"))
     for name in sorted(file_set):
         relative = Path(name)
         shipped = downloaded_bin / relative
@@ -59,6 +71,8 @@ def sync(active_bin, downloaded_bin, output):
         baseline = shipped if shipped.is_file() else example
         if not baseline.is_file():
             continue
+        if baseline.is_symlink() or active.is_symlink():
+            raise ValueError("Configuration symlink rejected: " + name)
         new_keys = keys(baseline)
         old_keys = keys(active)
         missing = sorted(new_keys - old_keys)
@@ -67,6 +81,8 @@ def sync(active_bin, downloaded_bin, output):
         if missing or not active.exists():
             destination = output / relative.parent / (relative.stem + ".example.ini")
             destination.parent.mkdir(parents=True, exist_ok=True)
+            if destination.is_symlink():
+                raise ValueError("Review target symlink rejected: " + name)
             destination.write_text(
                 "; OpenGenesisLINK update review ONLY. Never automatically overwrite live INI.\n"
                 "; Compare this complete upstream template manually against the live file.\n"

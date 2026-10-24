@@ -155,3 +155,48 @@ Staging abgleichen; Firestorm erneut testen. Erst nach Betreiberabnahme
 dürfen nachweislich verwaiste Daten separat und reversibel quarantänisiert
 werden. Ein globales oder automatisches Löschen von 222 UUIDs ist
 nicht Bestandteil dieses Patches.
+
+## Zusätzliche Sicherheit ab Patch: Veröffentlichung und privilegierter Updateauftrag
+
+**Karten-Publikation:** Alte Terrain-/Parcel-Map-Assets werden erst
+nach erfolgreichem `GridService.RegisterRegion` freigegeben. Eine Störung
+während der erneuten ROBUST-Registrierung darf die auf dem Grid noch
+beworbene Karten-UUID nicht ungültig machen. Unterbrochene Versuche können
+vorübergehend verwaiste Kartenasset-Kopien hinterlassen; diese dürfen
+nicht ohne Referenz-/GC-Audit gelöscht werden.
+
+**Getrennte Update-Autorisierung:** Die gemeinsame NexBus-Transport-HMAC
+genügt absichtlich NICHT mehr für Code-Update-Staging. ROBUST und jede zur
+Updateverteilung freigegebene Node benötigen zusätzlich dieselbe,
+separate Umgebungsvariable mit mindestens 32 UTF-8-Bytes:
+
+    NEXVERSE_UPDATE_CONTROL_KEY=<separater-langer-zufaelliger-schluessel>
+
+In einer geschützten Systemd-EnvironmentFile bereitstellen und die
+betroffenen Prozesse kontrolliert neu starten. Nicht mit
+`NEXVERSE_NEXBUS_SHARED_KEY` gleichsetzen, nicht in Git committen.
+ROBUST antwortet ohne signierte Transportverbindung und diesen separaten
+Schlüssel mit HTTP 503; Nodes verwerfen fremde, manipulierte, wiederholte
+oder abgelaufene Aufträge. Das Zeitfenster beträgt maximal 5 Minuten
+plus 60 Sekunden für geringfügig abweichende Systemuhren.
+`/api/v1/nodes` zeigt nur den Ergebnisstatus, niemals den Schlüssel.
+Die Aktivierung bleibt optional und nach Tests/Backup freizugeben.
+
+**Update-Staging-Wiederholung:** Bereits vorhandene Verzeichnisse werden
+gegen die verifizierte Commit-SHA/Quelle und das gewünschte Build-Flag
+überprüft. Nicht prüfbare Ablagen werden abgewiesen, ungenutzte temporäre
+Klone entfernt. Das Staging darf nicht innerhalb oder oberhalb des
+laufenden Simulator-Checkouts liegen. Der Konfigurationsvergleich nimmt
+auch offiziell ausgelieferte `*.ini.example`-Dateien auf und verweigert
+symlinkende Zielpfade.
+
+**Leere FSAssets:** Bei verfügbarer zweiter, unveränderlicher FSAssets-
+Sicherung kann zusätzlich das folgende Argument angegeben werden:
+
+    --backup-fs-root /private/verified-backup/fsassets
+
+Das Audit bezeichnet nur solche Dateien als
+`verified_backup_candidate_manual_restore_on_staging_only`,
+deren SHA-256-Hash mit dem SQL-Metadatensatz übereinstimmt und deren
+aktuelle FSAssets-Datei fehlt/beschädigt ist. Ein tatsächlicher Restore
+erfolgt ausschließlich nach isolierter Validierung und Betreiberfreigabe.

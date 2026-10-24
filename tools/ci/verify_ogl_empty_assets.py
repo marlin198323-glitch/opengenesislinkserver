@@ -26,13 +26,20 @@ with tempfile.TemporaryDirectory(prefix="ogl-empty-assets-") as d:
     valid.parent.mkdir(parents=True)
     with gzip.open(valid.with_name(valid.name + ".gz"), "wb") as dst:
         dst.write(content)
-    wrong = "a" * 64
-    if wrong == digest:
-        wrong = "b" * 64
+    restored = b"known-good backup payload for a corrupted file"
+    wrong = hashlib.sha256(restored).hexdigest()
     corrupt = audit.asset_path(base, wrong)
     corrupt.parent.mkdir(parents=True, exist_ok=True)
     corrupt.write_bytes(b"wrong hash content")
-    absent = "c" * 64
+    absent_data = b"valid backup of a completely absent file"
+    absent = hashlib.sha256(absent_data).hexdigest()
+    backup = root / "backup-fsassets"
+    backup.mkdir()
+    for sha256, payload in ((wrong, restored), (absent, absent_data)):
+        dest = audit.asset_path(backup, sha256)
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        with gzip.open(dest.with_name(dest.name + ".gz"), "wb") as stream:
+            stream.write(payload)
     log.write_text(
         "2026-10-24 12:20:20,123 WARN  [GETASSET]: asset with empty data: "
         + ids[0] + " type 0\n"
@@ -48,22 +55,29 @@ with tempfile.TemporaryDirectory(prefix="ogl-empty-assets-") as d:
     meta.write_text(ids[0] + "\t" + digest + "\t0\n"
                     + ids[1] + "\t" + wrong + "\t49\n"
                     + ids[2] + "\t" + absent + "\t0\n")
-    result = {entry["uuid"]: entry for entry in audit.audit(log, meta, base)}
+    result = {entry["uuid"]: entry for entry in audit.audit(
+        log, meta, base, backup_root=backup)}
     assert len(result) == 4
     assert result[ids[0]]["warning_count"] == 2
     assert result[ids[0]]["payload"] == "hash_ok"
     assert result[ids[1]]["payload"] == "hash_mismatch"
     assert result[ids[2]]["payload"] == "missing_file"
+    assert result[ids[1]]["backup_payload"] == "hash_ok"
+    assert result[ids[2]]["backup_payload"] == "hash_ok"
+    assert result[ids[0]]["backup_payload"] == "not_checked"
+    assert result[ids[1]]["decision"] == "verified_backup_candidate_manual_restore_on_staging_only"
     assert result[ids[3]]["metadata"] == "not_found_in_snapshot"
     assert all("delete" not in row["decision"].replace("do_not_delete", "") for row in result.values())
     # A linked shard MUST be refused rather than read outside snapshot root.
-    linked = audit.asset_path(base, "d" * 64)
+    linked_hash = next(prefix * 64 for prefix in "def9876543210abc"
+                       if (prefix * 2) not in {digest[:2], wrong[:2], absent[:2]})
+    linked = audit.asset_path(base, linked_hash)
     external = root / "outside"
-    external_payload = external / "dd" / "dd" / "dddd" / ("d" * 64)
+    external_payload = external / linked_hash[2:4] / linked_hash[4:6] / linked_hash[6:10] / linked_hash
     external_payload.parent.mkdir(parents=True)
     external_payload.write_bytes(b"outside target is not trusted")
-    (base / "dd").symlink_to(external, target_is_directory=True)
-    result_code, _ = audit.verify_asset(base, "d" * 64)
+    (base / linked_hash[:2]).symlink_to(external, target_is_directory=True)
+    result_code, _ = audit.verify_asset(base, linked_hash)
     assert result_code == "read_error_OSError", result_code
     # No audit may write to FSAssets or SQL; only snapshots/output reports.
     assert corrupt.read_bytes() == b"wrong hash content"

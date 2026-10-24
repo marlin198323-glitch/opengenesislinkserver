@@ -1573,9 +1573,10 @@ namespace OpenSim.Region.CoreModules.World.WorldMap
         {
             bool needRegionSave = false;
 
-            // Keep the old map asset until its replacement has been stored
-            // and the new RegionSettings have been committed.
-            UUID oldTerrainImage = m_scene.RegionInfo.RegionSettings.TerrainImageID;
+            // Retain the last published map asset until GridService confirms
+            // the replacement UUID. Scene removes obsolete IDs only after
+            // successful registration; losing connectivity must never break
+            // the map tiles still referenced by the grid.
             UUID oldParcelImage = m_scene.RegionInfo.RegionSettings.ParcelImageID;
 
             if(mapbmp != null)
@@ -1677,12 +1678,8 @@ namespace OpenSim.Region.CoreModules.World.WorldMap
             if (needRegionSave)
             {
                 m_scene.RegionInfo.RegionSettings.Save();
-                UUID currentTerrain = m_scene.RegionInfo.RegionSettings.TerrainImageID;
-                UUID currentParcel = m_scene.RegionInfo.RegionSettings.ParcelImageID;
-                if (!oldTerrainImage.IsZero() && oldTerrainImage != currentTerrain)
-                    m_scene.AssetService.Delete(oldTerrainImage.ToString());
-                if (!oldParcelImage.IsZero() && oldParcelImage != currentParcel)
-                    m_scene.AssetService.Delete(oldParcelImage.ToString());
+                // No asset deletion here. The previous map may still be
+                // advertised by GridService until re-registration completes.
             }
         }
 
