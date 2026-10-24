@@ -90,7 +90,14 @@ dotnet run --project addons/OGLAssetService.Migration/OGLAssetService.Migration.
 ```
 
 5. Wenn alle Zeilen vorhanden und alle Dateien hash-validiert sind,
-   ausdrücklich die Kopie freigeben:
+   ausdrücklich die Kopie freigeben. Auch bei `--copy` prüft die Migration
+   jetzt den kompletten Snapshot **zunächst schreibgeschützt erneut** und
+   erstellt erst nach bestandenem Preflight das OGL-Zielverzeichnis bzw. den
+   SQLite-Index. Das verdoppelt die Lese-/Hash-Prüfung, schützt jedoch vor
+   Teilimporten bei bereits beschädigten oder unvollständigen Exporten.
+   Nach einem erfolgreichen Preflight bleibt der Snapshot unveränderlich zu
+   halten: eine spätere I/O-Störung im Kopierdurchlauf kann weiterhin einen
+   resumierbaren Teilimport erzeugen:
 
 ```bash
 dotnet run --project addons/OGLAssetService.Migration/OGLAssetService.Migration.csproj -c Release -- \
