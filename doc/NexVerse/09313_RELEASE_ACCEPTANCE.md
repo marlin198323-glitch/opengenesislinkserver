@@ -2,7 +2,7 @@
 
 **Stand: 24.10.2026. Status: IN ARBEIT, NICHT als Stable freigegeben.**
 
-Dieser Nachweisplan ergänzt [ROADMAP.md](ROADMAP.md). Nach der Betreiberentscheidung
+Dieser Nachweisplan ergänzt [ROADMAP.md](ROADMAP.md) und das [Dokument zum belegten Implementierungsumfang und den offenen Releaseblockern](09313_SCOPE_AND_BLOCKERS.md). Nach der Betreiberentscheidung
 besteht der Meilenstein **0.9.3.13** ausschließlich aus **17.1 NexAsset / OGL
 AssetService** und **17.2 Modern material/content pipeline**. NexMarketplace
 und NexMedia sind keine Bestandteile dieses Meilensteins.
@@ -109,6 +109,7 @@ auf dem jeweiligen 0.9.3.13-Kandidaten erneut geprüft werden.
 - [x] ZLib-LOD-/Hull-Decoder und Runtime-Regressionen mit grüner Gesamt-CI in main integriert (PR #293, Merge `8ff93d5c58aa2118e595e8cb2512d7b46ce7d6d9`).
 - [x] PBR-Face-Array-Bounds und glTF-JSON-zu-Materialoverride-Regressionen mit grüner Gesamt-CI in main integriert (PR #295, Merge `2d352b612f17dd3b7d68f14fd8eeea66c314b884`).
 - [x] OGL-Snapshot-Preflight vor dem Kopieren und SHA-256-Shard-Symlink-Schutz mit automatisierten Negativtests in `main` integriert (PR #296, Merge `69eabe3f99a5baeb523ca054db5f21074907e5b7`; OGL AssetService Addon, Cache and Migration, Atomic Integration Gate und NexVerse CI erfolgreich).
+- [x] LLSD-Material-Faces auf `0..255` und glTF-Textur-/Bild-Indices abgesichert, temporäre Material-Spans explizit initialisiert; Runtime-Regression und NexVerse-Gesamt-CI bestanden (PR #297, Merge `cf61a59cbfca23ae3358134cd7f3f900df56d664`).
 - [ ] AssetService-, Migration-, Fallback- und Restore-Gates nachweisen.
 - [ ] Modernen Material-/glTF-/PBR-Scope und Firestorm E2E abschließen.
 - [ ] RC/Stable-Testbelege und Betreiberfreigabe dokumentieren.
