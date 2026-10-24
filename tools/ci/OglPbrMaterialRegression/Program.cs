@@ -3,6 +3,7 @@
 using System;
 using System.Reflection;
 using OpenMetaverse;
+using OpenMetaverse.StructuredData;
 using OpenSim.Region.OptionalModules.Materials;
 using static OpenMetaverse.Primitive.RenderMaterials;
 
@@ -28,6 +29,17 @@ internal static class Program
         bool changed = (bool)method.Invoke(null, args);
         entries = (RenderMaterialEntry[])args[0];
         return changed;
+    }
+
+    private static bool ParseSide(OSD raw, out int side)
+    {
+        var method = typeof(MaterialsModule).GetMethod("TryParseMaterialSide",
+            BindingFlags.NonPublic | BindingFlags.Static);
+        Assert(method != null, "typed PBR face decoder missing");
+        object[] args = { raw, -1 };
+        bool accepted = (bool)method.Invoke(null, args);
+        side = (int)args[1];
+        return accepted;
     }
 
     private static void Main()
@@ -92,6 +104,52 @@ internal static class Program
         Assert(overrideEntries.Length == 1 && overrideEntries[0].data == serialized,
             "malformed glTF material mutated prior state");
 
-        Console.WriteLine("OpenGenesisLINK PBR face deletion and glTF override regression: OK");
+        // LLSD side indices are byte encoded. Negative, overflowing and
+        // non-integer values must not alias another user's material face.
+        Assert(ParseSide(OSD.FromInteger(0), out int parsedSide) && parsedSide == 0,
+            "face zero must be allowed");
+        Assert(ParseSide(OSD.FromInteger(255), out parsedSide) && parsedSide == 255,
+            "upper byte face must be preserved");
+        Assert(!ParseSide(OSD.FromInteger(-1), out parsedSide),
+            "negative face wrapped to byte 255");
+        Assert(!ParseSide(OSD.FromInteger(256), out parsedSide),
+            "out-of-range face wrapped to byte zero");
+        Assert(!ParseSide(OSD.FromString("0"), out parsedSide) &&
+            !ParseSide(OSD.FromReal(0), out parsedSide),
+            "non-integer LLSD face accepted");
+
+        // The glTF converter must reject out-of-bounds texture and source
+        // references without changing the previously valid material.
+        string imageUri = UUID.Random().ToString();
+        string textureGltf = "{\"images\":[{\"uri\":\"" + imageUri
+            + "\"}],\"textures\":[{\"source\":0}],"
+            + "\"materials\":[{\"pbrMetallicRoughness\":{\"baseColorTexture\":{\"index\":0}}}]}";
+        addArgs = new object[] { overrideEntries, textureGltf, 4 };
+        Assert((bool)add.Invoke(null, addArgs),
+            "valid glTF texture zero reference rejected");
+        overrideEntries = (RenderMaterialOverrideEntry[])addArgs[0];
+        string validTexture = overrideEntries[0].data;
+        Assert(validTexture.Contains("tex"), "glTF texture mapping lost");
+
+        string[] invalidGlTf = {
+            textureGltf.Replace("\"index\":0", "\"index\":-1"),
+            textureGltf.Replace("\"index\":0", "\"index\":1"),
+            textureGltf.Replace("\"source\":0", "\"source\":-1"),
+            textureGltf.Replace("\"source\":0", "\"source\":2")
+        };
+        foreach (string invalid in invalidGlTf)
+        {
+            addArgs = new object[] { overrideEntries, invalid, 4 };
+            Assert(!(bool)add.Invoke(null, addArgs),
+                "invalid indexed glTF material unexpectedly accepted");
+            overrideEntries = (RenderMaterialOverrideEntry[])addArgs[0];
+            Assert(overrideEntries.Length == 1 && overrideEntries[0].data == validTexture,
+                "invalid glTF input modified a valid material override");
+        }
+        addArgs = new object[] { overrideEntries, textureGltf, 256 };
+        Assert(!(bool)add.Invoke(null, addArgs),
+            "byte-overflowing PBR face accepted by override converter");
+
+        Console.WriteLine("OpenGenesisLINK PBR face bounds and glTF texture validation regression: OK");
     }
 }

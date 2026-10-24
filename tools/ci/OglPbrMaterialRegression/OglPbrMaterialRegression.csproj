@@ -9,5 +9,6 @@
     <ProjectReference Include="../../../OpenSim/Region/OptionalModules/OpenSim.Region.OptionalModules.csproj" />
     <Reference Include="OpenMetaverse"><HintPath>../../../bin/OpenMetaverse.dll</HintPath><Private>True</Private></Reference>
     <Reference Include="OpenMetaverseTypes"><HintPath>../../../bin/OpenMetaverseTypes.dll</HintPath><Private>True</Private></Reference>
+    <Reference Include="OpenMetaverse.StructuredData"><HintPath>../../../bin/OpenMetaverse.StructuredData.dll</HintPath><Private>True</Private></Reference>
   </ItemGroup>
 </Project>
