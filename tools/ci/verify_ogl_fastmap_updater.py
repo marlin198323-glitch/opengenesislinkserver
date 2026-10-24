@@ -76,4 +76,42 @@ with tempfile.TemporaryDirectory(prefix="ogl-update-ci-") as scratch:
     assert secret in (active / "OpenSim.ini").read_text()
     assert (active / "config-include/GridCommon.ini").read_text() == "[AssetService]\nStorage=FSAssets\n"
 
+    # Also collect shipped .ini.example files without an active .ini.
+    (downloaded / "config-include/Hypergrid.ini.example").write_text(
+        "[Hypergrid]\nGatekeeperURI=example.invalid\n")
+    fresh = base / "example-review"
+    second = module.sync(active, downloaded, fresh)
+    assert len(second) == 3, second
+    assert any(row["file"] == "config-include/Hypergrid.ini"
+               and row["missing_settings"][0]["name"] == "GatekeeperURI"
+               for row in second)
+    assert (fresh / "config-include/Hypergrid.example.ini").is_file()
+    try:
+        module.sync(active, downloaded, active / "review")
+        raise AssertionError("Review output inside active bin was accepted")
+    except ValueError:
+        pass
+    linked = base / "linked-review"
+    (linked / "config-include").mkdir(parents=True)
+    (linked / "OpenSim.example.ini").symlink_to(active / "OpenSim.ini")
+    try:
+        module.sync(active, downloaded, linked)
+        raise AssertionError("Symlinked generated example was accepted")
+    except ValueError:
+        pass
+    assert secret in (active / "OpenSim.ini").read_text()
+
+# Publish the replacement map to the grid BEFORE deleting the old map assets.
+worldmap = read("OpenSim/Region/CoreModules/World/WorldMap/WorldMapModule.cs")
+map_fn = worldmap.split("private void GenerateMaptile(Bitmap mapbmp)", 1)[1].split(
+    "private void MakeRootAgent", 1)[0]
+assert "AssetService.Delete(" not in map_fn
+assert scene.count("CleanupPublishedMapAssets(priorMap, priorOverlay);") == 2
+assert "NexBusProtocol.VerifyNodeStageRequest" in node
+assert "NEXVERSE_UPDATE_CONTROL_KEY" in node
+assert "SignStageRequest(payload" in api
+assert "EnsureStageAuthorized(response)" in api
+assert "Existing update stage is unverified or not built" in sh
+assert "deployment=" in sh
+
 print("FastMap 2.0 startup control + signed node updater + conflict-free INI review: OK")
