@@ -27,10 +27,11 @@ namespace OpenGenesisLINK.Addons.AssetService
             if (payload == null) throw new ArgumentNullException(nameof(payload));
             string hash = Convert.ToHexString(SHA256.HashData(payload)).ToLowerInvariant();
             string target = Resolve(hash);
+            // Check every shard level before following it. A symlink at the
+            // first (two-character) shard would otherwise redirect writes
+            // outside the configured immutable object directory.
+            EnsureSafeShards(hash, create: true);
             string parent = Path.GetDirectoryName(target);
-            Directory.CreateDirectory(parent);
-            if ((File.GetAttributes(parent) & FileAttributes.ReparsePoint) != 0)
-                throw new IOException("Storage shard must not be a symbolic link.");
             if (File.Exists(target))
             {
                 if (Get(hash) == null)
@@ -63,6 +64,7 @@ namespace OpenGenesisLINK.Addons.AssetService
         public byte[] Get(string hash)
         {
             string path = Resolve(hash);
+            EnsureSafeShards(hash, create: false);
             if (!File.Exists(path)) return null;
             if ((File.GetAttributes(path) & FileAttributes.ReparsePoint) != 0)
                 throw new IOException("Object path must not be a symbolic link.");
@@ -71,6 +73,26 @@ namespace OpenGenesisLINK.Addons.AssetService
             if (!String.Equals(actual, hash, StringComparison.Ordinal))
                 throw new InvalidDataException("Object SHA-256 mismatch.");
             return bytes;
+        }
+
+        private void EnsureSafeShards(string hash, bool create)
+        {
+            string level1 = Path.Combine(root, hash.Substring(0, 2));
+            string level2 = Path.Combine(level1, hash.Substring(2, 2));
+            CheckDirectory(root);
+            if (create)
+                Directory.CreateDirectory(level1);
+            CheckDirectory(level1);
+            if (create)
+                Directory.CreateDirectory(level2);
+            CheckDirectory(level2);
+        }
+
+        private static void CheckDirectory(string path)
+        {
+            if (Directory.Exists(path) &&
+                (File.GetAttributes(path) & FileAttributes.ReparsePoint) != 0)
+                throw new IOException("Content-addressed storage path contains a symbolic link.");
         }
 
         private string Resolve(string hash)
