@@ -114,3 +114,44 @@ Orchestrator für Produktionsrollouts, Drain, Dienstneustart und Rollback.
 Die Zeitvorgabe für den Node-Staging-Prozess beträgt 20 Minuten, sofern das
 lokale Tooling vorhanden ist. Ein fehlender lokaler Updater wird als Fehler
 gemeldet, statt unkontrollierte Shell-Kommandos anzunehmen.
+
+## Prüfung der 222 gemeldeten leeren Assets von server.lubda.net
+
+Im bereitgestellten OpenSim(2).log liegen 1.388 Warnungen für **222 unterschiedliche UUIDs**
+(221-mal Asset-Typ 0, eine UUID Typ 49). Diese Meldungen beweisen nur, dass der
+Asset-Abruf eine leere Datenantwort gesehen hat. Sie beweisen **nicht**, dass
+alle Datenbankeinträge oder Inventar-/Objektreferenzen gelöscht werden dürfen.
+
+Die Prüfliste tools/ops/ogl-empty-assets-audit.py ist ausdrücklich
+**read-only**. Für die erste logbasierte Übersicht:
+
+    python3 tools/ops/ogl-empty-assets-audit.py \
+      --log "/private/OpenSim(2).log" \
+      --out /private/ogl-assets-audit
+
+Zur Gegenprüfung einen **konsistenten Offline-Snapshot** aus FSAssets,
+Spool und SQL erstellen und darin die betroffenen Asset-UUIDs mit ihrer
+SHA-256-Datei vergleichen (FSAssets-Export siehe
+addons/OGLAssetService.Migration/EXPORT.md):
+
+    python3 tools/ops/ogl-empty-assets-audit.py \
+      --log "/private/OpenSim(2).log" \
+      --metadata-tsv /private/snapshot/uuid-hash.tsv \
+      --fs-root /private/snapshot/fsassets \
+      --out /private/ogl-assets-audit
+
+Bei UseOsgridFormat=true: Option --osgrid anhängen. Das Tool erzeugt nur
+empty-assets-audit.csv und empty-assets-summary.json, niemals DELETE-
+Anweisungen oder Quarantäneoperationen. Bei fehlendem SQL-Eintrag ist auch
+eine fremde Hypergrid-Asset-UUID, ein Fallback-Cache oder ein früherer
+Fehlerzustand möglich. Validierter Dateihash plus leere Antwort deutet
+stattdessen auf Cache-/Read-/Netzwerkpfade.
+
+**Sichere Reihenfolge:** SQL/Spool/FSAssets-Backup und Restore prüfen;
+offline UUID/hash/parity prüfen; beschädigte Payloads nur aus verifizierten
+Sicherungen auf einer **Staging-Kopie** wiederherstellen; Inventar,
+Mesh-Materialien, Regionobjekte, Avatarwearables und HG-Verweise im
+Staging abgleichen; Firestorm erneut testen. Erst nach Betreiberabnahme
+dürfen nachweislich verwaiste Daten separat und reversibel quarantänisiert
+werden. Ein globales oder automatisches Löschen von 222 UUIDs ist
+nicht Bestandteil dieses Patches.
