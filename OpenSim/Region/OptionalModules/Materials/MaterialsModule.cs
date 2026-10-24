@@ -887,6 +887,18 @@ namespace OpenSim.Region.OptionalModules.Materials
             }
         }
 
+        // Reject invalid face values rather than truncating an untrusted
+        // integer to a different byte-indexed material face.
+        private static bool TryParseMaterialSide(OSD value, out int side)
+        {
+            side = -1;
+            if (value is not OSDInteger integer ||
+                integer.value < 0 || integer.value > byte.MaxValue)
+                return false;
+            side = integer.value;
+            return true;
+        }
+
         public void ModifyMaterialParams(IOSHttpRequest httpRequest, IOSHttpResponse httpResponse, UUID agentID)
         {
             if (httpRequest.HttpMethod != "POST")
@@ -922,9 +934,9 @@ namespace OpenSim.Region.OptionalModules.Materials
                     if (!m_scene.Permissions.CanEditObject(sop.UUID, agentID))
                         continue;
 
-                    if (!map.TryGetValue("side", out tmp))
+                    if (!map.TryGetValue("side", out tmp) ||
+                        !TryParseMaterialSide(tmp, out int side))
                         continue;
-                    int side = tmp.AsInteger();
 
                     string overridedata;
                     if (map.TryGetValue("gltf_json", out tmp))
@@ -1117,6 +1129,8 @@ namespace OpenSim.Region.OptionalModules.Materials
         }
         private static bool AddMaterialOverride(ref RenderMaterialOverrideEntry[] overrides, string data, int side)
         {
+            if (side < 0 || side > byte.MaxValue)
+                return false;
             OSD tst;
             try
             {
@@ -1136,6 +1150,7 @@ namespace OpenSim.Region.OptionalModules.Materials
                 if (mainArr.TryGetValue("images", out tmposd) && tmposd is OSDArray imagesArray && imagesArray.Count > 0 && imagesArray.Count < 16)
                 {
                     Span<UUID> imageURIs = stackalloc UUID[imagesArray.Count];
+                    imageURIs.Clear();
                     for (int i = 0; i < imagesArray.Count; i++)
                     {
                         if (imagesArray[i] is OSDMap tmpim && tmpim.TryGetValue("uri", out OSD tmpimuri) && tmpimuri is OSDString tmpimuristr)
@@ -1153,8 +1168,9 @@ namespace OpenSim.Region.OptionalModules.Materials
                             if (texturesArray[i] is OSDMap tmptm && tmptm.TryGetValue("source", out OSD tmptmsrc) && tmptmsrc is OSDInteger tmptmsrci)
                             {
                                 int v = tmptmsrci.value;
-                                if( v < imageURIs.Length)
-                                    texturesURIs[i] = imageURIs[v];
+                                if (v < 0 || v >= imageURIs.Length)
+                                    return false;
+                                texturesURIs[i] = imageURIs[v];
                             }
                         }
                     }
@@ -1169,6 +1185,8 @@ namespace OpenSim.Region.OptionalModules.Materials
                 bool texturesChanged = false;
                 Span<UUID> textureIDs = stackalloc UUID[4];
                 Span<bool> textureIDchanged = stackalloc bool[4];
+                textureIDs.Clear();
+                textureIDchanged.Clear();
 
                 if (material.TryGetValue("pbrMetallicRoughness", out tmposd) && tmposd is OSDMap pmrMap && pmrMap.Count > 0)
                 {
@@ -1177,11 +1195,15 @@ namespace OpenSim.Region.OptionalModules.Materials
                         if (hasTexURIS && pmrMapbct.TryGetValue("index", out tmposd) && tmposd is OSDInteger pmrMapbcti)
                         {
                             int v = pmrMapbcti.value;
-                            if (v < texturesURIs.Length)
+                            if (v >= 0 && v < texturesURIs.Length)
                             {
                                 textureIDs[0] = texturesURIs[v];
                                 textureIDchanged[0] = true;
                                 texturesChanged = true;
+                            }
+                            else
+                            {
+                                return false;
                             }
                         }
                         if (GetExtentionTransform(pmrMapbct, out tmpmap))
@@ -1194,11 +1216,15 @@ namespace OpenSim.Region.OptionalModules.Materials
                         if (hasTexURIS && pmrMapmrt.TryGetValue("index", out tmposd) && tmposd is OSDInteger pmrMapbcti)
                         {
                             int v = pmrMapbcti.value;
-                            if (v < texturesURIs.Length)
+                            if (v >= 0 && v < texturesURIs.Length)
                             {
                                 textureIDs[2] = texturesURIs[v];
                                 textureIDchanged[2] = true;
                                 texturesChanged = true;
+                            }
+                            else
+                            {
+                                return false;
                             }
                         }
                         if (GetExtentionTransform(pmrMapmrt, out tmpmap))
@@ -1233,11 +1259,15 @@ namespace OpenSim.Region.OptionalModules.Materials
                     if (hasTexURIS && ntMap.TryGetValue("index", out tmposd) && tmposd is OSDInteger ntMapi)
                     {
                         int v = ntMapi.value;
-                        if (v < texturesURIs.Length)
+                        if (v >= 0 && v < texturesURIs.Length)
                         {
                             textureIDs[1] = texturesURIs[v];
                             textureIDchanged[1] = true;
                             texturesChanged = true;
+                        }
+                        else
+                        {
+                            return false;
                         }
                     }
                     if (GetExtentionTransform(ntMap, out tmpmap))
@@ -1258,11 +1288,15 @@ namespace OpenSim.Region.OptionalModules.Materials
                     if (hasTexURIS && otMap.TryGetValue("index", out tmposd) && tmposd is OSDInteger otMapi)
                     {
                         int v = otMapi.value;
-                        if (v < texturesURIs.Length)
+                        if (v >= 0 && v < texturesURIs.Length)
                         {
                             textureIDs[2] = texturesURIs[v];
                             textureIDchanged[2] = true;
                             texturesChanged = true;
+                        }
+                        else
+                        {
+                            return false;
                         }
                     }
                     if (GetExtentionTransform(otMap, out tmpmap))
@@ -1283,11 +1317,15 @@ namespace OpenSim.Region.OptionalModules.Materials
                     if (hasTexURIS && etMap.TryGetValue("index", out tmposd) && tmposd is OSDInteger etMapi)
                     {
                         int v = etMapi.value;
-                        if (v < texturesURIs.Length)
+                        if (v >= 0 && v < texturesURIs.Length)
                         {
                             textureIDs[3] = texturesURIs[v];
                             textureIDchanged[3] = true;
                             texturesChanged = true;
+                        }
+                        else
+                        {
+                            return false;
                         }
                     }
                     if (GetExtentionTransform(etMap, out tmpmap))
