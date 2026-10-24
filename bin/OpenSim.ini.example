@@ -19,6 +19,11 @@
     ObjectMessagesPerSecond = 20
     ObjectMessageMaxAgeSeconds = 30
     ManagedRegionCommands = false
+    ; Official GitHub main => separate staging only; no service restart/INI overwrite.
+    ; Requires NexBus and simulators:manage authorization at ROBUST.
+    UpdateStagingEnabled = false
+    UpdateStagingRoot = "/opt/opengenesislink-updates"
+    UpdateStagingBuild = true
     ManagedRegionConfigDirectory = "Regions/NexVerseManaged"
     ManagedRegionInternalAddress = "0.0.0.0"
     ManagedRegionExternalHostName = ""
@@ -61,6 +66,9 @@
 
 [Map]
     GenerateMaptiles = true
+    ; OGL FastMap 2.0: opt in after testing (keep true for normal map rendering).
+    FastMapAsyncStartup = false
+    FastMapStartupDelaySeconds = 45
     MapImageModule = "Warp3DImageModule"
     TextureOnMapTile = true
     DrawPrimOnMapTile = true

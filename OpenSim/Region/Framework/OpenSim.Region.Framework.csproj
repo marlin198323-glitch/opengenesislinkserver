@@ -215,6 +215,7 @@
       <SubType>Code</SubType>
     </Compile>
     <Compile Include="Scenes\Scene.cs">
+    <Compile Include="Scenes\OglFastMapStartupQueue.cs" />
       <SubType>Code</SubType>
     </Compile>
     <Compile Include="Scenes\Scene.Inventory.cs">

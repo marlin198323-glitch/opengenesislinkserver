@@ -74,6 +74,11 @@ namespace NexVerse.RegionModules.NodeAgent
         private IDisposable m_MoveRegionSubscription;
         private IDisposable m_RegionLifecycleSubscription;
         private IDisposable m_NodeControlSubscription;
+        private IDisposable m_NodeUpdateSubscription;
+        private bool m_UpdateStagingEnabled;
+        private bool m_UpdateStagingBuild = true;
+        private string m_UpdateStagingRoot = string.Empty;
+        private int m_NodeUpdateRunning;
         private IDisposable m_OarControlSubscription;
         private IDisposable m_IarControlSubscription;
         private IDisposable m_ObjectMessageSubscription;
@@ -121,6 +126,9 @@ namespace NexVerse.RegionModules.NodeAgent
                 Environment.MachineName);
 
             m_SharedKey = sharedKey;
+            m_UpdateStagingEnabled = config.GetBoolean("UpdateStagingEnabled", false);
+            m_UpdateStagingRoot = config.GetString("UpdateStagingRoot", string.Empty).Trim();
+            m_UpdateStagingBuild = config.GetBoolean("UpdateStagingBuild", true);
             m_InboundPath = config.GetString(
                 "InboundPath",
                 "/internal/nexbus/v1/events").Trim();
@@ -248,6 +256,7 @@ namespace NexVerse.RegionModules.NodeAgent
                     "region.control.lifecycle.requested",
                     HandleRegionLifecycleCommand);
             m_NodeControlSubscription = m_Bus.Subscribe("node.control.requested", HandleNodeControlCommand);
+            m_NodeUpdateSubscription = m_Bus.Subscribe("node.update.stage.requested", HandleStageUpdateCommand);
             m_OarControlSubscription = m_Bus.Subscribe("archive.oar.requested", HandleOarCommand);
             m_IarControlSubscription = m_Bus.Subscribe("archive.iar.requested", HandleIarCommand);
             if (m_ObjectMessagingEnabled)
@@ -314,6 +323,8 @@ namespace NexVerse.RegionModules.NodeAgent
             m_RegionLifecycleSubscription = null;
             m_NodeControlSubscription?.Dispose();
             m_NodeControlSubscription = null;
+            m_NodeUpdateSubscription?.Dispose();
+            m_NodeUpdateSubscription = null;
             m_OarControlSubscription?.Dispose();
             m_OarControlSubscription = null;
             m_IarControlSubscription?.Dispose();
@@ -1094,6 +1105,8 @@ namespace NexVerse.RegionModules.NodeAgent
                 ["agent_count"] = agents.ToString(),
                 ["maintenance_mode"] = m_MaintenanceMode.ToString(),
                 ["draining"] = m_Draining.ToString(),
+                ["update_staging_enabled"] = m_UpdateStagingEnabled.ToString(),
+                ["update_staging_running"] = (Volatile.Read(ref m_NodeUpdateRunning) != 0).ToString(),
                 ["managed_region_commands"] =
                     (NexVerseManagedRegionHostPlugin.Current?.Enabled == true)
                         .ToString(),
@@ -1840,6 +1853,87 @@ namespace NexVerse.RegionModules.NodeAgent
                 "nexverse.simulator",
                 data,
                 source.CorrelationId));
+        }
+
+        // Signed NexBus + ROBUST simulators:manage is required on the
+        // originating endpoint. Never accept a repository URL, path or shell
+        // command from the event. A node must explicitly opt into staging.
+        private void HandleStageUpdateCommand(NexEvent request)
+        {
+            if (!IsCommandForThisNode(request) ||
+                !string.Equals(request.Source, "nexverse.robust", StringComparison.Ordinal) ||
+                !TryCommandData(request, "operation_id", out string operationId) ||
+                !Guid.TryParse(operationId, out _))
+                return;
+
+            if (!m_UpdateStagingEnabled || string.IsNullOrWhiteSpace(m_UpdateStagingRoot) ||
+                !Path.IsPathFullyQualified(m_UpdateStagingRoot))
+            {
+                PublishOperationState("node.update.stage.failed", request, operationId,
+                    "stage_update", "node_update_staging_disabled_or_invalid_root");
+                return;
+            }
+
+            if (Interlocked.CompareExchange(ref m_NodeUpdateRunning, 1, 0) != 0)
+            {
+                PublishOperationState("node.update.stage.failed", request, operationId,
+                    "stage_update", "update_already_running");
+                return;
+            }
+
+            PublishOperationState("node.update.stage.accepted", request, operationId,
+                "stage_update", "stage_queued");
+
+            _ = Task.Run(() =>
+            {
+                try
+                {
+                    // Script comes from the locally deployed, trusted checkout.
+                    // The event cannot modify the script, Git URL, branch or args.
+                    string script = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory,
+                        "..", "tools", "ops", "ogl-node-stage-update.sh"));
+                    if (!File.Exists(script))
+                        throw new FileNotFoundException("Updater script missing from installed checkout.");
+
+                    ProcessStartInfo start = new ProcessStartInfo("bash")
+                    {
+                        UseShellExecute = false,
+                        CreateNoWindow = true,
+                        WorkingDirectory = AppContext.BaseDirectory
+                    };
+                    start.ArgumentList.Add(script);
+                    start.ArgumentList.Add(m_UpdateStagingRoot);
+                    start.ArgumentList.Add(AppContext.BaseDirectory);
+                    start.ArgumentList.Add(m_UpdateStagingBuild ? "1" : "0");
+                    using Process process = Process.Start(start);
+                    if (process == null)
+                        throw new InvalidOperationException("Could not launch staging process.");
+                    if (!process.WaitForExit(20 * 60 * 1000))
+                    {
+                        process.Kill(entireProcessTree: true);
+                        process.WaitForExit();
+                        throw new TimeoutException("Staging update exceeded 20-minute limit.");
+                    }
+
+                    if (process.ExitCode != 0)
+                        throw new InvalidOperationException("Staging command failed with exit code " + process.ExitCode);
+
+                    PublishOperationState("node.update.stage.completed", request,
+                        operationId, "stage_update", "ready_for_manual_review_no_live_files_changed");
+                }
+                catch (Exception e)
+                {
+                    m_Log.ErrorFormat("[OGL UPDATE]: Node {0} failed staging: {1}",
+                        m_NodeId, e.GetType().Name);
+                    PublishOperationState("node.update.stage.failed", request, operationId,
+                        "stage_update", "stage_failed_check_node_logs");
+                }
+                finally
+                {
+                    Interlocked.Exchange(ref m_NodeUpdateRunning, 0);
+                    PublishHeartbeatSafe();
+                }
+            });
         }
 
         private void HandleNodeControlCommand(NexEvent nexEvent)

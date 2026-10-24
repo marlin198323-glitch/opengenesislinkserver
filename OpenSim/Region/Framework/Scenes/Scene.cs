@@ -33,6 +33,7 @@ using System.Runtime;
 using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading;
+using System.Threading.Tasks;
 using System.Timers;
 using Nini.Config;
 using OpenMetaverse;
@@ -481,6 +482,13 @@ namespace OpenSim.Region.Framework.Scenes
 
         private readonly Timer m_mapGenerationTimer = new();
         private readonly bool m_generateMaptiles;
+        private readonly bool m_fastMapAsyncStartup;
+        private readonly int m_fastMapStartupDelaySeconds;
+        private bool m_mapRefreshEnabled;
+        private readonly object m_mapGenerationLock = new();
+        private readonly CancellationTokenSource m_fastMapCancellation = new();
+        private volatile bool m_fastMapShutdownRequested;
+        private int m_fastMapStartupQueued;
 
         protected int m_lastHealth = -1;
         protected int m_lastUsers = -1;
@@ -1017,19 +1025,26 @@ namespace OpenSim.Region.Framework.Scenes
 
                 string[] possibleMapConfigSections = new string[] { "Map", "Startup" };
 
-                m_generateMaptiles
-                    = Util.GetConfigVarFromSections<bool>(config, "GenerateMaptiles", possibleMapConfigSections, true);
+                m_generateMaptiles =
+                    Util.GetConfigVarFromSections<bool>(config, "GenerateMaptiles", possibleMapConfigSections, true);
+                m_fastMapAsyncStartup = m_generateMaptiles &&
+                    Util.GetConfigVarFromSections<bool>(config, "FastMapAsyncStartup", possibleMapConfigSections, false);
+                m_fastMapStartupDelaySeconds = Math.Clamp(
+                    Util.GetConfigVarFromSections<int>(config, "FastMapStartupDelaySeconds", possibleMapConfigSections, 45),
+                    1, 3600);
 
                 if (m_generateMaptiles)
                 {
                     int maptileRefresh = Util.GetConfigVarFromSections<int>(config, "MaptileRefresh", possibleMapConfigSections, 0);
-                    m_log.InfoFormat("[SCENE]: Region {0}, WORLD MAP refresh time set to {1} seconds", RegionInfo.RegionName, maptileRefresh);
-                    if (maptileRefresh != 0)
+                    m_mapRefreshEnabled = maptileRefresh > 0;
+                    m_log.InfoFormat("[SCENE]: Region {0}, WORLD MAP refresh time set to {1} seconds; FastMap async startup: {2}",
+                        RegionInfo.RegionName, maptileRefresh, m_fastMapAsyncStartup);
+                    if (m_mapRefreshEnabled)
                     {
-                        m_mapGenerationTimer.Interval = maptileRefresh * 1000;
+                        // Refresh starts after grid registration, never while a scene is still loading.
+                        m_mapGenerationTimer.Interval = Math.Clamp((double)maptileRefresh * 1000, 1000d, int.MaxValue);
                         m_mapGenerationTimer.Elapsed += RegenerateMaptileAndReregister;
                         m_mapGenerationTimer.AutoReset = false;
-                        m_mapGenerationTimer.Start();
                     }
                 }
                 else
@@ -1481,6 +1496,14 @@ namespace OpenSim.Region.Framework.Scenes
         // This is the method that shuts down the scene.
         public override void Close()
         {
+            // Pending FastMap jobs must not touch a disposed scene. An active
+            // render cannot be interrupted safely; wait before releasing region
+            // services/physics. This can prolong shutdown if rendering is busy.
+            m_fastMapShutdownRequested = true;
+            m_fastMapCancellation.Cancel();
+            m_mapGenerationTimer.Stop();
+            lock (m_mapGenerationLock) { }
+
             if (m_shuttingDown)
             {
                 m_log.Warn($"[SCENE]: Ignoring close request because already closing {Name}");
@@ -2274,11 +2297,10 @@ namespace OpenSim.Region.Framework.Scenes
         {
             m_sceneGridService.SetScene(this);
 
-            //// Unfortunately this needs to be here and it can't be async.
-            //// The map tile image is stored in RegionSettings, but it also needs to be
-            //// stored in the GridService, because that's what the world map module uses
-            //// to send the map image UUIDs (of other regions) to the viewer...
-            if (m_generateMaptiles)
+            // Legacy startup renders synchronously. FastMap instead registers
+            // the last persisted map UUID immediately, then publishes the
+            // freshly rendered map only after its delayed job succeeds.
+            if (m_generateMaptiles && !m_fastMapAsyncStartup)
                 RegenerateMaptile();
 
             GridRegion region = new(RegionInfo);
@@ -2291,6 +2313,11 @@ namespace OpenSim.Region.Framework.Scenes
 
             if (error != String.Empty)
                 throw new Exception(error);
+
+            if (m_fastMapAsyncStartup)
+                QueueFastMapStartup();
+            else if (m_mapRefreshEnabled)
+                m_mapGenerationTimer.Start();
         }
 
         #endregion
@@ -5982,23 +6009,65 @@ Environment.Exit(1);
             }
         }
 
+        private void QueueFastMapStartup()
+        {
+            if (Interlocked.Exchange(ref m_fastMapStartupQueued, 1) != 0)
+                return;
+
+            if (RegionInfo.RegionSettings.TerrainImageID.IsZero())
+                m_log.WarnFormat("[OGL FASTMAP]: Region {0} has no stored map tile; the first map becomes available after background rendering.", Name);
+
+            m_log.InfoFormat("[OGL FASTMAP]: Region {0} registered with existing map; scheduling generation after {1} seconds.",
+                Name, m_fastMapStartupDelaySeconds);
+
+            _ = RunFastMapStartupAsync();
+        }
+
+        private async Task RunFastMapStartupAsync()
+        {
+            try
+            {
+                await OglFastMapStartupQueue.RunAsync(
+                    () => RegenerateMaptileAndReregister(this, null),
+                    m_fastMapStartupDelaySeconds, m_fastMapCancellation.Token);
+                m_log.InfoFormat("[OGL FASTMAP]: Deferred map generation for region {0} finished.", Name);
+            }
+            catch (OperationCanceledException)
+            {
+                m_log.DebugFormat("[OGL FASTMAP]: Deferred map job cancelled for region {0}.", Name);
+            }
+            catch (Exception e)
+            {
+                m_log.ErrorFormat("[OGL FASTMAP]: Deferred map job failed for region {0}: {1}", Name, e);
+            }
+        }
+
         public void RegenerateMaptileAndReregister(object sender, ElapsedEventArgs e)
         {
-            RegenerateMaptile();
+            lock (m_mapGenerationLock)
+            {
+                if (m_fastMapShutdownRequested || m_shuttingDown)
+                    return;
 
-            GCSettings.LargeObjectHeapCompactionMode = GCLargeObjectHeapCompactionMode.CompactOnce;
-            GC.Collect();
-            GC.WaitForPendingFinalizers();
-            GC.Collect();
-            GCSettings.LargeObjectHeapCompactionMode = GCLargeObjectHeapCompactionMode.Default;
+                try
+                {
+                    RegenerateMaptile();
 
-            // We need to propagate the new image UUID to the grid service
-            // so that all simulators can retrieve it
-            string error = GridService.RegisterRegion(RegionInfo.ScopeID, new GridRegion(RegionInfo));
-            if (error != string.Empty)
-                throw new Exception(error);
-            if(m_generateMaptiles)
-                m_mapGenerationTimer.Start();
+                    // Publish the fresh map UUID only after the renderer has
+                    // stored it. Startup registration is already complete.
+                    string error = GridService.RegisterRegion(RegionInfo.ScopeID, new GridRegion(RegionInfo));
+                    if (error != string.Empty)
+                        throw new Exception(error);
+                }
+                finally
+                {
+                    // MaptileRefresh=0 means disabled. Never start the default
+                    // 100-ms System.Timers.Timer just because 'generate map'
+                    // or a deferred startup render completed.
+                    if (m_mapRefreshEnabled && !m_fastMapShutdownRequested)
+                        m_mapGenerationTimer.Start();
+                }
+            }
         }
 
         /// <summary>
