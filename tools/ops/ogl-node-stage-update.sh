@@ -1,0 +1,70 @@
+#!/usr/bin/env bash
+# OpenGenesisLINK node update staging - never modifies a running installation.
+set -euo pipefail
+export GIT_TERMINAL_PROMPT=0
+export GIT_CONFIG_NOSYSTEM=1
+export DOTNET_CLI_TELEMETRY_OPTOUT=1
+
+if [[ $# -ne 3 ]]; then
+  echo "Usage: ogl-node-stage-update.sh <staging-root> <live-bin-dir> <build:0|1>" >&2
+  exit 64
+fi
+root="$(realpath -m -- "$1")"
+live="$(realpath -m -- "$2")"
+build="$3"
+if [[ "$root" != /* || "$root" == / || "$live" == / ||
+      "$root" == "$live" || "$root" == "$live/"* ||
+      "$live" == "$root/"* || ! "$build" =~ ^[01]$ ]]; then
+  echo "Unsafe staging root/live directory relationship" >&2
+  exit 65
+fi
+if [[ -L "$root" || -L "$live" ]]; then
+  echo "Symlink roots are not supported" >&2
+  exit 65
+fi
+
+mkdir -p -- "$root"
+umask 077
+exec 9>"$root/.stage-update.lock"
+if ! flock -n 9; then
+  echo "Another staged update already runs in this directory" >&2
+  exit 66
+fi
+
+stage="$(mktemp -d -- "$root/.incoming.XXXXXXXX")"
+cleanup() { if [[ -d "$stage" ]]; then rm -rf -- "$stage"; fi; }
+trap cleanup EXIT
+
+git -c protocol.file.allow=never clone --depth 1 --single-branch --branch main \
+  https://github.com/opengenesislink/opengenesislinkserver.git "$stage/source"
+sha="$(git -C "$stage/source" rev-parse --verify HEAD)"
+if [[ ! "$sha" =~ ^[[:xdigit:]]{40}$ ]]; then
+  echo "Cannot verify downloaded Git commit" >&2
+  exit 67
+fi
+
+python3 "$stage/source/tools/ops/ogl-config-example-sync.py" \
+  --active-bin "$live" --downloaded-bin "$stage/source/bin" \
+  --output "$stage/config-review"
+
+if [[ "$build" == 1 ]]; then
+  (
+    cd "$stage/source"
+    bash runprebuild.sh
+    dotnet build OpenSim.sln --configuration Release --nologo
+  )
+fi
+
+printf 'commit=%s\nsource=https://github.com/opengenesislink/opengenesislinkserver.git\nbranch=main\nbuilt=%s\n' \
+  "$sha" "$build" > "$stage/manifest.txt"
+# Never delete an existing verified stage, and never replace live binaries.
+final="$root/$sha"
+if [[ -e "$final" ]]; then
+  echo "Commit already staged: $sha"
+else
+  mv -- "$stage" "$final"
+fi
+trap - EXIT
+echo "Staged commit: $sha"
+echo "Staged path: $final"
+echo "Live service and active .ini files were not touched."
