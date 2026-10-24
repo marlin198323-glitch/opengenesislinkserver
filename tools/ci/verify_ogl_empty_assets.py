@@ -58,12 +58,13 @@ with tempfile.TemporaryDirectory(prefix="ogl-empty-assets-") as d:
     assert all("delete" not in row["decision"].replace("do_not_delete", "") for row in result.values())
     # A linked shard MUST be refused rather than read outside snapshot root.
     linked = audit.asset_path(base, "d" * 64)
-    linked.parent.parent.parent.parent.mkdir(parents=True, exist_ok=True)
     external = root / "outside"
-    external.mkdir()
+    external_payload = external / "dd" / "dd" / "dddd" / ("d" * 64)
+    external_payload.parent.mkdir(parents=True)
+    external_payload.write_bytes(b"outside target is not trusted")
     (base / "dd").symlink_to(external, target_is_directory=True)
     result_code, _ = audit.verify_asset(base, "d" * 64)
-    assert result_code in ("missing_file", "read_error_OSError"), result_code
+    assert result_code == "read_error_OSError", result_code
     # No audit may write to FSAssets or SQL; only snapshots/output reports.
     assert corrupt.read_bytes() == b"wrong hash content"
 
