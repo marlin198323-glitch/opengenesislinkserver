@@ -57,14 +57,25 @@ fi
 
 printf 'commit=%s\nsource=https://github.com/opengenesislink/opengenesislinkserver.git\nbranch=main\nbuilt=%s\n' \
   "$sha" "$build" > "$stage/manifest.txt"
-# Never delete an existing verified stage, and never replace live binaries.
+# Reuse a stage only if its manifest proves the same checked-out
+# commit and the requested build state. Otherwise fail closed; never trust
+# an incomplete or corrupted existing directory as a verified update.
 final="$root/$sha"
-if [[ -e "$final" ]]; then
-  echo "Commit already staged: $sha"
+if [[ -e "$final" || -L "$final" ]]; then
+  if [[ -L "$final" || ! -f "$final/manifest.txt" ]] ||
+     ! grep -Fxq "commit=$sha" "$final/manifest.txt" ||
+     ! grep -Fxq "source=https://github.com/opengenesislink/opengenesislinkserver.git" "$final/manifest.txt" ||
+     { [[ "$build" == "1" ]] && ! grep -Fxq "built=1" "$final/manifest.txt"; }; then
+    echo "Existing update stage is unverified or not built: $final" >&2
+    exit 68
+  fi
+  # EXIT cleanup intentionally remains enabled to remove the unused clone.
+  echo "Verified commit already staged: $sha"
 else
   mv -- "$stage" "$final"
+  # The temporary tree has moved to its verified final location.
+  stage=""
 fi
-trap - EXIT
 echo "Staged commit: $sha"
 echo "Staged path: $final"
 echo "Live service and active .ini files were not touched."
