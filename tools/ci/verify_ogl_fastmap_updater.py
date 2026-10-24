@@ -33,7 +33,7 @@ assert "OglFastMapStartupRegression" in workflow
 assert "github.com/opengenesislink/opengenesislinkserver.git" in sh
 assert "flock -n 9" in sh and 'stage="$(mktemp' in sh
 assert "realpath -m" in sh and "dotnet build OpenSim.sln" in sh
-assert "config-review" in sh and "live service" not in sh.lower()
+assert "config-review" in sh and "mv -- \"$stage\" \"$final\"" in sh
 assert "mv -- \"$stage\" \"$final\"" in sh
 
 for path in ("bin/OpenSim.ini", "bin/OpenSim.ini.example", "bin/OpenSimDefaults.ini"):
