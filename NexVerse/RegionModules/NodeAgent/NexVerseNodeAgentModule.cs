@@ -1866,7 +1866,7 @@ namespace NexVerse.RegionModules.NodeAgent
             if (!IsCommandForThisNode(request) ||
                 !string.Equals(request.Source, "nexverse.robust", StringComparison.Ordinal) ||
                 !TryCommandData(request, "operation_id", out string operationId) ||
-                !Guid.TryParse(operationId, out _))
+                !Guid.TryParse(operationId, out Guid parsedOperationId))
                 return;
 
             // The NexBus transport secret is shared across peers. Do not trust
@@ -1890,7 +1890,7 @@ namespace NexVerse.RegionModules.NodeAgent
                     m_NodeUpdateReplay.TryRemove(previous.Key, out _);
             }
             if (m_NodeUpdateReplay.Count >= 1024 ||
-                !m_NodeUpdateReplay.TryAdd(operationId.ToLowerInvariant(), now))
+                !m_NodeUpdateReplay.TryAdd(parsedOperationId.ToString("D"), now))
             {
                 m_Log.WarnFormat("[OGL UPDATE]: Node {0} rejected a replay or excessive stage requests.", m_NodeId);
                 return;
