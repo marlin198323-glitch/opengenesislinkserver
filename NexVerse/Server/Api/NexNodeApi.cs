@@ -22,12 +22,14 @@ namespace NexVerse.Server.Api
         private readonly NexApiAuthenticator m_Authenticator;
         private readonly bool m_DistributedTransportEnabled;
         private readonly INexEventBus m_EventBus;
+        private readonly string m_UpdateControlKey;
 
         public NexNodeApi(
             NexNodeRegistry registry,
             NexApiAuthenticator authenticator,
             bool distributedTransportEnabled,
-            INexEventBus eventBus)
+            INexEventBus eventBus,
+            string updateControlKey = "")
         {
             m_Registry =
                 registry ??
@@ -38,6 +40,7 @@ namespace NexVerse.Server.Api
             m_DistributedTransportEnabled =
                 distributedTransportEnabled;
             m_EventBus = eventBus ?? throw new ArgumentNullException(nameof(eventBus));
+            m_UpdateControlKey = updateControlKey ?? string.Empty;
         }
 
         public void Handle(
@@ -189,16 +192,21 @@ namespace NexVerse.Server.Api
                 string action = doc.RootElement.TryGetProperty("action", out JsonElement a) ? (a.GetString() ?? "").Trim().ToLowerInvariant() : "";
                 if (action != "maintenance_on" && action != "maintenance_off" && action != "drain" && action != "resume" && action != "stage_update")
                 { WriteError(response, HttpStatusCode.BadRequest, "invalid_action", "Supported actions: maintenance_on, maintenance_off, drain, resume, stage_update."); return; }
+                if (action == "stage_update" && !EnsureStageAuthorized(response))
+                    return;
                 string operationId = Guid.NewGuid().ToString("D");
-                m_EventBus.Publish(new NexEvent(
-                    action == "stage_update" ? "node.update.stage.requested" : "node.control.requested",
-                    "nexverse.robust",
-                    new System.Collections.Generic.Dictionary<string,string>
+                System.Collections.Generic.Dictionary<string, string> payload =
+                    new System.Collections.Generic.Dictionary<string, string>
                     {
                         ["target_node_id"] = nodeId,
                         ["action"] = action,
                         ["operation_id"] = operationId
-                    }));
+                    };
+                if (action == "stage_update")
+                    SignStageRequest(payload, nodeId, operationId);
+                m_EventBus.Publish(new NexEvent(
+                    action == "stage_update" ? "node.update.stage.requested" : "node.control.requested",
+                    "nexverse.robust", payload));
                 WriteJson(response, new { status = "accepted", node_id = nodeId, action, operation_id = operationId }, HttpStatusCode.Accepted);
             }
             catch (JsonException)
@@ -223,6 +231,8 @@ namespace NexVerse.Server.Api
                     return;
                 }
 
+                if (!EnsureStageAuthorized(response))
+                    return;
                 NexNodeSnapshot[] targets = m_Registry.List().Where(node => node.State == "online").ToArray();
                 if (targets.Length == 0)
                 {
@@ -234,13 +244,15 @@ namespace NexVerse.Server.Api
                 for (int i = 0; i < targets.Length; i++)
                 {
                     operations[i] = Guid.NewGuid().ToString("D");
-                    m_EventBus.Publish(new NexEvent("node.update.stage.requested", "nexverse.robust",
+                    System.Collections.Generic.Dictionary<string, string> payload =
                         new System.Collections.Generic.Dictionary<string, string>
                         {
                             ["target_node_id"] = targets[i].NodeId,
                             ["operation_id"] = operations[i],
                             ["action"] = "stage_update"
-                        }));
+                        };
+                    SignStageRequest(payload, targets[i].NodeId, operations[i]);
+                    m_EventBus.Publish(new NexEvent("node.update.stage.requested", "nexverse.robust", payload));
                 }
                 WriteJson(response, new {
                     status = "accepted", action = "stage_update",
@@ -255,6 +267,31 @@ namespace NexVerse.Server.Api
                 WriteError(response, HttpStatusCode.BadRequest, "invalid_json",
                     "A JSON object with action stage_update is required.");
             }
+        }
+
+        private bool EnsureStageAuthorized(IOSHttpResponse response)
+        {
+            // HTTP management scope was already checked before this method.
+            // A disabled NexBus or absent separate control key must not
+            // produce an "accepted" response for an undeliverable/forgable
+            // privileged update command.
+            if (m_DistributedTransportEnabled &&
+                System.Text.Encoding.UTF8.GetByteCount(m_UpdateControlKey) >= 32)
+                return true;
+            WriteError(response, HttpStatusCode.ServiceUnavailable,
+                "node_update_control_unavailable",
+                "Distributed NexBus and a separate NEXVERSE_UPDATE_CONTROL_KEY (>=32 bytes) are required.");
+            return false;
+        }
+
+        private void SignStageRequest(
+            System.Collections.Generic.Dictionary<string, string> data,
+            string nodeId, string operationId)
+        {
+            long issuedAt = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+            data["issued_at"] = issuedAt.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            data["approval_hmac"] = NexBusProtocol.SignNodeStageRequest(nodeId,
+                operationId, issuedAt, m_UpdateControlKey);
         }
 
         private static object NodePayload(
