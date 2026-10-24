@@ -1,0 +1,25 @@
+; OpenGenesisLINK node operational settings - optional REVIEW template.
+; This file is deliberately not loaded automatically. Copy the selected values
+; to the active OpenSim.ini AFTER reconciling local overrides and secrets.
+
+[Map]
+    GenerateMaptiles = true
+    MapImageModule = "Warp3DImageModule"
+    DrawPrimOnMapTile = true
+    TextureOnMapTile = true
+    TexturePrims = true
+    RenderMeshes = true
+    ; Defaults: explicit opt-in after confirming existing TerrainImageID.
+    FastMapAsyncStartup = false
+    FastMapStartupDelaySeconds = 45
+    MaptileRefresh = 0
+
+[NexVerseNodeAgent]
+    ; NodeAgent must be configured with a protected NexBus peer before use.
+    ; Manage authorization is verified by ROBUST before dispatch.
+    UpdateStagingEnabled = false
+    UpdateStagingRoot = "/opt/opengenesislink-updates"
+    UpdateStagingBuild = true
+
+; NOTE: The updater publishes a stage request; it never restarts services,
+; replaces active INI files or alters the production checkout automatically.
