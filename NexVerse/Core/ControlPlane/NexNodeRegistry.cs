@@ -69,7 +69,10 @@ namespace NexVerse.Core.ControlPlane
             string state,
             DateTimeOffset lastSeen,
             DateTimeOffset lastEventAt,
-            IReadOnlyList<NexNodeRegionSnapshot> regions)
+            IReadOnlyList<NexNodeRegionSnapshot> regions,
+            string updateState = "",
+            string updateOperationId = "",
+            DateTimeOffset? updateAt = null)
         {
             NodeId = nodeId ?? string.Empty;
             Hostname = hostname ?? string.Empty;
@@ -102,6 +105,9 @@ namespace NexVerse.Core.ControlPlane
             LastSeen = lastSeen;
             LastEventAt = lastEventAt;
             Regions = regions ?? Array.Empty<NexNodeRegionSnapshot>();
+            UpdateState = updateState ?? string.Empty;
+            UpdateOperationId = updateOperationId ?? string.Empty;
+            UpdateAt = updateAt;
         }
 
         public string NodeId { get; }
@@ -132,6 +138,9 @@ namespace NexVerse.Core.ControlPlane
         public DateTimeOffset LastSeen { get; }
         public DateTimeOffset LastEventAt { get; }
         public IReadOnlyList<NexNodeRegionSnapshot> Regions { get; }
+        public string UpdateState { get; }
+        public string UpdateOperationId { get; }
+        public DateTimeOffset? UpdateAt { get; }
     }
 
     /// <summary>
@@ -250,6 +259,12 @@ namespace NexVerse.Core.ControlPlane
                         true);
                     break;
 
+                case "node.update.stage.accepted":
+                case "node.update.stage.completed":
+                case "node.update.stage.failed":
+                    ApplyNodeUpdateState(nexEvent);
+                    break;
+
                 case "region.online":
                     ApplyRegionOnline(
                         nexEvent);
@@ -259,6 +274,24 @@ namespace NexVerse.Core.ControlPlane
                     ApplyRegionOffline(
                         nexEvent);
                     break;
+            }
+        }
+
+        private void ApplyNodeUpdateState(NexEvent ev)
+        {
+            if (!string.Equals(ev.Source, "nexverse.simulator", StringComparison.Ordinal) ||
+                !TryData(ev, "node_id", out string nodeId) ||
+                !TryData(ev, "operation_id", out string operationId) ||
+                !Guid.TryParse(operationId, out _))
+                return;
+
+            NodeRecord record = m_Nodes.GetOrAdd(nodeId, id => new NodeRecord(id));
+            lock (record.Sync)
+            {
+                record.UpdateState = ev.Name.Substring("node.update.stage.".Length);
+                record.UpdateOperationId = operationId;
+                record.UpdateAt = DateTimeOffset.UtcNow;
+                record.LastEventAt = record.UpdateAt.Value;
             }
         }
 
@@ -650,7 +683,10 @@ namespace NexVerse.Core.ControlPlane
                     state,
                     record.LastSeen,
                     record.LastEventAt,
-                    regions);
+                    regions,
+                    record.UpdateState,
+                    record.UpdateOperationId,
+                    record.UpdateAt);
             }
         }
 
@@ -953,6 +989,9 @@ namespace NexVerse.Core.ControlPlane
                 new Dictionary<string, long>(
                     StringComparer.OrdinalIgnoreCase);
             public bool ExplicitOffline;
+            public string UpdateState = string.Empty;
+            public string UpdateOperationId = string.Empty;
+            public DateTimeOffset? UpdateAt;
             public DateTimeOffset LastSeen;
             public DateTimeOffset LastEventAt;
 
