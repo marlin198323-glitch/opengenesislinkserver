@@ -367,9 +367,76 @@ try
     try { importer.Run(snapshotFs, snapshotSpool, tsv, snapshotObjects, snapshotIndex, 2, false); }
     catch (InvalidDataException) { countDenied = true; }
     Check(countDenied, "Incomplete or unexpected SQL snapshot row count must fail");
+
+    // A malformed export must be refused before copy creates any OGL object,
+    // shard directory or SQLite index, even when the first row was valid.
+    string invalidTsv = Path.Combine(parallelRoot, "snapshot", "invalid-export.tsv");
+    File.WriteAllLines(invalidTsv, new[] {
+        rows[0],
+        importedIds[1] + "\t" + new string('0', 64),
+        rows[2]
+    });
+    string blockedObjects = Path.Combine(parallelRoot, "blocked-import", "objects");
+    string blockedIndex = Path.Combine(parallelRoot, "blocked-import", "locations.sqlite");
+    bool corruptExportRejected = false;
+    try
+    {
+        importer.Run(snapshotFs, snapshotSpool, invalidTsv, blockedObjects,
+            blockedIndex, 3, true);
+    }
+    catch (InvalidDataException) { corruptExportRejected = true; }
+    Check(corruptExportRejected && !Directory.Exists(blockedObjects) &&
+        !File.Exists(blockedIndex), "Corrupt snapshot created output before preflight");
+
+    string duplicateTsv = Path.Combine(parallelRoot, "snapshot", "duplicate-export.tsv");
+    File.WriteAllLines(duplicateTsv, new[] { rows[0], rows[0], rows[2] });
+    bool duplicateExportRejected = false;
+    try
+    {
+        importer.Run(snapshotFs, snapshotSpool, duplicateTsv, blockedObjects,
+            blockedIndex, 3, true);
+    }
+    catch (InvalidDataException) { duplicateExportRejected = true; }
+    Check(duplicateExportRejected && !Directory.Exists(blockedObjects),
+        "Duplicate UUID export was accepted or created output");
 }
 finally { if (Directory.Exists(parallelRoot)) Directory.Delete(parallelRoot, true); }
 Console.WriteLine("OGL parallel write-through and snapshot migration tests passed");
+
+// Regression: a symlink at the first content shard must not redirect reads or
+// writes outside the immutable OGL object directory.
+string shardSecurityRoot = Path.Combine(Path.GetTempPath(),
+    "ogl-shard-security-" + Guid.NewGuid().ToString("N"));
+string symlinkPath = null;
+try
+{
+    string objectRoot = Path.Combine(shardSecurityRoot, "objects");
+    string outsideRoot = Path.Combine(shardSecurityRoot, "outside");
+    var objectStore = new OGLNodeObjectStore(objectRoot);
+    byte[] bytes = { 33, 55, 77 };
+    string digest = OGLObjectCache.ContentHash(bytes);
+    string outsideShard = Path.Combine(outsideRoot, digest.Substring(2, 2));
+    Directory.CreateDirectory(outsideShard);
+    File.WriteAllBytes(Path.Combine(outsideShard, digest), bytes);
+    symlinkPath = Path.Combine(objectRoot, digest[..2]);
+    Directory.CreateSymbolicLink(symlinkPath, outsideRoot);
+    bool readDenied = false, writeDenied = false;
+    try { objectStore.Get(digest); }
+    catch (IOException) { readDenied = true; }
+    try { objectStore.Put(bytes); }
+    catch (IOException) { writeDenied = true; }
+    Check(readDenied && writeDenied, "Symlinked first-level content shard accepted");
+    Check(File.ReadAllBytes(Path.Combine(outsideShard, digest)).SequenceEqual(bytes),
+        "Symlink test changed external payload");
+}
+finally
+{
+    if (symlinkPath != null && Directory.Exists(symlinkPath))
+        Directory.Delete(symlinkPath);
+    if (Directory.Exists(shardSecurityRoot))
+        Directory.Delete(shardSecurityRoot, true);
+}
+Console.WriteLine("OGL storage symlink shard rejection tests passed");
 
 string auditRoot = Path.Combine(Path.GetTempPath(), "ogl-audit-" + Guid.NewGuid().ToString("N"));
 try
