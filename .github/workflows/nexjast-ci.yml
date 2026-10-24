@@ -559,6 +559,10 @@ jobs:
           chmod +x runprebuild.sh
           ./runprebuild.sh
 
+      - name: Regression-test OGL FastMap deferred startup queue
+        shell: bash
+        run: dotnet run --configuration Release --project tools/ci/OglFastMapStartupRegression/OglFastMapStartupRegression.csproj
+
       - name: Regression-test LLSD mesh upload fee instances
         shell: bash
         run: dotnet run --configuration Release --project tools/ci/NexMeshUploadFeeRegression/NexMeshUploadFeeRegression.csproj
