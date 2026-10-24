@@ -44,13 +44,22 @@ namespace NexVerse.Server.Api
             IOSHttpRequest request,
             IOSHttpResponse response)
         {
-            bool control = request != null && string.Equals(request.HttpMethod, "POST", StringComparison.OrdinalIgnoreCase) && (request.UriPath ?? string.Empty).EndsWith("/control", StringComparison.OrdinalIgnoreCase);
+            bool control = request != null &&
+                string.Equals(request.HttpMethod, "POST", StringComparison.OrdinalIgnoreCase) &&
+                ((request.UriPath ?? string.Empty).TrimEnd('/').EndsWith("/control", StringComparison.OrdinalIgnoreCase) ||
+                 string.Equals((request.UriPath ?? string.Empty).TrimEnd('/'), "/api/v1/nodes/updates", StringComparison.OrdinalIgnoreCase));
             if (!control && !RequireGet(request, response)) return;
             if (!Authenticate(request, response, control ? NexScopes.SimulatorsManage : NexScopes.SimulatorsRead)) return;
 
             string path =
                 (request?.UriPath ?? string.Empty)
                     .TrimEnd('/');
+
+            if (string.Equals(path, "/api/v1/nodes/updates", StringComparison.OrdinalIgnoreCase) && control)
+            {
+                HandleStageAllUpdates(request, response);
+                return;
+            }
 
             if (string.Equals(
                     path,
@@ -178,17 +187,74 @@ namespace NexVerse.Server.Api
             {
                 using JsonDocument doc = JsonDocument.Parse(request.InputStream);
                 string action = doc.RootElement.TryGetProperty("action", out JsonElement a) ? (a.GetString() ?? "").Trim().ToLowerInvariant() : "";
-                if (action != "maintenance_on" && action != "maintenance_off" && action != "drain" && action != "resume")
-                { WriteError(response, HttpStatusCode.BadRequest, "invalid_action", "Supported actions: maintenance_on, maintenance_off, drain, resume."); return; }
-                m_EventBus.Publish(new NexEvent("node.control.requested", "nexverse.robust", new System.Collections.Generic.Dictionary<string,string>
-                {
-                    ["target_node_id"] = nodeId,
-                    ["action"] = action
-                }));
-                WriteJson(response, new { status = "accepted", node_id = nodeId, action }, HttpStatusCode.Accepted);
+                if (action != "maintenance_on" && action != "maintenance_off" && action != "drain" && action != "resume" && action != "stage_update")
+                { WriteError(response, HttpStatusCode.BadRequest, "invalid_action", "Supported actions: maintenance_on, maintenance_off, drain, resume, stage_update."); return; }
+                string operationId = Guid.NewGuid().ToString("D");
+                m_EventBus.Publish(new NexEvent(
+                    action == "stage_update" ? "node.update.stage.requested" : "node.control.requested",
+                    "nexverse.robust",
+                    new System.Collections.Generic.Dictionary<string,string>
+                    {
+                        ["target_node_id"] = nodeId,
+                        ["action"] = action,
+                        ["operation_id"] = operationId
+                    }));
+                WriteJson(response, new { status = "accepted", node_id = nodeId, action, operation_id = operationId }, HttpStatusCode.Accepted);
             }
             catch (JsonException)
             { WriteError(response, HttpStatusCode.BadRequest, "invalid_json", "A JSON object with action is required."); }
+        }
+
+        // ROBUST initiates one authenticated stage request per online node.
+        // The nodes still require their own explicit UpdateStagingEnabled=true.
+        // This endpoint does NOT replace binaries or restart any simulator.
+        private void HandleStageAllUpdates(IOSHttpRequest request, IOSHttpResponse response)
+        {
+            try
+            {
+                using JsonDocument doc = JsonDocument.Parse(request.InputStream);
+                if (doc.RootElement.ValueKind != JsonValueKind.Object ||
+                    !doc.RootElement.TryGetProperty("action", out JsonElement a) ||
+                    a.ValueKind != JsonValueKind.String ||
+                    !string.Equals(a.GetString(), "stage_update", StringComparison.Ordinal))
+                {
+                    WriteError(response, HttpStatusCode.BadRequest, "invalid_action",
+                        "Only {\"action\":\"stage_update\"} is supported.");
+                    return;
+                }
+
+                NexNodeSnapshot[] targets = m_Registry.List().Where(node => node.State == "online").ToArray();
+                if (targets.Length == 0)
+                {
+                    WriteError(response, HttpStatusCode.Conflict, "no_online_nodes",
+                        "No online simulator nodes were observed.");
+                    return;
+                }
+                string[] operations = new string[targets.Length];
+                for (int i = 0; i < targets.Length; i++)
+                {
+                    operations[i] = Guid.NewGuid().ToString("D");
+                    m_EventBus.Publish(new NexEvent("node.update.stage.requested", "nexverse.robust",
+                        new System.Collections.Generic.Dictionary<string, string>
+                        {
+                            ["target_node_id"] = targets[i].NodeId,
+                            ["operation_id"] = operations[i],
+                            ["action"] = "stage_update"
+                        }));
+                }
+                WriteJson(response, new {
+                    status = "accepted", action = "stage_update",
+                    staged_only = true,
+                    nodes = targets.Select((node, i) => new {
+                        node_id = node.NodeId, operation_id = operations[i]
+                    }).ToArray()
+                }, HttpStatusCode.Accepted);
+            }
+            catch (JsonException)
+            {
+                WriteError(response, HttpStatusCode.BadRequest, "invalid_json",
+                    "A JSON object with action stage_update is required.");
+            }
         }
 
         private static object NodePayload(
