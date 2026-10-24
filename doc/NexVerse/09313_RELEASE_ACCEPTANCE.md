@@ -100,7 +100,7 @@ auf dem jeweiligen 0.9.3.13-Kandidaten erneut geprüft werden.
 
 ## 6. Implementierungsstand
 
-**Technische Teilabnahme (24.10.2026):** Beide Entwicklungs-PRs #293 und #295 sind nach erfolgreichen GitHub-Actions-Läufen in `main` gemergt. Diese CI-Nachweise betreffen die isolierten Code-/Regressionstests, nicht die produktive Storage-, Viewer-, Hypergrid- oder Stable-Freigabe. Die obenstehenden Release-Gates behalten ihren Status, bis sämtliche erforderlichen Tests auf dem exakten Releasekandidaten durchgeführt sind.
+**Technische Teilabnahme (24.10.2026):** Die Entwicklungs-PRs #293, #295 und #296 sind nach erfolgreichen GitHub-Actions-Läufen in `main` gemergt. Diese CI-Nachweise betreffen die isolierten Code-/Regressionstests, nicht die produktive Storage-, Viewer-, Hypergrid- oder Stable-Freigabe. Die obenstehenden Release-Gates behalten ihren Status, bis sämtliche erforderlichen Tests auf dem exakten Releasekandidaten durchgeführt sind.
 
 
 - [x] OGL AssetService Gen 1 als deaktiviertes Opt-in im Build (PR #237).
@@ -108,6 +108,7 @@ auf dem jeweiligen 0.9.3.13-Kandidaten erneut geprüft werden.
 - [x] Legacy-LLSD-Mesh-Fee-Payloads im Code korrigiert (PR #284).
 - [x] ZLib-LOD-/Hull-Decoder und Runtime-Regressionen mit grüner Gesamt-CI in main integriert (PR #293, Merge `8ff93d5c58aa2118e595e8cb2512d7b46ce7d6d9`).
 - [x] PBR-Face-Array-Bounds und glTF-JSON-zu-Materialoverride-Regressionen mit grüner Gesamt-CI in main integriert (PR #295, Merge `2d352b612f17dd3b7d68f14fd8eeea66c314b884`).
+- [x] OGL-Snapshot-Preflight vor dem Kopieren und SHA-256-Shard-Symlink-Schutz mit automatisierten Negativtests in `main` integriert (PR #296, Merge `69eabe3f99a5baeb523ca054db5f21074907e5b7`; OGL AssetService Addon, Cache and Migration, Atomic Integration Gate und NexVerse CI erfolgreich).
 - [ ] AssetService-, Migration-, Fallback- und Restore-Gates nachweisen.
 - [ ] Modernen Material-/glTF-/PBR-Scope und Firestorm E2E abschließen.
 - [ ] RC/Stable-Testbelege und Betreiberfreigabe dokumentieren.
