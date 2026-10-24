@@ -681,7 +681,8 @@ namespace NexVerse.Server.Api
                     adminMinimumLevel,
                     new PersistentNexSecurityStore(apiConfig.GetString("SecurityStorePath", "data/nexverse-security.json")),
                     apiConfig.GetBoolean("PortalAccountSelfDeleteEnabled", false),
-                    apiConfig.GetString("PortalRegistrationTrustedProxyIPs", ""));
+                    apiConfig.GetString("PortalRegistrationTrustedProxyIPs", ""),
+                    Environment.GetEnvironmentVariable("NEXVERSE_UPDATE_CONTROL_KEY") ?? string.Empty);
 
                 // Admin login now POSTs to the exact same URL serving the
                 // login page, /api/v1/docs. This works even when a KeyHelp
