@@ -79,6 +79,8 @@ namespace NexVerse.RegionModules.NodeAgent
         private bool m_UpdateStagingBuild = true;
         private string m_UpdateStagingRoot = string.Empty;
         private int m_NodeUpdateRunning;
+        private string m_UpdateControlKey = string.Empty;
+        private readonly ConcurrentDictionary<string, long> m_NodeUpdateReplay = new();
         private IDisposable m_OarControlSubscription;
         private IDisposable m_IarControlSubscription;
         private IDisposable m_ObjectMessageSubscription;
@@ -129,6 +131,7 @@ namespace NexVerse.RegionModules.NodeAgent
             m_UpdateStagingEnabled = config.GetBoolean("UpdateStagingEnabled", false);
             m_UpdateStagingRoot = config.GetString("UpdateStagingRoot", string.Empty).Trim();
             m_UpdateStagingBuild = config.GetBoolean("UpdateStagingBuild", true);
+            m_UpdateControlKey = Environment.GetEnvironmentVariable("NEXVERSE_UPDATE_CONTROL_KEY") ?? string.Empty;
             m_InboundPath = config.GetString(
                 "InboundPath",
                 "/internal/nexbus/v1/events").Trim();
@@ -1865,6 +1868,33 @@ namespace NexVerse.RegionModules.NodeAgent
                 !TryCommandData(request, "operation_id", out string operationId) ||
                 !Guid.TryParse(operationId, out _))
                 return;
+
+            // The NexBus transport secret is shared across peers. Do not trust
+            // the claimed event Source alone for privileged update commands.
+            // Require an independent, expiring, ROBUST control-plane HMAC.
+            long now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+            if (!TryCommandData(request, "issued_at", out string issuedRaw) ||
+                !long.TryParse(issuedRaw, System.Globalization.NumberStyles.Integer,
+                    System.Globalization.CultureInfo.InvariantCulture, out long issuedAt) ||
+                !TryCommandData(request, "approval_hmac", out string approvalHmac) ||
+                !NexBusProtocol.VerifyNodeStageRequest(m_NodeId, operationId,
+                    issuedAt, m_UpdateControlKey, approvalHmac, now))
+            {
+                m_Log.WarnFormat("[OGL UPDATE]: Node {0} ignored an unauthorized or expired stage request.", m_NodeId);
+                return;
+            }
+
+            foreach (KeyValuePair<string, long> previous in m_NodeUpdateReplay)
+            {
+                if (previous.Value < now - 600)
+                    m_NodeUpdateReplay.TryRemove(previous.Key, out _);
+            }
+            if (m_NodeUpdateReplay.Count >= 1024 ||
+                !m_NodeUpdateReplay.TryAdd(operationId.ToLowerInvariant(), now))
+            {
+                m_Log.WarnFormat("[OGL UPDATE]: Node {0} rejected a replay or excessive stage requests.", m_NodeId);
+                return;
+            }
 
             if (!m_UpdateStagingEnabled || string.IsNullOrWhiteSpace(m_UpdateStagingRoot) ||
                 !Path.IsPathFullyQualified(m_UpdateStagingRoot))
