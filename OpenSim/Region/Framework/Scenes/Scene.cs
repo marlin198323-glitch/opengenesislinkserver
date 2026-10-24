@@ -2296,6 +2296,8 @@ namespace OpenSim.Region.Framework.Scenes
         public void RegisterRegionWithGrid()
         {
             m_sceneGridService.SetScene(this);
+            UUID priorMap = RegionInfo.RegionSettings.TerrainImageID;
+            UUID priorOverlay = RegionInfo.RegionSettings.ParcelImageID;
 
             // Legacy startup renders synchronously. FastMap instead registers
             // the last persisted map UUID immediately, then publishes the
@@ -2314,6 +2316,7 @@ namespace OpenSim.Region.Framework.Scenes
             if (error != String.Empty)
                 throw new Exception(error);
 
+            CleanupPublishedMapAssets(priorMap, priorOverlay);
             if (m_fastMapAsyncStartup)
                 QueueFastMapStartup();
             else if (m_mapRefreshEnabled)
@@ -6009,6 +6012,34 @@ Environment.Exit(1);
             }
         }
 
+        // The map generator stores the new UUID before registration. The
+        // previous asset must remain available while the grid still points to
+        // it; only reclaim after GridService has accepted its replacement.
+        private void CleanupPublishedMapAssets(UUID priorMap, UUID priorOverlay)
+        {
+            if (priorMap != UUID.Zero &&
+                priorMap != RegionInfo.RegionSettings.TerrainImageID)
+            {
+                try { AssetService.Delete(priorMap.ToString()); }
+                catch (Exception ex)
+                {
+                    m_log.WarnFormat("[OGL FASTMAP]: Obsolete terrain-map asset {0} could not be reclaimed for {1}: {2}",
+                        priorMap, Name, ex.Message);
+                }
+            }
+
+            if (priorOverlay != UUID.Zero &&
+                priorOverlay != RegionInfo.RegionSettings.ParcelImageID)
+            {
+                try { AssetService.Delete(priorOverlay.ToString()); }
+                catch (Exception ex)
+                {
+                    m_log.WarnFormat("[OGL FASTMAP]: Obsolete parcel-overlay asset {0} could not be reclaimed for {1}: {2}",
+                        priorOverlay, Name, ex.Message);
+                }
+            }
+        }
+
         private void QueueFastMapStartup()
         {
             if (Interlocked.Exchange(ref m_fastMapStartupQueued, 1) != 0)
@@ -6051,6 +6082,8 @@ Environment.Exit(1);
 
                 try
                 {
+                    UUID priorMap = RegionInfo.RegionSettings.TerrainImageID;
+                    UUID priorOverlay = RegionInfo.RegionSettings.ParcelImageID;
                     RegenerateMaptile();
 
                     // Publish the fresh map UUID only after the renderer has
@@ -6058,6 +6091,7 @@ Environment.Exit(1);
                     string error = GridService.RegisterRegion(RegionInfo.ScopeID, new GridRegion(RegionInfo));
                     if (error != string.Empty)
                         throw new Exception(error);
+                    CleanupPublishedMapAssets(priorMap, priorOverlay);
                 }
                 finally
                 {
