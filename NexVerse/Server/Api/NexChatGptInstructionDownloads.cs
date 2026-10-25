@@ -640,6 +640,9 @@ namespace NexVerse.Server.Api
             AppendCatalogGroup(md, requestedAudience, "shared", "Bewohnerkonten, Rollen und Autorisierung",
                 "/api/v1/users/{principalId}",
                 "/api/v1/users/{principalId}/password");
+            AppendCatalogGroup(md, requestedAudience, "admin", "Serverseitige Passwortwiederherstellung (eigene Maschinen-Scopes, nie Browser)",
+                "/api/v1/auth/password-recovery/challenges",
+                "/api/v1/auth/password-recovery/complete");
             AppendCatalogGroup(md, requestedAudience, "admin", "Audit",
                 "/api/v1/audit");
             AppendCatalogGroup(md, requestedAudience, "admin", "Login, Token, Maschinenkeys und Scope-/OAuth-Verwaltung",

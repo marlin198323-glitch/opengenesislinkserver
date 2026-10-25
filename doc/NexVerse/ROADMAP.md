@@ -20,6 +20,19 @@ und Sicherheitsregressionen bleiben erhalten, aber Experience-Viewer-CAPS sind
 im ausgelieferten Standardprofil deaktiviert. Neue verbindliche Feature- und
 LSL-Abnahmekriterien stehen erst im Abschnitt **„Nach 0.9.4.0 – eigene Viewer-Generation“**.
 
+## P0: World API Passwort-Recovery – Issue #301
+
+- [x] World-seitige dedizierte Maschinen-Scopes, Endpunkte und einmalige SQLite-Challenges implementieren (PR #303).
+- [x] Veralteten `users:register`- und persönlichen `self`-Autorisierungspfad für Recovery unverändert gesperrt lassen.
+- [ ] PR #303 vollständig in CI prüfen und in `main` integrieren.
+- [ ] Stadtportal R495 auf World-eigene Challenges migrieren; bisherige Portal-Tokens nicht als World-Rechte akzeptieren.
+- [ ] Staging-Abnahme mit E-Mail, realem World-Passwort-Write, Firestorm-Neuanmeldung, negativem Altpasswort-Test, Replay und Rollback.
+- [ ] Betreibergenehmigung, produktive Konfigurations-/Schlüsselbereitstellung und finale P0-Schließung erst nach echten Belegen.
+
+Verbindlicher Vertrag: [P0 World-API-Recovery-Implementierung und Abnahme](WORLD_API_PASSWORD_RECOVERY_P0_301.md).
+Passwort-Hashmodernisierung von Legacy-MD5 separat als P1/Security behandeln.
+**Kein Produktions-Reset oder Credential-Deployment durch diesen PR.**
+
 ## Technische Bugfix-Roadmap – Audit 25.10.2026
 
 > **Neu aufgenommen (statische Codeprüfung): 21 priorisierte Befunde/Risiken und 3 gesonderte Abnahme-/Dokumentationspunkte.**

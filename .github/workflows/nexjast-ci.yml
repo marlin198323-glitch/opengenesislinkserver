@@ -583,6 +583,10 @@ jobs:
         shell: bash
         run: dotnet build --configuration Release OpenSim.sln
 
+      - name: Regression-test World API P0 password recovery tokens
+        shell: bash
+        run: dotnet run --configuration Release --project tools/ci/NexPasswordRecoveryRegression/NexPasswordRecoveryRegression.csproj
+
       - name: Regression-test PBR render-material face deletion
         shell: bash
         run: dotnet run --configuration Release --project tools/ci/OglPbrMaterialRegression/OglPbrMaterialRegression.csproj

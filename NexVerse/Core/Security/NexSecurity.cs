@@ -21,6 +21,10 @@ namespace NexVerse.Core.Security
         public const string UsersWrite = "users:write";
         // Dedicated machine-only portal registration scope.
         public const string UsersRegister = "users:register";
+        // Machine-only password recovery grants. Deliberately excluded from
+        // user role and self-service grant lists.
+        public const string PasswordRecoveryIssue = "password-recovery:issue";
+        public const string PasswordRecoveryComplete = "password-recovery:complete";
         public const string InventoryRead = "inventory:read";
         public const string InventoryWrite = "inventory:write";
         public const string FriendsManage = "friends:manage";

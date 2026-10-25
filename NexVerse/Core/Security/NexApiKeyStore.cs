@@ -67,6 +67,8 @@ namespace NexVerse.Core.Security
                     NexScopes.UsersRead,
                     NexScopes.UsersWrite,
                     NexScopes.UsersRegister,
+                    NexScopes.PasswordRecoveryIssue,
+                    NexScopes.PasswordRecoveryComplete,
                     NexScopes.InventoryRead,
                     NexScopes.InventoryWrite,
                     NexScopes.FriendsManage,

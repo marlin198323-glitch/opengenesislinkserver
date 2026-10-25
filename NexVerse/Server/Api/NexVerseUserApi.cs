@@ -681,15 +681,22 @@ namespace NexVerse.Server.Api
             if (account == null)
                 return false;
 
+            // First update the authoritative authentication record. Never
+            // invalidate all access tokens before a known-failed password
+            // write. If the subsequent security-stamp persistence fails,
+            // throw: callers must treat outcome as uncertain/fail-closed.
+            if (!m_Authentication.SetPassword(id, password))
+                return false;
+
             account.NexVerseStateChanged = Math.Max(
                 OpenSim.Framework.Util.UnixTimeSinceEpoch(),
                 account.NexVerseStateChanged + 1);
-
             if (!m_UserAccounts.StoreUserAccount(account))
-                return false;
+                throw new InvalidOperationException(
+                    "Password changed but account security-stamp persistence failed.");
 
             m_UserAccounts.InvalidateCache(id);
-            return m_Authentication.SetPassword(id, password);
+            return true;
         }
 
         public NexUserRecord SetAccountState(string principalId, string state, string reason)
