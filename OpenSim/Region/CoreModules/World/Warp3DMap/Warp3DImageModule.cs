@@ -587,17 +587,29 @@ namespace OpenSim.Region.CoreModules.World.Warp3DMap
                         // blocks before invoking the OpenMetaverse decoder.
                         if (omvPrim.Sculpt.Type == SculptType.Mesh)
                             renderMesh = DecodeMapMesh(omvPrim, sculptAsset, lod, prim);
-                        else // It's sculptie
+                        else // Sculpt texture, not a compressed mesh asset
                         {
-                            if (m_imgDecoder is not null)
+                            byte[] sculptData = sculptAsset.Data;
+                            if (sculptData != null && sculptData.Length > 0 &&
+                                ClassifyTexturePayload(sculptData) == "jpeg2000" &&
+                                m_imgDecoder is not null)
                             {
-                                Image sculpt = m_imgDecoder.DecodeToImage(sculptAsset.Data);
-                                if (sculpt is not null)
+                                try
                                 {
-                                    renderMesh = m_primMesher.GenerateFacetedSculptMesh(omvPrim, (Bitmap)sculpt, lod);
-                                    sculpt.Dispose();
+                                    using Image sculpt = m_imgDecoder.DecodeToImage(sculptData);
+                                    if (sculpt is Bitmap sculptBitmap)
+                                        renderMesh = m_primMesher.GenerateFacetedSculptMesh(
+                                            omvPrim, sculptBitmap, lod);
+                                }
+                                catch (Exception ex)
+                                {
+                                    LogMeshFailureOnce(omvPrim.Sculpt.SculptTexture, prim,
+                                        "sculpt-image decoder exception: " + ex.GetType().Name);
                                 }
                             }
+                            else
+                                LogMeshFailureOnce(omvPrim.Sculpt.SculptTexture, prim,
+                                    "missing or unsupported sculpt-image payload");
                         }
                     }
                     else
@@ -904,9 +916,12 @@ namespace OpenSim.Region.CoreModules.World.Warp3DMap
                 {
                     try
                     {
-                        Image decoded = m_imgDecoder?.DecodeToImage(data);
-                        if (decoded is null && m_lunaTextureEnabled && m_lunaTextureRasterFallback)
-                            decoded = TryDecodeRasterTexture(data, payloadKind);
+                        // Do not send PNG/JPEG/GIF/BMP or unknown bytes into the
+                        // JPEG2000 decoder: that produced spurious
+                        // "unhandled number of components: 0" messages.
+                        Image decoded = payloadKind == "jpeg2000"
+                            ? m_imgDecoder?.DecodeToImage(data)
+                            : TryDecodeRasterTexture(data, payloadKind);
 
                         if (decoded != null)
                         {
