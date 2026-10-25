@@ -65,6 +65,8 @@ assert routes.count('"/api/v1/statistics/summary"') == 1, "One early statistics 
 assert routes.index('"/api/v1/statistics/summary"') < routes.index('bool privilegedEndpoints ='), "Statistics must register before privileged service initialization"
 assert 'statisticsRoute.AttachPrivileged(statisticsApi);' in routes, "Protected statistics must preserve scope-enforcing authenticator"
 assert 'System.Threading.Volatile.Read(ref m_PrivilegedApi)' in routes
+assert 'LoadOptionalService<IAssetService>(m_Config, "AssetService")' not in routes, "Public statistics must not instantiate a second asset service"
+assert routes.count('AssetServiceConnector.GetLocalService(m_Config, "AssetService")') == 1, "Statistics must use the existing ROBUST AssetService"
 assert 'LoadOptionalService<IUserAccountService>(m_Config, "UserAccountService")' in routes
 assert 'new NexStatisticsApi(null, null, null, null, null, true)' in routes, "Provider errors must result in JSON 503, not HTML 404"
 
@@ -111,7 +113,7 @@ for marker in (
 for marker in (
     "LoadRegionData(m_Config)",
     "LoadRegionData(config)",
-    'LoadOptionalService<IAssetService>(m_Config, "AssetService")',
+    'AssetServiceConnector.GetLocalService(m_Config, "AssetService")',
     "return ServerUtils.LoadPlugin<IRegionData>(",
     'grid?.GetString("Realm", "regions")',
 ):

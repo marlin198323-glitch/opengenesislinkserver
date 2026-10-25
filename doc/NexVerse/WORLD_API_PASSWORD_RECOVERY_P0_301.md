@@ -34,7 +34,7 @@ versenden, niemals an eine unabhängig aus dem öffentlichen Request
 für denselben Account wird die Ausgabe gedrosselt.
 
 Die World speichert in der **bestehenden ROBUST-MariaDB-Datenbank** (Tabelle `ogl_password_recovery`) **nur gesalzenen SHA-256-Tokenhash**, UUID-Bindung,
-Ablaufzeit, Einmalstatus und Claim-ID in einer eigenen SQLite-Datenbank.
+Ablaufzeit, Einmalstatus und Claim-ID ausschließlich in dieser MariaDB-Tabelle.
 Token: 256-Bit CSPRNG; TTL: **900 Sekunden**, neue Ausgabe invalidiert
 alte, Completion ist konkurrierungs- und wiederholungssicher. Vor der
 Passwortmutation wird die Account-ID aus dem World-Token aufgelöst.
