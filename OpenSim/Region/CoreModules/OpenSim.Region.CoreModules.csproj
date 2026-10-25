@@ -454,6 +454,7 @@
     <Compile Include="World\Warp3DMap\Perlin.cs">
       <SubType>Code</SubType>
     </Compile>
+    <Compile Include="World\Warp3DMap\WarpMeshAssetPreflight.cs" />
     <Compile Include="World\Warp3DMap\Warp3DImageModule.cs">
       <SubType>Code</SubType>
     </Compile>
