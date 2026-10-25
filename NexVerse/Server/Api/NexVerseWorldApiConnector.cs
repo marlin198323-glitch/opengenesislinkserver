@@ -636,6 +636,29 @@ namespace NexVerse.Server.Api
                     gridUsers,
                     grid);
 
+                // World-owned one-time password recovery. Deliberately opt-in:
+                // the portal must first migrate from its legacy reset tokens.
+                bool passwordRecoveryEnabled = apiConfig.GetBoolean(
+                    "PasswordRecoveryEnabled", false);
+                NexPasswordRecoveryStore recoveryStore = passwordRecoveryEnabled
+                    ? new NexPasswordRecoveryStore(apiConfig.GetString(
+                        "PasswordRecoveryStorePath", "data/ogl-password-recovery.sqlite"))
+                    : null;
+                NexPasswordRecoveryApi recoveryApi = new NexPasswordRecoveryApi(
+                    authenticator, userAccounts, userService, oauthStore,
+                    recoveryStore, passwordRecoveryEnabled,
+                    apiConfig.GetString("PortalRegistrationTrustedProxyIPs", ""),
+                    apiConfig.GetString("PortalRegistrationTrustedHttpPeers", ""));
+                server.AddSimpleStreamHandler(new SimpleStreamHandler(
+                    "/api/v1/auth/password-recovery/challenges",
+                    apiGate.Wrap(recoveryApi.Handle),
+                    "OpenGenesisLINK server-to-server password recovery challenge"));
+                server.AddSimpleStreamHandler(new SimpleStreamHandler(
+                    "/api/v1/auth/password-recovery/complete",
+                    apiGate.Wrap(recoveryApi.Handle),
+                    "OpenGenesisLINK server-to-server password recovery completion"));
+
+
                 // Dedicated Stadtportal backend endpoint; never expose an API
                 // key to browser JavaScript. Disabled until reviewed/published
                 // Benjamin/Luna templates and TLS reverse proxy are deployed.
