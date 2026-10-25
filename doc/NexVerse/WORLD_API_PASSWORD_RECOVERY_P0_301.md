@@ -33,7 +33,7 @@ versenden, niemals an eine unabhängig aus dem öffentlichen Request
 übernommene Adresse. Bei maximal drei Ausgaben innerhalb einer Stunde
 für denselben Account wird die Ausgabe gedrosselt.
 
-Die World speichert **nur gesalzenen SHA-256-Tokenhash**, UUID-Bindung,
+Die World speichert in der **bestehenden ROBUST-MariaDB-Datenbank** (Tabelle `ogl_password_recovery`) **nur gesalzenen SHA-256-Tokenhash**, UUID-Bindung,
 Ablaufzeit, Einmalstatus und Claim-ID in einer eigenen SQLite-Datenbank.
 Token: 256-Bit CSPRNG; TTL: **900 Sekunden**, neue Ausgabe invalidiert
 alte, Completion ist konkurrierungs- und wiederholungssicher. Vor der
@@ -48,16 +48,25 @@ das Token zur Sicherheit beansprucht und fordert eine neue Mail an.
 [NexVerseWorldApi]
 EnablePrivilegedEndpoints = true
 PasswordRecoveryEnabled = true
-PasswordRecoveryStorePath = "data/ogl-password-recovery.sqlite"
+; Keine separate StorePath-/ConnectionString-Einstellung!
+; Verwendet denselben MariaDB-Zugang aus [UserAccountService]
+; (oder dessen Fallback [DatabaseService]).
 ; bereits vorhandene TLS-Terminierung / vertrauenswürdige Proxy-Adressen:
 PortalRegistrationTrustedProxyIPs = ""
 PortalRegistrationTrustedHttpPeers = ""
 ```
 
 Default: `PasswordRecoveryEnabled=false`. Das ist **kein** öffentlicher
-Browser-Endpunkt. Der SQLite-Pfad muss nur für den World/ROBUST-Dienstbenutzer
-les-/schreibbar sein; Datenbank, Journale und Snapshots vor Backup/Restore
-bezüglich ihrer Rechte prüfen.
+Browser-Endpunkt. Die Wiederherstellungsdaten werden in `ogl_password_recovery`
+im **bestehenden MariaDB-Schema** gespeichert. Bei aktiviertem Recovery
+muss der bestehende Datenbanknutzer das Anlegen einer InnoDB-Tabelle dürfen
+(`CREATE`; danach `SELECT`, `INSERT`, `UPDATE`, `DELETE`).
+Die bestehenden `UserAccounts`- und `auth`-Tabellen werden für
+Recovery-Challenges nicht verändert. Es wird weder eine SQLite-Datei
+noch ein zweiter Datenbankzugang benötigt. Beim Backup das neue
+Recovery-Tabellenschema und den Inhalt gemäß Aufbewahrungsrichtlinie berücksichtigen.
+Fehlt die Datenbankberechtigung oder Verbindung, bleibt die World API
+aktiv und nur Recovery schaltet auf `503 recovery_disabled`.
 
 Im World Admin Center zwei **getrennt berechtigte** API-Keys für das Portal
 erstellen bzw. einen dedizierten Portal-Servicekey mit **beiden** Recovery-Scopes.
