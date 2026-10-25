@@ -1,54 +1,53 @@
 // SPDX-License-Identifier: MPL-2.0
-// World-owned one-time recovery challenges. The portal database is never trusted
-// as an authentication source. Tokens are never persisted in plaintext.
+// World-owned password recovery state in the existing ROBUST MariaDB database.
+// Only salted SHA-256 token digests are persisted, never plaintext tokens.
+// InnoDB transactions and per-account advisory locks protect multi-node use.
 using System;
-using System.IO;
+using System.Data;
 using System.Security.Cryptography;
 using System.Text;
-using Mono.Data.Sqlite;
+using MySql.Data.MySqlClient;
 
 namespace NexVerse.Server.Api
 {
     internal sealed class NexPasswordRecoveryStore
     {
-        private readonly string m_ConnectionString;
         private const int TtlSeconds = 900;
-        private static readonly char[] s_separator = { '.' };
+        private readonly string m_ConnectionString;
+        private static readonly char[] s_Separator = { '.' };
 
-        internal NexPasswordRecoveryStore(string databasePath)
+        internal NexPasswordRecoveryStore(string connectionString)
         {
-            string full = Path.GetFullPath(databasePath ??
-                throw new ArgumentNullException(nameof(databasePath)));
-            Directory.CreateDirectory(Path.GetDirectoryName(full)!);
-            m_ConnectionString = "Data Source=" + full + ";Version=3;Pooling=False;";
-            using var db = Open();
-            using var command = db.CreateCommand();
+            if (string.IsNullOrWhiteSpace(connectionString))
+                throw new ArgumentException("The existing ROBUST MariaDB connection string is required.",
+                    nameof(connectionString));
+
+            m_ConnectionString = connectionString;
+            using MySqlConnection connection = Open();
+            using MySqlCommand command = connection.CreateCommand();
+            // Dedicated table: do not modify OpenSim users, authentication or
+            // asset tables. InnoDB is required for atomic one-time claims.
             command.CommandText = @"CREATE TABLE IF NOT EXISTS ogl_password_recovery (
-                challenge_id TEXT PRIMARY KEY,
-                principal_id TEXT NOT NULL,
-                salt BLOB NOT NULL,
-                digest BLOB NOT NULL,
-                issued_at INTEGER NOT NULL,
-                expires_at INTEGER NOT NULL,
-                state INTEGER NOT NULL DEFAULT 0,
-                claim_id TEXT,
-                claimed_at INTEGER
-            );
-            CREATE INDEX IF NOT EXISTS ix_ogl_recovery_account
-            ON ogl_password_recovery(principal_id, issued_at);
-            CREATE INDEX IF NOT EXISTS ix_ogl_recovery_expiry
-            ON ogl_password_recovery(expires_at);";
+                challenge_id CHAR(32) CHARACTER SET ascii COLLATE ascii_bin NOT NULL PRIMARY KEY,
+                principal_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+                salt VARBINARY(16) NOT NULL,
+                digest BINARY(32) NOT NULL,
+                issued_at BIGINT NOT NULL,
+                expires_at BIGINT NOT NULL,
+                state TINYINT UNSIGNED NOT NULL DEFAULT 0,
+                claim_id CHAR(32) CHARACTER SET ascii COLLATE ascii_bin NULL,
+                claimed_at BIGINT NULL,
+                INDEX ix_ogl_recovery_account (principal_id, issued_at),
+                INDEX ix_ogl_recovery_expiry (expires_at)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;";
             command.ExecuteNonQuery();
         }
 
-        private SqliteConnection Open()
+        private MySqlConnection Open()
         {
-            var db = new SqliteConnection(m_ConnectionString);
-            db.Open();
-            using var timeout = db.CreateCommand();
-            timeout.CommandText = "PRAGMA busy_timeout=5000;";
-            timeout.ExecuteNonQuery();
-            return db;
+            var connection = new MySqlConnection(m_ConnectionString);
+            connection.Open();
+            return connection;
         }
 
         private static byte[] Digest(byte[] salt, string secret)
@@ -59,90 +58,128 @@ namespace NexVerse.Server.Api
             Buffer.BlockCopy(input, 0, combined, salt.Length, input.Length);
             byte[] digest = SHA256.HashData(combined);
             CryptographicOperations.ZeroMemory(combined);
+            CryptographicOperations.ZeroMemory(input);
             return digest;
         }
 
-        // Null means throttled; do not disclose the reason to a public caller.
-        internal string Issue(Guid principal, long now)
+        private static bool TryTokenId(string token, out string id)
         {
-            using var db = Open();
-            using var tx = db.BeginTransaction();
-            using (var limit = db.CreateCommand())
-            {
-                limit.Transaction = tx;
-                limit.CommandText = @"SELECT COUNT(*) FROM ogl_password_recovery
-                    WHERE principal_id=@p AND issued_at>=@window";
-                limit.Parameters.AddWithValue("@p", principal.ToString("D"));
-                limit.Parameters.AddWithValue("@window", now - 3600);
-                if (Convert.ToInt32(limit.ExecuteScalar()) >= 3)
-                    return null;
-            }
-
-            string challengeId = Guid.NewGuid().ToString("N");
-            string secret = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32))
-                .TrimEnd('=').Replace('+', '-').Replace('/', '_');
-            string token = challengeId + "." + secret;
-            byte[] salt = RandomNumberGenerator.GetBytes(16);
-            byte[] digest = Digest(salt, token);
-            using (var invalidate = db.CreateCommand())
-            {
-                invalidate.Transaction = tx;
-                invalidate.CommandText = @"UPDATE ogl_password_recovery SET state=2
-                    WHERE principal_id=@p AND state=0";
-                invalidate.Parameters.AddWithValue("@p", principal.ToString("D"));
-                invalidate.ExecuteNonQuery();
-            }
-            using (var cmd = db.CreateCommand())
-            {
-                cmd.Transaction = tx;
-                cmd.CommandText = @"INSERT INTO ogl_password_recovery
-                    (challenge_id, principal_id, salt, digest, issued_at, expires_at, state)
-                    VALUES (@id, @p, @salt, @digest, @now, @expires, 0)";
-                cmd.Parameters.AddWithValue("@id", challengeId);
-                cmd.Parameters.AddWithValue("@p", principal.ToString("D"));
-                cmd.Parameters.AddWithValue("@salt", salt);
-                cmd.Parameters.AddWithValue("@digest", digest);
-                cmd.Parameters.AddWithValue("@now", now);
-                cmd.Parameters.AddWithValue("@expires", now + TtlSeconds);
-                cmd.ExecuteNonQuery();
-            }
-            using (var cleanup = db.CreateCommand())
-            {
-                cleanup.Transaction = tx;
-                cleanup.CommandText = "DELETE FROM ogl_password_recovery WHERE expires_at<@cutoff";
-                cleanup.Parameters.AddWithValue("@cutoff", now - 86400);
-                cleanup.ExecuteNonQuery();
-            }
-            tx.Commit();
-            return token;
+            id = null;
+            if (string.IsNullOrWhiteSpace(token) || token.Length > 256)
+                return false;
+            string[] parts = token.Split(s_Separator, 2);
+            if (parts.Length != 2 || parts[0].Length != 32 || parts[1].Length == 0 ||
+                !Guid.TryParseExact(parts[0], "N", out _))
+                return false;
+            id = parts[0];
+            return true;
         }
 
-        // Claim is stored transactionally and cannot be acquired by a second
-        // concurrent caller/process. A crash leaves a claimed challenge
-        // unusable (fail-closed); a new email challenge is then required.
-        internal bool TryClaim(string token, long now, out Guid principal, out string claimId)
+        private static MySqlCommand Command(MySqlConnection db, MySqlTransaction tx,
+            string sql)
+        {
+            var command = db.CreateCommand();
+            command.Transaction = tx;
+            command.CommandText = sql;
+            return command;
+        }
+
+        // MariaDB GET_LOCK is connection-scoped. It serializes token issue for
+        // the same account across all ROBUST processes, including rate limiting.
+        private static string LockName(Guid principal) =>
+            "ogl_pwdrec:" + principal.ToString("N");
+
+        internal string Issue(Guid principal, long now)
+        {
+            if (principal == Guid.Empty)
+                throw new ArgumentException("Missing World principal.", nameof(principal));
+            using MySqlConnection db = Open();
+            string lockName = LockName(principal);
+            using (MySqlCommand acquire = Command(db, null, "SELECT GET_LOCK(@lock, 5)"))
+            {
+                acquire.Parameters.AddWithValue("@lock", lockName);
+                if (Convert.ToInt32(acquire.ExecuteScalar()) != 1)
+                    throw new TimeoutException("Recovery issuance lock unavailable.");
+            }
+
+            try
+            {
+                using MySqlTransaction tx = db.BeginTransaction(IsolationLevel.ReadCommitted);
+                using (MySqlCommand limit = Command(db, tx,
+                    @"SELECT COUNT(*) FROM ogl_password_recovery
+                      WHERE principal_id=@p AND issued_at>=@window"))
+                {
+                    limit.Parameters.AddWithValue("@p", principal.ToString("D"));
+                    limit.Parameters.AddWithValue("@window", now - 3600);
+                    if (Convert.ToInt32(limit.ExecuteScalar()) >= 3)
+                        return null; // Transaction rolls back when disposed.
+                }
+
+                string challengeId = Guid.NewGuid().ToString("N");
+                string secret = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32))
+                    .TrimEnd('=').Replace('+', '-').Replace('/', '_');
+                string token = challengeId + "." + secret;
+                byte[] salt = RandomNumberGenerator.GetBytes(16);
+                byte[] digest = Digest(salt, token);
+
+                using (MySqlCommand invalidate = Command(db, tx,
+                    @"UPDATE ogl_password_recovery SET state=2
+                      WHERE principal_id=@p AND state=0"))
+                {
+                    invalidate.Parameters.AddWithValue("@p", principal.ToString("D"));
+                    invalidate.ExecuteNonQuery();
+                }
+                using (MySqlCommand insert = Command(db, tx,
+                    @"INSERT INTO ogl_password_recovery
+                      (challenge_id, principal_id, salt, digest, issued_at, expires_at, state)
+                      VALUES (@id, @p, @salt, @digest, @now, @expires, 0)"))
+                {
+                    insert.Parameters.AddWithValue("@id", challengeId);
+                    insert.Parameters.AddWithValue("@p", principal.ToString("D"));
+                    insert.Parameters.AddWithValue("@salt", salt);
+                    insert.Parameters.AddWithValue("@digest", digest);
+                    insert.Parameters.AddWithValue("@now", now);
+                    insert.Parameters.AddWithValue("@expires", now + TtlSeconds);
+                    insert.ExecuteNonQuery();
+                }
+                using (MySqlCommand cleanup = Command(db, tx,
+                    "DELETE FROM ogl_password_recovery WHERE expires_at<@cutoff"))
+                {
+                    cleanup.Parameters.AddWithValue("@cutoff", now - 86400);
+                    cleanup.ExecuteNonQuery();
+                }
+                tx.Commit();
+                return token;
+            }
+            finally
+            {
+                using MySqlCommand release = Command(db, null, "SELECT RELEASE_LOCK(@lock)");
+                release.Parameters.AddWithValue("@lock", lockName);
+                release.ExecuteScalar();
+            }
+        }
+
+        // Lock the record FOR UPDATE before checking the digest, then
+        // transactionally claim it; only one concurrent node can succeed.
+        internal bool TryClaim(string token, long now, out Guid principal,
+            out string claimId)
         {
             principal = Guid.Empty;
             claimId = null;
-            if (string.IsNullOrWhiteSpace(token) || token.Length > 256)
-                return false;
-            string[] parts = token.Split(s_separator, 2);
-            if (parts.Length != 2 || parts[0].Length != 32 ||
-                !Guid.TryParseExact(parts[0], "N", out _))
+            if (!TryTokenId(token, out string challengeId))
                 return false;
 
-            using var db = Open();
-            using var tx = db.BeginTransaction();
+            using MySqlConnection db = Open();
+            using MySqlTransaction tx = db.BeginTransaction(IsolationLevel.ReadCommitted);
             string userId;
             byte[] salt, expected;
-            using (var read = db.CreateCommand())
+            using (MySqlCommand read = Command(db, tx,
+                @"SELECT principal_id, salt, digest FROM ogl_password_recovery
+                  WHERE challenge_id=@id AND state=0 AND expires_at>@now FOR UPDATE"))
             {
-                read.Transaction = tx;
-                read.CommandText = @"SELECT principal_id,salt,digest FROM ogl_password_recovery
-                    WHERE challenge_id=@id AND state=0 AND expires_at>@now";
-                read.Parameters.AddWithValue("@id", parts[0]);
+                read.Parameters.AddWithValue("@id", challengeId);
                 read.Parameters.AddWithValue("@now", now);
-                using var row = read.ExecuteReader();
+                using MySqlDataReader row = read.ExecuteReader();
                 if (!row.Read()) return false;
                 userId = row.GetString(0);
                 salt = (byte[])row.GetValue(1);
@@ -152,55 +189,47 @@ namespace NexVerse.Server.Api
             byte[] provided = Digest(salt, token);
             if (expected.Length != provided.Length ||
                 !CryptographicOperations.FixedTimeEquals(expected, provided) ||
-                !Guid.TryParse(userId, out principal))
-            {
-                principal = Guid.Empty;
+                !Guid.TryParse(userId, out Guid parsedPrincipal))
                 return false;
-            }
-            claimId = Guid.NewGuid().ToString("N");
-            using (var update = db.CreateCommand())
+
+            string nextClaim = Guid.NewGuid().ToString("N");
+            using (MySqlCommand update = Command(db, tx,
+                @"UPDATE ogl_password_recovery SET state=1, claim_id=@claim,
+                  claimed_at=@now WHERE challenge_id=@id AND state=0
+                  AND expires_at>@now"))
             {
-                update.Transaction = tx;
-                update.CommandText = @"UPDATE ogl_password_recovery SET state=1,
-                    claim_id=@claim, claimed_at=@now WHERE challenge_id=@id
-                    AND state=0 AND expires_at>@now";
-                update.Parameters.AddWithValue("@id", parts[0]);
-                update.Parameters.AddWithValue("@claim", claimId);
+                update.Parameters.AddWithValue("@id", challengeId);
+                update.Parameters.AddWithValue("@claim", nextClaim);
                 update.Parameters.AddWithValue("@now", now);
                 if (update.ExecuteNonQuery() != 1)
-                {
-                    claimId = null;
-                    principal = Guid.Empty;
                     return false;
-                }
             }
             tx.Commit();
+            principal = parsedPrincipal;
+            claimId = nextClaim;
             return true;
         }
 
-        // Only the holder of the claim can acknowledge success or return a
-        // failed write to the issued state while the challenge is still live.
-        internal bool Finish(string token, string claimId, bool passwordWritten, long now)
+        // The caller's unique claim ID guards success/failure acknowledgments.
+        // On an uncertain password write the token stays claimed (fail closed).
+        internal bool Finish(string token, string claimId, bool passwordWritten,
+            long now)
         {
-            if (string.IsNullOrWhiteSpace(token) || token.Length < 34 ||
-                string.IsNullOrWhiteSpace(claimId))
+            if (!TryTokenId(token, out string challengeId) ||
+                !Guid.TryParseExact(claimId, "N", out _))
                 return false;
-            string[] parts = token.Split(s_separator, 2);
-            if (parts.Length != 2 || parts[0].Length != 32 ||
-                !Guid.TryParseExact(parts[0], "N", out _))
-                return false;
-            using var db = Open();
-            using var cmd = db.CreateCommand();
-            cmd.CommandText = @"UPDATE ogl_password_recovery SET
+            using MySqlConnection db = Open();
+            using MySqlCommand command = Command(db, null,
+                @"UPDATE ogl_password_recovery SET
                     state=CASE WHEN @done=1 THEN 2 ELSE 0 END,
                     claim_id=NULL, claimed_at=NULL
-                    WHERE challenge_id=@id AND state=1 AND claim_id=@claim
-                    AND (@done=1 OR expires_at>@now)";
-            cmd.Parameters.AddWithValue("@done", passwordWritten ? 1 : 0);
-            cmd.Parameters.AddWithValue("@id", parts[0]);
-            cmd.Parameters.AddWithValue("@claim", claimId);
-            cmd.Parameters.AddWithValue("@now", now);
-            return cmd.ExecuteNonQuery() == 1;
+                  WHERE challenge_id=@id AND state=1 AND claim_id=@claim
+                    AND (@done=1 OR expires_at>@now)");
+            command.Parameters.AddWithValue("@done", passwordWritten ? 1 : 0);
+            command.Parameters.AddWithValue("@id", challengeId);
+            command.Parameters.AddWithValue("@claim", claimId);
+            command.Parameters.AddWithValue("@now", now);
+            return command.ExecuteNonQuery() == 1;
         }
     }
 }
