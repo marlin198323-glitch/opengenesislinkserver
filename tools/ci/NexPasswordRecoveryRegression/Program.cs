@@ -52,7 +52,7 @@ internal static class Program
                 "one-time state was not persisted across store restart");
             string concurrent = other.Issue(Guid.NewGuid(), now + 9);
             int wins = 0;
-            Parallel.For(0, 6, _ =>
+            Parallel.For(0, 6, workerIndex =>
             {
                 if (new NexPasswordRecoveryStore(path).TryClaim(concurrent, now + 10,
                     out _, out _))
