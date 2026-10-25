@@ -1,3 +1,5 @@
+> **R509 – optionaler schlüsselloser World-Self-Service:** Der vorhandene Vertrag (Maschinenkeys) bleibt gültig und sicherheitsrelevant. Ein zusätzlicher, **standardmäßig deaktivierter** Endpunkt-Pfad versendet Tokens direkt per World-SMTP und benötigt **keinen Portal-API-Key**. Siehe [WORLD_API_PASSWORD_RECOVERY_PUBLIC_R509.md](WORLD_API_PASSWORD_RECOVERY_PUBLIC_R509.md). Der R509-Modus darf erst nach World-/SMTP-/TLS-/MariaDB-Abnahme aktiviert werden.
+
 # Stadtportal → World API: Passwort vergessen / Password Recovery
 
 Stand: 25.10.2026 | Implementiert in OpenGenesisLINK: PR #303, MariaDB-Fix PR #305.

@@ -148,6 +148,10 @@ namespace NexVerse.Server.Api
                         "World-API-Administrator-Anmeldung (nur UserLevel >= 200 und admin:*)"),
                     AuthenticatedOperations(
                         ("get", "Aktive Administratorsitzung und tatsächlichen UserLevel prüfen", "admin:*", "200"))),
+                ["/api/v1/auth/password-recovery/request"] = CredentialPostOperation(
+                    "Öffentlich: Reset-Link durch World ausschließlich an verifizierte Kontoadresse versenden, kein API-Key oder Token im Response"),
+                ["/api/v1/auth/password-recovery/confirm"] = CredentialPostOperation(
+                    "Öffentlich: Passwort nur mit World-Einmal-Challenge aus E-Mail zurücksetzen, kein Maschinen-API-Key"),
                 ["/api/v1/auth/password-recovery/challenges"] = AuthenticatedOperations(
                     ("post", "Verifizierte World-Account-Recovery-Challenge nur für autorisiertes Portalbackend ausstellen", "password-recovery:issue", "201")),
                 ["/api/v1/auth/password-recovery/complete"] = AuthenticatedOperations(
@@ -874,6 +878,12 @@ namespace NexVerse.Server.Api
                 "PasswordRequest",
                 null,
                 "200");
+            ApplyJsonContract(paths,
+                "/api/v1/auth/password-recovery/request", "post",
+                "PasswordRecoveryIssueRequest", null, "202");
+            ApplyJsonContract(paths,
+                "/api/v1/auth/password-recovery/confirm", "post",
+                "PasswordRecoveryCompleteRequest", "PasswordRecoveryCompleteResponse", "200");
             ApplyJsonContract(paths,
                 "/api/v1/auth/password-recovery/challenges", "post",
                 "PasswordRecoveryIssueRequest", "PasswordRecoveryIssueResponse", "201");

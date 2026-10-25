@@ -697,7 +697,21 @@ namespace NexVerse.Server.Api
                     authenticator, userAccounts, userService, oauthStore,
                     recoveryStore, recoveryAccountLookup, passwordRecoveryEnabled,
                     apiConfig.GetString("PortalRegistrationTrustedProxyIPs", ""),
-                    apiConfig.GetString("PortalRegistrationTrustedHttpPeers", ""));
+                    apiConfig.GetString("PortalRegistrationTrustedHttpPeers", ""),
+                    apiConfig.GetBoolean("PasswordRecoveryPublicEnabled", false),
+                    Environment.GetEnvironmentVariable("NEXVERSE_WORLD_RECOVERY_SMTP_HOST") ?? "",
+                    int.TryParse(Environment.GetEnvironmentVariable("NEXVERSE_WORLD_RECOVERY_SMTP_PORT"), out int mailPort) ? mailPort : 587,
+                    Environment.GetEnvironmentVariable("NEXVERSE_WORLD_RECOVERY_SMTP_USER") ?? "",
+                    Environment.GetEnvironmentVariable("NEXVERSE_WORLD_RECOVERY_SMTP_PASSWORD") ?? "",
+                    Environment.GetEnvironmentVariable("NEXVERSE_WORLD_RECOVERY_SMTP_FROM") ?? "");
+                server.AddSimpleStreamHandler(new SimpleStreamHandler(
+                    "/api/v1/auth/password-recovery/request",
+                    apiGate.Wrap(recoveryApi.Handle),
+                    "OpenGenesisLINK anonymous recipient-verified recovery request"));
+                server.AddSimpleStreamHandler(new SimpleStreamHandler(
+                    "/api/v1/auth/password-recovery/confirm",
+                    apiGate.Wrap(recoveryApi.Handle),
+                    "OpenGenesisLINK one-time proof-of-email recovery completion"));
                 server.AddSimpleStreamHandler(new SimpleStreamHandler(
                     "/api/v1/auth/password-recovery/challenges",
                     apiGate.Wrap(recoveryApi.Handle),
