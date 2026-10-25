@@ -148,6 +148,10 @@ namespace NexVerse.Server.Api
                         "World-API-Administrator-Anmeldung (nur UserLevel >= 200 und admin:*)"),
                     AuthenticatedOperations(
                         ("get", "Aktive Administratorsitzung und tatsächlichen UserLevel prüfen", "admin:*", "200"))),
+                ["/api/v1/auth/password-recovery/challenges"] = AuthenticatedOperations(
+                    ("post", "Verifizierte World-Account-Recovery-Challenge nur für autorisiertes Portalbackend ausstellen", "password-recovery:issue", "201")),
+                ["/api/v1/auth/password-recovery/complete"] = AuthenticatedOperations(
+                    ("post", "Einmalige World-Challenge verbrauchen und World-Passwort ändern", "password-recovery:complete", "200")),
                 ["/api/v1/auth/api-keys"] = AuthenticatedOperations(
                     ("get", "Eingeschränkte Maschinen-API-Schlüssel inklusive letzter Verwendung auflisten", "admin:*", "200"),
                     ("post", "Dedizierten Maschinen-API-Schlüssel ohne doppelte aktive Identität erstellen", "admin:*", "201"),
@@ -870,6 +874,13 @@ namespace NexVerse.Server.Api
                 "PasswordRequest",
                 null,
                 "200");
+            ApplyJsonContract(paths,
+                "/api/v1/auth/password-recovery/challenges", "post",
+                "PasswordRecoveryIssueRequest", "PasswordRecoveryIssueResponse", "201");
+            ApplyJsonContract(paths,
+                "/api/v1/auth/password-recovery/complete", "post",
+                "PasswordRecoveryCompleteRequest", "PasswordRecoveryCompleteResponse", "200");
+
             ApplyJsonContract(
                 paths,
                 "/api/v1/auth/session",
@@ -5669,6 +5680,46 @@ namespace NexVerse.Server.Api
                             type = "string",
                             format = "uuid"
                         },
+                        ["correlation_id"] = new { type = "string" }
+                    }
+                },
+                ["PasswordRecoveryIssueRequest"] = new
+                {
+                    type = "object",
+                    required = new[] { "email" },
+                    properties = new Dictionary<string, object>
+                    {
+                        ["email"] = new { type = "string", format = "email", maxLength = 254 }
+                    }
+                },
+                ["PasswordRecoveryIssueResponse"] = new
+                {
+                    type = "object",
+                    properties = new Dictionary<string, object>
+                    {
+                        ["status"] = new { type = "string" },
+                        ["token"] = new { type = "string", writeOnly = true },
+                        ["expires_in"] = new { type = "integer" },
+                        ["delivery_email"] = new { type = "string", format = "email" },
+                        ["correlation_id"] = new { type = "string" }
+                    }
+                },
+                ["PasswordRecoveryCompleteRequest"] = new
+                {
+                    type = "object",
+                    required = new[] { "token", "new_password" },
+                    properties = new Dictionary<string, object>
+                    {
+                        ["token"] = new { type = "string", writeOnly = true, maxLength = 256 },
+                        ["new_password"] = new { type = "string", writeOnly = true, minLength = 10, maxLength = 256 }
+                    }
+                },
+                ["PasswordRecoveryCompleteResponse"] = new
+                {
+                    type = "object",
+                    properties = new Dictionary<string, object>
+                    {
+                        ["status"] = new { type = "string" },
                         ["correlation_id"] = new { type = "string" }
                     }
                 },
