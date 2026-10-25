@@ -87,7 +87,10 @@ namespace NexVerse.Server.Api
                                     null,
                                     true,
                                     LoadRegionData(m_Config),
-                                    LoadOptionalService<IAssetService>(m_Config, "AssetService"));
+                                    // Use ROBUST-owned service: constructing a second
+                                    // FSAssets/OGL instance can duplicate writers and
+                                    // fail when only the two-argument ctor exists.
+                                    AssetServiceConnector.GetLocalService(m_Config, "AssetService"));
                             }
                             catch (Exception e)
                             {
