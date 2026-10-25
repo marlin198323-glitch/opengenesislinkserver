@@ -200,3 +200,41 @@ Das Audit bezeichnet nur solche Dateien als
 deren SHA-256-Hash mit dem SQL-Metadatensatz übereinstimmt und deren
 aktuelle FSAssets-Datei fehlt/beschädigt ist. Ein tatsächlicher Restore
 erfolgt ausschließlich nach isolierter Validierung und Betreiberfreigabe.
+
+## Warp3D: RenderMeshes mit validierten visual LODs
+
+Bei aktiviertem `RenderMeshes = true` prüft Warp3D die im Asset
+enthaltenen binären LLSD-Header und komprimierten Visual-LOD-Blöcke,
+bevor der OpenMetaverse-Meshdecoder aufgerufen wird. Für die
+ausgewählte LOD werden Offsets, Größen, zlib-Komprimierung, binäres
+Face-Array und referenzierte Vertex-Indizes geprüft. Bei einer defekten
+gewünschten LOD wird nach einer alternativen gültigen visuellen LOD
+gesucht.
+
+Gleiche Mesh-UUIDs auf einer Karte werden je LOD pro Renderdurchlauf
+wiederverwendet (max. 128 dekodierte positive Cacheeinträge), wodurch
+identische Mesh-Instanzen nicht mehrfach dekodiert werden. Fehlversuche
+werden für denselben Kartenlauf zwischengespeichert; eine eindeutige
+UUID mit Region-Prim/Position erscheint einmalig als
+`[WARP3D MESH]`-Warnung.
+
+Die Texturklassifizierung überspringt den JPEG2000-Decoder bei
+erkennbaren PNG/JPEG/GIF/BMP-Payloads. **Ungültige JPEG2000-Assets
+oder defekte Meshes lassen sich damit nicht automatisch reparieren.**
+Auch andere Simulator-Subsysteme (z. B. Physik, Upload, Terrain)
+können weiterhin eigene `Failed to decode mesh asset`-Warnungen
+ausgeben. Die Dateien müssen in solchen Fällen über das separate
+FSAssets-Audit und verifizierte Backups überprüft werden.
+
+Empfohlener isolierter Performance-Vergleich:
+
+    [Map]
+    MapImageModule = "Warp3DImageModule"
+    RenderMeshes = true
+    TexturePrims = true
+    FastMapAsyncStartup = true
+
+Vorher/nachher vergleichen: Dauer `generate map`, Speicher-/CPU,
+Anzahl `[WARP3D MESH]`-Warnungen, sichtbare Mesh-LOD-Geometrie und
+Karten nach Region-/ROBUST-Neustart. Bei `RenderMeshes=false` ist die
+echte Mesh-Geometrie weiterhin nicht auf der Karte sichtbar.
