@@ -23,6 +23,7 @@ namespace NexVerse.Server.Api
         private static readonly ILog s_Log = LogManager.GetLogger(typeof(NexPasswordRecoveryApi));
         private readonly NexApiAuthenticator m_Authenticator;
         private readonly IUserAccountService m_Accounts;
+        private readonly NexPasswordRecoveryAccountLookup m_Lookup;
         private readonly INexUserService m_Users;
         private readonly INexOAuthStore m_OAuth;
         private readonly NexPasswordRecoveryStore m_Store;
@@ -34,7 +35,8 @@ namespace NexVerse.Server.Api
 
         internal NexPasswordRecoveryApi(NexApiAuthenticator authenticator,
             IUserAccountService accounts, INexUserService users,
-            INexOAuthStore oauth, NexPasswordRecoveryStore store, bool enabled,
+            INexOAuthStore oauth, NexPasswordRecoveryStore store,
+            NexPasswordRecoveryAccountLookup lookup, bool enabled,
             string trustedProxyIps, string trustedHttpPeers)
         {
             m_Authenticator = authenticator ?? throw new ArgumentNullException(nameof(authenticator));
@@ -42,6 +44,7 @@ namespace NexVerse.Server.Api
             m_Users = users ?? throw new ArgumentNullException(nameof(users));
             m_OAuth = oauth;
             m_Store = store;
+            m_Lookup = lookup;
             m_Enabled = enabled;
             m_TrustedProxies = ParseIps(trustedProxyIps);
             m_TrustedHttpPeers = ParseIps(trustedHttpPeers);
@@ -243,25 +246,21 @@ namespace NexVerse.Server.Api
         private void Issue(JsonElement data, IOSHttpResponse response, long now, string correlation)
         {
             string email = Value(data, "email")?.Trim();
-            if (string.IsNullOrEmpty(email) || email.Length > 254 ||
-                !email.Contains('@') || email.Contains('\r') || email.Contains('\n'))
+            if (string.IsNullOrEmpty(email) || email.Length > 64 ||
+                !email.Contains('@') || email.Any(c => c < 33 || c > 126 || c == '\'' || c == '"' || c == ';'))
             {
                 Reply(response, HttpStatusCode.BadRequest, "invalid_email", correlation);
                 return;
             }
             // Return no account identity to unauthorized or public callers.
             // Only accounts with one exact verified local email match qualify.
-            var matching = (m_Accounts.GetUserAccounts(UUID.Zero, email) ??
-                new List<UserAccount>())
-                .Where(x => x != null && x.LoginAllowed &&
-                    string.Equals(x.Email?.Trim(), email, StringComparison.OrdinalIgnoreCase))
-                .Take(2).ToArray();
-            if (matching.Length != 1)
+            UserAccount account = m_Lookup.FindUniqueLocalAccount(email);
+            if (account == null)
             {
                 Reply(response, HttpStatusCode.Accepted, "accepted", correlation);
                 return;
             }
-            string token = m_Store.Issue(matching[0].PrincipalID.Guid, now);
+            string token = m_Store.Issue(account.PrincipalID.Guid, now);
             if (token == null)
             {
                 Reply(response, HttpStatusCode.Accepted, "accepted", correlation);
@@ -273,7 +272,7 @@ namespace NexVerse.Server.Api
             response.ContentType = "application/json; charset=utf-8";
             response.RawBuffer = JsonSerializer.SerializeToUtf8Bytes(new {
                 status = "issued", token, expires_in = 900,
-                delivery_email = matching[0].Email, correlation_id = correlation
+                delivery_email = account.Email, correlation_id = correlation
             });
         }
 
