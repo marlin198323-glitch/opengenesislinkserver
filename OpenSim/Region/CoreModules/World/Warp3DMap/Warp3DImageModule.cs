@@ -579,43 +579,37 @@ namespace OpenSim.Region.CoreModules.World.Warp3DMap
             {
                 if (omvPrim.Sculpt is not null && !omvPrim.Sculpt.SculptTexture.IsZero())
                 {
-                    // Try fetchinng the asset
-                    AssetBase sculptAsset = m_scene.AssetService.Get(omvPrim.Sculpt.SculptTexture.ToString());
-                    if (sculptAsset is not null)
+                    if (omvPrim.Sculpt.Type == SculptType.Mesh)
                     {
-                        // Is it a mesh? Preflight the LLSD/zlib visual
-                        // blocks before invoking the OpenMetaverse decoder.
-                        if (omvPrim.Sculpt.Type == SculptType.Mesh)
-                            renderMesh = DecodeMapMesh(omvPrim, sculptAsset, lod, prim);
-                        else // Sculpt texture, not a compressed mesh asset
-                        {
-                            byte[] sculptData = sculptAsset.Data;
-                            if (sculptData != null && sculptData.Length > 0 &&
-                                ClassifyTexturePayload(sculptData) == "jpeg2000" &&
-                                m_imgDecoder is not null)
-                            {
-                                try
-                                {
-                                    using Image sculpt = m_imgDecoder.DecodeToImage(sculptData);
-                                    if (sculpt is Bitmap sculptBitmap)
-                                        renderMesh = m_primMesher.GenerateFacetedSculptMesh(
-                                            omvPrim, sculptBitmap, lod);
-                                }
-                                catch (Exception ex)
-                                {
-                                    LogMeshFailureOnce(omvPrim.Sculpt.SculptTexture, prim,
-                                        "sculpt-image decoder exception: " + ex.GetType().Name);
-                                }
-                            }
-                            else
-                                LogMeshFailureOnce(omvPrim.Sculpt.SculptTexture, prim,
-                                    "missing or unsupported sculpt-image payload");
-                        }
+                        // Cache lookup occurs before AssetService.Get: repeated
+                        // instances of the same mesh do not trigger repeat IO.
+                        renderMesh = DecodeMapMesh(omvPrim, lod, prim);
                     }
                     else
                     {
-                        m_log.WarnFormat("[Warp3D] failed to get mesh or sculpt asset {0} of prim {1} at {2}",
-                            omvPrim.Sculpt.SculptTexture.ToString(), prim.Name, prim.GetWorldPosition().ToString());
+                        AssetBase sculptAsset = m_scene.AssetService.Get(
+                            omvPrim.Sculpt.SculptTexture.ToString());
+                        byte[] sculptData = sculptAsset?.Data;
+                        if (sculptData != null && sculptData.Length > 0 &&
+                            ClassifyTexturePayload(sculptData) == "jpeg2000" &&
+                            m_imgDecoder is not null)
+                        {
+                            try
+                            {
+                                using Image sculpt = m_imgDecoder.DecodeToImage(sculptData);
+                                if (sculpt is Bitmap sculptBitmap)
+                                    renderMesh = m_primMesher.GenerateFacetedSculptMesh(
+                                        omvPrim, sculptBitmap, lod);
+                            }
+                            catch (Exception ex)
+                            {
+                                LogMeshFailureOnce(omvPrim.Sculpt.SculptTexture, prim,
+                                    "sculpt-image decoder exception: " + ex.GetType().Name);
+                            }
+                        }
+                        else
+                            LogMeshFailureOnce(omvPrim.Sculpt.SculptTexture, prim,
+                                "missing or unsupported sculpt-image payload");
                     }
                 }
             }
@@ -726,7 +720,7 @@ namespace OpenSim.Region.CoreModules.World.Warp3DMap
             }
         }
 
-        private FacetedMesh DecodeMapMesh(Primitive omvPrim, AssetBase asset,
+        private FacetedMesh DecodeMapMesh(Primitive omvPrim,
             DetailLevel requestedLod, SceneObjectPart prim)
         {
             UUID id = omvPrim.Sculpt.SculptTexture;
@@ -735,6 +729,24 @@ namespace OpenSim.Region.CoreModules.World.Warp3DMap
                 return cached;
             if (m_meshDecodeMisses.Contains(key))
                 return null;
+
+            AssetBase asset;
+            try
+            {
+                asset = m_scene.AssetService.Get(id.ToString());
+            }
+            catch (Exception ex)
+            {
+                LogMeshFailureOnce(id, prim, "asset read exception: " + ex.GetType().Name);
+                m_meshDecodeMisses.Add(key);
+                return null;
+            }
+            if (asset?.Data == null || asset.Data.Length == 0)
+            {
+                LogMeshFailureOnce(id, prim, "mesh asset missing or empty");
+                m_meshDecodeMisses.Add(key);
+                return null;
+            }
 
             if (!WarpMeshAssetPreflight.TryValidate(asset.Data, (int)requestedLod,
                 out int selectedLevel, out string reason))
