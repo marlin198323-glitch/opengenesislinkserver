@@ -76,6 +76,14 @@ namespace OpenSim.Region.CoreModules.World.Warp3DMap
         private Dictionary<UUID, warp_Texture> m_warpTextures;
         private Dictionary<UUID, int> m_colors;
 
+        // One map render may contain thousands of instances using the same
+        // visual mesh asset. Cache decoded immutable geometry by asset/LOD,
+        // and avoid repeating failed LLSD/zlib decode attempts for that render.
+        private Dictionary<(UUID, DetailLevel), FacetedMesh> m_meshGeometryCache;
+        private HashSet<(UUID, DetailLevel)> m_meshDecodeMisses;
+        private readonly HashSet<UUID> m_meshDecodeWarnings = new();
+        private const int MaxCachedMapMeshes = 128;
+
         // Keep map generation useful when an old/corrupt texture cannot be
         // decoded.  Report a specific texture UUID only once per region module
         // lifetime instead of flooding the simulator console on every tile
@@ -307,6 +315,8 @@ namespace OpenSim.Region.CoreModules.World.Warp3DMap
         {
             m_colors= new Dictionary<UUID, int>();
             m_warpTextures= new Dictionary<UUID, warp_Texture>();
+            m_meshGeometryCache = new Dictionary<(UUID, DetailLevel), FacetedMesh>();
+            m_meshDecodeMisses = new HashSet<(UUID, DetailLevel)>();
 
             WarpRenderer renderer = new WarpRenderer();
 
@@ -344,6 +354,8 @@ namespace OpenSim.Region.CoreModules.World.Warp3DMap
 
             m_colors = null;
             m_warpTextures = null;
+            m_meshGeometryCache = null;
+            m_meshDecodeMisses = null;
 
             GCSettings.LargeObjectHeapCompactionMode = GCLargeObjectHeapCompactionMode.CompactOnce;
             GC.Collect();
@@ -571,12 +583,10 @@ namespace OpenSim.Region.CoreModules.World.Warp3DMap
                     AssetBase sculptAsset = m_scene.AssetService.Get(omvPrim.Sculpt.SculptTexture.ToString());
                     if (sculptAsset is not null)
                     {
-                        // Is it a mesh?
+                        // Is it a mesh? Preflight the LLSD/zlib visual
+                        // blocks before invoking the OpenMetaverse decoder.
                         if (omvPrim.Sculpt.Type == SculptType.Mesh)
-                        {
-                            AssetMesh meshAsset = new AssetMesh(omvPrim.Sculpt.SculptTexture, sculptAsset.Data);
-                            FacetedMesh.TryDecodeFromAsset(omvPrim, meshAsset, lod, out renderMesh);
-                        }
+                            renderMesh = DecodeMapMesh(omvPrim, sculptAsset, lod, prim);
                         else // It's sculptie
                         {
                             if (m_imgDecoder is not null)
@@ -702,6 +712,72 @@ namespace OpenSim.Region.CoreModules.World.Warp3DMap
 
                 renderer.Scene.addObject(primID + i.ToString(), faceObj);
             }
+        }
+
+        private FacetedMesh DecodeMapMesh(Primitive omvPrim, AssetBase asset,
+            DetailLevel requestedLod, SceneObjectPart prim)
+        {
+            UUID id = omvPrim.Sculpt.SculptTexture;
+            var key = (id, requestedLod);
+            if (m_meshGeometryCache.TryGetValue(key, out FacetedMesh cached))
+                return cached;
+            if (m_meshDecodeMisses.Contains(key))
+                return null;
+
+            if (!WarpMeshAssetPreflight.TryValidate(asset.Data, (int)requestedLod,
+                out int selectedLevel, out string reason))
+            {
+                LogMeshFailureOnce(id, prim, reason);
+                m_meshDecodeMisses.Add(key);
+                return null;
+            }
+
+            try
+            {
+                var payload = new AssetMesh(id, asset.Data);
+                if (!FacetedMesh.TryDecodeFromAsset(omvPrim, payload,
+                    (DetailLevel)selectedLevel, out FacetedMesh decoded) ||
+                    decoded == null || decoded.Faces == null || decoded.Faces.Count == 0)
+                {
+                    LogMeshFailureOnce(id, prim, "mesh geometry decoder rejected validated LOD");
+                    m_meshDecodeMisses.Add(key);
+                    return null;
+                }
+
+                if (selectedLevel != (int)requestedLod)
+                    m_log.DebugFormat(
+                        "[WARP3D MESH]: Render fallback LOD {0} used instead of {1} for mesh {2}",
+                        selectedLevel, requestedLod, id);
+
+                // Never hold an unbounded number of decoded meshes; cached
+                // meshes are valid only for the current map-render pass.
+                if (m_meshGeometryCache.Count < MaxCachedMapMeshes)
+                    m_meshGeometryCache[key] = decoded;
+                return decoded;
+            }
+            catch (Exception ex)
+            {
+                LogMeshFailureOnce(id, prim, "decoder exception: " + ex.GetType().Name);
+                m_meshDecodeMisses.Add(key);
+                return null;
+            }
+        }
+
+        private void LogMeshFailureOnce(UUID id, SceneObjectPart prim, string reason)
+        {
+            lock (m_meshDecodeWarnings)
+            {
+                if (!m_meshDecodeWarnings.Add(id))
+                    return;
+            }
+
+            // Keep one actionable UUID/location message instead of repeated
+            // stack traces. Do not pretend that damaged stored data was repaired.
+            m_log.WarnFormat(
+                "[WARP3D MESH]: Visual mesh {0} for prim {1} at {2} could not be rendered ({3}); " +
+                "other instances use normal fallback, and repeated warnings are suppressed.",
+                id, prim?.Name ?? "<unknown>",
+                prim?.GetWorldPosition().ToString() ?? "<unknown>", reason);
         }
 
         private int GetFaceColor(Primitive.TextureEntryFace face)
