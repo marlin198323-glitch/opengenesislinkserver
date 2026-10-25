@@ -20,6 +20,57 @@ und Sicherheitsregressionen bleiben erhalten, aber Experience-Viewer-CAPS sind
 im ausgelieferten Standardprofil deaktiviert. Neue verbindliche Feature- und
 LSL-Abnahmekriterien stehen erst im Abschnitt **„Nach 0.9.4.0 – eigene Viewer-Generation“**.
 
+## Technische Bugfix-Roadmap – Audit 25.10.2026
+
+> **Neu aufgenommen (statische Codeprüfung): 21 priorisierte Befunde/Risiken und 3 gesonderte Abnahme-/Dokumentationspunkte.**
+> Vollständige Fundstellen, technische Auswirkungen und Fixvorschläge:
+> **[OpenGenesisLINK Bugliste OGL-001–021 / OGL-G01–G03](BUGLISTE_TECHNISCHES_AUDIT_2026-10-25.md)**.
+> Die Prüfergebnisse beziehen sich auf den damaligen `main` nach PR #300. Die Einträge sind noch **nicht** automatisch reproduzierte oder behobene Produktionsbugs.
+> Diese Pipeline ergänzt die bestehende Release-Roadmap; sie ersetzt keine bereits vereinbarten Meilensteine.
+
+### Block A – P1: Sicherheit und Datenintegrität (zuerst)
+
+- [ ] **OGL-001** · Node-Control (Wartung, Drain, Resume): separate signierte ROBUST-Autorisierung und Replay-Schutz.
+- [ ] **OGL-002** · OAR-Operationen: signierte Betreiberfreigabe und Pfad-/Aktionsprüfung.
+- [ ] **OGL-003** · IAR-Operationen: signierte Herkunft, Benutzer-/Inventarrechte und Rate-Limits.
+- [ ] **OGL-004** · KeyframeMotion: `BinaryFormatter` durch versioniertes Format und geprüfte Migration ersetzen.
+- [ ] **OGL-005** · YEngine: `BinaryFormatter`-Objektgraphen/unkontrollierte Längen sicher migrieren.
+- [ ] **OGL-006** · TLS: Zertifikats- und Hostnamenprüfung in Server-Basispfad sicher vorbelegen.
+- [ ] **OGL-007** · PBR: `asset_id` + glTF-Override ohne partielle Mutation validieren und committen.
+
+### Block B – P2: Material- und FSAssets-Konsistenz
+
+- [ ] **OGL-008** · FSAssets-Hashprüfung mit originalem Legacy-Dateinamencasing statt falschem „missing“.
+- [ ] **OGL-009** · 222-Asset-Audit um Spool, Uppercase-/Mixedcase-Hashdateien und korrekte Suchreihenfolge erweitern.
+- [ ] **OGL-016** · glTF-Parser: `offset`, `scale` und `baseColorFactor` streng prüfen.
+
+### Block C – P2: Warp3D, FastMap und Start-/Stop-Leistung
+
+- [ ] **OGL-010** · Warp3D-Renderer/Caches bei Exceptions zuverlässig freigeben.
+- [ ] **OGL-011** · Erzwungene Full-GC/LOH-Compaction pro Karte benchmarken und reduzieren.
+- [ ] **OGL-012** · Parallele Map-/View-Renderaufrufe ohne konkurrierende Modulzustände absichern.
+- [ ] **OGL-013** · Mesh-/Textur-Warnungssets zeitlich und größenmäßig begrenzen.
+- [ ] **OGL-014** · Automatischen `MAP-<RegionID>.png`-Dump optional statt zwingend machen.
+- [ ] **OGL-015** · FastMap-Shutdown bei laufenden Langzeit-Rendern sicher und begrenzt gestalten.
+- [ ] **OGL-020** · Vollständige Warp3D-E2E-Tests mit echten Mesh-/LOD-/Texturregionen ergänzen.
+- [ ] **OGL-021** · Beschädigte LOD/Fallback-Entscheidungen in dauerhafte Asset-Diagnose aufnehmen.
+
+### Block D – P2: Betrieb, Updates und Konfiguration
+
+- [ ] **OGL-017** · Remote-Console-Zugangsdaten: keine nutzbaren Default-Credentials.
+- [ ] **OGL-018** · Node-Updater: nur freigegebene/signierte Release-SHA bzw. Artefakte im Staging bauen.
+- [ ] **OGL-019** · INI-Abgleich: geänderte Werte, doppelte Sektionen und Include-Priorität als Drei-Wege-Diff prüfen.
+
+### Block E – Release und Betreiberfreigabe (keine neuen Codebugs)
+
+- [ ] **OGL-G01** · **0.9.3.13:** [Goal #294](https://github.com/opengenesislink/opengenesislinkserver/issues/294) mit realem SQL-/FSAssets-/Spool-, Viewer-/PBR-, HG-/Multi-ROBUST- und Rollback-Nachweis abschließen.
+- [ ] **OGL-G02** · Tatsächlichen neuesten veröffentlichten Stable-Tag **verifizieren**, danach veraltete Roadmap-Versionsangaben aktualisieren.
+- [ ] **OGL-G03** · 222 Problem-UUIDs nur gegen vollständigen konsistenten Offline-Snapshot und Referenzen prüfen; **keine automatische Löschung**.
+
+**Definition of Done:** Aktuellen `main` erneut prüfen → reproduzierbaren Testfall und ggf. Exploit-/Betriebsvoraussetzungen dokumentieren → isolierten Fix-PR/Regressionen → CI und geeignete Stagingabnahme → Status in beiden Roadmap-Dateien abhaken. Ein CI-Erfolg allein ist keine Stable-Freigabe. Vor allem P1-Befunde sind vor einem weiteren produktiven Release zu triagieren.
+
+---
+
 ## 1. Vision
 
 OpenGenesisLINK is being developed from the OpenSimulator 0.9.3.0 source baseline and the former NexVerse Server line into an independent virtual-world server platform.
