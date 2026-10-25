@@ -644,9 +644,18 @@ namespace NexVerse.Server.Api
                     ? new NexPasswordRecoveryStore(apiConfig.GetString(
                         "PasswordRecoveryStorePath", "data/ogl-password-recovery.sqlite"))
                     : null;
+                NexPasswordRecoveryAccountLookup recoveryAccountLookup =
+                    passwordRecoveryEnabled
+                        ? new NexPasswordRecoveryAccountLookup(
+                            userConfig?.GetString("StorageProvider", databaseStorageProvider) ??
+                                databaseStorageProvider,
+                            userConfig?.GetString("ConnectionString", databaseConnectionString) ??
+                                databaseConnectionString,
+                            userAccounts)
+                        : null;
                 NexPasswordRecoveryApi recoveryApi = new NexPasswordRecoveryApi(
                     authenticator, userAccounts, userService, oauthStore,
-                    recoveryStore, passwordRecoveryEnabled,
+                    recoveryStore, recoveryAccountLookup, passwordRecoveryEnabled,
                     apiConfig.GetString("PortalRegistrationTrustedProxyIPs", ""),
                     apiConfig.GetString("PortalRegistrationTrustedHttpPeers", ""));
                 server.AddSimpleStreamHandler(new SimpleStreamHandler(
