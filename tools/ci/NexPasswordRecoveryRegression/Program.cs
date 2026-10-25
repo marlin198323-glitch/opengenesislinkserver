@@ -20,8 +20,8 @@ internal static class Program
             long now = 1900000000;
             string first = store.Issue(owner, now);
             Require(first != null && first.Length > 58, "no cryptographic token generated");
-            Require(!File.ReadAllBytes(path).AsSpan().IndexOf(System.Text.Encoding.UTF8.GetBytes(first)).Equals(0),
-                "raw challenge secret appeared at start of database");
+            Require(File.ReadAllBytes(path).AsSpan().IndexOf(System.Text.Encoding.UTF8.GetBytes(first)) < 0,
+                "raw challenge secret appeared in database");
             string replacement = store.Issue(owner, now + 1);
             Require(replacement != first, "issue returned a reused token");
             Require(!store.TryClaim(first, now + 2, out _, out _), "old token survived rotation");
