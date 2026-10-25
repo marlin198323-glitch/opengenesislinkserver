@@ -77,6 +77,12 @@ mit freigegebenem Testkonto verwenden.
 
 ## Portal-Migration / R495-Kompatibilität
 
+**Konkrete Übergabe an den Stadtportal-Entwickler:**
+[STADTPORTAL_PASSWORD_RECOVERY_HANDOFF.md](STADTPORTAL_PASSWORD_RECOVERY_HANDOFF.md)
+mit vollständigen Request-/Response-Beispielen, eigenem Service-Key,
+HTTP-Fehlercodes und End-to-End-Abnahme.
+
+
 Das Portal-Repository `marlin198323-glitch/nexverse` verwendet im
 bisherigen Reset-Ablauf eigene ausgegebene Token aus seiner
 Portal-Reset-Tabelle. **Diese sind nicht identisch mit World-Challenges.**
