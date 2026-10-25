@@ -571,6 +571,10 @@ jobs:
         shell: bash
         run: dotnet run --configuration Release --project tools/ci/OglFastMapStartupRegression/OglFastMapStartupRegression.csproj
 
+      - name: Regression-test Warp3D Mesh renderer LLSD/zlib visual LOD handling
+        shell: bash
+        run: dotnet run --configuration Release --project tools/ci/OglWarpMeshRegression/OglWarpMeshRegression.csproj
+
       - name: Regression-test LLSD mesh upload fee instances
         shell: bash
         run: dotnet run --configuration Release --project tools/ci/NexMeshUploadFeeRegression/NexMeshUploadFeeRegression.csproj
