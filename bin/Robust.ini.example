@@ -642,8 +642,10 @@
     PortalAvatarRegistrationEnabled = false
     ; P0 #301: keep disabled until the portal has migrated to World-owned
     ; one-time challenges. Backend must hold separate recovery-only API key.
+    ; Challenges are stored in a new InnoDB table (ogl_password_recovery)
+    ; in the EXISTING [UserAccountService] / [DatabaseService] MariaDB.
+    ; No additional file, password, SQLite service or connection string.
     PasswordRecoveryEnabled = false
-    PasswordRecoveryStorePath = "data/ogl-password-recovery.sqlite"
     ; KeyHelp HTTPS -> internal ROBUST HTTP: exact source IP of the proxy,
     ; not the original browser's X-Forwarded-For address. Reverse proxy MUST
     ; overwrite X-Forwarded-Proto: https and restrict origin port access.

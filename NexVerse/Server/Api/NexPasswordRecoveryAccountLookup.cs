@@ -2,10 +2,7 @@
 // Parameterized World-account email resolution. OpenSim's ordinary
 // GetUserAccounts(scope, query) searches names, not email addresses.
 using System;
-using System.Data.Common;
 using MySql.Data.MySqlClient;
-using Mono.Data.Sqlite;
-using Npgsql;
 using OpenMetaverse;
 using OpenSim.Services.Interfaces;
 
@@ -23,13 +20,13 @@ namespace NexVerse.Server.Api
             m_Accounts = accounts ?? throw new ArgumentNullException(nameof(accounts));
             m_ConnectionString = connectionString ?? "";
             string provider = storageProvider ?? "";
-            m_Provider = provider.IndexOf("MySQL", StringComparison.OrdinalIgnoreCase) >= 0
-                ? "mysql" : provider.IndexOf("PGSQL", StringComparison.OrdinalIgnoreCase) >= 0 ||
-                provider.IndexOf("Postgres", StringComparison.OrdinalIgnoreCase) >= 0
-                ? "pg" : provider.IndexOf("SQLite", StringComparison.OrdinalIgnoreCase) >= 0
-                ? "sqlite" : "";
+            m_Provider =
+                provider.IndexOf("MySQL", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                provider.IndexOf("MariaDB", StringComparison.OrdinalIgnoreCase) >= 0
+                    ? "mysql" : "";
             if (m_ConnectionString.Length == 0 || m_Provider.Length == 0)
-                throw new InvalidOperationException("Unsupported authoritative UserAccount database provider.");
+                throw new InvalidOperationException(
+                    "World password recovery requires the existing MariaDB UserAccount database.");
         }
 
         internal UserAccount FindUniqueLocalAccount(string email)
@@ -37,23 +34,13 @@ namespace NexVerse.Server.Api
             if (string.IsNullOrEmpty(email) || email.Length > 64)
                 return null;
             string normalized = email.Trim().ToLowerInvariant();
-            using DbConnection db = m_Provider switch
-            {
-                "mysql" => new MySqlConnection(m_ConnectionString),
-                "pg" => new NpgsqlConnection(m_ConnectionString),
-                _ => new SqliteConnection(m_ConnectionString)
-            };
+            using MySqlConnection db = new MySqlConnection(m_ConnectionString);
             db.Open();
-            using DbCommand cmd = db.CreateCommand();
-            string emailField = m_Provider == "mysql" ? "Email" : "\"Email\"";
-            string idField = m_Provider == "mysql" ? "PrincipalID" : "\"PrincipalID\"";
-            cmd.CommandText = "SELECT " + idField + " FROM UserAccounts " +
-                "WHERE LOWER(" + emailField + ") = @email LIMIT 2";
-            DbParameter param = cmd.CreateParameter();
-            param.ParameterName = "@email";
-            param.Value = normalized;
-            cmd.Parameters.Add(param);
-            using DbDataReader reader = cmd.ExecuteReader();
+            using MySqlCommand cmd = db.CreateCommand();
+            cmd.CommandText = "SELECT PrincipalID FROM UserAccounts " +
+                "WHERE LOWER(Email) = @email LIMIT 2";
+            cmd.Parameters.AddWithValue("@email", normalized);
+            using MySqlDataReader reader = cmd.ExecuteReader();
             if (!reader.Read()) return null;
             if (!Guid.TryParse(Convert.ToString(reader.GetValue(0)), out Guid parsed))
                 return null;

@@ -583,9 +583,32 @@ jobs:
         shell: bash
         run: dotnet build --configuration Release OpenSim.sln
 
-      - name: Regression-test World API P0 password recovery tokens
+      - name: Regression-test World API P0 password recovery against MariaDB
         shell: bash
-        run: dotnet run --configuration Release --project tools/ci/NexPasswordRecoveryRegression/NexPasswordRecoveryRegression.csproj
+        run: |
+          set -euo pipefail
+          docker run --rm -d --name ogl-recovery-mariadb-ci \
+            -e MARIADB_ROOT_PASSWORD=ogl_recovery_ci_secret \
+            -e MARIADB_DATABASE=ogl_recovery_ci \
+            -p 127.0.0.1:33079:3306 mariadb:11.4
+          trap 'docker rm -f ogl-recovery-mariadb-ci >/dev/null 2>&1 || true' EXIT
+          ready=0
+          for attempt in $(seq 1 90); do
+            if docker exec ogl-recovery-mariadb-ci mariadb-admin ping \
+                -h 127.0.0.1 -u root -pogl_recovery_ci_secret --silent >/dev/null 2>&1; then
+              ready=1
+              break
+            fi
+            sleep 1
+          done
+          if [ "$ready" -ne 1 ]; then
+            echo "::error::MariaDB CI instance not ready"
+            docker logs ogl-recovery-mariadb-ci
+            exit 1
+          fi
+          export NEX_PASSWORD_RECOVERY_MARIADB="Server=127.0.0.1;Port=33079;Database=ogl_recovery_ci;User ID=root;Password=ogl_recovery_ci_secret;SslMode=None;"
+          dotnet run --configuration Release \
+            --project tools/ci/NexPasswordRecoveryRegression/NexPasswordRecoveryRegression.csproj
 
       - name: Regression-test PBR render-material face deletion
         shell: bash

@@ -745,8 +745,10 @@
     PortalAvatarRegistrationEnabled = false
     ; P0 #301: keep disabled until the portal has migrated to World-owned
     ; one-time challenges. Backend must hold separate recovery-only API key.
+    ; Challenges are stored in a new InnoDB table (ogl_password_recovery)
+    ; in the EXISTING [UserAccountService] / [DatabaseService] MariaDB.
+    ; No additional file, password, SQLite service or connection string.
     PasswordRecoveryEnabled = false
-    PasswordRecoveryStorePath = "data/ogl-password-recovery.sqlite"
     ; Portal Account & Sicherheit: nur eigenstaendige Bearer-Session und Passwort.
     ; Loescht zentralen Account, NICHT Grid-Land/NV$/Gruppen/Externdaten.
     PortalAccountSelfDeleteEnabled = false

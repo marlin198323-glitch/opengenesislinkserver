@@ -636,23 +636,60 @@ namespace NexVerse.Server.Api
                     gridUsers,
                     grid);
 
-                // World-owned one-time password recovery. Deliberately opt-in:
-                // the portal must first migrate from its legacy reset tokens.
+                // Recovery uses exactly the existing ROBUST UserAccount
+                // MariaDB connection. No local SQLite file, fallback database,
+                // duplicate credentials or unrelated database schema.
                 bool passwordRecoveryEnabled = apiConfig.GetBoolean(
                     "PasswordRecoveryEnabled", false);
-                NexPasswordRecoveryStore recoveryStore = passwordRecoveryEnabled
-                    ? new NexPasswordRecoveryStore(apiConfig.GetString(
-                        "PasswordRecoveryStorePath", "data/ogl-password-recovery.sqlite"))
-                    : null;
-                NexPasswordRecoveryAccountLookup recoveryAccountLookup =
-                    passwordRecoveryEnabled
-                        ? new NexPasswordRecoveryAccountLookup(
-                            userConfig?.GetString("StorageProvider", databaseStorageProvider) ??
-                                databaseStorageProvider,
-                            userConfig?.GetString("ConnectionString", databaseConnectionString) ??
-                                databaseConnectionString,
-                            userAccounts)
-                        : null;
+                NexPasswordRecoveryStore recoveryStore = null;
+                NexPasswordRecoveryAccountLookup recoveryAccountLookup = null;
+                if (passwordRecoveryEnabled)
+                {
+                    string recoveryProvider = userConfig?.GetString(
+                        "StorageProvider", databaseStorageProvider);
+                    string recoveryConnection = userConfig?.GetString(
+                        "ConnectionString", databaseConnectionString);
+                    if (string.IsNullOrWhiteSpace(recoveryProvider))
+                        recoveryProvider = databaseStorageProvider;
+                    if (string.IsNullOrWhiteSpace(recoveryConnection))
+                        recoveryConnection = databaseConnectionString;
+
+                    // Refuse unsupported providers; never silently switch to
+                    // SQLite or a second database on a MariaDB-backed grid.
+                    if (string.IsNullOrWhiteSpace(recoveryConnection) ||
+                        (recoveryProvider.IndexOf("MySQL",
+                            StringComparison.OrdinalIgnoreCase) < 0 &&
+                         recoveryProvider.IndexOf("MariaDB",
+                            StringComparison.OrdinalIgnoreCase) < 0))
+                    {
+                        passwordRecoveryEnabled = false;
+                        m_Log.Error("[WORLD RECOVERY]: Disabled: existing UserAccountService " +
+                            "must provide a MariaDB/MySQL connection.");
+                    }
+                    else
+                    {
+                        try
+                        {
+                            recoveryStore = new NexPasswordRecoveryStore(recoveryConnection);
+                            recoveryAccountLookup = new NexPasswordRecoveryAccountLookup(
+                                recoveryProvider, recoveryConnection, userAccounts);
+                            m_Log.Info("[WORLD RECOVERY]: MariaDB challenge store ready " +
+                                "(same database as UserAccountService).");
+                        }
+                        catch (Exception ex)
+                        {
+                            // A missing permission/table must not take down the
+                            // entire login/World API connector. Fail closed.
+                            passwordRecoveryEnabled = false;
+                            recoveryStore = null;
+                            recoveryAccountLookup = null;
+                            m_Log.ErrorFormat(
+                                "[WORLD RECOVERY]: Disabled after MariaDB init failure ({0}). " +
+                                "Check existing DB connection and CREATE TABLE privileges.",
+                                ex.GetType().Name);
+                        }
+                    }
+                }
                 NexPasswordRecoveryApi recoveryApi = new NexPasswordRecoveryApi(
                     authenticator, userAccounts, userService, oauthStore,
                     recoveryStore, recoveryAccountLookup, passwordRecoveryEnabled,
