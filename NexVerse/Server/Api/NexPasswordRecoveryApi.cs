@@ -10,6 +10,8 @@ using System.Net.Mail;
 using System.Text;
 using System.Text.Json;
 using System.Security.Cryptography;
+using System.Threading;
+using System.Threading.Tasks;
 using NexVerse.Core.Security;
 using NexVerse.Core.Identity;
 using OpenMetaverse;
@@ -36,6 +38,9 @@ namespace NexVerse.Server.Api
         private readonly string m_MailHost, m_MailUser, m_MailPassword, m_MailFrom;
         private readonly int m_MailPort;
         private readonly Dictionary<string, (long Hour, int Count)> m_PublicLimits = new();
+        // Bound SMTP concurrency. Never let a slow known-account SMTP call make
+        // an anonymous response slower than an unknown-account response.
+        private readonly SemaphoreSlim m_PublicMailSlots = new(2, 2);
         private readonly HashSet<string> m_TrustedProxies;
         private readonly HashSet<string> m_TrustedHttpPeers;
         private readonly object m_ThrottleSync = new();
@@ -186,23 +191,35 @@ namespace NexVerse.Server.Api
             }
             // A 202 response MUST be identical for known, unknown, throttled,
             // ambiguous and SMTP-failing identities. Never expose World tokens.
-            if (PublicEmailLimitAllowed(email, now))
+            if (PublicEmailLimitAllowed(email, now) && m_PublicMailSlots.Wait(0))
             {
-                try
+                // Execute account lookup, MariaDB writes and SMTP AFTER the
+                // HTTP response has been prepared. Otherwise synchronous SMTP
+                // timing would reveal whether an account existed.
+                string queuedEmail = email;
+                _ = Task.Run(() =>
                 {
-                    UserAccount account = m_Lookup.FindUniqueLocalAccount(email);
-                    if (account != null)
+                    try
                     {
-                        string token = m_Store.Issue(account.PrincipalID.Guid, now);
-                        if (token != null)
-                            SendPublicRecoveryEmail(account.Email, token);
+                        UserAccount account = m_Lookup.FindUniqueLocalAccount(queuedEmail);
+                        if (account != null)
+                        {
+                            string token = m_Store.Issue(account.PrincipalID.Guid,
+                                DateTimeOffset.UtcNow.ToUnixTimeSeconds());
+                            if (token != null)
+                                SendPublicRecoveryEmail(account.Email, token);
+                        }
                     }
-                }
-                catch (Exception ex)
-                {
-                    s_Log.WarnFormat("[WORLD RECOVERY]: anonymous mail delivery or store failed ({0}), correlation={1}",
-                        ex.GetType().Name, correlation);
-                }
+                    catch (Exception ex)
+                    {
+                        s_Log.WarnFormat("[WORLD RECOVERY]: anonymous mail delivery or store failed ({0}), correlation={1}",
+                            ex.GetType().Name, correlation);
+                    }
+                    finally
+                    {
+                        m_PublicMailSlots.Release();
+                    }
+                });
             }
             Reply(response, HttpStatusCode.Accepted, "accepted", correlation);
         }
