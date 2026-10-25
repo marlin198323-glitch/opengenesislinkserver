@@ -181,7 +181,10 @@ namespace NexVerse.Server.Api
                 read.Parameters.AddWithValue("@now", now);
                 using MySqlDataReader row = read.ExecuteReader();
                 if (!row.Read()) return false;
-                userId = row.GetString(0);
+                // MySql.Data returns CHAR(36) UUID values either as a Guid
+                // or as a string depending on "Old Guids" in the existing
+                // ROBUST connection string. Both are valid representations.
+                userId = row.GetValue(0)?.ToString();
                 salt = (byte[])row.GetValue(1);
                 expected = (byte[])row.GetValue(2);
             }
