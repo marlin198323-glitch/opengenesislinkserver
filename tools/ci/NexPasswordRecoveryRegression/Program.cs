@@ -23,7 +23,7 @@ internal static class Program
                 "NEX_PASSWORD_RECOVERY_MARIADB is required for real SQL regression.");
 
         // Isolate tests by random identities. Do not delete real World accounts.
-        Guid owner = Guid.NewGuid(), parallelOwner = Guid.NewGuid();
+        Guid owner = Guid.NewGuid(), parallelOwner = Guid.NewGuid(), legacyOwner = Guid.NewGuid();
         long now = 1900000000;
         var store = new NexPasswordRecoveryStore(connection);
 
@@ -92,6 +92,19 @@ internal static class Program
 
             // Account-level issuance lock must not leak when throttled.
             Require(store.Issue(owner, now + 9) == null, "rate limit bypass on retry");
+
+            // The production ROBUST config commonly uses Old Guids=true.
+            // Exercise that mode as well as the driver's Guid-return mode.
+            string legacyConnection = connection.EndsWith(";", StringComparison.Ordinal)
+                ? connection + "Old Guids=true;"
+                : connection + ";Old Guids=true;";
+            var legacy = new NexPasswordRecoveryStore(legacyConnection);
+            string legacyToken = legacy.Issue(legacyOwner, now + 11);
+            Require(legacy.TryClaim(legacyToken, now + 12, out Guid legacyPrincipal,
+                out string legacyClaim) && legacyPrincipal == legacyOwner,
+                "legacy Old Guids=true account lookup failed");
+            Require(legacy.Finish(legacyToken, legacyClaim, true, now + 12),
+                "legacy GUID form could not consume the token");
             Console.WriteLine("World P0 MariaDB: hashed tokens, InnoDB claim, TTL, replay, " +
                 "reissue, throttle, multi-connection concurrency and restart: OK");
             return 0;
@@ -102,9 +115,10 @@ internal static class Program
             db.Open();
             using MySqlCommand cleanup = db.CreateCommand();
             cleanup.CommandText = @"DELETE FROM ogl_password_recovery
-                WHERE principal_id=@first OR principal_id=@second";
+                WHERE principal_id=@first OR principal_id=@second OR principal_id=@third";
             cleanup.Parameters.AddWithValue("@first", owner.ToString("D"));
             cleanup.Parameters.AddWithValue("@second", parallelOwner.ToString("D"));
+            cleanup.Parameters.AddWithValue("@third", legacyOwner.ToString("D"));
             cleanup.ExecuteNonQuery();
         }
     }
