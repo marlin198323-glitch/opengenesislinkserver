@@ -293,6 +293,7 @@ namespace NexVerse.Server.Api
             }
 
             bool passwordWritten = false;
+            bool mutationCallReturned = false;
             try
             {
                 // Account ID comes from the World-owned challenge, NEVER JSON.
@@ -310,6 +311,7 @@ namespace NexVerse.Server.Api
                     return;
                 }
                 passwordWritten = m_Users.SetPassword(principal.ToString("D"), password);
+                mutationCallReturned = true;
                 if (!passwordWritten)
                 {
                     Reply(response, HttpStatusCode.ServiceUnavailable, "password_update_failed", correlation);
@@ -330,7 +332,7 @@ namespace NexVerse.Server.Api
             {
                 // On a known failed mutation, return the claim to pending;
                 // if the process crashes while claimed, require a new email.
-                if (!passwordWritten)
+                if (mutationCallReturned && !passwordWritten)
                     m_Store.Finish(token, claim, false, DateTimeOffset.UtcNow.ToUnixTimeSeconds());
             }
         }
