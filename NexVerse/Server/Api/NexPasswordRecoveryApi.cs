@@ -204,7 +204,7 @@ namespace NexVerse.Server.Api
                         UserAccount account = m_Lookup.FindUniqueLocalAccount(queuedEmail);
                         if (account != null)
                         {
-                            string token = m_Store.Issue(account.PrincipalID.Guid,
+                            string token = m_Store.IssuePublic(account.PrincipalID.Guid,
                                 DateTimeOffset.UtcNow.ToUnixTimeSeconds());
                             if (token != null)
                                 SendPublicRecoveryEmail(account.Email, token);
@@ -366,7 +366,7 @@ namespace NexVerse.Server.Api
                 else if (issue)
                     Issue(doc.RootElement, response, now, correlation);
                 else
-                    Complete(doc.RootElement, response, now, correlation);
+                    Complete(doc.RootElement, response, now, correlation, publicComplete);
             }
             catch (JsonException)
             {
@@ -415,7 +415,8 @@ namespace NexVerse.Server.Api
             });
         }
 
-        private void Complete(JsonElement data, IOSHttpResponse response, long now, string correlation)
+        private void Complete(JsonElement data, IOSHttpResponse response, long now,
+            string correlation, bool publicOnly = false)
         {
             string token = Value(data, "token");
             string password = Value(data, "new_password");
@@ -424,7 +425,12 @@ namespace NexVerse.Server.Api
                 Reply(response, HttpStatusCode.BadRequest, "invalid_password", correlation);
                 return;
             }
-            if (!m_Store.TryClaim(token, now, out Guid principal, out string claim))
+            Guid principal;
+            string claim;
+            bool claimed = publicOnly
+                ? m_Store.TryClaimPublic(token, now, out principal, out claim)
+                : m_Store.TryClaim(token, now, out principal, out claim);
+            if (!claimed)
             {
                 Reply(response, HttpStatusCode.Gone, "invalid_or_expired_challenge", correlation);
                 return;

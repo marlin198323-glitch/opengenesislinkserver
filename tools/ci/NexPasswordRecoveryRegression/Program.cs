@@ -23,7 +23,8 @@ internal static class Program
                 "NEX_PASSWORD_RECOVERY_MARIADB is required for real SQL regression.");
 
         // Isolate tests by random identities. Do not delete real World accounts.
-        Guid owner = Guid.NewGuid(), parallelOwner = Guid.NewGuid(), legacyOwner = Guid.NewGuid();
+        Guid owner = Guid.NewGuid(), parallelOwner = Guid.NewGuid(),
+            legacyOwner = Guid.NewGuid(), publicOwner = Guid.NewGuid();
         long now = 1900000000;
         var store = new NexPasswordRecoveryStore(connection);
 
@@ -90,6 +91,22 @@ internal static class Program
             });
             Require(winners == 1, "two processes claimed the same World token");
 
+            // Scope isolation: issuing via a machine key MUST NOT permit
+            // bypassing password-recovery:complete on the public /confirm path.
+            string machineOnly = store.Issue(Guid.NewGuid(), now + 9);
+            Require(!store.TryClaimPublic(machineOnly, now + 10, out _, out _),
+                "machine-issued challenge bypassed completion scope");
+            string publicMailToken = store.IssuePublic(publicOwner, now + 11);
+            Require(publicMailToken != null &&
+                store.TryClaimPublic(publicMailToken, now + 12,
+                    out Guid mailboxOwner, out string mailboxClaim) &&
+                mailboxOwner == publicOwner,
+                "World-own-mail challenge missing or not bound to mailbox owner");
+            Require(store.Finish(publicMailToken, mailboxClaim, true, now + 12),
+                "public mail token not consumed");
+            Require(!store.TryClaimPublic(publicMailToken, now + 13, out _, out _),
+                "public mail token replay accepted");
+
             // Account-level issuance lock must not leak when throttled.
             Require(store.Issue(owner, now + 9) == null, "rate limit bypass on retry");
 
@@ -115,10 +132,11 @@ internal static class Program
             db.Open();
             using MySqlCommand cleanup = db.CreateCommand();
             cleanup.CommandText = @"DELETE FROM ogl_password_recovery
-                WHERE principal_id=@first OR principal_id=@second OR principal_id=@third";
+                WHERE principal_id=@first OR principal_id=@second OR principal_id=@third OR principal_id=@public";
             cleanup.Parameters.AddWithValue("@first", owner.ToString("D"));
             cleanup.Parameters.AddWithValue("@second", parallelOwner.ToString("D"));
             cleanup.Parameters.AddWithValue("@third", legacyOwner.ToString("D"));
+            cleanup.Parameters.AddWithValue("@public", publicOwner.ToString("D"));
             cleanup.ExecuteNonQuery();
         }
     }

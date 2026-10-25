@@ -13,6 +13,9 @@ namespace NexVerse.Server.Api
     internal sealed class NexPasswordRecoveryStore
     {
         private const int TtlSeconds = 900;
+        // Reserved marker in the challenge ID for public mailbox-issued tokens.
+        // New machine-issued tokens explicitly avoid it. No DB-schema changes.
+        private const string PublicIdPrefix = "9a7e4d3c2b1a";
         private readonly string m_ConnectionString;
         private static readonly char[] s_Separator = { '.' };
 
@@ -89,7 +92,11 @@ namespace NexVerse.Server.Api
         private static string LockName(Guid principal) =>
             "ogl_pwdrec:" + principal.ToString("N");
 
-        internal string Issue(Guid principal, long now)
+        internal string Issue(Guid principal, long now) => IssueCore(principal, now, false);
+
+        internal string IssuePublic(Guid principal, long now) => IssueCore(principal, now, true);
+
+        private string IssueCore(Guid principal, long now, bool publicToken)
         {
             if (principal == Guid.Empty)
                 throw new ArgumentException("Missing World principal.", nameof(principal));
@@ -115,7 +122,11 @@ namespace NexVerse.Server.Api
                         return null; // Transaction rolls back when disposed.
                 }
 
-                string challengeId = Guid.NewGuid().ToString("N");
+                string challengeId;
+                do { challengeId = Guid.NewGuid().ToString("N"); }
+                while (challengeId.StartsWith(PublicIdPrefix, StringComparison.Ordinal));
+                if (publicToken)
+                    challengeId = PublicIdPrefix + challengeId.Substring(PublicIdPrefix.Length);
                 string secret = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32))
                     .TrimEnd('=').Replace('+', '-').Replace('/', '_');
                 string token = challengeId + "." + secret;
@@ -161,6 +172,20 @@ namespace NexVerse.Server.Api
 
         // Lock the record FOR UPDATE before checking the digest, then
         // transactionally claim it; only one concurrent node can succeed.
+        // Anonymous proof-of-mailbox completion may ONLY consume challenges
+        // issued through World’s own public SMTP path. An issue-only machine
+        // key cannot bypass password-recovery:complete by calling /confirm.
+        internal bool TryClaimPublic(string token, long now, out Guid principal,
+            out string claimId)
+        {
+            principal = Guid.Empty;
+            claimId = null;
+            if (!TryTokenId(token, out string id) ||
+                !id.StartsWith(PublicIdPrefix, StringComparison.Ordinal))
+                return false;
+            return TryClaim(token, now, out principal, out claimId);
+        }
+
         internal bool TryClaim(string token, long now, out Guid principal,
             out string claimId)
         {
