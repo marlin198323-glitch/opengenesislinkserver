@@ -10,6 +10,7 @@ using System.Text;
 using System.Text.Json;
 using System.Security.Cryptography;
 using NexVerse.Core.Security;
+using NexVerse.Core.Identity;
 using OpenMetaverse;
 using OpenSim.Framework.Servers.HttpServer;
 using OpenSim.Services.Interfaces;
