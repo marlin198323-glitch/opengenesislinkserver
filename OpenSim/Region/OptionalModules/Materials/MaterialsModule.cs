@@ -1092,41 +1092,74 @@ namespace OpenSim.Region.OptionalModules.Materials
             return true;
         }
 
-        private static bool GetExtentionTransform(OSDMap Inmap, out OSDMap outmap)
+        // Keep the four Firestorm PBR texture transforms at their exact slots:
+        // base color=0, normal=1, ORM=2, emissive=3. Sparse updates MUST
+        // include placeholders; appending otherwise shifts channel indices.
+        private static void SetTextureTransform(OSDArray transforms, int channel, OSDMap texture)
         {
-            OSD tmposd;
-            if (Inmap.TryGetValue("extensions", out tmposd) && tmposd is OSDMap extmap)
-            {
-                if (extmap.TryGetValue("KHR_texture_transform", out tmposd) && tmposd is OSDMap trmap)
-                {
-                    OSDMap tmpmap = new OSDMap();
-                    if (trmap.TryGetValue("offset", out tmposd) && tmposd is OSDArray offset)
-                    {
-                        tmpmap["o"] = new OSDArray()
-                                    {
-                                        Math.Round((double) offset[0], 3),
-                                        Math.Round((double) offset[1], 3)
-                                    };
-                    }
-                    if (trmap.TryGetValue("rotation", out tmposd) && tmposd is OSDReal rotation)
-                    {
-                        tmpmap["r"] = Math.Round((double)rotation, 6);
-                    }
-                    if (trmap.TryGetValue("scale", out tmposd) && tmposd is OSDArray scale)
-                    {
-                        tmpmap["s"] = new OSDArray()
-                            {
-                                Math.Round((double) scale[0], 3),
-                                Math.Round((double) scale[1], 3)
-                            };
-                    }
-                    outmap = tmpmap;
-                    return true;
-                }
-            }
-            outmap = null;
-            return false;
+            if (!GetExtentionTransform(texture, out OSDMap transform))
+                return;
+            while (transforms.Count <= channel)
+                transforms.Add(new OSD());
+            transforms[channel] = transform;
         }
+
+        private static OSDArray RequireFiniteVector2(OSD value)
+        {
+            if (value is not OSDArray items || items.Count != 2)
+                throw new FormatException("KHR_texture_transform vector must have two components");
+            for (int i = 0; i < 2; ++i)
+            {
+                if ((items[i] is not OSDReal && items[i] is not OSDInteger) ||
+                    !double.IsFinite(items[i].AsReal()))
+                    throw new FormatException("KHR_texture_transform components must be finite numbers");
+            }
+            return items;
+        }
+
+        private static bool GetExtentionTransform(OSDMap input, out OSDMap output)
+        {
+            output = null;
+            if (!input.TryGetValue("extensions", out OSD extensions))
+                return false;
+            if (extensions is not OSDMap extmap)
+                throw new FormatException("Invalid glTF texture extensions");
+
+            if (!extmap.TryGetValue("KHR_texture_transform", out OSD raw))
+                return false;
+            if (raw is not OSDMap transform)
+                throw new FormatException("Invalid KHR_texture_transform");
+
+            OSDMap mapped = new OSDMap();
+            if (transform.TryGetValue("offset", out OSD offsetValue))
+            {
+                OSDArray offset = RequireFiniteVector2(offsetValue);
+                mapped["o"] = new OSDArray
+                {
+                    Math.Round(offset[0].AsReal(), 3),
+                    Math.Round(offset[1].AsReal(), 3)
+                };
+            }
+            if (transform.TryGetValue("rotation", out OSD rotationValue))
+            {
+                if ((rotationValue is not OSDReal && rotationValue is not OSDInteger) ||
+                    !double.IsFinite(rotationValue.AsReal()))
+                    throw new FormatException("Invalid glTF texture rotation");
+                mapped["r"] = Math.Round(rotationValue.AsReal(), 6);
+            }
+            if (transform.TryGetValue("scale", out OSD scaleValue))
+            {
+                OSDArray scale = RequireFiniteVector2(scaleValue);
+                mapped["s"] = new OSDArray
+                {
+                    Math.Round(scale[0].AsReal(), 3),
+                    Math.Round(scale[1].AsReal(), 3)
+                };
+            }
+            output = mapped;
+            return true;
+        }
+
         private static bool AddMaterialOverride(ref RenderMaterialOverrideEntry[] overrides, string data, int side)
         {
             if (side < 0 || side > byte.MaxValue)
@@ -1180,7 +1213,10 @@ namespace OpenSim.Region.OptionalModules.Materials
 
                 OSDMap outosd = new();
                 OSDArray ti = new(4);
-                OSDMap tmpmap;
+                // OpenSim/Firestorm stores occlusion and metallic-roughness as
+                // one packed ORM texture. Prefer the metallic-roughness entry
+                // when both are present; do not let occlusion overwrite it.
+                bool hasMetallicRoughnessMap = false;
 
                 bool texturesChanged = false;
                 Span<UUID> textureIDs = stackalloc UUID[4];
@@ -1206,13 +1242,11 @@ namespace OpenSim.Region.OptionalModules.Materials
                                 return false;
                             }
                         }
-                        if (GetExtentionTransform(pmrMapbct, out tmpmap))
-                        {
-                            ti.Add(tmpmap);
-                        }
+                        SetTextureTransform(ti, 0, pmrMapbct);
                     }
                     if (pmrMap.TryGetValue("metallicRoughnessTexture", out tmposd) && tmposd is OSDMap pmrMapmrt && pmrMapmrt.Count > 0)
                     {
+                        hasMetallicRoughnessMap = true;
                         if (hasTexURIS && pmrMapmrt.TryGetValue("index", out tmposd) && tmposd is OSDInteger pmrMapbcti)
                         {
                             int v = pmrMapbcti.value;
@@ -1227,12 +1261,7 @@ namespace OpenSim.Region.OptionalModules.Materials
                                 return false;
                             }
                         }
-                        if (GetExtentionTransform(pmrMapmrt, out tmpmap))
-                        {
-                                while (ti.Count < 2)
-                                    ti.Add(new OSD());
-                                ti.Add(tmpmap);
-                        }
+                        SetTextureTransform(ti, 2, pmrMapmrt);
                     }
                     if (pmrMap.TryGetValue("baseColorFactor", out tmposd) && tmposd is OSDArray baseColorFactor)
                     {
@@ -1270,17 +1299,7 @@ namespace OpenSim.Region.OptionalModules.Materials
                             return false;
                         }
                     }
-                    if (GetExtentionTransform(ntMap, out tmpmap))
-                    {
-                        if (ti.Count < 2)
-                        {
-                            if (ti.Count == 0)
-                                ti.Add(new OSD());
-                            ti.Add(tmpmap);
-                        }
-                        else
-                            ti[1] = tmpmap;
-                    }
+                    SetTextureTransform(ti, 1, ntMap);
                 }
 
                 if (material.TryGetValue("occlusionTexture", out tmposd) && tmposd is OSDMap otMap && otMap.Count > 0)
@@ -1290,26 +1309,24 @@ namespace OpenSim.Region.OptionalModules.Materials
                         int v = otMapi.value;
                         if (v >= 0 && v < texturesURIs.Length)
                         {
-                            textureIDs[2] = texturesURIs[v];
-                            textureIDchanged[2] = true;
-                            texturesChanged = true;
+                            if (!hasMetallicRoughnessMap)
+                            {
+                                textureIDs[2] = texturesURIs[v];
+                                textureIDchanged[2] = true;
+                                texturesChanged = true;
+                            }
                         }
                         else
                         {
                             return false;
                         }
                     }
-                    if (GetExtentionTransform(otMap, out tmpmap))
-                    {
-                        if (ti.Count > 2)
-                            ti[2] = tmpmap;
-                        else
-                        {
-                            while (ti.Count < 2)
-                                ti.Add(new OSD());
-                            ti.Add(tmpmap);
-                        }
-                    }
+                    // Validate occlusion UV metadata even when the packed ORM
+                    // entry uses the metallic-roughness transform.
+                    if (hasMetallicRoughnessMap)
+                        GetExtentionTransform(otMap, out _);
+                    else
+                        SetTextureTransform(ti, 2, otMap);
                 }
 
                 if (material.TryGetValue("emissiveTexture", out tmposd) && tmposd is OSDMap etMap && etMap.Count > 0)
@@ -1328,17 +1345,7 @@ namespace OpenSim.Region.OptionalModules.Materials
                             return false;
                         }
                     }
-                    if (GetExtentionTransform(etMap, out tmpmap))
-                    {
-                        if (ti.Count > 3)
-                            ti[3] = tmpmap;
-                        else
-                        {
-                            while (ti.Count < 3)
-                                ti.Add(new OSD());
-                            ti.Add(tmpmap);
-                        }
-                    }
+                    SetTextureTransform(ti, 3, etMap);
                 }
 
                 if (material.TryGetValue("alphaMode", out tmposd) && tmposd is OSDString aMode)
