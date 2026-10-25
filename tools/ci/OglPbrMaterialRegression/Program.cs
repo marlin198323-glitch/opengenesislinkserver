@@ -42,6 +42,33 @@ internal static class Program
         return accepted;
     }
 
+    private static OSDMap DecodeOverride(RenderMaterialOverrideEntry[] entries)
+    {
+        Assert(entries != null && entries.Length == 1, "unexpected override entries");
+        OSDMap result = OSDParser.DeserializeLLSDNotation(entries[0].data) as OSDMap;
+        Assert(result != null, "invalid serialized LLSD material override");
+        return result;
+    }
+
+    private static void AssertUv(OSDArray transforms, int slot,
+        double scaleU, double scaleV, double offsetU, double offsetV)
+    {
+        Assert(transforms.Count > slot && transforms[slot] is OSDMap,
+            "missing PBR UV transform for channel " + slot);
+        OSDMap channel = (OSDMap)transforms[slot];
+        Assert(channel["s"] is OSDArray && channel["o"] is OSDArray,
+            "PBR scale or offset missing for channel " + slot);
+        OSDArray scales = (OSDArray)channel["s"];
+        OSDArray offsets = (OSDArray)channel["o"];
+        Assert(scales.Count == 2 && offsets.Count == 2,
+            "wrong PBR vector length for channel " + slot);
+        Assert(Math.Abs(scales[0].AsReal() - scaleU) < 0.002 &&
+               Math.Abs(scales[1].AsReal() - scaleV) < 0.002 &&
+               Math.Abs(offsets[0].AsReal() - offsetU) < 0.002 &&
+               Math.Abs(offsets[1].AsReal() - offsetV) < 0.002,
+            "PBR UV transform changed for channel " + slot);
+    }
+
     private static void Main()
     {
         RenderMaterialEntry[] empty = null;
@@ -149,6 +176,80 @@ internal static class Program
         addArgs = new object[] { overrideEntries, textureGltf, 256 };
         Assert(!(bool)add.Invoke(null, addArgs),
             "byte-overflowing PBR face accepted by override converter");
+
+        // Reproduce Firestorm's four-channel glTF KHR_texture_transform
+        // contract and verify the exact LLSD 'ti' channel positions.
+        const string uvBase = "{\"extensions\":{\"KHR_texture_transform\":{\"scale\":[1.5,1.25],\"offset\":[0.1,-0.1],\"rotation\":0.0}}}";
+        const string uvNormal = "{\"extensions\":{\"KHR_texture_transform\":{\"scale\":[2.0,2.25],\"offset\":[0.0,0.2],\"rotation\":0.0}}}";
+        const string uvOrm = "{\"extensions\":{\"KHR_texture_transform\":{\"scale\":[3.0,3.25],\"offset\":[0.25,0.0],\"rotation\":0.0}}}";
+        const string uvOcclusion = "{\"extensions\":{\"KHR_texture_transform\":{\"scale\":[9.0,9.0],\"offset\":[0.75,0.75],\"rotation\":0.0}}}";
+        const string uvEmissive = "{\"extensions\":{\"KHR_texture_transform\":{\"scale\":[4.0,4.25],\"offset\":[0.0,0.25],\"rotation\":0.0}}}";
+
+        UUID metallicAsset = UUID.Random(), occlusionAsset = UUID.Random();
+        string allChannels = "{\"images\":[{\"uri\":\"" + metallicAsset +
+            "\"},{\"uri\":\"" + occlusionAsset + "\"}],\"textures\":[{\"source\":0},{\"source\":1}]," +
+            "\"materials\":[{\"pbrMetallicRoughness\":{\"baseColorTexture\":" + uvBase +
+            ",\"metallicRoughnessTexture\":{\"index\":0,\"extensions\":" +
+            uvOrm.Substring(14, uvOrm.Length - 15) + "}},\"normalTexture\":" + uvNormal +
+            ",\"occlusionTexture\":{\"index\":1,\"extensions\":" +
+            uvOcclusion.Substring(14, uvOcclusion.Length - 15) + "},\"emissiveTexture\":" + uvEmissive + "}]}";
+        // Build the indexed entries without losing the KHR extension; the
+        // metallic and occlusion textures deliberately carry different UVs.
+        RenderMaterialOverrideEntry[] uvEntries = null;
+        object[] uvArgs = { uvEntries, allChannels, 3 };
+        Assert((bool)add.Invoke(null, uvArgs), "four-channel PBR UV update rejected");
+        uvEntries = (RenderMaterialOverrideEntry[])uvArgs[0];
+        OSDMap decoded = DecodeOverride(uvEntries);
+        OSDArray transforms = decoded["ti"] as OSDArray;
+        Assert(transforms != null && transforms.Count == 4,
+            "four-channel PBR UV array has wrong size");
+        AssertUv(transforms, 0, 1.5, 1.25, 0.1, -0.1);
+        AssertUv(transforms, 1, 2.0, 2.25, 0.0, 0.2);
+        AssertUv(transforms, 2, 3.0, 3.25, 0.25, 0.0);
+        AssertUv(transforms, 3, 4.0, 4.25, 0.0, 0.25);
+        OSDArray mappedTextures = decoded["tex"] as OSDArray;
+        Assert(mappedTextures != null && mappedTextures.Count == 4 &&
+               mappedTextures[2].AsUUID() == metallicAsset,
+            "occlusion replaced the metallic-roughness (ORM) texture ID");
+
+        // Sparse updates must not shift emissive to ORM or ORM to normal.
+        uvArgs = new object[] { null, "{\"materials\":[{\"emissiveTexture\":" + uvEmissive + "}]}", 3 };
+        Assert((bool)add.Invoke(null, uvArgs), "emissive-only override rejected");
+        OSDArray sparse = DecodeOverride((RenderMaterialOverrideEntry[])uvArgs[0])["ti"] as OSDArray;
+        Assert(sparse != null && sparse.Count == 4 && sparse[0] is not OSDMap &&
+               sparse[1] is not OSDMap && sparse[2] is not OSDMap,
+            "emissive-only UV was assigned to the wrong channel");
+        AssertUv(sparse, 3, 4.0, 4.25, 0.0, 0.25);
+
+        uvArgs = new object[] { null, "{\"materials\":[{\"pbrMetallicRoughness\":{\"metallicRoughnessTexture\":" + uvOrm + "}}]}", 3 };
+        Assert((bool)add.Invoke(null, uvArgs), "ORM-only override rejected");
+        sparse = DecodeOverride((RenderMaterialOverrideEntry[])uvArgs[0])["ti"] as OSDArray;
+        Assert(sparse != null && sparse.Count == 3 && sparse[0] is not OSDMap &&
+               sparse[1] is not OSDMap, "ORM-only UV shifted to an earlier channel");
+        AssertUv(sparse, 2, 3.0, 3.25, 0.25, 0.0);
+
+        // Compatibility fallback: occlusion-only glTF still populates ORM.
+        uvArgs = new object[] { null, "{\"materials\":[{\"occlusionTexture\":" + uvOcclusion + "}]}", 3 };
+        Assert((bool)add.Invoke(null, uvArgs), "occlusion-only material rejected");
+        sparse = DecodeOverride((RenderMaterialOverrideEntry[])uvArgs[0])["ti"] as OSDArray;
+        AssertUv(sparse, 2, 9.0, 9.0, 0.75, 0.75);
+
+        // A malformed or nonnumeric KHR transform must never mutate the last
+        // successfully committed face, including on a channel-only update.
+        string pristine = uvEntries[0].data;
+        foreach (string malformed in new[] {
+            "{\"materials\":[{\"emissiveTexture\":{\"extensions\":{\"KHR_texture_transform\":{\"scale\":[1.0]}}}}]}",
+            "{\"materials\":[{\"pbrMetallicRoughness\":{\"metallicRoughnessTexture\":{\"extensions\":{\"KHR_texture_transform\":{\"offset\":[\"invalid\",0]}}}}}]}",
+            "{\"materials\":[{\"emissiveTexture\":{\"extensions\":{\"KHR_texture_transform\":{\"rotation\":\"invalid\"}}}}]}"
+        })
+        {
+            uvArgs = new object[] { uvEntries, malformed, 3 };
+            Assert(!(bool)add.Invoke(null, uvArgs), "invalid glTF UV transform accepted");
+            uvEntries = (RenderMaterialOverrideEntry[])uvArgs[0];
+            Assert(uvEntries[0].data == pristine, "invalid UV mutated existing PBR face");
+        }
+
+        Console.WriteLine("OpenGenesisLINK PBR ORM/emissive UV channel roundtrip and invalid-input regression: OK");
 
         Console.WriteLine("OpenGenesisLINK PBR face bounds and glTF texture validation regression: OK");
     }
