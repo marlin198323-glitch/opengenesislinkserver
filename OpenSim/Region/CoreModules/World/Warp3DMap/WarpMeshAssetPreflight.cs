@@ -83,7 +83,9 @@ namespace OpenSim.Region.CoreModules.World.Warp3DMap
         private static bool TryValidateBlock(OSDMap header, byte[] data,
             int payloadStart, int lodLevel)
         {
-            if (header[s_lodNames[lodLevel]] is not OSDMap block ||
+            if (!header.ContainsKey(s_lodNames[lodLevel]) ||
+                header[s_lodNames[lodLevel]] is not OSDMap block ||
+                !block.ContainsKey("offset") || !block.ContainsKey("size") ||
                 block["offset"] is not OSDInteger offsetValue ||
                 block["size"] is not OSDInteger sizeValue)
                 return false;
@@ -119,9 +121,10 @@ namespace OpenSim.Region.CoreModules.World.Warp3DMap
                 {
                     if (face is not OSDMap m)
                         return false;
-                    if (m["NoGeometry"].AsBoolean())
+                    if (m.ContainsKey("NoGeometry") && m["NoGeometry"].AsBoolean())
                         continue;
-                    if (m["Position"] is not OSDBinary positions ||
+                    if (!m.ContainsKey("Position") || !m.ContainsKey("TriangleList") ||
+                        m["Position"] is not OSDBinary positions ||
                         m["TriangleList"] is not OSDBinary triangles)
                         return false;
                     byte[] pos = positions.AsBinary();
