@@ -424,6 +424,10 @@ jobs:
         shell: bash
         run: python3 tools/ci/verify_citizen_social_profile.py
 
+      - name: Verify R579 online viewer friendship offers
+        shell: bash
+        run: python3 tools/ci/verify_portal_friend_viewer_delivery_r579.py
+
       - name: Verify bidirectional opt-in portal IM inbox
         shell: bash
         run: python3 tools/ci/verify_portal_im_inbox.py

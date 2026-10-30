@@ -24,8 +24,13 @@ namespace NexVerse.Server.Api
         private readonly IMuteListService m_Mutes;
         private readonly INexAuditSink m_Audit;
         private readonly IPresenceService m_Presence;
+        private readonly Func<IInstantMessage> m_InstantMessageResolver;
 
-        public NexSocialGraphApi(IUserAccountService accounts, IFriendsService friends, NexApiAuthenticator auth, IMuteListService mutes, INexAuditSink audit, IPresenceService presence)
+        // ROBUST runs outside the simulators. Persisting a pending FriendInfo
+        // alone does not notify an already-connected viewer. The optional
+        // simulator IM bridge is resolved only after an authorized write.
+        public NexSocialGraphApi(IUserAccountService accounts, IFriendsService friends, NexApiAuthenticator auth, IMuteListService mutes, INexAuditSink audit, IPresenceService presence,
+            Func<IInstantMessage> instantMessageResolver = null)
         {
             m_Accounts = accounts ?? throw new ArgumentNullException(nameof(accounts));
             m_Friends = friends ?? throw new ArgumentNullException(nameof(friends));
@@ -33,6 +38,7 @@ namespace NexVerse.Server.Api
             m_Mutes = mutes ?? throw new ArgumentNullException(nameof(mutes));
             m_Audit = audit ?? NullNexAuditSink.Instance;
             m_Presence = presence;
+            m_InstantMessageResolver = instantMessageResolver;
         }
 
         public void Handle(IOSHttpRequest request, IOSHttpResponse response)
@@ -103,9 +109,19 @@ namespace NexVerse.Server.Api
                     m_Friends.Delete(owner, target.ToString());
                     m_Friends.Delete(target, owner.ToString());
                 }
+                // A persisted request is not by itself an in-viewer offer.
+                // Online residents receive a standard FriendshipOffered IM via
+                // the existing simulator delivery bridge. Offline residents
+                // receive the pending offer through FriendsModule on login.
+                string viewerNotification = a && b ? NotifyViewerAboutFriendRequest(owner, target) : "not_sent";
                 Audit(principal, "relationship.request", owner, target, a && b);
                 Write(response, a && b ? HttpStatusCode.Accepted : HttpStatusCode.InternalServerError,
-                    new { status = a && b ? "pending" : "failed", principal_id = owner.ToString(), target_id = target.ToString() });
+                    new {
+                        status = a && b ? "pending" : "failed",
+                        principal_id = owner.ToString(),
+                        target_id = target.ToString(),
+                        viewer_notification = viewerNotification
+                    });
                 return;
             }
 
@@ -157,6 +173,49 @@ namespace NexVerse.Server.Api
             Write(response, HttpStatusCode.MethodNotAllowed, new { error = "method_not_allowed" });
         }
 
+
+        private string NotifyViewerAboutFriendRequest(UUID owner, UUID target)
+        {
+            // Never send an online offer without a confirmed local presence.
+            // Offline viewers already receive outstanding offers on login, so
+            // adding an offline IM here would generate duplicate popups.
+            if (m_Presence == null)
+                return "presence_unavailable";
+
+            PresenceInfo[] recipients;
+            try { recipients = m_Presence.GetAgents(new[] { target.ToString() }); }
+            catch { return "presence_unavailable"; }
+            if (recipients == null || !recipients.Any(x => x != null && !x.RegionID.IsZero()))
+                return "offline_pending";
+
+            // The request has already been stored. Failure to send must not
+            // trigger an automatic resend, which might duplicate the offer.
+            IInstantMessage delivery;
+            try { delivery = m_InstantMessageResolver?.Invoke(); }
+            catch { return "delivery_unavailable"; }
+            if (delivery == null)
+                return "delivery_unavailable";
+
+            UserAccount sender = m_Accounts.GetUserAccount(UUID.Zero, owner);
+            if (sender == null)
+                return "sender_unavailable";
+
+            try
+            {
+                GridInstantMessage offer = new GridInstantMessage(null, owner, sender.Name,
+                    target, (byte)InstantMessageDialog.FriendshipOffered,
+                    "Will you be my friend?", false, Vector3.Zero);
+                // Match FriendsModule.ForwardFriendshipOffer and the viewer's
+                // friendship acceptance transaction identity.
+                offer.imSessionID = offer.fromAgentID;
+                return delivery.IncomingInstantMessage(offer) ? "accepted" : "not_delivered";
+            }
+            catch
+            {
+                // No private tokens or player information in errors.
+                return "delivery_unavailable";
+            }
+        }
 
         private void HandleBlocks(IOSHttpRequest request, IOSHttpResponse response, NexPrincipal principal, UUID owner)
         {
