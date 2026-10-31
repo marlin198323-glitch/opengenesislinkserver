@@ -217,6 +217,8 @@ namespace NexVerse.Server.Api
             md.AppendLine("- GET /messages, GET /messages/events?after=0 und GET /messages/with/{peerId}?after=0: nur eigene Konversationen und neue IMs (5s Polling).");
             md.AppendLine("- DELETE /messages/history loescht die eigene Portal-IM-Historie, opt-out ebenfalls.");
             md.AppendLine("- Fuer Antworten aus Firestorm muss [NexPortalIM] in Robust und Simulator mit demselben HMAC-Secret aktiviert sein.");
+            md.AppendLine("- GET /npcs/mine zeigt nur die vom eigenen Simulator bestätigten aktiven NPCs des angemeldeten Einwohners; bei unvollständigen oder fehlenden Regions-Snapshots ist der Dienst bewusst nicht verfügbar.");
+            md.AppendLine("- GET /npcs/{npcId}/messages ist bis zur getrennt autorisierten NPC-Chatarchivierung ausdrücklich nicht verfügbar (HTTP 503). Bürger-IMs dürfen nicht als NPC-Dialoge ausgegeben werden.");
             md.AppendLine("- GET /profiles/{principalId} liest das OpenSim-Profil einschliesslich Bildreferenzen. PATCH /profiles/{principalId} (profile:write + Owner/Admin) darf nur die elf editierbaren Spalten der userprofile-Tabelle setzen; useruuid, profileImage, profileFirstImage sind ausnahmslos schreibgeschuetzt (HTTP 403). Ein Webupload ist kein Bestandteil.");
             md.AppendLine("- GET /profiles/{principalId}/image liefert autorisiert tatsaechliche PNG/JPEG-Bilddaten der *aktuell* hinterlegten Profiltextur. Oeffentlich nur bei PublishProfile, sonst ProfileRead + eigener Avatar/Admin; kein Asset-Browser oder beliebige Texture-UUID.");
             md.AppendLine("- profile_image_url ist ein relativer Pfad und kann null sein. Keine Schluessel/Tokens in Querystrings ablegen; Browser-Fetch fuer private Profile braucht den authentifizierten Kontext.");
@@ -554,6 +556,9 @@ namespace NexVerse.Server.Api
                 "/api/v1/messages/events",
                 "/api/v1/messages/with/{peerId}",
                 "/api/v1/messages/history");
+            AppendCatalogGroup(md, requestedAudience, "citizen", "Eigene, verifizierte aktive World-NPCs und Verfügbarkeit von NPC-Chats",
+                "/api/v1/npcs/mine",
+                "/api/v1/npcs/{npcId}/messages");
             AppendCatalogGroup(md, requestedAudience, "citizen", "OAuth2/OIDC-Flows",
                 "/oauth/authorize",
                 "/oauth/token",
