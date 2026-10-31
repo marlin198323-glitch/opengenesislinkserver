@@ -571,6 +571,12 @@ jobs:
           python3 -m py_compile tools/ops/ogl-config-example-sync.py tools/ops/ogl-empty-assets-audit.py
           bash -n tools/ops/ogl-node-stage-update.sh
 
+      - name: Regression-test NPC owner directory across reporting simulators (R617)
+        shell: bash
+        run: |
+          dotnet run --configuration Release --project tools/ci/NexNpcDirectoryRegression/NexNpcDirectoryRegression.csproj
+          python3 tools/ci/verify_npc_owner_bridge_r617.py
+
       - name: Regression-test OGL FastMap deferred startup queue
         shell: bash
         run: dotnet run --configuration Release --project tools/ci/OglFastMapStartupRegression/OglFastMapStartupRegression.csproj

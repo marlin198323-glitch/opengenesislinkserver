@@ -604,6 +604,39 @@ namespace NexVerse.Server.Api
                     apiKeyStore,
                     adminMinimumLevel);
 
+                // R617: separate private NPC-ownership API. Never return a
+                // fabricated empty directory when no simulator snapshot
+                // bridge is configured or any known region is stale.
+                NexNpcSnapshotIndex npcIndex = null;
+                IConfig npcConfig = config.Configs["NexNPCPortal"];
+                if (npcConfig?.GetBoolean("Enabled", false) == true)
+                {
+                    string npcSecret = Environment.GetEnvironmentVariable("NEX_NPC_INGEST_SECRET");
+                    int expectedRegions = npcConfig.GetInt("ExpectedRegionCount", 0);
+                    if (System.Text.Encoding.UTF8.GetByteCount(npcSecret ?? "") >= 32 &&
+                        expectedRegions > 0 && expectedRegions <= 1024)
+                    {
+                        npcIndex = new NexNpcSnapshotIndex(expectedRegions);
+                        NexNpcSnapshotIngress npcIngress =
+                            new NexNpcSnapshotIngress(npcSecret, npcIndex);
+                        server.AddSimpleStreamHandler(new SimpleStreamHandler(
+                            "/internal/nexnpc/snapshot/v1",
+                            npcIngress.Handle,
+                            "Private signed NPC simulator snapshot ingestion"), true);
+                    }
+                    else
+                    {
+                        m_Log.Warn("[NEX-NPC]: No valid NEX_NPC_INGEST_SECRET; " +
+                            "NPC owner directory requires a valid private secret " +
+                            "and explicit ExpectedRegionCount (1–1024).");
+                    }
+                }
+                NexNpcWorldApi npcWorldApi =
+                    new NexNpcWorldApi(authenticator, npcIndex);
+                server.AddSimpleStreamHandler(new SimpleStreamHandler(
+                    "/api/v1/npcs", apiGate.Wrap(npcWorldApi.Handle),
+                    "Owner-scoped NPC directory and private conversation availability"), true);
+
                 // Attach the existing, server-side native admin authenticator
                 // once privileged services are available. No duplicate routing.
                 oglDocs.ConfigureAdministratorAccess(
