@@ -51,6 +51,7 @@ namespace OpenSim.Region.OptionalModules.World.NPC
         private readonly Dictionary<UUID, NPCAvatar> m_avatars = new Dictionary<UUID, NPCAvatar>();
         // Optional signed NPC directory bridge; never captures conversations.
         private NexNpcSnapshotPublisher m_SnapshotPublisher;
+        private NexNpcDirectImPublisher m_ChatPublisher;
         private NPCOptionsFlags m_NPCOptionFlags;
 
         private int m_MaxNumberNPCperScene = 40;
@@ -94,6 +95,21 @@ namespace OpenSim.Region.OptionalModules.World.NPC
                         m_log.Warn("[NPC]: Optional owner directory snapshot bridge disabled. " +
                             "Check HTTPS ingest URL and private 32+ byte secret.");
                     }
+                    if(config.GetBoolean("NexNPCChatCaptureEnabled",false) &&
+                       m_SnapshotPublisher!=null)
+                    {
+                        try
+                        {
+                            string chatURL=(url??"").Replace(
+                                "/internal/nexnpc/snapshot/v1",
+                                "/internal/nexnpc/chat/v1");
+                            m_ChatPublisher=new NexNpcDirectImPublisher(chatURL,secret);
+                        }
+                        catch(Exception)
+                        {
+                            m_log.Warn("[NPC]: Optional direct owner-NPC IM publisher disabled.");
+                        }
+                    }
                 }
             }
         }
@@ -125,6 +141,7 @@ namespace OpenSim.Region.OptionalModules.World.NPC
         public void Close()
         {
             m_SnapshotPublisher?.Dispose();
+            m_ChatPublisher?.Dispose();
         }
 
         private List<NexNpcPublishEntry> SnapshotForScene(Scene scene)
@@ -275,6 +292,16 @@ namespace OpenSim.Region.OptionalModules.World.NPC
                     sp.CompleteMovement(npcAvatar, false);
                     sp.Grouptitle = groupTitle;
                     m_avatars.Add(agentID, npcAvatar);
+                    if(m_ChatPublisher!=null && !npcAvatar.OwnerID.IsZero())
+                    {
+                        // The NPC recipient event contains other residents'
+                        // messages too. The publisher checks the *exact*
+                        // owner and direct IM dialog before accepting data.
+                        npcAvatar.OnInstantMessageToNPC += im =>
+                            m_ChatPublisher?.Received(npcAvatar,im);
+                        npcAvatar.OnInstantMessage += (client,im) =>
+                            m_ChatPublisher?.Sent(npcAvatar,client,im);
+                    }
                     //m_log.DebugFormat("[NPC MODULE]: Created NPC {0} {1}", npcAvatar.AgentId, sp.Name);
                 }
             }

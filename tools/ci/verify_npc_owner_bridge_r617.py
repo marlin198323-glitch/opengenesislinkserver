@@ -27,7 +27,7 @@ check('ExpectedRegionCount' in CONNECTOR and
       'expectedRegions > 0' in CONNECTOR,
       "World directory requires explicit expected region count")
 check('npcIndex = null' in CONNECTOR and
-      'new NexNpcWorldApi(authenticator, npcIndex)' in CONNECTOR,
+      'new NexNpcWorldApi(authenticator, npcIndex,npcChatArchive)' in CONNECTOR,
       "Disabled feed never returns a fabricated empty owned NPC list")
 check('"/internal/nexnpc/snapshot/v1"' in INGRESS and
       'new HMACSHA256(m_Secret)' in INGRESS and
