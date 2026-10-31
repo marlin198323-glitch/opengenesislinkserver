@@ -49,6 +49,8 @@ namespace OpenSim.Region.OptionalModules.World.NPC
         private static readonly ILog m_log = LogManager.GetLogger(MethodBase.GetCurrentMethod().DeclaringType);
 
         private readonly Dictionary<UUID, NPCAvatar> m_avatars = new Dictionary<UUID, NPCAvatar>();
+        // Optional signed NPC directory bridge; never captures conversations.
+        private NexNpcSnapshotPublisher m_SnapshotPublisher;
         private NPCOptionsFlags m_NPCOptionFlags;
 
         private int m_MaxNumberNPCperScene = 40;
@@ -78,17 +80,36 @@ namespace OpenSim.Region.OptionalModules.World.NPC
                     m_NPCOptionFlags |= NPCOptionsFlags.NoNPCGroup;
 
                 m_MaxNumberNPCperScene = config.GetInt("MaxNumberNPCsPerScene", m_MaxNumberNPCperScene);
+                if(config.GetBoolean("NexNPCSnapshotEnabled", false))
+                {
+                    string url = Environment.GetEnvironmentVariable("NEX_NPC_INGEST_URL");
+                    string secret = Environment.GetEnvironmentVariable("NEX_NPC_INGEST_SECRET");
+                    try
+                    {
+                        m_SnapshotPublisher = new NexNpcSnapshotPublisher(
+                            new Uri(url ?? "", UriKind.Absolute), secret, SnapshotForScene);
+                    }
+                    catch (Exception)
+                    {
+                        m_log.Warn("[NPC]: Optional owner directory snapshot bridge disabled. " +
+                            "Check HTTPS ingest URL and private 32+ byte secret.");
+                    }
+                }
             }
         }
 
         public void AddRegion(Scene scene)
         {
             if (Enabled)
+            {
                 scene.RegisterModuleInterface<INPCModule>(this);
+                m_SnapshotPublisher?.Add(scene);
+            }
         }
 
         public void RegionLoaded(Scene scene)
         {
+            m_SnapshotPublisher?.Schedule();
         }
 
         public void PostInitialise()
@@ -97,11 +118,35 @@ namespace OpenSim.Region.OptionalModules.World.NPC
 
         public void RemoveRegion(Scene scene)
         {
+            m_SnapshotPublisher?.Remove(scene);
             scene.UnregisterModuleInterface<INPCModule>(this);
         }
 
         public void Close()
         {
+            m_SnapshotPublisher?.Dispose();
+        }
+
+        private List<NexNpcPublishEntry> SnapshotForScene(Scene scene)
+        {
+            var entries = new List<NexNpcPublishEntry>();
+            lock (m_avatars)
+            {
+                foreach (NPCAvatar npc in m_avatars.Values)
+                {
+                    // Ownerless NPCs never appear under a resident account.
+                    if (!ReferenceEquals(npc.Scene, scene) || npc.OwnerID.IsZero())
+                        continue;
+                    entries.Add(new NexNpcPublishEntry
+                    {
+                        npc_id=npc.AgentId.ToString(),
+                        owner_principal_id=npc.OwnerID.ToString(),
+                        name=npc.Name,
+                        region_name=scene.RegionInfo.RegionName
+                    });
+                }
+            }
+            return entries;
         }
 
         public string Name
@@ -236,6 +281,7 @@ namespace OpenSim.Region.OptionalModules.World.NPC
 
 //            m_log.DebugFormat("[NPC MODULE]: Created NPC with id {0}", npcAvatar.AgentId);
 
+            m_SnapshotPublisher?.Schedule();
             return agentID;
         }
 
@@ -435,6 +481,7 @@ namespace OpenSim.Region.OptionalModules.World.NPC
                 }
                 m_log.DebugFormat("[NPC MODULE]: Removed NPC {0} {1}",
                         agentID, av.Name);
+                m_SnapshotPublisher?.Schedule();
                 return true;
             }
             /*
