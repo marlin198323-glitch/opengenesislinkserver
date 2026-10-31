@@ -631,8 +631,30 @@ namespace NexVerse.Server.Api
                             "and explicit ExpectedRegionCount (1–1024).");
                     }
                 }
+                NexNpcChatArchive npcChatArchive = null;
+                if (npcIndex != null &&
+                    npcConfig?.GetBoolean("ChatArchiveEnabled", false) == true)
+                {
+                    try
+                    {
+                        npcChatArchive = new NexNpcChatArchive(
+                            npcConfig.GetString("ChatStorePath","data/nexverse-npc-chat.sqlite"),
+                            npcConfig.GetInt("ChatRetentionDays",30));
+                        string npcSecret = Environment.GetEnvironmentVariable("NEX_NPC_INGEST_SECRET");
+                        var npcChatIngress=new NexNpcChatIngress(npcSecret,npcChatArchive,npcIndex);
+                        server.AddSimpleStreamHandler(new SimpleStreamHandler(
+                            "/internal/nexnpc/chat/v1",npcChatIngress.Handle,
+                            "Private signed owner-NPC direct IM capture"),true);
+                    }
+                    catch(Exception e)
+                    {
+                        npcChatArchive=null;
+                        m_Log.Error("[NEX-NPC]: Optional NPC chat archive disabled; " +
+                            "review dedicated storage configuration.",e);
+                    }
+                }
                 NexNpcWorldApi npcWorldApi =
-                    new NexNpcWorldApi(authenticator, npcIndex);
+                    new NexNpcWorldApi(authenticator, npcIndex,npcChatArchive);
                 server.AddSimpleStreamHandler(new SimpleStreamHandler(
                     "/api/v1/npcs", apiGate.Wrap(npcWorldApi.Handle),
                     "Owner-scoped NPC directory and private conversation availability"), true);
