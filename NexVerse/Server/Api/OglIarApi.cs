@@ -24,10 +24,11 @@ namespace NexVerse.Server.Api
         private readonly IUserAccountService m_Accounts;
         private readonly INexEventBus m_Bus;
         private readonly OglJobEventBridge m_Jobs;
+        private readonly IGridUserService m_GridUsers;
 
-        public OglIarApi(NexApiAuthenticator authenticator, NexNodeRegistry nodes, IUserAccountService accounts, INexEventBus bus, OglJobEventBridge jobs, OglFeatureControlApi features = null)
+        public OglIarApi(NexApiAuthenticator authenticator, NexNodeRegistry nodes, IUserAccountService accounts, INexEventBus bus, OglJobEventBridge jobs, OglFeatureControlApi features = null, IGridUserService gridUsers = null)
         {
-            m_Authenticator=authenticator; m_Nodes=nodes; m_Accounts=accounts; m_Bus=bus; m_Jobs=jobs; m_Features=features;
+            m_Authenticator=authenticator; m_Nodes=nodes; m_Accounts=accounts; m_Bus=bus; m_Jobs=jobs; m_Features=features; m_GridUsers=gridUsers;
         }
 
         public void Handle(IOSHttpRequest request, IOSHttpResponse response)
@@ -151,8 +152,12 @@ namespace NexVerse.Server.Api
                 });
                 return;
             }
-            if(path.Equals("/api/v1/iar/me/export",StringComparison.OrdinalIgnoreCase) ||
-               path.Equals("/api/v1/iar/me/import",StringComparison.OrdinalIgnoreCase))
+            if(path.Equals("/api/v1/iar/me/export",StringComparison.OrdinalIgnoreCase))
+            {
+                StartPersonalExport(request,response,account);
+                return;
+            }
+            if(path.Equals("/api/v1/iar/me/import",StringComparison.OrdinalIgnoreCase))
             {
                 if(!request.HttpMethod.Equals("POST",StringComparison.OrdinalIgnoreCase))
                 {
@@ -164,6 +169,105 @@ namespace NexVerse.Server.Api
                 return;
             }
             Error(response,HttpStatusCode.NotFound,"not_found","Unbekannter persönlicher IAR-Endpunkt.");
+        }
+
+        // R633: the World server, never the browser, determines the resident's
+        // last/home simulator. The simulator runs its existing real GZip/TAR
+        // archiver, but file delivery is deliberately a separate security gate.
+        private static bool OnlyConfirmation(JsonElement root)
+        {
+            int count=0;
+            foreach(JsonProperty property in root.EnumerateObject())
+            {
+                if(++count>1 || !string.Equals(property.Name,"confirm",StringComparison.Ordinal))return false;
+            }
+            return count==1;
+        }
+
+        private void StartPersonalExport(IOSHttpRequest request, IOSHttpResponse response, UserAccount owner)
+        {
+            if(!request.HttpMethod.Equals("POST",StringComparison.OrdinalIgnoreCase))
+            {
+                Error(response,HttpStatusCode.MethodNotAllowed,"method_not_allowed","POST ist erforderlich.");
+                return;
+            }
+            if(!string.Equals(request.Headers?["Content-Type"]?.Split(';')[0].Trim(),
+                "application/json",StringComparison.OrdinalIgnoreCase))
+            {
+                Error(response,HttpStatusCode.UnsupportedMediaType,"json_required","JSON ist erforderlich.");
+                return;
+            }
+            bool confirm=false;
+            try
+            {
+                using StreamReader reader = new(request.InputStream,Encoding.UTF8,true,1024,true);
+                // Never buffer an unbounded HTTP request in the ROBUST process.
+                char[] buffer=new char[257];
+                int read=reader.ReadBlock(buffer,0,buffer.Length);
+                if(read>256 || reader.Read()!=-1)throw new JsonException();
+                using JsonDocument document=JsonDocument.Parse(new string(buffer,0,read));
+                JsonElement root=document.RootElement;
+                confirm=root.ValueKind==JsonValueKind.Object &&
+                    root.TryGetProperty("confirm",out JsonElement value) && value.ValueKind==JsonValueKind.True &&
+                    OnlyConfirmation(root);
+            }
+            catch(Exception e) when (e is JsonException || e is IOException)
+            {
+                Error(response,HttpStatusCode.BadRequest,"invalid_confirmation","Bitte den Inventarexport bestätigen.");
+                return;
+            }
+            if(!confirm)
+            {
+                Error(response,HttpStatusCode.BadRequest,"confirmation_required","Bitte den Inventarexport bestätigen.");
+                return;
+            }
+            // A missing GridUser service must not fall back to a random region.
+            GridUserInfo info;
+            try { info=m_GridUsers?.GetGridUserInfo(owner.PrincipalID.ToString()); }
+            catch { info=null; }
+            if(info==null || !string.Equals(info.UserID,owner.PrincipalID.ToString(),StringComparison.OrdinalIgnoreCase))
+            {
+                Error(response,HttpStatusCode.ServiceUnavailable,"personal_iar_griduser_unavailable","Deine World-Region konnte nicht ermittelt werden.");
+                return;
+            }
+            NexNodeSnapshot node=null;
+            string regionId=string.Empty;
+            foreach(UUID candidate in new[]{info.LastRegionID,info.HomeRegionID})
+            {
+                if(candidate==UUID.Zero)continue;
+                NexNodeSnapshot found=m_Nodes.FindNodeForRegion(candidate.ToString());
+                if(found!=null && string.Equals(found.State,"online",StringComparison.OrdinalIgnoreCase) &&
+                   !found.MaintenanceMode && !found.Draining &&
+                   m_Features!=null && m_Features.Permitted(found.NodeId,OglArchiveFeatureGate.IarExport))
+                {
+                    node=found;regionId=candidate.ToString();break;
+                }
+            }
+            if(node==null)
+            {
+                Error(response,HttpStatusCode.ServiceUnavailable,"personal_iar_node_unavailable",
+                    "Für deine Inventarsicherung ist derzeit kein freigegebener Simulator erreichbar.");
+                return;
+            }
+            Guid id=Guid.NewGuid();
+            string fileName="resident-"+id.ToString("N")+".iar";
+            string userId=owner.PrincipalID.ToString();
+            m_Jobs.RegisterOperation("archive.iar.export",id.ToString(),
+                "resident-iar",id.ToString(),new Dictionary<string,string>{
+                    ["personal_iar_owner"]=userId,["user_id"]=userId,
+                    ["region_id"]=regionId,["node_id"]=node.NodeId,
+                    ["action"]="export",["file_name"]=fileName,["inventory_path"]="/"
+                });
+            m_Bus.Publish(new NexEvent("archive.iar.requested","opengenesislink.world-api",
+                new Dictionary<string,string>{
+                    ["operation_id"]=id.ToString(),["target_node_id"]=node.NodeId,
+                    ["region_id"]=regionId,["user_id"]=userId,["action"]="export",
+                    ["file_name"]=fileName,["inventory_path"]="/"
+                },id.ToString()));
+            Json(response,HttpStatusCode.Accepted,new {
+                ok=true,operation_id=id.ToString(),status="queued",
+                message="Die Inventarsicherung wurde beauftragt. Der private Download ist noch nicht verfügbar."
+            });
         }
 
         private bool Authenticate(IOSHttpRequest req,IOSHttpResponse res)
