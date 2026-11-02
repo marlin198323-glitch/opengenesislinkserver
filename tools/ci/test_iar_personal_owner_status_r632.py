@@ -46,8 +46,8 @@ class PersonalIarOwnerStatusR632(unittest.TestCase):
                       'public int ProgressPercent'):
             self.assertIn(field, JOB)
 
-    def test_export_and_import_fail_closed_until_archiver_bound(self):
-        body = API.split('private void HandlePersonal(', 1)[1].split('private bool Authenticate(', 1)[0]
+    def test_import_still_fails_closed_until_restore_backend_is_ready(self):
+        body = API.split('private void HandlePersonal(', 1)[1].split('private static bool OnlyConfirmation(', 1)[0]
         self.assertIn('"personal_iar_backend_unavailable"', body)
         self.assertIn('HttpStatusCode.ServiceUnavailable', body)
         self.assertIn('Es wurde kein Backup erstellt.', body)
