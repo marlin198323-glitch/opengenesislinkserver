@@ -37,8 +37,9 @@ class PersonalIarOwnerStatusR632(unittest.TestCase):
         self.assertIn('archive.iar.export', body)
         self.assertIn('archive.iar.import', body)
         self.assertIn('HttpStatusCode.NotFound,"operation_not_found"', body)
-        self.assertIn('status=job.State.ToString().ToLowerInvariant()', body)
-        self.assertIn('Math.Clamp(job.ProgressPercent,0,100)', body)
+        self.assertIn('status=job.State==OglJobState.Completed ? "awaiting_transfer"', body)
+        self.assertIn('job.State.ToString().ToLowerInvariant()',body)
+        self.assertIn('Math.Clamp(job.ProgressPercent,0,99)', body)
         self.assertNotIn('Json(response,HttpStatusCode.OK,job)', body)
         for dangerous in ('job.Message', 'job.Logs', 'job.Metadata)', 'job.Result', 'job.Actor'):
             self.assertNotIn(dangerous, body)
