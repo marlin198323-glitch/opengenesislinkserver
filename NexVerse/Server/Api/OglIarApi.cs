@@ -134,7 +134,10 @@ namespace NexVerse.Server.Api
                 if(job==null || !(string.Equals(job.Type,"archive.iar.export",StringComparison.OrdinalIgnoreCase) ||
                     string.Equals(job.Type,"archive.iar.import",StringComparison.OrdinalIgnoreCase)) ||
                     job.Metadata==null || !job.Metadata.TryGetValue("user_id",out string ownerId) ||
-                    !string.Equals(ownerId,account.PrincipalID.ToString(),StringComparison.OrdinalIgnoreCase))
+                    !string.Equals(ownerId,account.PrincipalID.ToString(),StringComparison.OrdinalIgnoreCase) ||
+                    // Administrator-initiated IAR jobs are not personal backups.
+                    !job.Metadata.TryGetValue("personal_iar_owner",out string personalOwnerId) ||
+                    !string.Equals(personalOwnerId,account.PrincipalID.ToString(),StringComparison.OrdinalIgnoreCase))
                 {
                     // Unauthenticated/foreign job IDs must never disclose existence,
                     // job metadata, filesystem names, error details or operation logs.
