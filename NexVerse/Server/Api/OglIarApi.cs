@@ -33,6 +33,13 @@ namespace NexVerse.Server.Api
         public void Handle(IOSHttpRequest request, IOSHttpResponse response)
         {
             string path=(request?.UriPath??string.Empty).TrimEnd('/');
+            // Personal inventory access must NEVER inherit the administrator
+            // region-management scope or accept a user_id from the caller.
+            if(path.StartsWith("/api/v1/iar/me/",StringComparison.OrdinalIgnoreCase))
+            {
+                HandlePersonal(request,response,path);
+                return;
+            }
             if(!Authenticate(request,response)) return;
             if(path.Equals("/api/v1/iar/export",StringComparison.OrdinalIgnoreCase)){Start(request,response,"export");return;}
             if(path.Equals("/api/v1/iar/import",StringComparison.OrdinalIgnoreCase)){Start(request,response,"import");return;}
@@ -80,6 +87,80 @@ namespace NexVerse.Server.Api
                 },id.ToString()));
                 Json(response,HttpStatusCode.Accepted,rec);
             }
+        }
+
+        // R632: secure, read-only first slice of the personal IAR contract.
+        // A personal export/import job and file transfer are NOT implemented;
+        // do not redirect resident requests to the privileged admin endpoints.
+        private void HandlePersonal(IOSHttpRequest request, IOSHttpResponse response, string path)
+        {
+            response.AddHeader("Cache-Control","private, no-store");
+            response.AddHeader("X-Content-Type-Options","nosniff");
+            string scope = request.HttpMethod.Equals("GET",StringComparison.OrdinalIgnoreCase)
+                ? NexScopes.InventoryRead : NexScopes.InventoryWrite;
+            if (path.Equals("/api/v1/iar/me/export",StringComparison.OrdinalIgnoreCase))
+                scope = NexScopes.InventoryRead;
+            if (!m_Authenticator.TryAuthenticate(request,scope,out NexPrincipal principal,
+                    out UserAccount account,out int status,out string error))
+            {
+                response.AddHeader("WWW-Authenticate","Bearer");
+                Error(response,(HttpStatusCode)status,error,"IAR erfordert eine persönliche World-Anmeldung mit Inventarberechtigung.");
+                return;
+            }
+            // API keys and service Bearers can authenticate with inventory scopes
+            // but have no resident owner. Never let them act as a resident.
+            if (account == null || account.PrincipalID == UUID.Zero ||
+                !string.Equals(principal.Subject,account.PrincipalID.ToString(),StringComparison.OrdinalIgnoreCase))
+            {
+                Error(response,HttpStatusCode.Forbidden,"personal_iar_resident_required","Eine persönliche World-Anmeldung ist erforderlich.");
+                return;
+            }
+            const string prefix = "/api/v1/iar/me/operations/";
+            if (path.StartsWith(prefix,StringComparison.OrdinalIgnoreCase))
+            {
+                string suffix=path.Substring(prefix.Length);
+                if (!Guid.TryParse(suffix,out Guid operationId) || suffix.Length!=36 ||
+                    !string.Equals(operationId.ToString(),suffix,StringComparison.OrdinalIgnoreCase))
+                {
+                    Error(response,HttpStatusCode.NotFound,"operation_not_found","IAR-Auftrag nicht gefunden.");
+                    return;
+                }
+                if(!request.HttpMethod.Equals("GET",StringComparison.OrdinalIgnoreCase))
+                {
+                    Error(response,HttpStatusCode.NotImplemented,"personal_iar_mutation_unavailable","Persönliche IAR-Verwaltung ist noch nicht verfügbar.");
+                    return;
+                }
+                OglJobSnapshot job=m_Jobs.Get(operationId.ToString());
+                if(job==null || !(string.Equals(job.Type,"archive.iar.export",StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(job.Type,"archive.iar.import",StringComparison.OrdinalIgnoreCase)) ||
+                    job.Metadata==null || !job.Metadata.TryGetValue("user_id",out string ownerId) ||
+                    !string.Equals(ownerId,account.PrincipalID.ToString(),StringComparison.OrdinalIgnoreCase))
+                {
+                    // Unauthenticated/foreign job IDs must never disclose existence,
+                    // job metadata, filesystem names, error details or operation logs.
+                    Error(response,HttpStatusCode.NotFound,"operation_not_found","IAR-Auftrag nicht gefunden.");
+                    return;
+                }
+                Json(response,HttpStatusCode.OK,new {
+                    ok=true, operation_id=operationId.ToString(),
+                    status=job.State.ToString().ToLowerInvariant(),
+                    progress=Math.Clamp(job.ProgressPercent,0,100)
+                });
+                return;
+            }
+            if(path.Equals("/api/v1/iar/me/export",StringComparison.OrdinalIgnoreCase) ||
+               path.Equals("/api/v1/iar/me/import",StringComparison.OrdinalIgnoreCase))
+            {
+                if(!request.HttpMethod.Equals("POST",StringComparison.OrdinalIgnoreCase))
+                {
+                    Error(response,HttpStatusCode.MethodNotAllowed,"method_not_allowed","POST ist erforderlich.");
+                    return;
+                }
+                Error(response,HttpStatusCode.ServiceUnavailable,"personal_iar_backend_unavailable",
+                    "Persönliche IAR-Archivierung ist serverseitig noch nicht angeschlossen. Es wurde kein Backup erstellt.");
+                return;
+            }
+            Error(response,HttpStatusCode.NotFound,"not_found","Unbekannter persönlicher IAR-Endpunkt.");
         }
 
         private bool Authenticate(IOSHttpRequest req,IOSHttpResponse res)
