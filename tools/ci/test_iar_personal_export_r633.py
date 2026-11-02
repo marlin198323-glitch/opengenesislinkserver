@@ -49,7 +49,7 @@ class OwnerExportR633(unittest.TestCase):
                        '["target_node_id"]=node.NodeId', 'HttpStatusCode.Accepted',
                        'Der private Download ist noch nicht verfügbar'):
             self.assertIn(needle,self.export)
-        for needle in ('archive.iar.requested', 'operations.StartExport(operationId, user, inventoryPath, fileName)'):
+        for needle in ('archive.iar.requested', 'operations.StartExport(operationId, user, inventoryPath, fileName,'):
             self.assertIn(needle,NODE)
         self.assertIn('new(File.Create(path), CompressionLevel.Optimal)',ARCHIVER)
         self.assertNotIn('File.Create(',self.export)
