@@ -205,6 +205,10 @@ jobs:
         shell: bash
         run: python3 tools/ci/verify_iar_world_api.py
 
+      - name: Verify R632 owner-bound personal IAR status is fail-closed
+        shell: bash
+        run: python3 -m unittest discover -s tools/ci -p 'test_iar_personal_owner_status_r632.py' -v
+
       - name: Verify OpenGenesisLINK encrypted IAR backup
         shell: bash
         run: python3 tools/ci/verify_iar_encrypted_backup.py
