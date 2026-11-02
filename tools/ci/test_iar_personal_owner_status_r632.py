@@ -24,7 +24,9 @@ class PersonalIarOwnerStatusR632(unittest.TestCase):
                       'account == null', 'account.PrincipalID == UUID.Zero',
                       'principal.Subject,account.PrincipalID.ToString()',
                       'job.Metadata.TryGetValue("user_id",out string ownerId)',
-                      'ownerId,account.PrincipalID.ToString()'):
+                      'ownerId,account.PrincipalID.ToString()',
+                      'job.Metadata.TryGetValue("personal_iar_owner",out string personalOwnerId)',
+                      'personalOwnerId,account.PrincipalID.ToString()'):
             self.assertIn(token, body)
         self.assertIn('if (!string.IsNullOrWhiteSpace(apiKey))', AUTH)
         self.assertIn('account = null;', AUTH)
