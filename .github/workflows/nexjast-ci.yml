@@ -213,6 +213,10 @@ jobs:
         shell: bash
         run: python3 -m unittest discover -s tools/ci -p 'test_iar_personal_export_r633.py' -v
 
+      - name: Verify R634 personal IAR archive digest and safe file readiness
+        shell: bash
+        run: python3 -m unittest discover -s tools/ci -p 'test_iar_personal_integrity_r634.py' -v
+
       - name: Verify OpenGenesisLINK encrypted IAR backup
         shell: bash
         run: python3 tools/ci/verify_iar_encrypted_backup.py
