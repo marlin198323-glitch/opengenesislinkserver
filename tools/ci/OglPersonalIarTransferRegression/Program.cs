@@ -58,6 +58,14 @@ try
     Pass(!File.Exists(Path.Combine(root,id.ToString("N")+".json")) &&
          !File.Exists(Path.Combine(root,id.ToString("N")+".iar")),"OWNER_ERASURE");
     Denied<FileNotFoundException>(()=>store.OpenChecksumVerified(id,owner).Dispose(),"DELETED_TRANSFER_NOT_READABLE");
+    Guid interrupted=Guid.NewGuid();
+    store.Begin(interrupted,owner,8);
+    store.Append(interrupted,owner,0,data.AsMemory(0,4));
+    using(FileStream damaged=new(Path.Combine(root,interrupted.ToString("N")+".part"),FileMode.Append))
+        damaged.WriteByte(0x7f);
+    Denied<InvalidDataException>(()=>store.Append(interrupted,owner,4,data.AsMemory(4,4)),
+        "INCONSISTENT_RESTART_STATE_FAILS_CLOSED");
+    store.Remove(interrupted,owner);
     Guid symlinkId=Guid.NewGuid();
     store.Begin(symlinkId,owner,8);
     string symlink=Path.Combine(root,symlinkId.ToString("N")+".part");
