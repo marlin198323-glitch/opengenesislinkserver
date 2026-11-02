@@ -1688,6 +1688,19 @@ namespace NexVerse.RegionModules.NodeAgent
                 || !TryCommandData(nexEvent, "inventory_path", out string inventoryPath))
                 return;
 
+            // Personal export commands are bound to one owner, full inventory,
+            // an operation-derived archive name and an authenticated NexBus source.
+            bool personal = nexEvent.Data.TryGetValue("personal_iar_owner",out string personalOwner);
+            if (personal && (!string.Equals(personalOwner,userRaw,StringComparison.OrdinalIgnoreCase) ||
+                !string.Equals(action,"export",StringComparison.OrdinalIgnoreCase) ||
+                !string.Equals(inventoryPath,"/",StringComparison.Ordinal) ||
+                !Guid.TryParse(operationRaw,out Guid personalId) ||
+                !string.Equals(fileName,"resident-"+personalId.ToString("N")+".iar",StringComparison.OrdinalIgnoreCase)))
+            {
+                PublishIarState(nexEvent,operationId,regionId,action,"failed","invalid_personal_iar_command",0,0);
+                return;
+            }
+
             if (!m_Scenes.TryGetValue(regionId, out Scene scene))
             {
                 PublishIarState(nexEvent, operationId, regionId, action, "failed", "region_not_loaded", 0, 0);
@@ -1707,7 +1720,10 @@ namespace NexVerse.RegionModules.NodeAgent
             {
                 if (operation.RequestId != operationId) return;
                 string state = operation.State.ToString().ToLowerInvariant();
-                PublishIarState(nexEvent, operationId, regionId, action, state, operation.Error, operation.ItemCount, operation.FilteredCount, operation.ProgressPercent, operation.ProgressPhase);
+                PublishIarState(nexEvent, operationId, regionId, action, state, operation.Error,
+                    operation.ItemCount, operation.FilteredCount, operation.ProgressPercent, operation.ProgressPhase,
+                    personal && operation.State==OglIarOperationState.Completed ? operation.ArchiveBytes : 0,
+                    personal && operation.State==OglIarOperationState.Completed ? operation.ArchiveSha256 : string.Empty);
                 if (operation.State == OglIarOperationState.Completed || operation.State == OglIarOperationState.Failed)
                     operations.OperationChanged -= Changed;
             }
@@ -1718,12 +1734,17 @@ namespace NexVerse.RegionModules.NodeAgent
                 bool dryRun = nexEvent.Data.TryGetValue("dry_run", out string dryRaw) && bool.TryParse(dryRaw, out bool dry) && dry;
                 bool merge = nexEvent.Data.TryGetValue("merge", out string mergeRaw) && bool.TryParse(mergeRaw, out bool mergeParsed) && mergeParsed;
                 OglIarOperation operation = string.Equals(action, "export", StringComparison.OrdinalIgnoreCase)
-                    ? operations.StartExport(operationId, user, inventoryPath, fileName)
+                    ? operations.StartExport(operationId, user, inventoryPath, fileName,
+                        personal ? new Dictionary<string,object>{{"personal_iar",true}} : null)
                     : string.Equals(action, "import", StringComparison.OrdinalIgnoreCase)
                         ? operations.StartImport(operationId, user, inventoryPath, fileName, merge, dryRun)
                         : throw new InvalidOperationException("unsupported_iar_action");
 
-                PublishIarState(nexEvent, operationId, regionId, action, operation.State.ToString().ToLowerInvariant(), operation.Error, operation.ItemCount, operation.FilteredCount, operation.ProgressPercent, operation.ProgressPhase);
+                PublishIarState(nexEvent, operationId, regionId, action,
+                    operation.State.ToString().ToLowerInvariant(), operation.Error,
+                    operation.ItemCount, operation.FilteredCount, operation.ProgressPercent, operation.ProgressPhase,
+                    personal && operation.State==OglIarOperationState.Completed ? operation.ArchiveBytes : 0,
+                    personal && operation.State==OglIarOperationState.Completed ? operation.ArchiveSha256 : string.Empty);
                 if (operation.State == OglIarOperationState.Completed || operation.State == OglIarOperationState.Failed)
                     operations.OperationChanged -= Changed;
             }
@@ -1734,25 +1755,35 @@ namespace NexVerse.RegionModules.NodeAgent
             }
         }
 
-        private void PublishIarState(NexEvent source, UUID operationId, UUID regionId, string action, string state, string message, int itemCount, int filteredCount, int progress = 0, string phase = "")
+        private void PublishIarState(NexEvent source, UUID operationId, UUID regionId, string action,
+            string state, string message, int itemCount, int filteredCount, int progress=0,
+            string phase="", long archiveBytes=0, string archiveSha256="")
         {
-            Publish(new NexEvent(
-                "archive.iar.operation." + state,
-                "opengenesislink.simulator",
-                new Dictionary<string, string>
-                {
-                    ["operation_id"] = operationId.ToString(),
-                    ["node_id"] = m_NodeId,
-                    ["region_id"] = regionId.ToString(),
-                    ["action"] = action ?? string.Empty,
-                    ["state"] = state ?? "unknown",
-                    ["message"] = message ?? string.Empty,
-                    ["item_count"] = itemCount.ToString(),
-                    ["filtered_count"] = filteredCount.ToString(),
-                    ["progress"] = progress.ToString(),
-                    ["phase"] = phase ?? string.Empty
-                },
-                source.CorrelationId));
+            Dictionary<string,string> data=new()
+            {
+                ["operation_id"]=operationId.ToString(),
+                ["node_id"]=m_NodeId,
+                ["region_id"]=regionId.ToString(),
+                ["action"]=action ?? string.Empty,
+                ["state"]=state ?? "unknown",
+                ["message"]=message ?? string.Empty,
+                ["item_count"]=itemCount.ToString(),
+                ["filtered_count"]=filteredCount.ToString(),
+                ["progress"]=progress.ToString(),
+                ["phase"]=phase ?? string.Empty
+            };
+            // The event contains ONLY a small integrity manifest, never
+            // binary archive content, file paths or authentication secrets.
+            if(string.Equals(state,"completed",StringComparison.OrdinalIgnoreCase) &&
+                archiveBytes>0 && archiveBytes<=512L*1024*1024 &&
+                archiveSha256!=null && archiveSha256.Length==64 &&
+                archiveSha256.All(c=>char.IsAsciiHexDigit(c)))
+            {
+                data["archive_bytes"]=archiveBytes.ToString(System.Globalization.CultureInfo.InvariantCulture);
+                data["archive_sha256"]=archiveSha256;
+            }
+            Publish(new NexEvent("archive.iar.operation."+state,
+                "opengenesislink.simulator",data,source.CorrelationId));
         }
 
         private void HandleOarCommand(NexEvent nexEvent)
