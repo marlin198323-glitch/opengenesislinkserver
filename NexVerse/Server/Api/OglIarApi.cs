@@ -147,8 +147,12 @@ namespace NexVerse.Server.Api
                 }
                 Json(response,HttpStatusCode.OK,new {
                     ok=true, operation_id=operationId.ToString(),
-                    status=job.State.ToString().ToLowerInvariant(),
-                    progress=Math.Clamp(job.ProgressPercent,0,100)
+                    // Simulator completion does not yet mean the private file
+                    // has reached the authenticated World download store.
+                    status=job.State==OglJobState.Completed ? "awaiting_transfer" :
+                        job.State.ToString().ToLowerInvariant(),
+                    progress=job.State==OglJobState.Completed ? 99 :
+                        Math.Clamp(job.ProgressPercent,0,99)
                 });
                 return;
             }
@@ -262,7 +266,8 @@ namespace NexVerse.Server.Api
                 new Dictionary<string,string>{
                     ["operation_id"]=id.ToString(),["target_node_id"]=node.NodeId,
                     ["region_id"]=regionId,["user_id"]=userId,["action"]="export",
-                    ["file_name"]=fileName,["inventory_path"]="/"
+                    ["file_name"]=fileName,["inventory_path"]="/",
+                    ["personal_iar_owner"]=userId
                 },id.ToString()));
             Json(response,HttpStatusCode.Accepted,new {
                 ok=true,operation_id=id.ToString(),status="queued",
