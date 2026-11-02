@@ -5,6 +5,7 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
 using System.IO.Compression;
+using System.Security.Cryptography;
 using OpenMetaverse;
 using OpenSim.Region.Framework.Interfaces;
 using OpenSim.Region.Framework.Scenes;
@@ -31,6 +32,11 @@ namespace NexVerse.RegionModules.Archives
         public string Error { get; internal set; } = string.Empty;
         public int ProgressPercent { get; internal set; }
         public string ProgressPhase { get; internal set; } = "queued";
+        // R634: integrity manifest for confirmed personal exports only.
+        // The simulator file must never be exposed through a NexBus event.
+        public bool IsPersonalExport { get; internal set; }
+        public long ArchiveBytes { get; internal set; }
+        public string ArchiveSha256 { get; internal set; } = string.Empty;
         public OglIarInspection Inspection { get; internal set; }
     }
 
@@ -47,6 +53,7 @@ namespace NexVerse.RegionModules.Archives
 
     public sealed class OglIarOperationManager : IOglIarOperations, IDisposable
     {
+        private const long MaxPersonalArchiveBytes = 512L * 1024 * 1024;
         private readonly IInventoryArchiverModule m_Archiver;
         private readonly IInventoryArchiverProgress m_ProgressSource;
         private readonly OglIarStoragePolicy m_Storage;
@@ -74,6 +81,7 @@ namespace NexVerse.RegionModules.Archives
             string path = m_Storage.ResolveArchivePath(archiveFileName);
             Directory.CreateDirectory(m_Storage.RootDirectory);
             OglIarOperation operation = Create(requestId, OglIarOperationKind.Export, user, inventoryPath, path, false);
+            operation.IsPersonalExport = options != null && options.TryGetValue("personal_iar",out object flag) && flag is true;
             operation.State = OglIarOperationState.Running;
             // The underlying archiver Stream export writes TAR to its supplied
             // stream. Compress here so the managed export produces a genuine
@@ -235,6 +243,38 @@ namespace NexVerse.RegionModules.Archives
             if (!succeeded || error != null) { Fail(operation, error?.Message ?? "IAR-Export fehlgeschlagen."); return; }
             operation.Inspection = OglIarInspector.Inspect(operation.ArchivePath);
             if (!operation.Inspection.Valid) { Fail(operation, operation.Inspection.Error); return; }
+            if (operation.IsPersonalExport)
+            {
+                try
+                {
+                    // A valid TAR is not enough: verify the actual closed GZIP
+                    // artifact and retain only its byte count and SHA-256 digest.
+                    FileInfo info = new(operation.ArchivePath);
+                    if ((info.Attributes & FileAttributes.ReparsePoint) != 0 ||
+                        info.Length <= 0 || info.Length > MaxPersonalArchiveBytes)
+                    {
+                        Fail(operation,"personal_iar_archive_size_or_path_invalid");
+                        return;
+                    }
+                    using FileStream archive = new(operation.ArchivePath,FileMode.Open,FileAccess.Read,
+                        FileShare.Read,81920,FileOptions.SequentialScan);
+                    using SHA256 hasher = SHA256.Create();
+                    string digest = Convert.ToHexString(hasher.ComputeHash(archive)).ToLowerInvariant();
+                    if (archive.Length != info.Length || digest.Length != 64)
+                    {
+                        Fail(operation,"personal_iar_archive_integrity_failed");
+                        return;
+                    }
+                    operation.ArchiveBytes=info.Length;
+                    operation.ArchiveSha256=digest;
+                }
+                catch (Exception e) when (e is IOException || e is UnauthorizedAccessException ||
+                    e is System.Security.Cryptography.CryptographicException)
+                {
+                    Fail(operation,"personal_iar_archive_integrity_unavailable");
+                    return;
+                }
+            }
             Complete(operation);
         }
 
