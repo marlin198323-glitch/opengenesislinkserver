@@ -24,3 +24,11 @@ Das Stadtportal erwartet `/api/v1/iar/me/export`, `/api/v1/iar/me/import`, pers�
 ## Prüfung
 
 `tools/ci/test_iar_personal_owner_status_r632.py` führt vier **statische** Source-Guards durch. Diese ersetzen keine kompilierten C#-Tests. Die GitHub-CI enthält den vollständigen C#-Build. **Keine World-Produktionsfreigabe vor authentifizierter End-to-End-Abnahme der Archivierung.**
+
+## R633 – Persönliche Exportaufträge (Entwicklung, noch kein Download)
+
+- Der World-Bearer muss einem lokalen World-Bürger mit `inventory:read` gehören; API-Keys, Service-Accounts und fremde Owner-IDs bleiben ausgeschlossen. Für den neuen `POST /api/v1/iar/me/export` muss die JSON-Nutzlast **exakt** `{"confirm":true}` enthalten (maximal 256 Zeichen; andere Felder und benutzerdefinierte Regionen werden abgelehnt).
+- Nur die serverseitig für den authentifizierten Account ermittelten `GridUserInfo.LastRegionID` beziehungsweise `HomeRegionID` werden zur Simulatorauswahl benutzt. Voraussetzung sind ein online gemeldeter, nicht drainender/nicht im Wartungsmodus befindlicher Node und eine tatsächlich freigeschaltete IAR-Exportberechtigung. Bei fehlenden Daten wird **kein Auftrag** angelegt.
+- Erst nach diesen Prüfungen wird ein persistenter Job `archive.iar.export` mit `personal_iar_owner`-Besitzerbindung, ausschließlich serverseitig erzeugtem zufälligen `.iar`-Dateinamen und Inventarpfad `/` registriert. Ein korrelierter `archive.iar.requested`-Event startet den bestehenden Simulator-Archiver. Erfolgsantwort ist HTTP 202 mit **Status `queued`**, nicht `completed`.
+- Die fertiggestellte Archivdatei liegt zunächst in der Simulator-IAR-Verwaltung. **Ein privater Browserdownload, Dateitransport zwischen Simulator und World, Prüfsumme, Lebenszyklus sowie ein verifizierter Import fehlen weiterhin.** Die Antwort weist ausdrücklich darauf hin, dass ein Download noch nicht verfügbar ist. R633 darf nicht als vollständig nutzbare Bürger-IAR-Funktion ausgegeben oder ohne diese Nacharbeiten produktiv freigegeben werden.
+- Die statischen Prüfungen `test_iar_personal_export_r633.py` und `test_iar_personal_owner_status_r632.py` sowie der World-API-Test müssen vor dem C#-Build grün sein. Ein authentifizierter End-to-End-Export auf einem World-Stagingkonto bleibt zusätzlich erforderlich.
